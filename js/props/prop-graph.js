@@ -481,7 +481,7 @@ export function showGraphProperties(block) {
   const showVLabel   = block.dataset.showVLabel !== '0';
   const showXLabel   = block.dataset.showXLabel !== '0';
   const _isPie       = _isPieType(chartType);
-  const _rdHide      = chartType === 'radial' ? ' style="display:none"' : '';   // 프로토 Z6-B — 방사형이 안 쓰는 칸(값 색상 · 값 표시 · Data 값)은 숨긴다. 칸은 DOM 에 남는다(배선 · syncItems 가 읽는다)
+  const _rd          = chartType === 'radial';   // 프로토 Z6-B — 방사형이 안 쓰는 칸(값 색상 · 값 표시 · Data 값)은 «안 그린다»(R16 현빈 261123 · 옛날엔 display:none 으로 DOM 에 남겼다) · 배선은 getElementById 가드 · syncItems 는 값 칸이 없으면 모델 값을 보존
   const _donut       = _isDonut(block.dataset);   // 1013t1C1 — 옛 'donut' 또는 'pie' + pieDonut
   const _pieInt      = (raw, lo, hi, dflt) => { const n = parseInt(raw); return Math.min(hi, Math.max(lo, (raw !== undefined && Number.isFinite(n)) ? n : dflt)); };   // 렌더(_renderPie)와 «같은 식» — 키 없음·NaN = 기본
   const pieGap       = _pieInt(block.dataset.pieGap, PIE_GAP_MIN, PIE_GAP_MAX, PIE_GAP);
@@ -526,13 +526,13 @@ export function showGraphProperties(block) {
         ${GRAPH_TYPES.map(t => `<button class="prop-preset-btn prop-type-btn ${(chartType === t.type || (t.type === 'pie' && chartType === 'donut')) ? 'active' : ''}" id="${t.id}">${t.label}</button>`).join('\n        ')}
       </div>${_shape.kind || ''}`),
       sec('content', `
-      <div class="prop-row"${_rdHide}>
+${_rd ? '' : `      <div class="prop-row">
         <span class="prop-label">값 표시</span>
         <label class="prop-toggle">
           <input type="checkbox" id="grb-show-vlabel" ${showVLabel ? 'checked' : ''}>
           <span class="prop-toggle-track"></span>
         </label>
-      </div>
+      </div>`}
       <div class="prop-row">
         <span class="prop-label prop-label--auto">카테고리 표시</span>
         <label class="prop-toggle">
@@ -554,7 +554,7 @@ export function showGraphProperties(block) {
         ${items.map((item, i) => `
           <div class="grb-data-item" data-index="${i}" data-sec-item>
             <input type="text" class="grb-data-label-input" value="${escHtml(item.label)}" placeholder="라벨">
-            <input type="number" class="grb-data-val-input" value="${_segOn && _segsOf(item).length ? _segSum(item.segments) : escHtml(item.value)}" min="0" max="9999"${_segOn && _segsOf(item).length ? ' readonly title="마디 값의 합"' : ''}${_rdHide}>
+            ${_rd ? '' : `<input type="number" class="grb-data-val-input" value="${_segOn && _segsOf(item).length ? _segSum(item.segments) : escHtml(item.value)}" min="0" max="9999"${_segOn && _segsOf(item).length ? ' readonly title="마디 값의 합"' : ''}>`}
             ${chartType === 'bar-pair' ? `<input type="number" class="grb-data-val-input grb-data-val2-input" value="${escHtml(item.value2 ?? 0)}" min="0" max="9999" title="시리즈 B 값">` : ''}
             <button class="grb-data-del-btn" data-index="${i}">✕</button>
             ${_isPie ? `<button class="grb-data-icon-btn ${_sliceSel === i ? 'active' : ''}" data-slice-index="${i}" title="${_sliceSel === i ? '조각 고르기 풀기' : '이 조각 고르기(조각별 설정)'}">${ITEM_SLICE_ICON}</button>` : ''}
@@ -591,10 +591,10 @@ ${_bar.typography || ''}`),
         <span class="prop-label">라벨 색상</span>
         ${colorFieldHTML({ idPrefix: 'grb-label', hex: labelColor, alpha: labelAlpha })}
       </div>
-      <div class="prop-row" title="값 라벨(숫자)만 별도 색상"${_rdHide}>
+${_rd ? '' : `      <div class="prop-row" title="값 라벨(숫자)만 별도 색상">
         <span class="prop-label">값 색상</span>
         ${colorFieldHTML({ idPrefix: 'grb-vlabel', hex: _vlabelShown, alpha: parseAlphaFromColor(_vlabelShown) })}
-      </div>
+      </div>`}
       <!-- ★E103 U27(2026-10-05): 「카테고리 색상」·「카테고리 표시」는 56px 고정 라벨에서 잘렸다(sw60/cw56 실측) — 기존 변형 .prop-label--auto(css/editor-props.css, 「그리드 가이드」 선례)를 쓴다. 전역 56px 은 안 건드린다. -->
       <div class="prop-row prop-row--wide" title="카테고리 라벨(7차 입고 등)만 별도 색상">
         <span class="prop-label prop-label--auto">카테고리 색상</span>
@@ -833,9 +833,10 @@ ${pieTagTypoRowsHTML(block)}
     if (!list) return;
     const prevItems = JSON.parse(block.dataset.items || '[]');
     const newItems = [...list.querySelectorAll('.grb-data-item:not(.grb-seg-item)')].map((row, i) => {
+      const _vIn = row.querySelector('.grb-data-val-input:not(.grb-data-val2-input)');   // 방사형은 값 칸을 안 그린다(R16) → 모델 값 보존
       const it = {
         label: row.querySelector('.grb-data-label-input').value || '',
-        value: parseFloat(row.querySelector('.grb-data-val-input').value) || 0,
+        value: _vIn ? (parseFloat(_vIn.value) || 0) : (Number(prevItems[i] && prevItems[i].value) || 0),
       };
       // bar-pair 2번째 시리즈 — 입력이 없으면(타 차트 타입) 기존 value2 보존해 데이터 유실 방지
       const v2El = row.querySelector('.grb-data-val2-input');
