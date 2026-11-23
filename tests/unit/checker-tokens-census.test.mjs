@@ -203,7 +203,8 @@ test('C4b 톤 속성 이름 — CSS 선택자와 JS 가 거는 dataset 이 «같
   const secName = nameOf(js, 'sec-checker-tone-on');
   assert.ok(secName, `섹션 라디오 name 을 못 읽었다(sec=${secName})`);
   /* 1120b A5(현빈 261120) — 에셋은 라디오 → 토글 체크박스(그룹 없음 ⇒ 섞일 name 이 없다) */
-  assert.match(ajs, /type="checkbox" id="asset-checker-tone-on"/, '에셋 «체커 어둡게» 토글 체크박스가 없다');
+  /* ★기대 바뀜(현빈 261123 «온/오프 = 체크» · 태양 §2c) — 마크업은 checkHTML 이 찍는다(input type=checkbox) */
+  assert.match(ajs, /checkHTML\(\{ id: 'asset-checker-tone-on'/, '에셋 «체커 어둡게» 체크가 없다');
   assert.doesNotMatch(ajs, /name="[^"]*" id="asset-checker-tone-on"/, '에셋 체커 톤이 다시 라디오가 됐다');
   /* 프레임(FRAME-BG-CHECKER-OPTIONS-01) — 같은 글자 대조 · 라디오 name 이 섹션·에셋과 다르다 */
   const fjs = fs.readFileSync(path.join(ROOT, 'js', 'props', 'prop-frame.js'), 'utf8');

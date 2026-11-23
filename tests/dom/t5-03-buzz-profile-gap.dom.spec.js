@@ -39,7 +39,7 @@ async function clickToggle(page) {
   await expect(lab, '토글이 있다').toHaveCount(1);
   await lab.scrollIntoViewIfNeeded();
   const r = await lab.boundingBox();
-  await clickAt(page, r.x + r.width / 2, r.y + r.height / 2, { sel: '#bzf-section label.prop-toggle' }, { label: '프로필 토글' });
+  await clickAt(page, r.x + r.width / 2, r.y + r.height / 2, { sel: '#bzf-section label.ui-check:has(#bzf-pf-on)' }, { label: '프로필 토글' });
 }
 
 
