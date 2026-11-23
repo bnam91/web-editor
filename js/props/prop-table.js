@@ -511,7 +511,7 @@ export function showTableProperties(block) {
       `).join('')}
       </div>` : ''}`),
       sec('stroke', `
-      <div class="prop-toggle-grid">
+      <div class="ui-check-grid">
         <div class="prop-row">
         ${checkHTML({ id: 'tbl-show-vlines', label: '세로선', checked: curShowVLines })}
       </div>

@@ -126,8 +126,9 @@
   min-height: 24px; margin-bottom: var(--ui-space-1_5); overflow: hidden;
 }
 /* A37: 표 속성 선 토글 2×2 그리드 — 4줄→2줄 */
-.prop-toggle-grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 8px; row-gap: 6px; margin-bottom: 6px; }
-.prop-toggle-grid .prop-row { margin-bottom: 0; min-width: 0; }
+.ui-check-grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 8px; row-gap: 6px; margin-bottom: 6px; }
+.ui-check-grid .prop-row { margin-bottom: 0; min-width: 0; }
+.ui-check-grid .ui-check { min-width: 0; }   /* 반 칸 안 체크 글이 칸을 밀지 않게 */
 .prop-label { font-size: var(--ui-fs-base); color: var(--ui-text-muted, #6b6b6b); width: var(--ui-form-label-w); flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* ★한정 라벨 — 한 줄에 «라벨 두 개»가 들어가는 줄에서만 쓴다 (Grid 절의 칼럼+거터).
    ⛔전역 .prop-label 의 56px 을 내리지 마라 — 「배경색」·「테두리」 같은 긴 라벨이 «전 패널에서» 잘린다.
@@ -139,7 +140,7 @@
 .prop-label--auto { width: auto; flex: 0 0 auto; }
 /* 줄 «안» 둘째 라벨(W 칸 뒤 H · 텍스트 X 칸 뒤 폭 · 칼럼 뒤 거터) = 글 폭만 — 56 칸은 줄 머리 라벨 몫(세로 정렬)이고 둘째 라벨이 56 을 먹어 W·H 줄이 220 > 183 으로 잘렸다(QA dev37 261123 치명) */
 .prop-row > .prop-label ~ .prop-label { width: auto; flex: 0 0 auto; }
-.prop-toggle-grid .prop-row > .prop-label { width: auto; flex: 1 1 auto; min-width: 0; }   /* 반 칸(88) 안 라벨 = 남는 폭 — 56 고정이면 라벨 + 토글 89 > 88 로 잘렸다(표 Stroke 세로선·수평선·외곽 상하 · G3 261123) · 기본 .prop-label 규칙 «뒤»에 둔다(panel-contrast 시험이 첫 «.prop-label {» 규칙을 읽는다) */
+.ui-check-grid .prop-row > .prop-label { width: auto; flex: 1 1 auto; min-width: 0; }   /* 반 칸(88) 안 라벨 = 남는 폭 — 56 고정이면 라벨 + 토글 89 > 88 로 잘렸다(표 Stroke 세로선·수평선·외곽 상하 · G3 261123) · 기본 .prop-label 규칙 «뒤»에 둔다(panel-contrast 시험이 첫 «.prop-label {» 규칙을 읽는다) */
 .prop-field-label { font-size: var(--ui-fs-base); color: var(--ui-text-muted, #6b6b6b); margin-bottom: 4px; display: block; }   /* 라벨 글자 크기 하나 = --ui-fs-base(.prop-label 과 같은 값 · 시안 v9 #4 · 지디 261120 전 패널) */
 /* 라벨 바로 아래 단추(프레임 Radial Arrange · Fill Image 등) — .prop-action-btn 의 margin-top 6(절 리듬)이 라벨 4 와 겹쳐 6 이 됐다 → 라벨→칸 4px 하나로(현빈 261122 · 선례 .prop-section-title-row > .prop-action-btn) */
 .prop-field-label + .prop-action-btn { margin-top: 0; }
@@ -360,20 +361,7 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
 .ui-check:has(.ui-check-box:disabled), .ui-check:has(.ui-check-box[aria-disabled="true"]) { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
 .ui-check-box:disabled, .ui-check-box[aria-disabled="true"] { cursor: not-allowed; }
 
-/* 토글 스위치 */
-.prop-toggle { position: relative; display: inline-block; width: 32px; height: 18px; cursor: pointer; }
-.prop-toggle input { opacity: 0; width: 0; height: 0; }
-.prop-toggle-track {
-  position: absolute; inset: 0; border-radius: 18px; background: var(--ui-border);
-  transition: background 0.2s;
-}
-.prop-toggle-track::after {
-  content: ''; position: absolute; top: 3px; left: 3px;
-  width: 12px; height: 12px; border-radius: 50%; background: var(--ui-divider);
-  transition: transform 0.2s, background 0.2s;
-}
-.prop-toggle input:checked + .prop-toggle-track { background: var(--ui-accent-primary); }
-.prop-toggle input:checked + .prop-toggle-track::after { transform: translateX(14px); background: #fff; }
+/* ⚰️토글 스위치(.prop-toggle · .prop-toggle-track) — 현빈 261123 «온/오프 = 고디터 커스텀 체크 하나»로 전부 .ui-check 가 됨(쓰는 마크업 0) */
 
 /* 에셋 프리셋 버튼 */
 .prop-preset-group { display: flex; flex-wrap: wrap; gap: 4px; }

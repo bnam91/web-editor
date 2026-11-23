@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 ①②③ · 태양 §2c check) — 바뀐 칸의 토글 스위치(label.prop-toggle · .prop-toggle-track) → check 부품(label.ui-check · input.ui-check-box) */
 /* prop-title-row-align.dom.spec.js — 1020t2c1 ★절 머리줄(제목 ＋ 오른쪽 손잡이)의 ★세로 정렬.
  *
  * ★현빈 2026-10-20 「prop-toggle-track … 조금씩 올라간 게 있어 · 전체 살펴봐봐」
@@ -161,13 +162,14 @@ test('D0a ★PREMISE — 레포 CSS 가 물렸다(패널 240px · 실물 toggle 
   /* ★★2026-10-20 실측 — .prop-toggle 은 flex 항목이라 display 는 판정에 안 쓴다(로그만). CSS 가 물린 신호 = 32×18 치수. */
   const read = () => page.evaluate(() => {
     const panel = document.getElementById('panel-right');
-    const tg = document.querySelector('#panel-right .prop-row > .prop-toggle');
+    const tg = document.querySelector('#panel-right .prop-row .ui-check-box');   // ★옛 .prop-toggle 32×18 → check 상자(--ui-check-size)
     const fh = document.querySelector('#panel-right .prop-sec-head > .prop-section-title');   /* 틀 머리 제목 */
     const ro = document.querySelector('#panel-right .prop-row');
     const g = (e) => (e ? getComputedStyle(e) : null);
     return {
       panelW: g(panel).width,
       toggleSize: tg ? [g(tg).width, g(tg).height].join('|') : null, toggleDisplay: tg ? g(tg).display : null,
+      checkTok: (() => { const p = document.createElement('span'); p.style.cssText = 'display:block;width:var(--ui-check-size)'; document.body.appendChild(p); const v = getComputedStyle(p).width; p.remove(); return v; })(),
       frameHead: fh ? [g(fh).paddingTop, g(fh).paddingBottom].join('|') : null,
       headTok: getComputedStyle(document.documentElement).getPropertyValue('--ui-sec-head-py').trim(),
       row: ro ? [g(ro).display, g(ro).alignItems, g(ro).minHeight].join('|') : null,
@@ -192,7 +194,7 @@ test('D0a ★PREMISE — 레포 CSS 가 물렸다(패널 240px · 실물 toggle 
   await page.evaluate(() => { document.querySelector('#panel-right .prop-sec-head > .prop-section-title').style.paddingBottom = 'calc(var(--ui-sec-head-py) + 1px)'; });
   const bent = await read();
   expect(bent.frameHead, '★양성대조 — 비튼 머리를 자가 «토큰과 같다»고 읽는다(자가 죽었다)').not.toBe(`${bent.headTok}|${bent.headTok}`);
-  expect(t.toggleSize ?? k.toggleSize, '★.prop-toggle 의 32×18 — css/editor-props.css 의 그 한 규칙이 안 물렸다(⇒ 아래 0.00 은 「안 재고 있다」다)').toBe('32px|18px');
+  expect(t.toggleSize ?? k.toggleSize, '★check 상자 = --ui-check-size 정사각 — css 가 안 물렸다(⇒ 아래 0.00 은 「안 재고 있다」다)').toBe(`${t.checkTok}|${t.checkTok}`);
   expect(errs).toEqual([]);
 });
 
