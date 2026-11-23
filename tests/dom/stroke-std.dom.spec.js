@@ -632,3 +632,45 @@ test('S12 도형 사각형 — 사용자 6 0 3 0 = 선 둘(위 6 · 아래 3) + 
   expect(ell, '★원 = □ 없음').toBe(false);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* S13 단계 4-3 — 보내는 쪽(Figma JSON): 프레임 border(면별 sides) · 테두리 없는 프레임 = 키 없음(옛 바이트) · 모달 옛 꼴 그대로 · 에셋 border · 표 outer · 도형 사각형 strokeSides */
+test('S13 Figma JSON — 프레임 border/sides · 없음 = 키 없음 · 모달 옛 꼴 · 에셋 · 표 outer · 도형 strokeSides', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const ids = await page.evaluate(async () => {
+    const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    const sec = await window.addSection(); const mk = (fn, sel) => { window.deselectAll(); window.selectSection(sec); const before = new Set(sec.querySelectorAll(sel)); fn(); return [...sec.querySelectorAll(sel)].find((x) => !before.has(x)); };
+    const f1 = mk(() => window.addFrameBlock(), '.frame-block:not([data-text-frame])'); f1.id = 'xF1';
+    Object.assign(f1.dataset, { borderWidth: '2', borderColor: '#ff0000', borderStyle: 'solid', strokeWidthTop: '6', strokeWidthRight: '0', strokeWidthBottom: '3', strokeWidthLeft: '0' });
+    const f2 = mk(() => window.addFrameBlock(), '.frame-block:not([data-text-frame])'); f2.id = 'xF2';
+    const m = mk(() => window.addModalBlock(), '.modal-block'); m.id = 'xM'; Object.assign(m.dataset, { borderW: '2', borderColor: '#c3c3ca', borderStyle: 'solid' });
+    const a = mk(() => window.addAssetBlock(), '.asset-block'); a.id = 'xA'; Object.assign(a.dataset, { strokeWidth: '4', strokeColor: '#000000' });
+    const t = mk(() => window.addTableBlock(), '.table-block'); t.id = 'xT'; Object.assign(t.dataset, { showOuterX: 'false', showOuterY: 'true', outerWidth: '3' });
+    const s = mk(() => window.addShapeBlock('rectangle'), '.shape-block'); s.id = 'xS'; Object.assign(s.dataset, { shapeStrokeWidth: '2', strokeWidthTop: '6', strokeWidthRight: '0', strokeWidthBottom: '3', strokeWidthLeft: '0' });
+    return true;
+  });
+  const j = await page.evaluate(() => { const all = []; const walk = (o) => { if (!o || typeof o !== 'object') return; if (typeof o.id === 'string' && /^x[A-Z]/.test(o.id)) all.push(o); Object.values(o).forEach(walk); }; walk(window.buildFigmaExportJSON(null)); const by = (id) => all.find((o) => o.id === id); return {
+    f1: by('xF1')?.border ?? null, f2: by('xF2') ? ('border' in by('xF2')) : 'missing', m: by('xM')?.border ?? null, a: by('xA')?.border ?? null, t: by('xT')?.outer ?? null, s: by('xS')?.strokeSides ?? null }; });
+  console.log('[S13 실측]', JSON.stringify({ ids, j }));
+  expect(j.f1, '★프레임 면별').toEqual({ width: 2, style: 'solid', color: '#ff0000', sides: { top: 6, right: 0, bottom: 3, left: 0 } });
+  expect(j.f2, '★테두리 없는 프레임 = border 키 없음(옛 바이트)').toBe(false);
+  expect(JSON.stringify(j.m), '★모달 = 옛 꼴 글자 그대로(면별 없음)').toBe('{"width":2,"style":"solid","color":"#c3c3ca"}');
+  expect(j.a, '★에셋').toEqual({ width: 4, style: 'solid', color: '#000000' });
+  expect(j.t, '★표 바깥 변').toEqual({ x: false, y: true, width: 3 });
+  expect(j.s, '★도형 사각형 면별').toEqual([6, 0, 3, 0]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('S11d ⫶·□ 둘 다 있는 Stroke 절 — 잘림 0(줄 끝 = 팝오버 div · 옵션 칼럼 규칙 안 걸림 · redact-toggle-label-clip ③ 회귀의 같은 자)', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const out = {};
+  for (const [k, make, sel, show, on] of [['frame', 'window.addFrameBlock()', '.frame-block:not([data-text-frame])', 'showFrameProperties', '#ss-stroke-on'], ['modal', 'window.addModalBlock()', '.modal-block', 'showModalProperties', '#mdl-stroke-on'], ['asset', 'window.addAssetBlock()', '.asset-block', 'showAssetProperties', '#asset-stroke-on'], ['shape', "window.addShapeBlock('rectangle')", '.shape-block', 'showShapeProperties', '#shape-stroke-on']]) {
+    await openNew(page, make, sel, show);
+    if (!(await page.locator(on).isChecked())) await page.click(`#panel-right label:has(${on})`);
+    out[k] = await page.evaluate(() => { const s = document.querySelector('#panel-right .prop-section[data-sec="stroke"]'); return [s, ...s.querySelectorAll('*')].filter((e) => e.scrollWidth > e.clientWidth && e.clientWidth > 0 && !e.closest('[hidden]')).map((e) => `${String(e.className).slice(0, 30)}:${e.scrollWidth}>${e.clientWidth}`); });
+  }
+  console.log('[S11d 실측]', JSON.stringify(out));
+  expect(out, '★잘림 0').toEqual({ frame: [], modal: [], asset: [], shape: [] });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
