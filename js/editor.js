@@ -1186,6 +1186,7 @@ function _updateMultiSelPanel(block) {
   /* ★A2(2026-10-01) — 고른 것이 «전부» 섹션에 떠 있는 블럭이면 «서로 맞춤» 패널. 흐름·자유배치 갈래보다 먼저 잡는다
      (안 그러면 오버레이 글자가 흐름 패널로 가서 정렬이 text-align 만 바꿨다). 판정·패널 = prop-multisel.js. */
   if (window.showOverlayMultiSelPanel?.(window.getSelectedOverlayUnits?.())) return;
+  { const m = window.getSelectedMixedUnits?.(); if (m && window.showOverlayMultiSelPanel?.(m.units, m.anchors)) return; }   // ★현빈 261123 F(IAL S1-4ⓐ·S3-3) — 떠 있는 것 + 흐름 섞임 = 고른 것끼리 맞춤(흐름 패널의 text-align 아님)
   const _flowN = _countFlowMultiSel();
   if (_flowN <= 1 && _isInFreeLayout(block)) {
     if (_updateFreeLayoutMultiSelPanel()) return;
