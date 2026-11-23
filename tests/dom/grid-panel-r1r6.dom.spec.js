@@ -131,7 +131,7 @@ test('R2 ★칸 테두리 절이 «범위(모든 칸)»를 말하는 제목을 �
   const got = await page.evaluate((fx) => {
     const mount = window.__mount;
     mount(fx, { r: 0, c: 0, li: 1 });
-    const sec = document.getElementById('grd-border-w-slider')?.closest('.prop-section');
+    const sec = document.getElementById('grd-border-w-number')?.closest('.prop-section');   // ★기대 바뀜(현빈 261123 표준 Stroke 부품 · 8910 strokestd2 9): 칸 테두리 굵기 = 숫자 칸 하나(옛 슬라이더 걷음) · 이 칸의 뜻(칸 테두리 손잡이가 절 안에 있다) 그대로
     const cellSec = document.getElementById('grd-cell-toggle')?.closest('.prop-section');
     return {
       hasSection: !!sec,

@@ -182,3 +182,44 @@ test('S5e 구분선·형광펜 — Stroke 절 없음 · 몸은 Special «Line»/
   expect(hl.secs.every((s) => /^special:/.test(s) && /Highlight/.test(s)), `★형광펜 몸 = Special «Highlight» ${hl.secs}`).toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* S6 단계 2-4 (지디 261123 판정) — 그리드 = «모든 칸 테두리»가 표준(머리 ＋/− · 없음 = 굵기 0) · 색 = 옛 swatch+hex(알파 칸 없음)
+ *   표 = 머리 없음 · 켬/끔 정본 = 선 토글 넷(edge-select 슬롯) · 굵기 = 외곽두께 1~6 · 위치 가운데 막힘 */
+test('S6a grid — 머리 ＋ = 굵기 1 · 색·꼴 줄 나옴 · 알파 칸 없음 · − = cellBorderWidth 0 · ⌘Z 한 칸', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const id = await openNew(page, 'window.addGridBlock()', '.grid-block', 'showGridProperties');
+  await page.waitForSelector('#grd-stroke-on', { state: 'attached' });
+  const k = () => page.evaluate((id) => document.getElementById(id).dataset.cellBorderWidth ?? null, id);
+  const p0 = await page.evaluate(() => ({ on: document.getElementById('grd-stroke-on').checked, hidden: document.querySelector('#panel-right [data-part="stroke"]').hidden }));
+  await page.click('#panel-right label:has(#grd-stroke-on)');
+  await page.waitForSelector('#grd-border-style', { state: 'visible' });
+  const kOn = await k();
+  const p1 = await page.evaluate(() => ({ hex: !!document.getElementById('grd-border-color-hex'), alpha: !!document.querySelector('#panel-right [data-part="stroke"] [id$="-alpha"]'), align: [document.getElementById('grd-stroke-align').value, document.getElementById('grd-stroke-align').getAttribute('aria-disabled')], outline: !!document.getElementById('grd-outline-group') }));
+  await page.click('#panel-right label:has(#grd-stroke-on)');
+  await page.waitForFunction(() => document.querySelector('#panel-right [data-part="stroke"]')?.hidden === true);
+  const kOff = await k();
+  await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z');
+  const kU = await k();
+  console.log('[S6a 실측]', JSON.stringify({ p0, kOn, p1, kOff, kU }));
+  expect(p0, '★새 그리드 = 테두리 없음 · 몸 숨김').toEqual({ on: false, hidden: true });
+  expect([kOn, kOff, kU], '★켬 1 · 끔 0 · ⌘Z = 1').toEqual(['1', '0', '1']);
+  expect(p1, '★hex 칸 · 알파 칸 없음 · 위치 안쪽 막힘 · 블럭 외곽선 슬롯 그대로').toEqual({ hex: true, alpha: false, align: ['inside', 'true'], outline: true });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('S6b table — 머리 없음 · 선 토글 넷 = 슬롯 · 굵기 = 외곽두께(0 → 하한 1) · 위치 가운데 막힘', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const id = await openNew(page, 'window.addTableBlock()', '.table-block', 'showTableProperties');
+  await page.waitForSelector('#tbl-outerw-number', { state: 'attached' });
+  const r = await page.evaluate(() => ({ head: !!document.getElementById('tbl-stroke-on'), toggles: ['vlines', 'hlines', 'outerx', 'outery'].map((t) => !!document.getElementById(`tbl-show-${t}`)?.closest('[data-slot-kind="edge-select"]')), align: [document.getElementById('tbl-stroke-align').value, document.getElementById('tbl-stroke-align').getAttribute('aria-disabled')] }));
+  await fillChange(page, '#tbl-outerw-number', '4');
+  const w4 = await page.evaluate((id) => [document.getElementById(id).dataset.outerWidth, document.getElementById(id).style.getPropertyValue('--tbl-outer-w')], id);
+  await fillChange(page, '#tbl-outerw-number', '0');
+  const wMin = await page.evaluate((id) => document.getElementById(id).dataset.outerWidth, id);
+  console.log('[S6b 실측]', JSON.stringify({ r, w4, wMin }));
+  expect(r, '★머리 없음 · 토글 넷 = edge-select 슬롯 · 위치 가운데 막힘').toEqual({ head: false, toggles: [true, true, true, true], align: ['center', 'true'] });
+  expect([w4, wMin], '★굵기 4 = 옛 키·변수 · 0 → 하한 1').toEqual([['4', '4px'], '1']);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
