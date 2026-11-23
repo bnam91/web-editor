@@ -78,6 +78,8 @@ test('I3 (S1-9) ⌘G → 섞어 고른 세로 가운데 → ⌘Z 하나씩 = 한
   const sig = () => page.evaluate(() => { const B = document.getElementById('rB'), g = B.closest('[data-group="true"]'), r = B.getBoundingClientRect();
     return JSON.stringify({ group: !!g, bTop: Math.round(r.top), cFlow: !!document.getElementById('tC').closest('.section-inner'), aAlign: getComputedStyle(document.querySelector('#tA [class^="tb-"]')).textAlign }); });
   const mid = (sel) => page.evaluate((sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, sel);
+  await page.evaluate(() => { const sec = document.getElementById('sI'), w = window.OverlayFloat.posElOf(document.getElementById('rB')), sr = sec.getBoundingClientRect(), z = (parseFloat(window.state?.zoom) || 100) / 100;   // ★전제(아이맥 261123 I3 전제 빨강 — 글꼴 높이에 따라 그룹 상자가 A 를 덮으면 세로 가운데가 무동작) ⇒ B 를 A·C 아래 멀리 두어 «A∪그룹» 경계와 그룹 가운데가 늘 다르게
+    const bot = Math.max(...['tA', 'tC'].map((id) => document.getElementById(id).getBoundingClientRect().bottom)); window.OverlayFloat._applyOverlayPos ? window.OverlayFloat._applyOverlayPos(w, parseFloat(w.style.left) || 0, Math.round((bot - sr.top) / z) + 200) : (w.style.top = Math.round((bot - sr.top) / z) + 200 + 'px', w.dataset.offsetY = String(Math.round((bot - sr.top) / z) + 200)); sec.style.minHeight = '900px'; window.clearHistory?.(); });
   const s0 = await sig();
   await page.evaluate(() => { window.deselectAll(); for (const id of ['rB', 'tC']) document.getElementById(id).classList.add('selected'); window.groupSelectedBlocks(); });
   await raf(page);
@@ -94,5 +96,86 @@ test('I3 (S1-9) ⌘G → 섞어 고른 세로 가운데 → ⌘Z 하나씩 = 한
   console.log('[I3 실측]', JSON.stringify({ panel, s0, s1, s2, undos }));
   expect([panel, s0 !== s1, s1 !== s2], '[전제] 섞어 고른 패널이 떴고 세 상태가 서로 다르다').toEqual([true, true, true]);
   expect(undos.slice(0, 2), '★⌘Z 한 번 = 한 단계(정렬 → ⌘G 순으로 하나씩)').toEqual([s1, s0]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* I4 (S5-2 · 다름-치명 «프레임 위로 끌면 섹션 자식이 됨 · 레이어 패널 갱신 안 됨») — 떠 있는 B 를 흐름 프레임 F 위에 놓으면 F 의 자식(떠 있는 채) · 놓은 자리 그대로 · 레이어 패널 다시 짬 · ⌘Z 한 번
+ * 양성대조: _patches/ial-I4-CTL.patch(overlay-float.js 놓을 때 주인 바꾸기 두 줄 걷음) ⇒ I4 빨강. */
+test('I4 (S5-2) 떠 있는 B 를 프레임 F 위에 놓음 → F 자식 · IAL 유지 · 자리 그대로 · 레이어 갱신 · ⌘Z 한 번', async ({ page }) => {
+  const errs = await base(page);
+  await page.evaluate(() => { const sec = document.getElementById('sI'); window.deselectAll(); window.selectSection(sec); window.addFrameBlock(); const f = [...sec.querySelectorAll('.frame-block:not([data-text-frame])')].find((x) => !x.dataset.group); f.id = 'fF'; window.deselectAll(); window.clearHistory?.(); });
+  await raf(page);
+  const pre = await page.evaluate(() => ({ fFlow: !!document.getElementById('fF').closest('.section-inner'), bParent: window.OverlayFloat.posElOf(document.getElementById('rB')).parentElement.id }));
+  expect(pre, '[전제] F 흐름 프레임 · B 섹션 직속 떠 있음').toEqual({ fFlow: true, bParent: 'sI' });
+  const mid = (id) => page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, id);
+  const b0 = await rectOf(page, 'rB'), [bx, by] = await mid('rB'), [fx, fy] = await mid('fF');
+  await page.evaluate(() => { window.__lp = 0; const o = window.buildLayerPanel; window.buildLayerPanel = (...a) => { window.__lp++; return o(...a); }; });
+  await page.mouse.move(bx, by); await page.mouse.down(); await page.mouse.move((bx + fx) / 2, (by + fy) / 2, { steps: 6 }); await page.mouse.move(fx, fy, { steps: 6 }); await page.mouse.up(); await raf(page);
+  const b1 = await rectOf(page, 'rB');
+  const got = await page.evaluate(() => { const w = window.OverlayFloat.posElOf(document.getElementById('rB')); return { parent: w.parentElement.id, overlay: w.dataset.overlayBlock ?? null, host: window.OverlayFloat.floatHostOf(w)?.id, lp: window.__lp > 0 }; });
+  const want = [Math.round(b0[0] + fx - bx), Math.round(b0[1] + fy - by)];
+  console.log('[I4 실측]', JSON.stringify({ b0, b1, want, got }));
+  expect(got, '★F 자식 · 떠 있음 · 주인 = F · 레이어 패널 다시 짬').toEqual({ parent: 'fF', overlay: 'true', host: 'fF', lp: true });
+  expect([Math.abs(b1[0] - want[0]) <= 2, Math.abs(b1[1] - want[1]) <= 2, b1[2], b1[3]], `★놓은 자리 그대로(${want}) · 크기 그대로`).toEqual([true, true, b0[2], b0[3]]);
+  await page.evaluate(() => window.undo()); await raf(page);
+  const u = await page.evaluate(() => window.OverlayFloat.posElOf(document.getElementById('rB')).parentElement.id);
+  expect([u, (await rectOf(page, 'rB')).join()], '★⌘Z 한 번 = 끌기 전(섹션 직속 · 옛 자리)').toEqual(['sI', b0.join()]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* I5 (S1-5 · 다름-치명 «IAL 그룹을 프레임 안으로 못 넣음 · 그룹을 누르면 자식 B 가 잡힘») — ⌘G 로 만든 떠 있는 그룹을 눌러(= 그룹이 골라짐) 프레임 F 위에 놓으면 F 자식 · IAL 유지 · 자식 B·C 그룹 안 그대로 */
+test('I5 (S1-5) 떠 있는 그룹 누름 = 그룹 고름 · F 위에 놓음 → F 자식 · IAL 유지 · ⌘Z 한 번', async ({ page }) => {
+  const errs = await base(page);
+  await page.evaluate(() => { const sec = document.getElementById('sI'); window.deselectAll(); for (const id of ['rB', 'tC']) document.getElementById(id).classList.add('selected'); window.groupSelectedBlocks();
+    const g = document.getElementById('rB').closest('[data-group="true"]'); g.id = 'gG'; window.deselectAll(); window.selectSection(sec); window.addFrameBlock(); const f = [...sec.querySelectorAll('.frame-block:not([data-text-frame])')].find((x) => !x.dataset.group && !x.closest('[data-group]')); f.id = 'fF'; window.deselectAll(); window.clearHistory?.(); });
+  await raf(page);
+  const mid = (id) => page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, id);
+  const [bx, by] = await mid('rB'), [fx, fy] = await mid('fF'), g0 = await rectOf(page, 'gG');
+  await page.mouse.click(bx, by); await raf(page);
+  const sel = await page.evaluate(() => ({ g: document.getElementById('gG').classList.contains('selected'), b: document.getElementById('rB').classList.contains('selected') }));
+  await page.mouse.move(bx, by); await page.mouse.down(); await page.mouse.move((bx + fx) / 2, (by + fy) / 2, { steps: 6 }); await page.mouse.move(fx, fy, { steps: 6 }); const gUp = await rectOf(page, 'gG'); await page.mouse.up(); await raf(page);   // 그룹 폭 = 섹션 폭이라 가로는 탄성으로 커서를 덜 따라감 ⇒ «놓기 직전 화면 자리»와 견준다
+  const got = await page.evaluate(() => { const g = document.getElementById('gG'); return { parent: g.parentElement.id, overlay: g.dataset.overlayBlock ?? null, kids: ['rB', 'tC'].every((id) => document.getElementById(id).closest('[data-group="true"]') === g) }; });
+  const g1 = await rectOf(page, 'gG');
+  console.log('[I5 실측]', JSON.stringify({ sel, g0, gUp, g1, got }));
+  expect(sel, '★그룹 자리 누름 = 그룹이 골라짐(자식 B 아님)').toEqual({ g: true, b: false });
+  expect(got, '★그룹 = F 자식 · 떠 있음 · B·C 그룹 안 그대로').toEqual({ parent: 'fF', overlay: 'true', kids: true });
+  expect([g1.join(), g1[1] - g0[1] > 50], `★놓은 자리 그대로(놓기 직전 ${gUp}) · 아래로 옮겨짐`).toEqual([gUp.join(), true]);
+  await page.evaluate(() => window.undo()); await raf(page);
+  expect(await page.evaluate(() => document.getElementById('gG').parentElement.id), '★⌘Z 한 번 = 끌기 전(섹션 직속)').toBe('sI');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* I6 (S3-4 · 다름-치명 «셋 고르고 화살표 → 화면은 셋 다 움직이는데 한 블럭의 패널 X 가 안 바뀜 · IAL 끈 뒤 10px 치우침») — 1회차 손짓 그대로: 셋 띄움 → 흩음 → 셋 고름 → 가로 균등 → → · ⇧→ → 하나씩 고른 패널 X = 화면 = 정본 · IAL 끄면 셋 다 같은 가로 자리 */
+test('I6 (S3-4) 셋 고르고 → · ⇧→ → 패널 X = 정본 = 화면 +11 · IAL 끈 뒤 치우침 없음', async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1100 });
+  const errs = await bootApp(page);
+  await page.evaluate(async () => {
+    const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    const sec = await window.addSection(); sec.id = 'sQ'; window.applyZoom?.(100);
+    const OF = window.OverlayFloat;
+    ['r1', 'r2', 'r3'].forEach((id) => { window.deselectAll(); window.selectSection(sec); const before = new Set(sec.querySelectorAll('.shape-block')); window.addShapeBlock('rectangle'); const b = [...sec.querySelectorAll('.shape-block')].find((x) => !before.has(x)); b.id = id; });
+    ['r1', 'r2', 'r3'].forEach((id) => OF.enterFloat(OF.posElOf(document.getElementById(id))));
+    [[40, 20], [220, 70], [350, 20]].forEach(([x, y], i) => { const w = OF.posElOf(document.getElementById('r' + (i + 1))); w.style.left = x + 'px'; w.style.top = y + 'px'; w.dataset.offsetX = x; w.dataset.offsetY = y; });
+    window.deselectAll(); window.clearHistory?.();
+  });
+  await waitZoomSettled(page, 100);
+  const mid = (id) => page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, id);
+  let p = await mid('r1'); await page.mouse.click(p[0], p[1]); await raf(page);
+  for (const id of ['r2', 'r3']) { p = await mid(id); await page.keyboard.down('Shift'); await page.mouse.click(p[0], p[1]); await page.keyboard.up('Shift'); await raf(page); }
+  await page.waitForFunction(() => !!document.querySelector('#panel-right [data-ov-dist="h"]:not([disabled])'), null, { timeout: 5000 });
+  await page.click('#panel-right [data-ov-dist="h"]'); await raf(page);
+  const st = () => page.evaluate(() => ['r1', 'r2', 'r3'].map((id) => { const b = document.getElementById(id), w = window.OverlayFloat.posElOf(b); return { id, w: w === b ? 'self' : w.className.split(' ')[0], ox: w.dataset.offsetX, left: w.style.left, inner: Math.round(b.getBoundingClientRect().left - w.getBoundingClientRect().left), sx: Math.round(b.getBoundingClientRect().left) }; }));
+  const s0 = await st();
+  await page.keyboard.press('ArrowRight'); await page.keyboard.press('Shift+ArrowRight'); await raf(page);
+  const s1 = await st();
+  const panelX = [];
+  for (const id of ['r1', 'r2', 'r3']) { p = await mid(id); await page.mouse.click(1590, 1090); await raf(page); await page.mouse.click(p[0], p[1]); await raf(page); await page.waitForTimeout(50); panelX.push(await page.evaluate(() => document.querySelector('#panel-right input[aria-label="X position"]')?.value ?? null)); }
+  await page.evaluate(() => ['r1', 'r2', 'r3'].forEach((id) => window.OverlayFloat.exitFloat(window.OverlayFloat.posElOf(document.getElementById(id))))); await raf(page);
+  const lefts = await page.evaluate(() => ['r1', 'r2', 'r3'].map((id) => Math.round(document.getElementById(id).getBoundingClientRect().left)));
+  console.log('[I6 실측]', JSON.stringify({ s0, s1, panelX, lefts }));
+  expect(s1.map((s, i) => s.sx - s0[i].sx), '[전제] 화면에서 셋 다 +11').toEqual([11, 11, 11]);
+  expect(s1.map((s, i) => [+s.ox - +s0[i].ox, s.inner]), '★정본(래퍼 offsetX)이 +11 · 래퍼 안 도형은 안 밀림(inner 0) — 옛 판은 래퍼 안 도형만 밀려 정본 무변').toEqual([[11, 0], [11, 0], [11, 0]]);
+  expect(panelX, '★하나씩 고른 패널 X = 정본(offsetX)').toEqual(s1.map((s) => s.ox));
+  expect(new Set(lefts).size, `★IAL 끈 뒤 셋 다 같은 가로 자리(흐름 가운데) ${lefts}`).toBe(1);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
