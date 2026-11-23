@@ -89,7 +89,7 @@ test('S4 그림 자리 — offset 0 = 정적 첫 장면 자리 · 오른쪽 = �
 });
 
 test('S5 소독 · 기본값 = 키 없음', () => {
-  assert.deepEqual(normLayout({ cardW: 999, gap: -5, h: 'x' }), { cardW: 100, gap: -5, h: SLIDE_LAYOUT_DEFAULT.h, dots: 'none', mode: 'row', dotGap: 8, dotSpace: 8, dotOn: '#4a4a4a', dotOff: '#c9c9c9' });   // dotGap·dotSpace·dotOn·dotOff = SLIDE-DOTS-SPACING-01 새 칸(기본 = 옛 그대로)   // mode = SLIDE-LAYOUT-STATIC-MODES-01 새 칸(기본 row)   // dots = SLIDE-INDICATOR-DOTS-01 새 칸(기본 none) · gap −5 = OVERLAP-GAP(−80~80)부터 겹침으로 받는 값(옛 «음수 → 0» 은 제품 뜻이 바뀜 · 하한 −80 은 S12)
+  assert.deepEqual(normLayout({ cardW: 999, gap: -5, h: 'x' }), { cardW: 100, gap: -5, h: SLIDE_LAYOUT_DEFAULT.h, dots: 'none', mode: 'row', dotGap: 8, dotSpace: 8, dotOn: '#4a4a4a', dotOff: '#c9c9c9', dotShape: 'dots', barThick: 4 });   // dotGap·dotSpace·dotOn·dotOff = SLIDE-DOTS-SPACING-01 새 칸(기본 = 옛 그대로)   // mode = SLIDE-LAYOUT-STATIC-MODES-01 새 칸(기본 row)   // dots = SLIDE-INDICATOR-DOTS-01 새 칸(기본 none) · gap −5 = OVERLAP-GAP(−80~80)부터 겹침으로 받는 값(옛 «음수 → 0» 은 제품 뜻이 바뀜 · 하한 −80 은 S12)   ★기대 바뀜(SLIDE-PROGRESS-BAR-01 · 0.9.13 195 · 현빈 261123 D): 표시 모양 dotShape(기본 점)·바 두께 barThick(기본 4) 키가 생김 — 기본이라 저장엔 안 씀(diffFromDefault)
   assert.equal(normLayout({ gap: 999 }).gap, 80, '간격 상한 80 그대로');
   assert.deepEqual(['center', 'single', '<x>'].map((m) => normLayout({ mode: m }).mode), ['center', 'single', 'row'], '정지 꼴 소독');
   assert.equal(normLayout({ dots: '<x>' }).dots, 'none', '점 표시 소독');
