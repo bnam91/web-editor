@@ -237,7 +237,7 @@
         let changed = false;
         for (const en of entries) {
           en.target.querySelectorAll(':scope > .sticker-block').forEach(b => window._updateStickerSecClip?.(b));
-          en.target.querySelectorAll(':scope > [data-overlay-block="true"]').forEach(b => window._updateStickerSecClip?.(b));   // t13E-07(현빈 261123) — 떠 있는 단위도 섹션 밖 크롭 다시
+          en.target.querySelectorAll(':scope > [data-overlay-block="true"]').forEach(b => window._overlaySecClip?.(b));   // t13E-07(현빈 261123) — 떠 있는 단위도 섹션 밖 크롭 다시
           if (en.target.isConnected && !_isFirstSameHeight(en.target)) changed = true;   // 떨어져 나간 옛 노드의 0 통지는 값이 아니다(빠진 것은 MO 가 알린다)
         }
         if (changed) _schedule();

@@ -85,9 +85,17 @@ export function _applyOverlayPos(posEl, x, y) {
    적는 때 = 움직임(_applyOverlayPos) · 크기 바뀜(아래 RO · bindFloatMoveDrag 에서 붙임) · 섹션 크기 바뀜(section-height.js). 켜고 끄기는 CSS(섹션 밖 보이기 · editor-blocks.css).
    shortcut: 회전한 떠 있는 단위는 회전 전 상자로 inset 을 낸다(스티커만 polygon) — 회전 오버레이가 섹션 경계에 걸치면 선이 어긋날 수 있다 · 문제 되면 sticker 식을 넓힌다. */
 function _secClip(posEl) {
-  if (posEl?.dataset?.overlayBlock === 'true' && posEl.parentElement?.classList?.contains('section-block')) window._updateStickerSecClip?.(posEl);
-  else posEl?.style?.removeProperty?.('--sec-clip');
+  const sec = posEl?.parentElement;
+  if (posEl?.dataset?.overlayBlock !== 'true' || !sec?.classList?.contains('section-block')) { posEl?.style?.removeProperty?.('--sec-clip'); return; }
+  /* ★자르는 선 = «섹션 사각형»(Figma Clip content). 스티커 식(inset ≥ 0)은 «제 상자»로 잘라 상자 밖에 그려지는 손잡이(자유변형 모서리 · 선택 손잡이)까지
+     섹션 안에서 잘랐다 — 스티커는 고르면 크롭을 풀지만 오버레이는 고른 채로도 자른다(위 CSS). 안쪽 변은 음수 inset = 섹션 경계까지 넓힘.
+     (열차 train/0913-a 전수 ft-overlay-corner-123 C·D · cmp-overlay F4 · w2c-1020t2 · scratch-layer-order L9b) */
+  const x = posEl.offsetLeft, y = posEl.offsetTop, w = posEl.offsetWidth, h = posEl.offsetHeight, SW = sec.clientWidth, SH = sec.clientHeight;
+  if (!w || !h || (x >= 0 && y >= 0 && x + w <= SW && y + h <= SH)) { posEl.style.removeProperty('--sec-clip'); return; }
+  const v = `inset(${Math.round(-y)}px ${Math.round(x + w - SW)}px ${Math.round(y + h - SH)}px ${Math.round(-x)}px)`;
+  if (posEl.style.getPropertyValue('--sec-clip') !== v) posEl.style.setProperty('--sec-clip', v);   // 같은 값이면 안 씀(섹션 감시자 헛쓰기 → 자동저장 안 깨움 · 스티커 식과 같은 규약)
 }
+if (typeof window !== 'undefined') window._overlaySecClip = _secClip;   // section-height.js 섹션 크기 바뀜 때(스티커 식 아님 — 섹션 사각형으로 자름)
 const _secClipRO = typeof ResizeObserver === 'function' ? new ResizeObserver((es) => es.forEach((e) => _secClip(e.target))) : null;
 
 /* 드래그로 움직인 좌표를 열려 있는 패널의 X/Y 칸에 되비친다 — block-drag.js:561 과 «같은 꼴»
