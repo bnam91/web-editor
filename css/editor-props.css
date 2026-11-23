@@ -451,7 +451,7 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
   padding: 0 var(--ui-space-1);
 }
 .prop-type-btn:hover { border-color: var(--ui-divider); color: var(--ui-text-sub); }
-.prop-type-btn.active { background: var(--ui-accent-primary); border-color: var(--ui-accent-primary); color: #fff; }
+.prop-type-btn.active { background: var(--ui-sel-neutral-on-bg); border-color: var(--ui-sel-neutral-on-border); color: var(--ui-sel-neutral-on-text); }   /* 현빈 261123 세그먼트 켜짐 = 같은 2단 회색 */
 
 /* 정렬 버튼 그룹 */
 .prop-align-group {
@@ -501,7 +501,7 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
 .prop-style-btn.active { background: var(--ui-sel-neutral-on-bg); border-color: var(--ui-sel-neutral-on-border); color: var(--ui-sel-neutral-on-text); }   /* 현빈 261123 — 서식(B I U S …) 켜짐 = 회색 한 단 밝게(공용) */
 /* 텍스트 패널 가로 정렬 · B I U S 묶음만 Figma 식 켜짐(파란 채움 없음 · 패널 재설계 1차 ⑪ · F4-1). 다른 묶음은 위 규칙 그대로 */
 #txt-align-group .prop-align-btn.active,
-#txt-style-group .prop-style-btn.active { background: var(--ui-border-mid); border-color: var(--ui-border-strong); color: var(--ui-text); }
+#txt-style-group .prop-style-btn.active { background: var(--ui-sel-neutral-on-bg); border-color: var(--ui-sel-neutral-on-border); color: var(--ui-sel-neutral-on-text); }
 /* U7(E121 · 2026-10-05) 라벨 Tag Style 켜짐 — 형제 단추(.prop-style-btn/.prop-align-btn)와 같은 토큰 */
 .prop-btn-full.active { background: var(--ui-accent-primary); border-color: var(--ui-accent-primary); color: #fff; }
 
@@ -516,7 +516,7 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
    (위 세그먼트 규칙을 id 로 이긴다 · Quote 왼 테두리 잘림의 원인). 사이 = 가로 2(v9) · 세로 4(v8) · 칸 안 좌우 0(v10) */
 #txt-kind-group { display: grid; grid-template-columns: repeat(6, auto); column-gap: var(--ui-space-0_5); row-gap: var(--ui-space-1); }
 #txt-kind-group > .prop-type-btn { min-width: 0; border-radius: var(--ui-radius-sm); border-left: 1px solid var(--ui-border-mid); padding: 0; }
-#txt-kind-group > .prop-type-btn.active { border-left-color: var(--ui-accent-primary); }
+#txt-kind-group > .prop-type-btn.active { border-left-color: var(--ui-sel-neutral-on-border); }
 
 /* 1글자 아이콘 prefix 라벨 (W/H/X/Y 등) */
 .prop-icon-label {
