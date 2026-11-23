@@ -126,3 +126,31 @@ test('E2 꼴 틀린 shapeInner(스크립트·모르는 속성) = 안 씀 · 옛 
     assert.ok(/170,10 194,20 170,30/.test(s) && !/script|onclick|image/.test(s), bad);
   }
 });
+
+/* D 점선 dashPattern(Stroke 마지막 칸 · 지디 261124): CSS dashed = [3w,2w] · dotted = [w,w] · 실선 = 인자 없음(옛 명령) · 플러그인 node.dashPattern · 옛 플러그인 = 무시(실선) */
+const dashOf = (cmds) => cmds.filter((c) => c.cmd === 'set_stroke_color').map((c) => c.params.dashPattern ?? null);
+test('D1 프레임 dashed 굵기 2 = dashPattern [6,4]', () => { assert.deepEqual(dashOf(render([{ ...FRAME, border: { width: 2, style: 'dashed', color: '#000000' } }])), [[6, 4]]); });
+test('D2 프레임 dotted 굵기 3 = [3,3] · 그리드 G17 면별 dotted 도', () => {
+  assert.deepEqual(dashOf(render([{ ...FRAME, border: { width: 3, style: 'dotted', color: '#000000' } }])), [[3, 3]]);
+  assert.deepEqual(dashOf(render([{ type: 'generic', kind: 'grid', id: 'g2', width: 300, height: 100, bg: '', radius: 0, svg: '', texts: [], border: { top: { width: 2, style: 'dotted', color: 'rgb(0, 0, 0)' }, right: null, bottom: null, left: null } }])), [[2, 2]]);
+});
+test('D3 [음성] 실선 = dashPattern 인자 없음(옛 명령 글자 그대로)', () => {
+  const c = render([{ ...FRAME, border: { width: 3, style: 'solid', color: '#ff0000' } }]).find((x) => x.cmd === 'set_stroke_color');
+  assert.equal('dashPattern' in c.params, false);
+});
+test('D4 플러그인 dashPattern → node.dashPattern', async () => {
+  const { ctx, nodes } = plugin(); nodes.x = { ...FRAME_NODE(), dashPattern: [] };
+  await ctx.__hc('set_stroke_color', { nodeId: 'x', color: { r: 0, g: 0, b: 0, a: 1 }, strokeWeight: 2, dashPattern: [6, 4] });
+  assert.deepEqual(nodes.x.dashPattern, [6, 4]);
+});
+test('D5 옛 플러그인(dev) + dashPattern = 무시 · 실선으로 그려짐(오류 0)', async () => {
+  const { execFileSync } = await import('node:child_process');
+  const old = execFileSync('git', ['show', '11a67a399:figma-plugin/code.js'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 1 << 26 });
+  const nodes = {};
+  const figma = { showUI() {}, ui: { postMessage() {}, onmessage: null }, on() {}, notify() {}, clientStorage: { getAsync: async () => null, setAsync: async () => {} }, currentPage: { appendChild() {} }, getNodeByIdAsync: async (id) => nodes[id] || null };
+  const ctx = vm.createContext({ figma, __html__: '', console, setTimeout, clearTimeout });
+  vm.runInContext(old + '\n;globalThis.__hc = handleCommand;', ctx);
+  nodes.x = { ...FRAME_NODE(), dashPattern: [] };
+  await ctx.__hc('set_stroke_color', { nodeId: 'x', color: { r: 0, g: 0, b: 0, a: 1 }, strokeWeight: 2, dashPattern: [6, 4] });
+  assert.deepEqual([nodes.x.strokeWeight, nodes.x.strokes.length, nodes.x.dashPattern], [2, 1, []]);
+});
