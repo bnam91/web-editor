@@ -2,7 +2,7 @@ import { propPanel } from '../globals.js';
 import { checkerBgBigColors, checkerSvgFills } from '../checker-tokens.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_POP_WHY, STROKE_STYLES_SVG } from './_stroke-section.js';
-import { readLook, writeLook, svgLook, derivedDash } from '../stroke-look.js';
+import { readLook, writeLook, svgLook, derivedDash, hasSides, readSides, writeSides, sidesMixed } from '../stroke-look.js';
 import { svgStopRemap } from './gradient-model.js';
 import { overlayToggleBtnHTML, blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
@@ -338,7 +338,7 @@ export function showShapeProperties(block) {
       ` : ''}`),
       /* ★표준 Stroke 절 부품(현빈 261123 GO · 8910 strokestd2 · js/props/_stroke-section.js) — 첫 소비자. 위치 = «칸만 + 막힘»(§4c ②③):
          사각형·원은 안쪽 그림(block-factory.js refreshShapeInnerSVG 가 굵기 절반 inset)이라 «안쪽» · 선·화살표·다각형·별은 가운데 — 지금 그려지는 쪽을 보여 준다. */
-      sec('stroke', strokeSectionHTML({ prefix: 'shape-stroke', pop: _shapePop(block, strokeWidth), color: strokeColor, alpha: strokeColorAlpha, width: strokeWidth, maxWidth: 20,
+      sec('stroke', strokeSectionHTML({ prefix: 'shape-stroke', pop: _shapePop(block, strokeWidth), sides: _shapeSides(block, strokeWidth), color: strokeColor, alpha: strokeColorAlpha, width: strokeWidth, maxWidth: 20,
         align: /^(rectangle|ellipse)$/.test(block.dataset.shapeType || 'rectangle') ? 'inside' : 'center', canAlign: false, alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 도형 모양대로 그려집니다', on: strokeWidth > 0 }),
         { headTools: strokeHeadToolsHTML({ prefix: 'shape-stroke', on: strokeWidth > 0 }) }),   // 머리 ＋/− — 없음 = 굵기 0(§4c 없음 열 실측)
       // 원 이너 그림자 + 효과 목록(Effects)
@@ -639,7 +639,9 @@ export function showShapeProperties(block) {
 
   // ── 외곽선 = 표준 Stroke 부품 배선(어댑터 = 이 패널의 쓰기 함수 그대로 · 저장 키 shapeStrokeColor/shapeStrokeWidth 무변 · 이력 push-after) ──
   wireStrokeSection({ prefix: 'shape-stroke', alpha: strokeColorAlpha, maxWidth: 20,
-    adapter: { color: (c) => applyStrokeColor(c), width: (v) => applyStroke(v), look: (part) => applyLook(part), commit: () => window.pushHistory?.() } });
+    adapter: { color: (c) => applyStrokeColor(c), width: (v) => applyStroke(v), look: (part) => applyLook(part), commit: () => window.pushHistory?.(),
+      sides: (block.dataset.shapeType || 'rectangle') === 'rectangle' ? { read: () => { const sd = Number(block.dataset.shapeStrokeWidth) || 0; return hasSides(block.dataset) ? readSides(block.dataset, sd) : null; },
+        write: (o) => { writeSides(block.dataset, o, Number(block.dataset.shapeStrokeWidth) || 0); window.refreshShapeInnerSVG?.(block); window.scheduleAutoSave?.(); }, std: () => Number(block.dataset.shapeStrokeWidth) || 0 } : null } });
 
   // 초기 svg.stroke 동기화 — 첫 mount 시 dataset.shapeStrokeColor가 있으면 즉시 적용
   if (svg && block.dataset.shapeStrokeColor) {
@@ -1581,4 +1583,9 @@ function _shapePop(block, w) {
   const corner = !_SHAPE_NO_CORNER.test(type);
   return { styles: [...STROKE_STYLES_SVG, ['custom', '사용자']], style: look.style, live: { dash: true, cap: true, join: corner },
     look: { ...look, dash: d.dash, gap: d.gap }, joinWhy: STROKE_POP_WHY.noCorner };
+}
+/* 단계 4-2b — 사각형만 면별(변마다 선 · block-factory _shapeInnerSVG) · 그 밖 도형은 □ 없음(꼭짓점·변이 사각형 네 변이 아님) */
+function _shapeSides(block, w) {
+  if ((block.dataset.shapeType || 'rectangle') !== 'rectangle') return null;
+  return { w: hasSides(block.dataset) ? readSides(block.dataset, w) : null, std: w, open: hasSides(block.dataset), mixed: sidesMixed(block.dataset, w) };
 }

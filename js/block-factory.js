@@ -2917,6 +2917,13 @@ function _shapeInnerSVG(type, strokeWidth) {
   // stroke=0일 때 미세한 inset도 없음 (풀폭 100%)
   const half = sw / 2;
   if (type === 'rectangle') {
+    /* ★표준 Stroke 4-2b 면별 굵기(opts.sides = [위, 오른쪽, 아래, 왼쪽] · 키 strokeWidthTop/Right/Bottom/Left 있을 때만) — 면(선 없음) + 변마다 선 하나(제 굵기 · 변 «안쪽»에 = 옛 사각형과 같은 안쪽 그림)
+       키 없으면 아래 옛 rect 한 줄 그대로(옛 바이트 · refreshShapeInnerSVG 멱등) */
+    if (opts && Array.isArray(opts.sides)) {
+      const [t, r, b, l] = opts.sides.map((v) => Math.max(0, Number(v) || 0));
+      const ln = (x1, y1, x2, y2, w) => (w > 0 ? `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke-width="${w}" fill="none"/>` : '');
+      return `<rect x="0" y="0" width="100" height="100" rx="0" stroke="none"/>` + ln(0, t / 2, 100, t / 2, t) + ln(100 - r / 2, 0, 100 - r / 2, 100, r) + ln(0, 100 - b / 2, 100, 100 - b / 2, b) + ln(l / 2, 0, l / 2, 100, l);
+    }
     const w = Math.max(0, 100 - sw);
     const h = Math.max(0, 100 - sw);
     return `<rect x="${half}" y="${half}" width="${w}" height="${h}" rx="0"/>`;
@@ -3022,6 +3029,10 @@ function refreshShapeInnerSVG(block) {
   /* ★1013t2A1 — 원 N개·개별 색·이너 그림자는 dataset 이 정본이고 «여기서» 그린다(유일한 그리개).
      ⛔패널에만 그리개를 두면 로드·⌘Z 가 이 함수를 지나며 원 1개로 주저앉는다. */
   let opts;
+  if (type === 'rectangle') {   // ★표준 Stroke 4-2b — 면별 키(stroke-look.js 와 같은 이름 · import 0 — 이 파일을 단독으로 올리는 하네스) 있을 때만 변마다 선
+    const d = block.dataset, K = ['strokeWidthTop', 'strokeWidthRight', 'strokeWidthBottom', 'strokeWidthLeft'];
+    if (sw > 0 && K.some((k) => d[k] != null)) opts = { sides: K.map((k) => (d[k] != null ? Number(d[k]) || 0 : sw)) };
+  }
   if (type === 'ellipse') {
     const d = block.dataset;
     opts = { count: d.ellipseCount, gap: d.ellipseGap, colors: d.ellipseColors, shadow: d.ellipseShadow, id: block.id };
