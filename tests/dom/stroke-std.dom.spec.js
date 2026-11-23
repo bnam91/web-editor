@@ -268,15 +268,16 @@ test('S7b modal — 옛 «스타일» 단추 셋 → ⫶ 팝오버 select(값 �
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-test('S7c shape — ⫶ 팝오버 열림 · 칸 전부 막힘(스타일 키 아직 없음 · 3-2) · 팝오버가 패널 밖으로 안 나감', async ({ page }) => {
+test('S7c asset — ⫶ 팝오버 열림 · 칸 전부 막힘(스타일 키 없는 블럭) · 팝오버가 패널 밖으로 안 나감', async ({ page }) => {   // ★전제 바뀜(단계 3-2): 도형은 이제 산다(S8) → «다 막힌 블럭» 대표 = 에셋
   await page.setViewportSize({ width: 1500, height: 1100 });
-  const errs = await scene(page).then((x) => x.errs);
-  await page.click('#panel-right label:has(#shape-stroke-on)');
-  await page.click('#shape-stroke-more');
-  const r = await page.evaluate(() => { const pop = document.getElementById('shape-stroke-pop'), panel = document.getElementById('panel-right').getBoundingClientRect(), pr = pop.getBoundingClientRect(); return { open: !pop.hidden, styleDis: pop.querySelector('[data-field="stroke-style"]').getAttribute('aria-disabled'), inside: pr.left >= panel.left - 1 && pr.right <= panel.right + 1 && pr.top >= panel.top - 1 && pr.bottom <= panel.bottom + 1, h: Math.round(pr.height) }; });
-  const v0 = await page.evaluate(() => document.querySelector('#shape-stroke-pop [data-field="stroke-style"]').value);
-  await page.focus('#shape-stroke-pop [data-field="stroke-style"]'); await page.keyboard.press('ArrowDown');
-  const v1 = await page.evaluate(() => document.querySelector('#shape-stroke-pop [data-field="stroke-style"]').value);
+  const errs = await bootApp(page);
+  await openNew(page, 'window.addAssetBlock()', '.asset-block', 'showAssetProperties');
+  await page.click('#panel-right label:has(#asset-stroke-on)');
+  await page.click('#asset-stroke-more');
+  const r = await page.evaluate(() => { const pop = document.getElementById('asset-stroke-pop'), panel = document.getElementById('panel-right').getBoundingClientRect(), pr = pop.getBoundingClientRect(); return { open: !pop.hidden, styleDis: pop.querySelector('[data-field="stroke-style"]').getAttribute('aria-disabled'), inside: pr.left >= panel.left - 1 && pr.right <= panel.right + 1 && pr.top >= panel.top - 1 && pr.bottom <= panel.bottom + 1, h: Math.round(pr.height) }; });
+  const v0 = await page.evaluate(() => document.querySelector('#asset-stroke-pop [data-field="stroke-style"]').value);
+  await page.focus('#asset-stroke-pop [data-field="stroke-style"]'); await page.keyboard.press('ArrowDown');
+  const v1 = await page.evaluate(() => document.querySelector('#asset-stroke-pop [data-field="stroke-style"]').value);
   console.log('[S7c 실측]', JSON.stringify({ r, v0, v1 }));
   expect([r.open, r.styleDis, r.inside], '★열림 · 스타일 막힘 · 패널 안').toEqual([true, 'true', true]);
   expect(v1, '★막힌 칸은 키로 안 바뀜').toBe(v0);
@@ -295,3 +296,98 @@ test('S7d 자리 — ⫶ 를 패널 아래쪽에서 열고 «점»을 골라 줄
   expect(r.bottom <= r.boxBottom && r.top >= r.boxTop, `★팝오버가 패널 안 ${JSON.stringify(r)}`).toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* S8 단계 3-2 도형 — ⫶ 팝오버가 «산다»(스타일 실선·점선·사용자 · 길이/간격 · 점선 끝 · 꼭짓점 · Miter) · 새 키는 기본과 다를 때만(stroke-look.js) · 그림 = svg 인라인 style
+ *   내보내기 3경로(지디 261124): PNG = 위 변을 따라 어두운 토막 수(점선 > 3 · 실선 = 1) · HTML = 내보낸 문자열에 stroke-dasharray · Figma JSON = strokeDasharray(키 없는 도형은 안 실음) */
+async function shapeScene(page, type = 'rectangle') {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const id = await page.evaluate(async (type) => {
+    const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    const sec = await window.addSection(); sec.id = 'sS8'; sec.style.backgroundColor = '#ffffff'; window.deselectAll(); window.selectSection(sec);
+    window.addShapeBlock(type); const b = [...sec.querySelectorAll('.shape-block')].pop();
+    b.dataset.shapeColor = '#ffffff'; b.dataset.shapeStrokeColor = '#000000'; b.dataset.shapeStrokeWidth = '8';
+    const sv = b.querySelector('svg'); sv.style.stroke = '#000000'; sv.style.strokeWidth = '8'; window.refreshShapeInnerSVG?.(b);
+    b.querySelectorAll('svg :is(rect,ellipse,polygon)').forEach((e) => e.setAttribute('fill', '#ffffff'));
+    window.deselectAll(); window.selectBlock(b.id); window.showShapeProperties?.(b); window.clearHistory?.(); return b.id;
+  }, type);
+  await page.waitForSelector('#shape-stroke-more', { state: 'attached' });
+  return { errs, id };
+}
+test('S8a 도형 — 팝오버 산다: 점선 = strokeStyle 하나 + svg 3w·2w · 꼭짓점 bevel · ⌘Z 한 칸 · 실선·뾰족 되돌리면 키 0', async ({ page }) => {
+  const { errs, id } = await shapeScene(page);
+  await page.click('#shape-stroke-more');
+  const live = await page.evaluate(() => { const p = document.getElementById('shape-stroke-pop'); return ['stroke-style', 'stroke-cap', 'stroke-join', 'stroke-miter'].map((f) => { const e = p.querySelector(`[data-field="${f}"]`); return !(e.matches('[aria-disabled="true"]') || e.querySelector('[aria-disabled="true"]')); }); });
+  await page.selectOption('#shape-stroke-pop [data-field="stroke-style"]', 'dashed');
+  const st = () => page.evaluate((id) => { const b = document.getElementById(id), s = b.querySelector('svg').style; return { keys: Object.keys(b.dataset).filter((k) => /^stroke(Style|DashLen|GapLen|Cap|Join|Miter)$/.test(k)).sort(), dash: s.strokeDasharray, join: s.strokeLinejoin }; }, id);
+  const s1 = await st();
+  await page.click('#shape-stroke-pop [data-field="stroke-join"] [data-value="bevel"]');
+  const s2 = await st();
+  await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z');
+  const s3 = await st();
+  await page.evaluate((id) => { window.deselectAll(); window.selectBlock(id); window.showShapeProperties(document.getElementById(id)); }, id);
+  await page.click('#shape-stroke-more'); await page.selectOption('#shape-stroke-pop [data-field="stroke-style"]', 'solid');
+  const s4 = await st();
+  console.log('[S8a 실측]', JSON.stringify({ live, s1, s2, s3, s4 }));
+  expect(live, '★사각 = 스타일·끝·꼭짓점·Miter 산다').toEqual([true, true, true, true]);
+  expect(s1, '★점선 = 키 strokeStyle 하나 · svg 24 16(굵기 8 의 3w·2w)').toEqual({ keys: ['strokeStyle'], dash: '24, 16', join: '' });
+  expect(s2, '★bevel = 키 + svg').toEqual({ keys: ['strokeJoin', 'strokeStyle'], dash: '24, 16', join: 'bevel' });
+  expect(s3, '★⌘Z 한 칸 = bevel 전').toEqual({ keys: ['strokeStyle'], dash: '24, 16', join: '' });
+  expect(s4, '★실선으로 되돌리면 키 0 · svg 속성 0(옛 바이트)').toEqual({ keys: [], dash: '', join: '' });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('S8b 원·선 — 꼭짓점·Miter 막힘(꼭짓점이 없는 블럭) · 점선은 산다', async ({ page }) => {
+  const { errs } = await shapeScene(page, 'ellipse');
+  await page.click('#shape-stroke-more');
+  const r = await page.evaluate(() => { const p = document.getElementById('shape-stroke-pop'); const t = (f) => { const e = p.querySelector(`[data-field="${f}"]`); const d = e.matches('[aria-disabled]') ? e : e.querySelector('[aria-disabled]'); return d ? d.getAttribute('title') : null; }; return { style: t('stroke-style'), join: t('stroke-join'), miter: t('stroke-miter') }; });
+  console.log('[S8b 실측]', JSON.stringify(r));
+  expect(r).toEqual({ style: null, join: '꼭짓점이 없는 블럭이에요', miter: '꼭짓점이 없는 블럭이에요' });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('S8c 도형 점선(사용자 4·4) — 내보내기 3경로: PNG 위 변 토막 > 5(실선 대조 = 1) · HTML stroke-dasharray · Figma JSON strokeDasharray(대조: 실선은 안 실음)', async ({ page }) => {
+  const { errs, id } = await shapeScene(page);
+  await installCdpCapture(page);
+  const runs = () => page.evaluate(async (id) => {
+    const sec = document.getElementById('sS8'), b = document.getElementById(id);
+    const url = await window.exportSection(sec, 'png', 860, { returnDataUrl: true });
+    if (typeof url !== 'string' || !url.startsWith('data:image/png')) return { err: 'not png' };
+    const i = new Image(); i.src = url; await i.decode();
+    const c = document.createElement('canvas'); c.width = i.width; c.height = i.height; const g = c.getContext('2d'); g.drawImage(i, 0, 0);
+    const sr = sec.getBoundingClientRect(), br = b.querySelector('svg').getBoundingClientRect(), k = i.width / sr.width;
+    const y = Math.round((br.top - sr.top + 2 * (br.height / 100)) * k);   // 위 변 띠 안(굵기 8/100 의 가운데쯤)
+    const x0 = Math.round((br.left - sr.left + 0.1 * br.width) * k), x1 = Math.round((br.right - sr.left - 0.1 * br.width) * k);
+    const d = g.getImageData(x0, y, x1 - x0, 1).data; let n = 0, prev = false;
+    for (let p = 0; p < d.length; p += 4) { const dark = d[p] < 80 && d[p + 1] < 80 && d[p + 2] < 80; if (dark && !prev) n++; prev = dark; }
+    return { n, w: x1 - x0 };
+  }, id);
+  const solid = await runs();
+  await page.click('#shape-stroke-more'); await page.selectOption('#shape-stroke-pop [data-field="stroke-style"]', 'custom');
+  for (const f of ['stroke-dash', 'stroke-gap']) { await page.fill(`#shape-stroke-pop [data-field="${f}"] input`, '4'); await page.locator(`#shape-stroke-pop [data-field="${f}"] input`).dispatchEvent('change'); }   // 사용자 4·4 — 파생 3w·2w 는 위 변에 토막 2~3 뿐(굵기 8 · 상자 크기와 무관) → 자가 무디다
+  await page.keyboard.press('Escape');
+  const dashed = await runs();
+  const figma = await page.evaluate((id) => { const find = (o) => { if (!o || typeof o !== 'object') return null; if (o.id === id && o.type === 'shape') return o; for (const v of Object.values(o)) { const f = find(v); if (f) return f; } return null; }; const s = find(window.buildFigmaExportJSON(null)); return s && { dash: s.strokeDasharray ?? null, join: s.strokeLinejoin ?? null }; }, id);
+  const [dh] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }), page.evaluate(() => { window.exportHTMLFile(); return null; })]);
+  const html = require('fs').readFileSync(await dh.path(), 'utf8');
+  const htmlDash = new RegExp(`id="${id}"[\\s\\S]{0,2000}?stroke-dasharray:\\s*4(px)?,?\\s*4`).test(html);
+  console.log('[S8c 실측]', JSON.stringify({ solid, dashed, figma, htmlDash }));
+  expect(solid, '★대조 — 실선 위 변 = 어두운 토막 1').toMatchObject({ n: 1 });
+  expect(dashed.n, `★PNG 점선 — 위 변 토막 ${dashed.n}`).toBeGreaterThan(5);
+  expect(figma, '★Figma JSON = 캔버스 svg 값(공백 숫자 꼴 · 렌더러 꼴 검사 통과) · 꼭짓점 키 없으면 안 실음').toEqual({ dash: '4 4', join: null });
+  expect(htmlDash, '★HTML 내보내기에 도형 svg stroke-dasharray').toBe(true);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* 실앱 PNG = main.js 'capture-section-cdp' — 하네스 electronAPI 는 null ⇒ 같은 CDP 명령을 흉내(checker-asset-tone T8 과 같은 손 · 메모 «DOM 캡처는 wireCdp») */
+async function installCdpCapture(page) {
+  const cdp = await page.context().newCDPSession(page);
+  await page.exposeFunction('__cdpShot', async ({ x = 0, y = 0, width, height }) => {
+    const r = await cdp.send('Page.captureScreenshot', { format: 'png', clip: { x: Math.round(x), y: Math.round(y), width: Math.ceil(width), height: Math.ceil(height), scale: 1 }, captureBeyondViewport: true, fromSurface: true });
+    return r.data;
+  });
+  await page.evaluate(() => {
+    const old = window.electronAPI;
+    window.electronAPI = new Proxy({}, { get: (t, k) => (k === 'captureSectionCdp' ? (o) => window.__cdpShot(o) : old?.[k]) });
+  });
+}
