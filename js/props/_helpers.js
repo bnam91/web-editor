@@ -526,6 +526,7 @@ export function wireCheck(target, { onChange } = {}) {
   if (onChange) el.addEventListener('change', () => { delete el.dataset.mixed; onChange(el.checked); });
   return el;
 }
+if (typeof window !== 'undefined') window.checkHTML = checkHTML;   // classic 스크립트(js/liner-transform.js)용 — overlayToggleBtnHTML 과 같은 꼴
 
 /* 라벨 + 슬라이더 + 숫자 한 줄(.prop-row) — 「좌우 패딩」 줄이 섹션·프레임 두 패널에 있다(F5, 2026-10-03).
    마크업 사본을 두 벌 두지 않으려고 뺐다. 결과 HTML 은 prop-section 에 있던 줄과 «글자 그대로» 같다. */
