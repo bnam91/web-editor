@@ -583,6 +583,7 @@ export function exitFloat(posEl) {
    놓는 자리 아래 «맨 안쪽 일반 프레임»(글 프레임·도형 래퍼·그룹 틀 = 주인 아님 · floatHostOf 와 같은 잣대 + 그룹) → 없으면 그 섹션.
    화면 자리 그대로 = 옛 주인 원점 − 새 주인 원점(패딩 상자 = rect + clientLeft/Top) 만큼 좌표를 옮긴다. */
 function _dropHostAt(posEl, sec, x, y) {
+  /* 현빈 261123 ⓐ — 커서가 프레임 «안»이면 상자가 걸쳐도 프레임 자식(Clip 이면 잘려 보임 = 의도) · 밖이면 섹션. 섹션 사이는 끌기 중 섹션 넘나들기가 sec 를 이미 커서 아래 섹션으로 바꿔 둔다(프레임을 벗어나면 섹션 끌기로 바뀜 · onMove). */
   const OK = '.frame-block:not([data-text-frame])';
   for (const el of document.elementsFromPoint?.(x, y) || []) {
     if (posEl.contains(el) || !sec.contains(el)) continue;
@@ -626,7 +627,7 @@ export function bindFloatMoveDrag(posEl) {
     if (!sec) return;
     /* t13D-06 — 자리 주인(box): 섹션 오버레이 = 섹션(넘나들기 그대로) · 프레임 안 오버레이 = 그 프레임(그 안에서 탄성 · 섹션 넘나들기 없음 · 가이드도 그 프레임 기준) */
     let box = floatHostOf(posEl) || sec;
-    const inFrame = box !== sec;
+    let inFrame = box !== sec;   // ★현빈 261123 ⓐ — 커서가 프레임을 벗어나면 아래 onMove 에서 섹션 끌기로 바뀐다(let)
     const host0 = box;   // S5-2 — 놓은 뒤 주인이 바뀌었으면 레이어 패널을 다시 짠다
     const zoom = _zoom();
     /* ★2026-09-16h P0(현빈 실측 — "90도 회전 후 좌우 이동이 안 된다") — 회전된 오버레이는
@@ -722,6 +723,20 @@ export function bindFloatMoveDrag(posEl) {
         [startLeft, startTop] = trulyFree ? [curL, curT] : _toRawStart(curL, curT);
         startClientX = lastClientX; startClientY = lastClientY;
         freeSpace = trulyFree;
+      }
+      /* ★현빈 261123 ⓐ «커서가 프레임 밖이면 섹션 자식으로 빠짐» — 프레임 안 오버레이는 프레임 상자 안에서 탄성으로 끌리는데(t13D-06), 커서가 프레임을 «벗어나면»
+         상자가 프레임 가장자리에 묶여 커서를 못 따라간다 → 놓으면 섹션 자식이 되어도 자리는 프레임 가장자리(다른 섹션이면 그 섹션 밖 = 잘려 안 보임).
+         ⇒ 커서가 프레임 밖으로 나간 순간 섹션 끌기로 바꾼다(지금 화면 자리 그대로 섹션 기준으로 다시 잡고 섹션 넘나들기도 아래 갈래 그대로). 놓을 때 주인은 _dropHostAt(커서) 이 정한다. */
+      if (inFrame && !trulyFree) {
+        const fr = box.getBoundingClientRect();
+        if (ev.clientX < fr.left || ev.clientX > fr.right || ev.clientY < fr.top || ev.clientY > fr.bottom) {
+          const sr = sec.getBoundingClientRect(), pr = posEl.getBoundingClientRect();
+          const dx = (pr.left - sr.left) / zoom - (parseFloat(posEl.style.left) || 0), dy = (pr.top - sr.top) / zoom - (parseFloat(posEl.style.top) || 0);   // 회전과 무관하게 «지금 보이는 자리»를 섹션 기준으로(옮기기 전 rect 차)
+          const nx = (parseFloat(posEl.style.left) || 0) + dx, ny = (parseFloat(posEl.style.top) || 0) + dy;
+          sec.appendChild(posEl); box = sec; inFrame = false;
+          _applyOverlayPos(posEl, nx, ny);
+          [startLeft, startTop] = freeSpace ? [nx, ny] : _toRawStart(nx, ny); startClientX = ev.clientX; startClientY = ev.clientY;
+        }
       }
       const hover = (!trulyFree && !inFrame && window._findSectionAt) ? window._findSectionAt(ev.clientX, ev.clientY) : null;   // t13D-06 — 프레임 안 오버레이는 섹션을 안 넘나든다
       if (hover && hover !== sec) {
