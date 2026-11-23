@@ -28,7 +28,7 @@ const countWin = (s) => (stripComments(s).match(WIN_RE()) || []).length;
 const BASE = {
   'tests/_name-sink-scan.js': 1,
   'tests/dom/_history-step.js': 2,
-  'tests/dom/bracket-reorder-roster.dom.spec.js': 2,
+  // 'tests/dom/bracket-reorder-roster.dom.spec.js': 2 → 0 (261124 IAL-02 기대 바뀜 d51059de4 — 옛 핸들러 slice 창 둘이 사라짐 · 지디)
   'tests/dom/cvb-linehost-text-color.dom.spec.js': 2,
   'tests/dom/e80-fix.dom.spec.js': 2,
   'tests/dom/grid-children-shell-bytes.dom.spec.js': 2,
