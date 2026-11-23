@@ -443,3 +443,6 @@ ft-restore-remeasures-at-other-width.dom.spec.js:112 X0   빨강 1/1 (u6m 전수
 
 ## 2026-11-21 · dev16 전수 — 이름 ＋ 수 (⛔원인 라벨 없이)
 - `ft-restore-remeasures-at-other-width` X0 — 인텔 dev16 전수(e648a47b2) 1/1 빨강 · 같은 sha 아이맥 재기 0/1.
+
+## 2026-11-23 · 통일판 2맥(아이맥·수지) 전수 — 이름 ＋ 수 (⛔원인 라벨 없이)
+- `t13d-02-grid-handles-on-create.dom.spec.js:17` A1 — 2맥(아이맥·수지) 전수(f7bda8bd8) 1/1 빨강 · 앞 판 7b69bcbd5 전수(수지 샤드) 1/1 빨강 · f7bda8bd8 수지 단독 workers 1 ×3 0/3.

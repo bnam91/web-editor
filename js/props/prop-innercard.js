@@ -28,10 +28,10 @@ export function showInnerCardProperties(block) {
     sections: [
       sec('content', `${lines.map((l, li) => (l.type === 'image' || l.type === 'gap') ? '' : `
       <div class="prop-row">
-        <span class="prop-label">${_esc(l.type || 'body')}</span>
+        <span class="prop-label">${_esc(({ h1: 'H1', h2: 'H2', h3: 'H3', body: 'Body', caption: 'Cap', label: 'Label', bullet: 'Bullet' })[l.type || 'body'] || l.type)}</span>
         <input type="text" class="prop-input icd-line-input" data-line="${li}" value="${_esc(l.text || '')}" style="flex:1;min-width:0">
       </div>`).join('')}
-      <div class="prop-row"><span class="prop-label" style="opacity:.6">라인 추가/삭제는 updateInnerCardBlock API</span></div>`),
+      <div class="prop-hint">줄 더하기·빼기는 아직 패널에 없습니다 — 글은 위 칸이나 캔버스에서 고칩니다</div>`),
       sec('padding', `
       <div class="prop-row">
         <span class="prop-label">패딩</span>

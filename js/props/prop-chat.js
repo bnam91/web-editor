@@ -263,6 +263,7 @@ export function showChatProperties(block) {
       sizeMin: CHB_FONT_MIN, sizeMax: CHB_FONT_MAX,
       showFont: false, showWeight: false, showStyleGroup: false,
       showLetterSpacing: false, showLineHeight: false, showHighlight: false,
+      omitHidden: true,   // R15(현빈 261123) — 끈 칸을 숨겨 두지 않고 안 그림 · 챗 배선은 크기칸(#chb-typo-size-number) 하나만 찾는다(아래 :411)
     })}`)),
       sec('fill', `
       <div class="prop-row">

@@ -6,7 +6,14 @@
 .prop-hint {
   font-size: var(--ui-fs-10); color: var(--ui-hint-color); text-align: center;   /* 옛 회색(2.4:1 ✗AA) → 토큰(U0) */
   padding: 8px 12px 4px; letter-spacing: 0.02em;
+  margin-bottom: var(--ui-space-1_5);   /* 안내 아래 다음 줄과 6(행 간격) — 0 이던 것(QA dev37 261123 · 아이콘원·불릿·캔버스·그라데이션·페이지 등) */
 }
+/* 절 몸 바로 아래 넓은 단추(«이미지 선택» 등)·배너02 줄 칩/줄/«＋ 텍스트 줄 추가» 아래 = 행 간격 6(0·−4 이던 것 · QA dev37 261123) */
+.prop-section[data-sec] > .prop-sec-body > .prop-action-btn,
+.prop-section[data-sec] > .prop-sec-body > #bn2-line-chips,
+.prop-section[data-sec] > .prop-sec-body > [data-line-row],
+.prop-section[data-sec] > .prop-sec-body > #bn2-line-add { margin-bottom: var(--ui-space-1_5); }
+.prop-section[data-sec] > .prop-sec-body > [data-line-row] > .prop-section-title-row { margin-bottom: 0; }   /* 옛 전역 −4(머리줄 겹치기)가 배너02 줄 머리를 다음 단추에 4 겹쳤다 */
 .prop-section {
   padding: 0 var(--ui-space-2) var(--ui-space-1);
 }
@@ -77,7 +84,10 @@
 /* 컬러 변수(VAR) 칩 줄은 끝 칼럼까지 쓴다 · 한 줄(시안 v10 ⑤ — 칼럼만큼 줄이 좁아져 칩 넷이 두 줄로 꺾였다)
    ★그리드 단추 줄 둘(외곽선 6 · 줄바 추가/복제/삭제)도 같은 규칙(지디 261123 ⑴ⓐ) — 칼럼 뒤 줄 183 에서 두 줄로 꺾였다(옛 211 = 한 줄) */
 .prop-section[data-sec] > .prop-sec-body > .cv-chips:not(.ts-recent-row),
-.prop-section[data-sec] .prop-row:has(> #grd-outline-group, > #grd-line-del-btn) { margin-right: calc(-1 * var(--ui-opt-col-w)); flex-wrap: nowrap; }
+.prop-section[data-sec] .prop-row:has(> #grd-outline-group, > #grd-line-del-btn),
+.prop-section[data-sec] .prop-row.prop-row--wide { margin-right: calc(-1 * var(--ui-opt-col-w)); flex-wrap: nowrap; }
+/* .prop-row--wide = 엔드슬롯 없는 줄인데 칸이 많아 183 에 안 드는 줄 — 끝 칼럼까지 쓴다(QA dev37 261123 치명: 슬라이드 칸 줄 · 페이지 Grid · 그래프 카테고리 색상 · 캔버스 그라데이션).
+   ⛔줄 폭을 넘기는 꼴은 overflow:hidden 에 «소리 없이» 잘린다 — 게이트 panel-section-gate G3(보이는 .prop-row scrollWidth ≤ clientWidth). */
 /* 1120b R1·R2(현빈 261120 「최근은 한 줄로」) — 최근 색(.cv-recent-row · 최대 COLOR_HISTORY_MAX 7)은 위 줄로 끝 칼럼까지(7개가 한 줄에 든다) ·
    최근 효과(.ts-recent-row)는 폭 그대로(TEXT_STYLE_HISTORY_MAX 5 를 그 폭으로 쟀다 — text-style-recent M) · 둘 다 어디서든 꺾지 않는다(둘째 줄 0). */
 /* .cv-chips 를 붙여 0,2,0 — 아래(654) .cv-chips { flex-wrap: wrap } 이 같은 0,1,0 · 뒤라서 이겼다(DOM R2 wrap 실측) */
@@ -127,6 +137,9 @@
    ⛔전역 .prop-label(56px)은 안 건드린다 — 그 고정폭이 패널의 «세로 정렬»을 만든다.
      이 변형은 «라벨 하나 + 남는 폭을 다 쓰는 컨트롤» 인 줄에서만 쓴다. */
 .prop-label--auto { width: auto; flex: 0 0 auto; }
+/* 줄 «안» 둘째 라벨(W 칸 뒤 H · 텍스트 X 칸 뒤 폭 · 칼럼 뒤 거터) = 글 폭만 — 56 칸은 줄 머리 라벨 몫(세로 정렬)이고 둘째 라벨이 56 을 먹어 W·H 줄이 220 > 183 으로 잘렸다(QA dev37 261123 치명) */
+.prop-row > .prop-label ~ .prop-label { width: auto; flex: 0 0 auto; }
+.prop-toggle-grid .prop-row > .prop-label { width: auto; flex: 1 1 auto; min-width: 0; }   /* 반 칸(88) 안 라벨 = 남는 폭 — 56 고정이면 라벨 + 토글 89 > 88 로 잘렸다(표 Stroke 세로선·수평선·외곽 상하 · G3 261123) · 기본 .prop-label 규칙 «뒤»에 둔다(panel-contrast 시험이 첫 «.prop-label {» 규칙을 읽는다) */
 .prop-field-label { font-size: var(--ui-fs-base); color: var(--ui-text-muted, #6b6b6b); margin-bottom: 4px; display: block; }   /* 라벨 글자 크기 하나 = --ui-fs-base(.prop-label 과 같은 값 · 시안 v9 #4 · 지디 261120 전 패널) */
 /* 라벨 바로 아래 단추(프레임 Radial Arrange · Fill Image 등) — .prop-action-btn 의 margin-top 6(절 리듬)이 라벨 4 와 겹쳐 6 이 됐다 → 라벨→칸 4px 하나로(현빈 261122 · 선례 .prop-section-title-row > .prop-action-btn) */
 .prop-field-label + .prop-action-btn { margin-top: 0; }
@@ -277,7 +290,7 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
      그 «한 벌»은 tests/unit/prop-select-single-rule.test.mjs 가 잠근다. */
 
 .prop-layout-input {
-  flex: 1; height: 24px;
+  flex: 1; min-width: 0; height: 24px;   /* min-width 0 — 입력의 고유 폭(~142)이 flex 를 이겨 Row «비율» 줄 202 > 183 으로 잘렸다(G3 261123) */
   background: var(--ui-bg-input); border: 1px solid transparent;
   border-radius: 4px; color: var(--ui-text);
   font-size: var(--ui-fs-base);
@@ -361,6 +374,7 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
 .prop-type-group {
   display: flex; gap: 0; margin-bottom: var(--ui-space-1);
 }
+.prop-row > .prop-type-group { margin-bottom: 0; }   /* 줄 안 묶음 — 아래 4 가 가운데 맞춤을 2 위로 밀었다(QA dev37 261123 · 모달 Size·Stroke · 말풍선 크기 · 인용구 꼴 Δ-2) */
 /* 프리셋 버튼이 섞인 경우 좁은 패널에서 넘치지 않도록 3-col 그리드 + wrap */
 .prop-type-group:has(.prop-preset-btn) {
   display: grid;
@@ -472,7 +486,7 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
 }
 
 /* 스타일 버튼 그룹 (Bold / Italic) */
-.prop-style-group { display: flex; gap: 4px; }  /* ⑨ 버튼 4개(B/I/S/H) — 인접 .prop-align-group 과 같은 간격 */
+.prop-style-group { display: flex; gap: var(--ui-row-gap); margin-bottom: var(--ui-space-1_5); }   /* 아래 줄과 6 — 모달·인용구 B I S H → Line Height 0 이던 것(QA dev37 묶음 2) */  /* ⑨ 버튼 4개(B/I/S/H) — 인접 .prop-align-group 과 같은 간격 */
 .prop-style-btn {
   width: 28px; height: 24px;
   background: var(--ui-bg-input); border: 1px solid var(--ui-border-mid);
@@ -672,6 +686,7 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
   margin-left: var(--ui-space-1); padding-left: var(--ui-space-1_5);   /* ⑨(현빈 261122 · 시안 v7 «끝 옵션 칼럼으로 줄 212→184 · 색 칩 들임 8→4») — VAR·최근 색·최근 효과 줄 한 꼴 */
   border-left: 2px solid var(--ui-border-mid);
 }
+.cv-chips:not(:last-child) { margin-bottom: var(--ui-space-1_5); }   /* 칩 줄 → 다음 줄 6(인용구 VAR → 부호 색 · 텍스트 라벨 VAR → 배경색 0 이던 것 · QA dev37 묶음 2) · 절 끝이면 몸 pb 그대로 */
 .cv-chips[hidden] { display: none; }
 .cv-chips-label {
   font-size: var(--ui-fs-9); font-weight: var(--ui-fw-semibold); letter-spacing: 0.04em;
@@ -1182,7 +1197,11 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
   padding: 8px;
   margin-bottom: 10px;
 }
-.prop-cell-card:last-child { margin-bottom: 6px; }   /* 절 끝 = .prop-row(6)+절 padding 4 = 10 — 카드 사이 10 은 위 규칙 그대로 (PROP-SECTION-EXPANDED-BOTTOM-GAP-14-VS-10-01 · 현빈/지디 ㉠) */
+.prop-cell-card:last-child { margin-bottom: 6px; }
+.prop-cell-card[id$="-code-fold-card"] { margin-bottom: var(--ui-space-1_5); }   /* 텍스트 스타일 번호 카드 = 줄 사이 6(위아래 10 이던 것 · QA dev37 묶음 2 · 효과 카드 사이 10 은 그대로) */
+.prop-section[data-sec="stroke"] > .prop-sec-body > .prop-section + .prop-section { margin-top: var(--ui-space-1_5); }   /* 그리드 Stroke 하위 절(칸 테두리 · 블럭 외곽선 · 칸 사이 줄) 사이 0 → 6 */
+.prop-row[data-sec-item] > .prop-label { width: auto; min-width: var(--ui-form-label-w); }   /* 목록 줄 라벨 = 56 하한 · 긴 이름만 늘어남(쿠폰 «스텁/머리 글자» 63 이 잘리던 것) */
+.prop-row + .prop-export-btn { margin-top: 0; }   /* 줄(아래 6) 뒤 내보내기 단추 위 4 가 더해져 10 이던 것 → 6(페이지 Export) */   /* 절 끝 = .prop-row(6)+절 padding 4 = 10 — 카드 사이 10 은 위 규칙 그대로 (PROP-SECTION-EXPANDED-BOTTOM-GAP-14-VS-10-01 · 현빈/지디 ㉠) */
 .prop-cell-card-header {
   display: flex;
   align-items: center;

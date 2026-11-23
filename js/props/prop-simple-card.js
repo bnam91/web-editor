@@ -321,8 +321,8 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
       : textHide    ? '「숨김」 모드는 이미 이미지가 카드 전체를 덮습니다'
       :               '켜면 이미지가 카드 전체 배경이 되고 라벨이 그 위에 얹힙니다'
       }</div>
+      <span class="prop-field-label">라벨 모드</span>
       <div class="prop-row">
-        <span class="prop-label">라벨 모드</span>
         <div class="prop-align-group" id="cvb-label-mode-group">
           <button class="prop-align-btn${(!isOverlay && !textHide) ? ' active' : ''}" data-mode="separate" title="분리 박스 — 이미지와 텍스트가 별도 영역">분리</button>
           <button class="prop-align-btn${(isOverlay && !textHide) ? ' active' : ''}" data-mode="overlay" title="오버레이 — 이미지 위에 텍스트가 떠 있음 (그라데이션용)">오버레이</button>
@@ -460,8 +460,8 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
         <input type="text" class="prop-color-hex" id="cvb-text-bg-top-raw" value="${_hexBox(block.dataset.textBgTop || '').replace(/"/g, '&quot;')}" placeholder="상속" title="${(block.dataset.textBgTop || '').replace(/"/g, '&quot;')}">
         <button class="prop-align-btn prop-align-btn--aux" id="cvb-text-bg-top-clear" title="해제(상속)">✕</button>
       </div>
-      <div class="prop-row" style="padding-left:60px;gap:4px;">
-        <span class="prop-label" style="font-size:10px;color:var(--ui-text-sub);min-width:0;flex:0 0 auto;margin-right:4px;">그라데이션</span>
+      <div class="prop-row prop-row--wide">
+        <span class="prop-label">그라데이션</span>
         <button class="prop-align-btn cvb-grad-preset" data-graddir="180" title="아래로 어두워짐" style="background:linear-gradient(180deg, transparent, rgba(0,0,0,0.85));">↓</button>
         <button class="prop-align-btn cvb-grad-preset" data-graddir="0" title="위로 어두워짐" style="background:linear-gradient(0deg, transparent, rgba(0,0,0,0.85));">↑</button>
         <button class="prop-align-btn cvb-grad-preset" data-graddir="180" data-grad-strong="1" title="아래 강조" style="background:linear-gradient(180deg, transparent 30%, rgba(0,0,0,0.95));">⇊</button>
