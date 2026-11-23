@@ -1,5 +1,5 @@
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
+import { blockHeaderHTML, rotRowHTML, wireRotRow, checkHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { pushHistory } from '../editor.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
@@ -74,12 +74,8 @@ export function showVectorProperties(block) {
         <span class="prop-label">색</span>
         ${colorFieldHTML({ idPrefix: 'vb', hex: color, alpha: colorAlpha })}
       </div>`) + `${hasPen && penClosed ? `
-      <div class="prop-row" style="margin-top:6px;">
-        <span class="prop-label">채움</span>
-        <label class="prop-toggle" title="닫힌 패스 채움 토글" style="margin-left:auto;">
-          <input type="checkbox" id="vb-pen-fill" ${fillOn ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+      <div class="prop-row" style="margin-top:6px;" title="닫힌 패스 채움 토글">
+        ${checkHTML({ id: 'vb-pen-fill', label: '채움', checked: fillOn })}
       </div>` : ''}`),
       sec('stroke', stroke.has ? `
       <div class="prop-row">
