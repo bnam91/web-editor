@@ -219,7 +219,7 @@ export function showAssetProperties(ab) {
           ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', active: currentAlign==='left', attrs: { 'data-align': 'left' } })}
           ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', active: currentAlign==='center', attrs: { 'data-align': 'center' } })}
           ${alignBtn('object-h', 'right', { label: '오른쪽 정렬', title: '오른쪽 정렬', active: currentAlign==='right', attrs: { 'data-align': 'right' } })}
-      </div>`}`, { headTools: overlayToggleBtnHTML({ id: 'asset-float-toggle', active: isFloatOverlay, title: '오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다(Figma의 Ignore Auto Layout과 같은 개념). 다시 누르면 원래 있던 자리로 돌아갑니다. ' }) }),
+      </div>`}`, { headTools: overlayToggleBtnHTML({ id: 'asset-float-toggle', active: isFloatOverlay }) }),
       sec('size', `
       <div class="prop-row">
         <span class="prop-label">너비</span>

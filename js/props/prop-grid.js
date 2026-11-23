@@ -3207,7 +3207,7 @@ function _grdWidthRowHtml(block) {
   const wMax = _grdWidthMax(block);
   const sliderVal = w.val ?? Math.min(wMax, Math.max(GRID_WIDTH_MIN, Math.round(block.offsetWidth) || GRID_WIDTH_MIN));
   const autoTitle = w.floating
-    ? '떠 있는 동안은 굳힌 폭이 정본이라 «자동»으로 못 돌린다 — 오버레이를 풀고 누르세요'
+    ? '떠 있는 동안은 굳힌 폭이 정본이라 «자동»으로 못 돌린다 — Ignore Auto Layout 을 끄고 누르세요'
     : (w.auto ? '지금 자동 — 담는 그릇 폭을 다 쓴다' : '정한 폭을 지우고 담는 그릇 폭을 다 쓰게(100%) 되돌린다');
   return `
       <div class="prop-row">

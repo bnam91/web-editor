@@ -1,3 +1,4 @@
+/* ★기대 바뀜(IAL-01 · 0.9.13 186행 · 현빈 승인 261122) — «오버레이» → «Ignore Auto Layout»(이력 이름 포함) */
 /* drag-shape-flow-overlay-frame.dom.spec.js — 끌리지 않던 두 꼴 (lane-drag · 2026-10-05 · 현빈 → 지디 → 태양)
  *
  * D1 · 섹션 «흐름»에 놓인 도형 래퍼(addShapeBlock 섹션 레벨 꼴 = 지금 새로 만드는 꼴)를 끌면 아무 일도 없다.
@@ -196,7 +197,7 @@ test('D2b ★로드된 오버레이 프레임을 끌면 움직이고, 전용 드
   const p = await page.evaluate(() => { const g = document.getElementById('grp'); return { L: parseFloat(g.style.left), T: parseFloat(g.style.top), ox: +g.dataset.offsetX, oy: +g.dataset.offsetY, pushes: window.__pushes.slice() }; });
   expect({ L: p.L, T: p.T }, `그룹 자리=${JSON.stringify(p)} (고치기 전 실측 = 100,80 그대로)`).toEqual({ L: 160, T: 120 });
   expect({ ox: p.ox, oy: p.oy }, 'dataset 이 따라와야 한다').toEqual({ ox: 160, oy: 120 });
-  expect(p.pushes, `push 라벨=${JSON.stringify(p.pushes)} — 옛 absolute 셀 드래그가 같이 돌면 '' 가 섞인다`).toEqual(['오버레이 이동']);
+  expect(p.pushes, `push 라벨=${JSON.stringify(p.pushes)} — 옛 absolute 셀 드래그가 같이 돌면 '' 가 섞인다`).toEqual(['Ignore Auto Layout 이동']);
 });
 
 /* ── D5 (lane-drag 10-05 · 우리가 찾은 것) — 옛 꼴에서 «클릭 2번»(프레임 → 도형)으로 도형을 고른 뒤 끌면
