@@ -2,7 +2,7 @@ import { propPanel } from '../globals.js';
 import { checkerBgBigColors, checkerSvgFills } from '../checker-tokens.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { svgStopRemap } from './gradient-model.js';
-import { overlayToggleBtnHTML, blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
+import { overlayToggleBtnHTML, blockHeaderHTML, rotRowHTML, wireRotRow, checkHTML } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
 import { starPoints, starClipPath, clampStarN, STAR_MIN, STAR_MAX,
          starPointsList, starViewBox, clampStarCount, STAR_COUNT_MIN, STAR_COUNT_MAX,
@@ -254,11 +254,7 @@ export function showShapeProperties(block) {
              (2026-09-20 실측 sw60/cw56, 실물 앱은 더 잘림). 이 줄은 «라벨 하나 + 남는 폭을 쓰는 컨트롤»
              이라 앱 관례인 내용폭 라벨을 쓴다(css/editor-props.css:32, prop-page.js 「그리드 가이드」 선례).
              ⛔전역 .prop-label 의 56px 은 내리지도 올리지도 마라 — 패널 세로 정렬의 출처다. -->
-        <span class="prop-label prop-label--auto">블러로 가리기</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="shape-redact-toggle" ${isRedact ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'shape-redact-toggle', label: '블러로 가리기', checked: isRedact })}
       </div>
       <div id="shape-redact-controls" style="${isRedact ? '' : 'display:none'}">
         <div class="prop-row" style="margin-top:8px;">
@@ -348,12 +344,8 @@ export function showShapeProperties(block) {
       sec('effects', `${isEllipse && !isRedact ? `
         <div id="shape-ellipse-shadow-wrap">
         <div class="prop-row" style="margin-top:8px;">
-          <span class="prop-label prop-label--auto">이너 그림자</span>
-          <label class="prop-toggle">
-            <input type="checkbox" id="shape-ellipse-shadow-toggle" ${ellShadow !== null ? 'checked' : ''}>
-            <span class="prop-toggle-track"></span>
-          </label>
-        </div>
+        ${checkHTML({ id: 'shape-ellipse-shadow-toggle', label: '이너 그림자', checked: ellShadow !== null })}
+      </div>
         ${ellShadow !== null ? `<div class="prop-row">
           <span class="prop-label">세기</span>
           <input type="range" class="prop-slider" id="shape-ellipse-shadow-slider" min="${ELLIPSE_SHADOW_MIN}" max="${ELLIPSE_SHADOW_MAX}" step="1" value="${ellShadow}">
