@@ -91,7 +91,7 @@ const colors = (page, sel) => page.evaluate((sel) => {
 test('M1 추가 메뉴(관리자) · 오른쪽 패널 사진 넣기·순서·빼기 · ⌘Z', async ({ page }) => {
   const s = await scene(page, { admin: false });
   await menu(page);
-  await expect(page.locator('#fp-add-slide'), '★관리자 아닌데 Slides 가 보인다').toBeHidden();
+  await expect(page.locator('#fp-add-slide'), '★관리자 아님 = 회색 예고(보이되)').toBeVisible(); expect(await page.evaluate(() => { const b = document.getElementById('fp-add-slide'); b.click(); return { dis: b.disabled, aria: b.getAttribute('aria-disabled'), op: b.style.opacity, tip: /곧 공개/.test(b.title), made: document.querySelectorAll('#canvas .slide-block').length }; }), '★안 눌림 · 곧 공개').toEqual({ dis: true, aria: 'true', op: 'var(--ui-disabled-opacity)', tip: true, made: 0 });   // ★기대 바뀜(현빈 261123 «곧 공개 = 회색 예고 · 먼 것 = 숨김» — 옛: 숨김)
   await menu(page);   // 닫기
   await page.evaluate(() => { window.__admin = { state: () => ({ isAdmin: true }) }; });
   await addViaMenu(page);

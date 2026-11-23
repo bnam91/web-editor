@@ -17,6 +17,7 @@ async function scene(page) {
   await page.setViewportSize({ width: 1500, height: 1100 });
   const errs = await bootApp(page);
   const ids = await page.evaluate(async () => {
+    window.__admin = { ...(window.__admin || {}), state: () => ({ isAdmin: true }) };   // [전제] t13E-10 부터 텍스트 상자 손잡이는 관리자만 — 장면 전제 · 기대 무변
     const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); await window.addSection();
     const sec = c.querySelector('.section-block'); sec.id = 'sR'; window.applyZoom?.(100);
     const inner = sec.querySelector('.section-inner'); [...inner.children].forEach((x) => { if (!x.classList.contains('drop-indicator')) x.remove(); });
