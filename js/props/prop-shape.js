@@ -1560,4 +1560,5 @@ function _applyShapeImage(block, src, fit) {
 
 _ensureShapeCheckerDefs();
 window._clearShapeImage = _clearShapeImage;
+window._applyShapeImage = _applyShapeImage;   // 207행 — 에셋 → 사각형 바꾸기(block-factory convertAssetToRect)가 그림을 이 칠로 옮긴다
 window._syncShapeImageClip = _syncShapeImageClip;
