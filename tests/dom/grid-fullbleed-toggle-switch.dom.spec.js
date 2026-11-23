@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 ①②③ · 태양 §2c check) — 바뀐 칸의 토글 스위치(label.prop-toggle · .prop-toggle-track) → check 부품(label.ui-check · input.ui-check-box) */
 /* grid-fullbleed-toggle-switch.dom.spec.js — 현빈QA GRID-FULLWIDTH-TOGGLE
  *   그리드 「좌우 패딩 제외 (전폭)」 체크박스 → 에셋 #asset-padx-toggle 과 같은 prop-toggle 스위치.
  *   S1 스위치 구조(라벨·입력·트랙 클래스)와 «라벨 왼쪽·스위치 오른쪽» 자리가 에셋 것과 같다
@@ -37,14 +38,14 @@ test('S1 스위치 구조·라벨 자리가 에셋 패딩 제외 스위치와 �
   await page.evaluate(() => { const g = document.getElementById('gF'); window.selectBlock?.(g); window.showGridProperties(g); });
   await expect(page.locator('#grd-use-padx')).toHaveCount(1);
   const grid = await page.evaluate(shape, 'grd-use-padx');
-  expect(asset, '전제 — 에셋 스위치 구조').toEqual({ label: 'prop-toggle', input: 'checkbox', kids: ['INPUT.', 'SPAN.prop-toggle-track'], labelLeft: true });
+  expect(asset, '전제 — 에셋 체크 구조').toEqual({ label: 'ui-check', input: 'checkbox', kids: ['INPUT.ui-check-box', 'SPAN.ui-check-label'], labelLeft: false });   // 이름 = 체크 옆 글(prop-label 없음)
   expect(grid).toEqual(asset);
 });
 
 test('S2 스위치를 누르면 전폭 · ⌘Z 한 번에 원래대로', async ({ page }) => {
   await setup(page);
   await page.evaluate(() => { const g = document.getElementById('gF'); window.deselectAll?.(); window.selectBlock?.(g); window.showGridProperties(g); window.clearHistory?.(); });
-  const sw = page.locator('label.prop-toggle:has(#grd-use-padx)');
+  const sw = page.locator('label.ui-check:has(#grd-use-padx)');
   await sw.click();
   await expect.poll(() => page.evaluate(() => document.getElementById('gF').dataset.fullBleed)).toBe('true');
   expect(await page.evaluate(() => document.getElementById('gF').style.marginLeft)).toBe('-32px');

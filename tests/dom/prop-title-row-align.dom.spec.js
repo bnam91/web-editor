@@ -61,8 +61,10 @@ const readPlainToggles = (page) => page.evaluate(() => {
   const f = (v) => Math.round(v * 100) / 100;
   const out = [];
   for (const row of document.querySelectorAll('#panel-right .prop-row')) {
-    const lab = row.querySelector(':scope > .prop-label');
-    const tg = row.querySelector(':scope > .prop-toggle');
+    /* ★기대 바뀜(현빈 261123 «온/오프 = 체크» · 태양 §2c) — 체크 줄은 «체크 상자 ↔ 옆 글» 글자 중심을 같은 자로 잰다 */
+    const ck = row.querySelector(':scope > .ui-check');
+    const lab = ck ? ck.querySelector('.ui-check-label') : row.querySelector(':scope > .prop-label');
+    const tg = ck ? ck.querySelector('.ui-check-box') : row.querySelector(':scope > .prop-toggle');
     if (!lab || !tg) continue;
     const rg = document.createRange(); rg.selectNodeContents(lab);
     const g = rg.getBoundingClientRect(), cb = tg.getBoundingClientRect();
@@ -77,7 +79,7 @@ const readFlexTitle = (page, secId) => page.evaluate((secId) => {
   const t = document.querySelector(`#${secId} .prop-section-title`);
   if (!t) return null;
   const tn = [...t.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim());
-  const tg = t.querySelector('.prop-toggle');
+  const tg = t.querySelector('.prop-toggle, .ui-check-box');   // 체크(현빈 261123)도 같은 자
   if (!tn || !tg) return null;
   const rg = document.createRange(); rg.selectNodeContents(tn);
   const g = rg.getBoundingClientRect(), cb = tg.getBoundingClientRect();

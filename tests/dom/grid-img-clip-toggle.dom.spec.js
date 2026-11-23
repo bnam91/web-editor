@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 ①②③ · 태양 §2c check) — 바뀐 칸의 토글 스위치(label.prop-toggle · .prop-toggle-track) → check 부품(label.ui-check · input.ui-check-box) */
 /* grid-img-clip-toggle — ★그리드 이미지줄(사각·크롭) 「내용 자르기」 토글을 ★행위로 잰다 (2026-10-12 · 1012t1 B1 · 현빈 1010t1c2 ㈁)
  *
  * 현빈 원문 c2 — 「에셋블럭이나, 그리드 블럭에 이미지줄를 추가했을때에도 이미지 삽입할 수 있는 상황에서
@@ -65,9 +66,10 @@ const probe = (page) => page.evaluate((sel) => {
 const toggle = (page) => page.evaluate(() => {
   const i = document.getElementById('grd-img-clip-toggle');
   const row = i && i.closest('.prop-row');
-  /* ★U1(right-panel-unify · prop-hint ≤2) 의도 갱신 — 까닭은 막힌 토글(label.prop-toggle)의 title(문구 그대로). 양성대조: 그 title 을 빼면 :146 빨강. */
-  const tg = i && i.closest('label.prop-toggle');
-  const hint = tg && tg.title ? { textContent: tg.title, offsetParent: tg.offsetParent } : null;
+  /* ★U1(right-panel-unify · prop-hint ≤2) 의도 갱신 — 까닭은 막힌 체크 입력칸의 title(문구 그대로). 양성대조: 그 title 을 빼면 :146 빨강. */
+  /* ★기대 바뀜(현빈 261123 «온/오프 = 체크» · 태양 §2c) — 까닭 title 은 체크 입력칸(aria-disabled 와 같은 자리) */
+  const tg = i && i.closest('label.ui-check');
+  const hint = i && i.title ? { textContent: i.title, offsetParent: tg && tg.offsetParent } : null;
   return i ? {
     shown: !!(row && row.offsetParent), checked: i.checked, disabled: i.disabled,
     label: row.querySelector('.prop-label')?.textContent.trim(),
@@ -79,7 +81,7 @@ const frameBytes = (page) => page.evaluate((sel) => {
   const f = document.querySelector(sel);
   return { style: f.getAttribute('style'), ds: f.hasAttribute('data-clip-content'), inner: f.innerHTML };
 }, FR);
-const clickToggle = (page) => page.locator('label.prop-toggle:has(#grd-img-clip-toggle)').click();
+const clickToggle = (page) => page.locator('label.ui-check:has(#grd-img-clip-toggle)').click();
 
 test('GC0+GC1 [전제·새 것] 크롭 줄 — 기본은 자르고, 패널 토글을 끄면 틀 밖에 그림이 보인다 · 높이 무변', async ({ page }) => {
   const errs = await scene(page, CROP);
