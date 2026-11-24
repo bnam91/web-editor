@@ -627,6 +627,26 @@ export function wireRotRow({ p, numberId, host, ids = {}, scrubOnly = false } = 
   });
 }
 
+/** 라벨 끌기(숫자 칸 옆 아이콘을 좌우로 끌면 값이 바뀐다 · 슬라이더 대신 — 표준 Appearance·Layout 공용).
+ *  끄는 동안 = input(그리기만) · 놓을 때 = change 한 번(이력·저장은 그 칸의 change 배선이 한다) · 1px = 1 · min/max 로 자름. */
+export function wireNumberScrub(handle, input, { min = -Infinity, max = Infinity } = {}) {
+  if (!handle || !input) return;
+  handle.addEventListener('pointerdown', (e) => {
+    if (e.button) return;
+    const x0 = e.clientX, v0 = parseFloat(input.value) || 0;
+    let moved = false;
+    const move = (ev) => {
+      const v = Math.min(max, Math.max(min, v0 + Math.round(ev.clientX - x0)));
+      if (String(v) === input.value) return;
+      moved = true; input.value = String(v); input.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    handle.setPointerCapture(e.pointerId);
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('lostpointercapture', () => { handle.removeEventListener('pointermove', move); if (moved) input.dispatchEvent(new Event('change', { bubbles: true })); }, { once: true });
+    e.preventDefault();
+  });
+}
+
 /* ══ 접이식 절 머리·몸 — «한 벌» (1017t1d2, 2026-10-17 태양) ═══════════════════════════════
  * ★출처 — js/props/prop-grid.js `_grdOpenSections` / `_grdSecOpen` / `_grdSecToggle` /
  *   `_grdDisclosureHtml` / `_grdWireDisclosure` 를 «여기 한 곳」으로 올렸다(2026-09-24 세운 부품,

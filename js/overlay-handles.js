@@ -643,9 +643,7 @@ function _onRadiusHandleMouseDown(e, ss, dir) {
     if (cell && !newR) delete ss.dataset.radius; else ss.dataset.radius = String(newR);
     ss.style.borderRadius = newR ? newR + 'px' : (cell ? '' : '0px');
     // 프로퍼티 패널 동기화
-    const slider = document.getElementById('ss-radius-slider');   // 142 — 칸 패널도 프레임 패널(같은 코너 칸)
-    const num    = document.getElementById('ss-radius-num');
-    if (slider) slider.value = String(newR);
+    const num    = document.getElementById('ss-radius-num');   // 142 — 칸 패널도 프레임 패널(같은 코너 칸) · 슬라이더는 표준 Appearance A1 에서 걷음
     if (num)    num.value    = String(newR);
     window.scheduleAutoSave?.();
   }

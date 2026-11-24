@@ -8,6 +8,7 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-pic
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_STYLES_CSS, STROKE_POP_WHY } from './_stroke-section.js';
 import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, setFillKindName, fillLast, fillKindOfCss } from './_fill-section.js';
 import { hasSides, readSides, writeSides, cssSideWidths, sidesMixed } from '../stroke-look.js';
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A1 · 첫 소비자)
 import { bindSlider, alignBtn, blockHeaderHTML, sliderRowHTML, overlayToggleBtnHTML, wireRotRow, checkHTML, wireCheck } from './_helpers.js';
 import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from './_position-section.js';   // 표준 Position 절(0.9.14 73행 P3)
 import { applyFrameTransform, frameAlignOffset, framePadding, applyFrameHAlignToChild } from '../frame-geometry.js';
@@ -573,11 +574,7 @@ function _renderAutoPanel(ss) {
       `}`}
 `),
       sec('appearance', `
-      <div class="prop-row">
-        <span class="prop-label">코너</span>
-        <input type="range" class="prop-slider" id="ss-radius-slider" min="0" max="80" step="1" value="${radius}">
-        <input type="number" class="prop-number" id="ss-radius-num" min="0" max="80" value="${radius}">
-      </div>
+      ${appearanceSectionHTML({ prefix: 'ss', radius: { numberId: 'ss-radius-num', value: radius, max: 80 } })}   <!-- ★표준 Appearance A1(현빈 261124 · 시안 #mkp-appstd) — 옛 «코너» 슬라이더 걷음 · 숫자 칸 id·dataset.radius 무변 -->
       <!-- ★내용 자르기(현빈 2026-09-30 「피그마처럼 프레임마다 켬/끔, 기본은 끔」).
            ⚰️★2026-10-10 — ★이 줄은 「기본이 «안 자름»」이었고 ★★거짓이 되었다:
              ★현빈 1009t3-② 로 ★★기본이 ★★«자름»이 되었다(css/editor-blocks.css 맨 위 .frame-block).
@@ -585,7 +582,7 @@ function _renderAutoPanel(ss) {
       ${_cellParts ? '' : `<div class="prop-row">
         ${checkHTML({ id: 'ss-clip-toggle', label: '내용 자르기', checked: clipsContent(ss) })}
       </div>`}
-`),
+`, { headTools: appearanceHeadToolsHTML({ prefix: 'ss' }) }),
       sec('fill', `
       ${fillSectionHTML({ prefix: 'ss-fill', on: fillOn, kind: fillKindOfCss(bgGradCss), colorHtml: colorFieldHTML({ idPrefix: 'ss-bg', hex: hexBg, alpha: bgAlpha, gradientCss: bgGradCss }) })}
       <div class="prop-row">
@@ -987,10 +984,7 @@ function _renderAutoPanel(ss) {
       sides: { read: () => (hasSides(ss.dataset) ? readSides(ss.dataset, _borderW) : null), write: (o) => { writeSides(ss.dataset, o, _borderW); applyBorder(); }, std: () => _borderW } } });
 
   // 코너
-  const radiusSlider = document.getElementById('ss-radius-slider');
-  const radiusNum    = document.getElementById('ss-radius-num');
-  const applyRadius  = (v) => { ss.dataset.radius = v; ss.style.borderRadius = v + 'px'; };
-  bindSlider(radiusSlider, radiusNum, applyRadius, { min: 0, max: 80 });
+  wireAppearanceSection({ radius: { numberId: 'ss-radius-num', max: 80, apply: (v) => { ss.dataset.radius = v; ss.style.borderRadius = v + 'px'; } } });
 
   // 높이
   const _sizeEl = (id) => document.getElementById(id) || (_cellParts ? document.createElement('input') : null);   // 142 — 칸은 크기 절이 없다(트랙 %) ⇒ 칸일 때만 떨어진 빈 입력에 배선(효과 0)

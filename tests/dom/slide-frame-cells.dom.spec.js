@@ -200,7 +200,7 @@ test('F2 빈 칸 클릭 = 그 칸 고름(슬라이드 패널 · 손잡이 0) →
   expect(pre, `[전제] 펼친 뒤 누를 점 = 칸 2 · 진단 ${JSON.stringify({ pre, post })}`).toMatchObject({ open: true, inCell2: true });
   expect(pick, `★칸 고름 · 슬라이드 패널 그 칸 줄 · 프레임 px 손잡이 0 · 프레임 패널 0 · 진단 ${JSON.stringify({ pre, post })}`).toEqual({ active: true, sel: true, row: '1', handles: 0, radiusHandles: 4, framePanel: true });   // ★제품 뜻 바뀜(142 SLIDE-CELL-PANEL-PARITY-02 ⓐ · 지디 261119) — 고른 칸 = «그 칸의 프레임 패널»(정렬 단추 있음) + 슬라이드 칸 절(칸 줄)
   /* SLIDE-PANEL-REMOVE-CELL-PHOTO-BTN-01(현빈 피드백 3 ② · 제품 뜻 바뀜) — 칸을 골라도 패널에 «사진 넣기 (칸 N)» 단추가 없다(사진은 칸 위 스크래치·라이브러리 놓기 = R3) · 모서리 칸은 있다(같은 갈래가 그려졌다는 양성) */
-  await expect(page.locator('#ss-radius-slider'), '[전제] 고른 칸 갈래 그려짐(142 — 칸 코너 = 프레임 패널 코너)').toHaveCount(1);
+  await expect(page.locator('#ss-radius-num'), '[전제] 고른 칸 갈래 그려짐(142 — 칸 코너 = 프레임 패널 코너)').toHaveCount(1);   /* ★기대 바뀜(표준 Appearance A1 · 현빈 261124 L-4/7 슬라이더 걷음) — 코너 = 숫자 칸 ss-radius-num 하나(같은 dataset.radius) */
   await expect(page.locator('#sld-cell-photo'), '★칸 사진 넣기 단추 없음').toHaveCount(0);
   await expect(page.getByText(/사진 넣기 \(칸/), '★그 글귀도 없음').toHaveCount(0);
   /* 고른 칸에 넣기 = 그 칸 안(_insertToFlowFrame) */
@@ -820,12 +820,12 @@ test('P2 칸 패널 = 프레임 패널 부품(코너·폭·높이 슬라이더 �
   const { errs, id } = await menuScene(page);
   await pickCell(page, id, 1);
   /* 독립 리뷰 261120 ⓑ1: 옛 줄은 주석이 for 머리 뒤에 붙어 아래 존재 단언 넷이 주석이 됐고 다음 줄(Effects)이 4번 도는 몸통이었다 → 몸통·주석 바로잡음 · 이름 P1 → P2(같은 파일 P1 둘) */
-  for (const sel of ['#ss-radius-slider', '#ss-radius-num', '#sld-cell-w-slider', '#sld-cell-h-slider']) await expect(page.locator(sel), `★${sel}`).toHaveCount(1);   // 142 — 코너 = 프레임 패널 코너
+  for (const sel of ['#ss-radius-num', '#sld-cell-w-slider', '#sld-cell-h-slider']) await expect(page.locator(sel), `★${sel}`).toHaveCount(1);   // 142 — 코너 = 프레임 패널 코너
   expect(await page.evaluate(() => document.getElementById('sld-cell-shadow')?.closest('[data-sec]')?.dataset.sec), '★그림자 = Effects 절').toBe('effects');
   const slide = (sid, v) => page.evaluate(([sid, v]) => { const e = document.getElementById(sid); e.value = String(v); e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); }, [sid, v]);
   const cell = () => page.evaluate((id) => { const c = document.getElementById(id).querySelectorAll('.sld-cell')[1]; const cs = getComputedStyle(c);
     return { r: c.dataset.radius ?? null, rCs: cs.borderTopLeftRadius, w: c.dataset.w ?? null, h: c.dataset.h ?? null, opa: c.dataset.bgOpacity ?? null, opaCls: c.classList.contains('has-bg-opacity'), bg: cs.backgroundColor, rNum: document.getElementById('ss-radius-num')?.value ?? null }; }, id);
-  await slide('ss-radius-slider', 24);
+  await slide('ss-radius-num', 24);   /* ★기대 바뀜(표준 Appearance A1 · 현빈 261124 L-4/7 슬라이더 걷음) — 코너 = 숫자 칸 ss-radius-num 하나(같은 dataset.radius) */
   await expect.poll(cell).toMatchObject({ r: '24', rCs: '24px', rNum: '24' });
   await slide('sld-cell-w-slider', 60);
   await slide('sld-cell-h-slider', 80);
@@ -859,10 +859,10 @@ test('H1 칸 코너 반경 손잡이 = 프레임 것 · 끌면 반경·패널 �
   await page.mouse.move(p.x, p.y); await page.mouse.down();
   for (let i = 1; i <= 5; i++) await page.mouse.move(p.x - 6 * i * z, p.y - 6 * i * z);   // 로컬 30px 안쪽
   await page.mouse.up();
-  const read = () => page.evaluate((id) => { const c = document.getElementById(id).querySelectorAll('.sld-cell')[1]; return { r: c.dataset.radius ?? null, cs: getComputedStyle(c).borderTopLeftRadius, sl: document.getElementById('ss-radius-slider')?.value ?? null, nu: document.getElementById('ss-radius-num')?.value ?? null }; }, id);
+  const read = () => page.evaluate((id) => { const c = document.getElementById(id).querySelectorAll('.sld-cell')[1]; return { r: c.dataset.radius ?? null, cs: getComputedStyle(c).borderTopLeftRadius, nu: document.getElementById('ss-radius-num')?.value ?? null }; }, id);
   const a = await read();
   expect(+a.r, '★반경이 늘었다(로컬 30px 안쪽 ≈ +30)').toBeGreaterThanOrEqual(25);
-  expect(a, '★칸·패널 같은 값').toEqual({ r: a.r, cs: `${a.r}px`, sl: a.r, nu: a.r });
+  expect(a, '★칸·패널 같은 값').toEqual({ r: a.r, cs: `${a.r}px`, nu: a.r });   /* ★기대 바뀜(표준 Appearance A1) — 패널 코너 = 숫자 칸 하나(슬라이더 걷음) */
   await page.mouse.move(p.x, p.y); await page.mouse.down();   // 손잡이 자리는 반경과 무관(모서리 안쪽 10px 고정)
   for (let i = 1; i <= 5; i++) await page.mouse.move(p.x - 40 * i * z, p.y - 40 * i * z);
   await page.mouse.up();
@@ -1062,7 +1062,7 @@ test('Q1 칸 패널 = 프레임 부품 + 슬라이드 칸 절', async ({ page })
   await pickCell(page, id, 1);
   const has = (ids) => page.evaluate((ids) => ids.map((x) => !!document.getElementById(x)), ids);
   /* ★기대 바뀜(현빈 261120 · 1120b P2): 프레임 간격 슬라이더(#ss-gap-slider/#ss-gap-num) 걷음(prop-frame.js:568) — 있어야 할 부품에서 빼고 «없음» 쪽으로 */
-  expect(await has(['ss-align-left', 'ss-pady-num', 'ss-padx-num', 'ss-border-w-num', 'ss-bg-img-btn', 'ss-radius-slider', 'ss-bg-hex']), '★프레임 부품').toEqual(Array(7).fill(true));
+  expect(await has(['ss-align-left', 'ss-pady-num', 'ss-padx-num', 'ss-border-w-num', 'ss-bg-img-btn', 'ss-radius-num', 'ss-bg-hex']), '★프레임 부품').toEqual(Array(7).fill(true));   /* ★기대 바뀜(표준 Appearance A1 · 현빈 261124 L-4/7 슬라이더 걷음) — 코너 = 숫자 칸 ss-radius-num 하나(같은 dataset.radius) */
   expect(await has(['ss-pos-x', 'ss-width-slider', 'ss-height-slider', 'ss-tpl-save-btn', 'ss-fx-section', 'ss-fullbleed-toggle', 'ss-clip-toggle', 'ss-gap-num']), '★칸에 안 맞는 절 없음 · 걷은 간격 칸 없음').toEqual(Array(8).fill(false));
   expect(await has(['sld-cell-shadow', 'sld-cell-w-slider', 'sld-cell-bg-on', 'sld-add-cell', 'sld-cell-back']), '★슬라이드 칸 절').toEqual(Array(5).fill(true));
   expect(await page.evaluate(() => document.getElementById('sld-cell-shadow').closest('[data-sec]')?.dataset.sec), '★그림자 3단 = Effects').toBe('effects');
