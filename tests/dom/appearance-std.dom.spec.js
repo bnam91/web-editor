@@ -81,6 +81,11 @@ for (const [name, add, cls, pfx, numId, max] of [
   ['banner02', 'window.addBanner02Block()', 'banner02-block', 'bn2', 'bn2-radius-num', 60],
   ['canvas', "window.addCanvasBlock(); { const b = [...document.querySelectorAll('#canvas .canvas-block')].pop(); delete b.dataset.cardMode; window.showCanvasProperties(b); }", 'canvas-block', 'cvb', 'cvb-radius-number', 60],   // 새 카드 = simple 꼴(심플카드 패널 · ⑵) → 옛 카드 패널(prop-canvas)은 cardMode 없을 때
   ['innercard', 'window.addInnerCardBlock()', 'innercard-block', 'icd', 'icd-radius-number', 60],
+  /* ⑵ — 태양 F6-2b(1e30279c2) 뒤 · 줄 통보 261124 */
+  ['coupon', 'window.addCouponBlock()', 'coupon-block', 'cpn', 'cpn-radius-number', 60],
+  ['simple-card', 'window.addCanvasBlock()', 'canvas-block', 'cvb', 'cvb-radius-number', 60],   // 새 카드 = simple 꼴(심플카드 패널)
+  ['comparison', 'window.addComparisonBlock()', 'comparison-block', 'cmp', 'cmp-rad-num', 40],
+  ['chat', 'window.addChatBlock()', 'chat-block', 'chb', 'chb-radius', 400],
 ]) {
   test(`AS4 ${name} Appearance = 표준 꼴 + 숫자 칸 → dataset.radius · 라벨 끌기 · 이력(change 1 · 끌기 1)`, async ({ page }) => {
     const errs = await blockScene(page, add, numId);
@@ -94,7 +99,7 @@ for (const [name, add, cls, pfx, numId, max] of [
     await page.evaluate(() => { window.__ph = 0; const o = window.pushHistory; window.pushHistory = (...a) => { window.__ph++; return o?.(...a); }; });
     await page.evaluate((id) => { const n = document.getElementById(id); n.value = '20'; n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); }, numId);
     await expect.poll(blockR).toBe('20');
-    const h = page.locator(`#${numId}-scrub`); const b = await h.boundingBox();
+    const h = page.locator(`#${numId}-scrub`); await h.scrollIntoViewIfNeeded(); const b = await h.boundingBox();   // 긴 패널(비교·챗)은 절이 화면 아래 — 사람처럼 굴려서 잡는다
     await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down();
     await page.mouse.move(b.x + b.width / 2 + 7, b.y + b.height / 2, { steps: 4 }); await page.mouse.up();
     await expect.poll(blockR).toBe('27');

@@ -1,6 +1,7 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML, checkHTML } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A2)
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { buildTypographySectionHtml } from './_typo-section.js';   // ⛔글자 크기 칸을 «손으로» 만들지 마라 — 정본은 여기 하나다(tests/unit/typo-section-ssot.test.mjs T2)
 import { CHAT_NUM_BOUNDS } from '../blocks/chat-bounds.js';
@@ -225,11 +226,8 @@ export function showChatProperties(block) {
       </div>
 `),
       sec('appearance', `
-      <div class="prop-row">
-        <span class="prop-label">말풍선 곡률</span>
-        <input type="number" id="chb-radius" class="prop-color-hex" value="${radius}" min="${B.radius.min}" max="${B.radius.max}" style="width:60px">
-      </div>
-`),
+      ${appearanceSectionHTML({ prefix: 'chb', radius: { numberId: 'chb-radius', value: radius, min: B.radius.min, max: B.radius.max } })}   <!-- ★표준 Appearance A2 — 말풍선 곡률 = 표준 R(시안 #mkp-appstd ②) · id chb-radius·dataset.radius·B.radius 무변 -->
+`, { headTools: appearanceHeadToolsHTML({ prefix: 'chb' }) }),
       /* ★⒝(2026-10-06 · 지디 GO) — 「폰트 크기」가 여기 «손으로 만든 숫자칸»이었다(min 10 · max 60).
           ⛔그게 ㉡ 복사본이었다: 절의 정본은 _typo-section.js 하나이고 텍스트·모달·그리드가 그걸 쓴다.
             챗만 날 <input> 을 들고 있어서 ⑴슬라이더도 폰트도 굵기도 없고 ⑵모델이 받는 4~400 중 «10~60 만» 열려 있었다
@@ -402,13 +400,7 @@ export function showChatProperties(block) {
   _fsEl?.addEventListener('change', () => {
     window.pushHistory?.();
   });
-  propPanel.querySelector('#chb-radius').addEventListener('input', e => {
-    block.dataset.radius = e.target.value;
-    rerender();
-  });
-  propPanel.querySelector('#chb-radius').addEventListener('change', () => {
-    window.pushHistory?.();
-  });
+  wireAppearanceSection({ radius: { numberId: 'chb-radius', min: B.radius.min, max: B.radius.max, apply: (v) => { block.dataset.radius = String(v); rerender(); }, commit: () => window.pushHistory?.() } });   // 표준 Appearance A2(경계 = B.radius 그대로 · 옛 change = 이력만)
   propPanel.querySelector('#chb-gap').addEventListener('input', e => {
     block.dataset.gap = e.target.value;
     rerender();

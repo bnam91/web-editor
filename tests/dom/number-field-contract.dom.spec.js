@@ -105,8 +105,17 @@ const FIELDS = [
    *   ⇒ ㈀ 증인 자리를 `#chb-radius`(여전히 prop-color-hex + type=number · 같은 패널)로 ★옮기고,
    *     ㈁ 새 공용 절 칸을 ★따로 더했다(그 칸의 규약도 재야 한다 — 범위가 모델에서 파생되므로).
    *   ⛔둘 중 하나를 지우려면 「목록 밖 type=number 가 걸린다」를 ★다른 데서 재고 있음을 먼저 보여라. */
+  /* ★★2026-11-24 표준 Appearance A2 — `#chb-radius` 가 표준 부품 칸(class prop-number)이 됐다 ⇒ 그 줄만 두면 ★증인이 조용히 죽는다(위 ⒝ 와 같은 갈래).
+   *   ⇒ ㈀ 증인을 ★같은 패널·같은 꼴(prop-color-hex + type=number · 범위 CHAT_NUM_BOUNDS 파생)인 `#chb-gap` 으로 ★옮기고(chat-gap),
+   *     ㈁ chat-radius 는 «표준 부품 칸의 규약»을 재는 줄로 남긴다(범위 B.radius 파생 그대로). */
   {
-    key: 'chat-radius', label: '챗 말풍선 곡률(★가드 «목록 밖» 증거칸 — class 에 prop-number 없음)',
+    key: 'chat-gap', label: '챗 말풍선 간격(★가드 «목록 밖» 증거칸 — class 에 prop-number 없음 · 261124 chb-radius 에서 옮김)',
+    id: 'chb-gap', min: 0, max: 400, start: 8,
+    open: `window.showChatProperties(document.getElementById('chat'))`,
+    read: `document.getElementById('chat').dataset.gap`,
+  },
+  {
+    key: 'chat-radius', label: '챗 말풍선 곡률(표준 Appearance 부품 칸 · 범위 B.radius 파생)',
     id: 'chb-radius', min: 0, max: 400, start: 16,
     open: `window.showChatProperties(document.getElementById('chat'))`,
     read: `document.getElementById('chat').dataset.radius`,
@@ -139,7 +148,7 @@ const FIXTURE = `
           <div class="shape-block selected" id="shp" data-shape-type="rectangle"><svg class="shape-svg" viewBox="0 0 100 100"></svg></div>
         </div>
         <div class="sticker-block selected" id="stk" data-shape="text" data-font-size="32" data-text="Text"></div>
-        <div class="chat-block selected" id="chat" data-font-size="32" data-radius="16" data-messages="[]"></div><!-- ★data-radius 는 2026-10-06 에 더했다: chat-radius 증거칸의 «출발값». 없으면 dataset.radius=undefined 라 C6 의 Number(before)+1 이 NaN 이 되어 ★검사가 «다른 이유»로 빨개진다(실측). -->
+        <div class="chat-block selected" id="chat" data-font-size="32" data-radius="16" data-gap="8" data-messages="[]"></div><!-- ★data-radius 는 2026-10-06 에 더했다: chat-radius 증거칸의 «출발값». 없으면 dataset.radius=undefined 라 C6 의 Number(before)+1 이 NaN 이 되어 ★검사가 «다른 이유»로 빨개진다(실측). -->
       </div></div>
     </div>
   </div></div>

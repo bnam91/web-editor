@@ -1812,9 +1812,7 @@ function _onCanvasRadiusHandleMouseDown(e, cb, dir = 'nw') {
     const newR = Math.min(60, Math.max(0, Math.round(startRadius + delta)));
     cb.dataset.radius = String(newR);
     window.renderCanvas(cb);
-    const rSlider = document.getElementById('cvb-radius-slider');
-    const rNumber = document.getElementById('cvb-radius-number');
-    if (rSlider) rSlider.value = String(newR);
+    const rNumber = document.getElementById('cvb-radius-number');   // 표준 Appearance A2 — 슬라이더 걷음(카드·심플카드 둘 다)
     if (rNumber) rNumber.value = String(newR);
     window.scheduleAutoSave?.();
   }

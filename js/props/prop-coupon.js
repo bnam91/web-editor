@@ -30,6 +30,7 @@ import {
 /* ★프리셋 칩은 ★«HTML 문자열을 돌려주는 순수 함수» 하나로 온다 — ⛔여기서 수·이름·글을 적지 않는다.
    ★그 함수의 정본·명부 = js/blocks/coupon-presets.js (★칩이 명부를 읽는가 = unit C-P2·C-P3). */
 import { couponPresetChipsHTML } from '../blocks/coupon-presets.js';
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A2)
 
 const L = COUPON_LIMITS;
 
@@ -179,7 +180,7 @@ ${openKey ? _slotPanelHTML(block, openKey) : ''}`),
       sec('size', `
 ${_pairRow('cpn-width', '폭', width, L.width.min, L.width.max)}
       <div class="prop-row" title="비율 16:9 를 블럭이 스스로 지킵니다 (비율 고르기는 2단계)"><span class="prop-label">높이</span><span class="prop-value-text">${boxH}px · 16:9</span></div>`),
-      sec('appearance', _pairRow('cpn-radius', '모서리', radius, L.radius.min, L.radius.max)),
+      sec('appearance', appearanceSectionHTML({ prefix: 'cpn', radius: { numberId: 'cpn-radius-number', value: radius, min: L.radius.min, max: L.radius.max } }), { headTools: appearanceHeadToolsHTML({ prefix: 'cpn' }) }),   // ★표준 Appearance A2 — 옛 _pairRow 슬라이더 걷음 · 숫자 칸 id·dataset.radius·L.radius 무변
       sec('fill', `
       <div class="prop-row">
         <span class="prop-label">본체색</span>
@@ -219,7 +220,7 @@ ${_pairRow('cpn-width', '폭', width, L.width.min, L.width.max)}
      ⛔슬라이더 input 마다 다시 그리면 손잡이가 손에서 떨어진다 ⇒ change(손을 뗄 때)에만. */
   wireNum('cpn-width', 'width', L.width.min, L.width.max);
   document.getElementById('cpn-width-slider')?.addEventListener('change', reopen);
-  wireNum('cpn-radius', 'radius', L.radius.min, L.radius.max);
+  wireAppearanceSection({ radius: { numberId: 'cpn-radius-number', min: L.radius.min, max: L.radius.max, apply: (v) => { block.dataset.radius = String(v); rerender(); }, commit } });   // 표준 Appearance A2 — 옛 wireNum('cpn-radius') 자리
 
   // ── 색 (raw input[type=color] 금지 — 공용 컴포넌트) ──
   const wireColor = (prefix, key) => {

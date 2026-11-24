@@ -132,6 +132,10 @@ before(async () => {
       [/import \{([^}]*)\} from '\.\/_panel-frame\.js';/,
        (_m, names) => names.split(',').map(n => n.trim()).filter(Boolean)
          .map(n => `const ${n} = () => "";`).join(' ')],
+      /* ★표준 Appearance A2(261124) — 반경 줄이 부품(_appearance-section.js)으로 그려진다. 이 검사는 패널 마크업을 안 잰다 → 같은 꼴(이름 전부 '' 더블) · ⛔없으면 이 파일 21개 통째 빨강(실측). */
+      [/import \{([^}]*)\} from '\.\/_appearance-section\.js';/,
+       (_m, names) => names.split(',').map(n => n.trim()).filter(Boolean)
+         .map(n => `const ${n} = () => "";`).join(' ')],
       [/import \{([^}]*)\} from '\.\/_panel-rendered\.js';/,
        (_m, names) => names.split(',').map(n => n.trim()).filter(Boolean)
          .map(n => `const ${n} = () => "";`).join(' ')],

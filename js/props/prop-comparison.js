@@ -2,6 +2,7 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A2)
 import { colorFieldHTML, wireColorField } from './color-picker.js';
 import { _num, getComparisonCols, getComparisonFeaturedIdx, setComparisonCols, cmpEmptyRow, cmpEmptyRows, CMP_HD_HINT, cmpGetActiveCell, cmpPickRowImage, cmpRowHeights } from '../blocks/comparison-block.js';
 /* ★1017t1c4 — 행 높이의 바닥·천장과 «쓰는 한 벌». 캔버스 행 경계 드래그(overlay-handles.js)와 ★같은 함수·같은 수를 쓴다.
@@ -177,9 +178,7 @@ export function showComparisonProperties(block) {
         <input type="range" class="prop-slider" id="cmp-pady" min="0" max="80" step="2" value="${parseInt(d.padY) || 0}">
         <input type="number" class="prop-number" id="cmp-pady-num" min="0" max="80" value="${parseInt(d.padY) || 0}"></div>`),
       sec('appearance', `
-      <div class="prop-row"><span class="prop-label">모서리</span>
-        <input type="range" class="prop-slider" id="cmp-rad" min="0" max="40" step="1" value="${_num(d.radius, 20)}">
-        <input type="number" class="prop-number" id="cmp-rad-num" min="0" max="40" value="${_num(d.radius, 20)}"></div>${redactSection}`),
+      ${appearanceSectionHTML({ prefix: 'cmp', radius: { numberId: 'cmp-rad-num', value: _num(d.radius, 20), max: 40 } })}${redactSection}`, { headTools: appearanceHeadToolsHTML({ prefix: 'cmp' }) }),   /* ★표준 Appearance A2(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·dataset.radius·범위 무변 */
       sec('typography', `
       <div class="prop-row"><span class="prop-label">제목 크기</span>
         <input type="range" class="prop-slider" id="cmp-tfont" min="12" max="56" step="1" value="${parseInt(d.titleFont) || 26}">
@@ -244,7 +243,7 @@ export function showComparisonProperties(block) {
   sScale?.addEventListener('change', commit); nScale?.addEventListener('change', commit);
 
   pair('cmp-ovl', 'cmp-ovl-num', 'overlap', 0, 80);
-  pair('cmp-rad', 'cmp-rad-num', 'radius', 0, 40);
+  wireAppearanceSection({ radius: { numberId: 'cmp-rad-num', max: 40, apply: (v) => { block.dataset.radius = v; rerender(); }, commit } });   // 표준 Appearance A2 — 옛 pair('cmp-rad') 자리
   pair('cmp-padx', 'cmp-padx-num', 'padX', 0, 160);
   pair('cmp-pady', 'cmp-pady-num', 'padY', 0, 80);
   pair('cmp-tfont', 'cmp-tfont-num', 'titleFont', 12, 56);

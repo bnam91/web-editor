@@ -3,6 +3,7 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML, discSecOpen, discSecToggle, wireDisclosureSection, disclosureSectionHtml, checkHTML, wireCheck } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A2)
 /* 색 코드 칸의 배선은 «한 자리»에서 온다 — 이 파일 안에만 손복사본이 여섯 벌 있었다
    (input/blur 가 아예 없어 무효값이 영원히 남던 사본 포함). 2026-09-20 유닛 colorhex. */
 import { wireHexText, parseHex6, formatHex6, parseHex6OrTransparent, formatHex6OrTransparent, isCssBackgroundValue } from './color-picker.js';
@@ -417,12 +418,8 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
           </button>
         </div>
       </div>
-      <div class="prop-row">
-        <span class="prop-label">모서리</span>
-        <input type="range" class="prop-slider" id="cvb-radius-slider" min="0" max="60" step="1" value="${radius}">
-        <input type="number" class="prop-number" id="cvb-radius-number" min="0" max="60" value="${radius}">
-      </div>
-`),
+      ${appearanceSectionHTML({ prefix: 'cvb', radius: { numberId: 'cvb-radius-number', value: radius, max: 60 } })}   <!-- ★표준 Appearance A2(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·dataset.radius·범위 무변 -->
+`, { headTools: appearanceHeadToolsHTML({ prefix: 'cvb' }) }),
       sec('typography', `
       <div class="cvb-text-area-dim" style="${_taDim}">
       <div class="prop-row">
@@ -893,17 +890,7 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
   ratioSlider.addEventListener('change', () => window.pushHistory?.());
 
   // ── 모서리 ───────────────────────────────────────────────────────────────────
-  const rSlider = document.getElementById('cvb-radius-slider');
-  const rNumber = document.getElementById('cvb-radius-number');
-  const applyRadius = v => {
-    v = Math.min(60, Math.max(0, v));
-    block.dataset.radius = v;
-    window.renderCanvas(block);
-    rSlider.value = v; rNumber.value = v;
-  };
-  rSlider.addEventListener('input',  () => applyRadius(parseInt(rSlider.value)));
-  rNumber.addEventListener('change', () => { applyRadius(parseInt(rNumber.value)); window.pushHistory?.(); });
-  rSlider.addEventListener('change', () => window.pushHistory?.());
+  wireAppearanceSection({ radius: { numberId: 'cvb-radius-number', max: 60, apply: (v) => { block.dataset.radius = v; window.renderCanvas(block); } } });   // 표준 Appearance A2(슬라이더 걷음 · 이미지 모양 줄은 위 슬롯 그대로)
 
   // ── 아이콘 컨트롤 (이스터에그, iconMode일 때만 존재) ──────────────────────────
   const iconSizeSlider = document.getElementById('cvb-icon-size-slider');
