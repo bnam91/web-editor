@@ -615,10 +615,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const hasBg   = block.bgColor && block.bgColor !== 'transparent';
 
     // hex → figma RGB
-    const hexToRgb = h => {
-      const v = h.replace('#','');
-      return { r: parseInt(v.slice(0,2),16)/255, g: parseInt(v.slice(2,4),16)/255, b: parseInt(v.slice(4,6),16)/255, a: 1 };
-    };
+    const hexToRgb = (h) => hex(h);   // 아이콘원 보임 색은 내보내기가 계산 style 로 읽어 «rgb(…)» 로 온다(9c5baa666 · 2026-06) — HEX 만 읽던 로컬 파서는 r:null → Figma 흰 원(미카사 F7 실기 261125) · 공용 hex() 가 rgb()/rgba()/#hex 다 받는다
     const TRANSPARENT = { r: 1, g: 1, b: 1, a: 0 };
 
     const node = run('create_frame', { x: circleX, y, width: size, height: size, name: `circle_${block.id}`, parentId });
@@ -870,11 +867,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
         }
 
         if (block.overlayText) {
-          const hexToRgb = hex => {
-            const m = (hex || '#ffffff').replace('#','').match(/.{2}/g);
-            return m ? { r: parseInt(m[0],16)/255, g: parseInt(m[1],16)/255, b: parseInt(m[2],16)/255, a: 1 } : { r:1, g:1, b:1, a:1 };
-          };
-          const textColor = hexToRgb(block.overlayColor);
+          const textColor = hex(block.overlayColor || '#ffffff');   // 오버레이 글 색 = ovEl.style.color(브라우저가 «rgb(…)» 로 돌려줌) — 같은 공용 파서
           run('create_text', {
             x: imgX + 24, y: y + Math.round(imgH / 2) - 24,
             width: imgW - 48,

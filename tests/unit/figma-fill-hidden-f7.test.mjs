@@ -216,3 +216,24 @@ test('A5 숨김 = 부모 칠만 눈 끔(그림·크롭 자식 손 0) · 빈 칸 
   }
   assert.equal(render([img({ fillHidden: true })]).cmds.filter((c) => 'fillsVisible' in (c.params || {})).length, 0, '[지킴] bg 없으면 숨김 명령 0');
 });
+
+/* ── 미카사 F7/F8 Figma 실기(261125) ① — 아이콘원 «보임» 쪽이 Figma 에서 흰 원
+ *   내보내기는 보임 원 색을 계산 style 로 읽어 «rgb(46, 173, 107)» 로 보낸다(9c5baa666 · 2026-06 부터 · F7 회귀 아님 — F7 은 숨김 갈래만 dataset HEX 로 바꿈)
+ *   렌더러 아이콘원 갈래의 로컬 hexToRgb 가 HEX 만 읽어 set_fill_color r:null(relay.log) → Figma 흰 칠 · 같은 꼴: 에셋 오버레이 글 색(ovEl.style.color = rgb())
+ *   K1 아이콘원 rgb()/rgba()/#hex → 그 색(null 0) · K2 오버레이 글 색 rgb() → 그 색
+ * 양성대조: _patches/f7-icon-rgb-CTL.patch(로컬 HEX 파서로 되돌림) → K1·K2 빨강 */
+const near = (c, r, g, b, a = 1) => c && [c.r, c.g, c.b, c.a ?? 1].every((v, i) => typeof v === 'number' && Math.abs(v - [r / 255, g / 255, b / 255, a][i]) < 0.01);
+for (const [label, bg, rgba] of [['rgb()', 'rgb(46, 173, 107)', [46, 173, 107, 1]], ['rgba() 반투명', 'rgba(46, 173, 107, 0.5)', [46, 173, 107, 0.5]], ['#hex [지킴]', '#2ead6b', [46, 173, 107, 1]]]) {
+  test(`K1 아이콘원 보임 색 ${label} → set_fill_color 가 그 색(null 0)`, () => {
+    const { cmds } = render([{ type: 'circle', id: 'ic', size: 120, bgColor: bg, src: null }]);
+    const fills = cmds.filter((c) => c.cmd === 'set_fill_color').map((c) => c.params.color);
+    assert.ok(fills.some((c) => near(c, ...rgba)), `원 칠이 ${bg} 가 아니다: ${JSON.stringify(fills)}`);
+    assert.equal(fills.some((c) => [c.r, c.g, c.b].some((v) => v === null || Number.isNaN(v))), false, 'null/NaN 색이 갔다(Figma 흰 칠)');
+  });
+}
+test('K2 에셋 오버레이 글 색 rgb() → create_text fontColor 가 그 색', () => {
+  const { cmds } = render([img({ overlayOn: true, overlayText: '오버레이', overlayColor: 'rgb(255, 0, 0)', overlayBg: 0.3 })]);
+  const t = cmds.find((c) => c.cmd === 'create_text' && c.params.text === '오버레이');
+  assert.ok(t, '[전제] 오버레이 글이 그려졌다');
+  assert.ok(near(t.params.fontColor, 255, 0, 0), `오버레이 글 색이 빨강이 아니다: ${JSON.stringify(t.params.fontColor)}`);
+});
