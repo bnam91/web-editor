@@ -363,3 +363,32 @@ test('D18 그리드 블럭 배경 — 토글 정본 · 배경색 = 표준 줄 ·
   expect(r, '★표준 줄 · 옛 id · − 막힘(토글로 끄기) · 머리 ＋ 없음 · 토글 켜짐').toEqual({ inLayer: true, rm: 'true', why: '블럭 배경 끄기 = 제목 옆 토글', add: false, toggle: true });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* F5-2b — 스티커: 아이콘·형광펜·선 형광펜 색 = 표준 줄(− 막힘 · 사실) · 원/버스트 바탕 = 표준 줄(− 막힘 «바탕이 곧 모양») · 글 스티커 = 배경 표준 줄(− = 'transparent' · 옛 «알파 0» 값) + 글자색 = 부위 색
+ * D19 글 스티커 − = bgColor transparent · ⌘Z 한 칸 · ＋ = 지난 색 · 다른 넷 = 막힘 까닭
+ * 양성대조: _patches/fill-f5-2b-CTL.patch(글 스티커 − 가 bgColor 안 씀) ⇒ D19 text 빨강 */
+test('D19 글 스티커 배경 − / ⌘Z / ＋ · 아이콘·형광펜·원 = − 막힘', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const mk = (shape, seed) => page.evaluate(async ([shape, seed]) => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); const sec = await window.addSection(); window.deselectAll(); window.selectSection(sec); window.addStickerBlock({ shape }); const b = [...document.querySelectorAll('.sticker-block')].pop(); if (seed) b.dataset.bgColor = seed; window.renderStickerBlock?.(b); window.selectBlock?.(b.id); window.showStickerProperties(b); window.clearHistory?.(); return b.id; }, [shape, seed]);
+  const why = {};
+  for (const [shape, p] of [['icon', 'stk-icon-fill'], ['highlight', 'stk-hl-fill'], ['highlightB', 'stk-hlb-fill'], ['circle', 'stk-bg-fill']]) {
+    await mk(shape);
+    why[shape] = await page.evaluate((p) => { const r = document.getElementById(p + '-remove'); return r ? [r.getAttribute('aria-disabled'), /지금은 못 지워요$/.test(r.title)] : null; }, p);
+  }
+  expect(why, '★아이콘·형광펜·선 형광펜·원 = − 막힘 + 사실 까닭').toEqual({ icon: ['true', true], highlight: ['true', true], highlightB: ['true', true], circle: ['true', true] });
+  const id = await mk('text', '#ff0000');
+  const K = { p: 'stk-t-fill', hex: 'stk-t-bg-hex', key: 'bgColor' };
+  const s0 = await st2(page, id, K);
+  expect([s0.layers, s0.add, s0.hex], '[전제] 글 스티커 배경 = 칠 있음 · 옛 id').toEqual([1, false, 'FF0000']);
+  await page.click('#stk-t-fill-remove'); await raf(page);
+  const s1 = await st2(page, id, K);
+  expect([s1.v, s1.layers, s1.add], '★− = bgColor transparent · «칠 없음» · 머리 ＋').toEqual(['transparent', 0, true]);
+  await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z');
+  await expect.poll(() => page.evaluate((id) => document.getElementById(id)?.dataset.bgColor ?? null, id), { message: '★⌘Z 한 칸 = 지우기 전 색' }).toBe('#ff0000');
+  await page.keyboard.press('Meta+Shift+z'); await expect.poll(() => page.evaluate((id) => document.getElementById(id)?.dataset.bgColor ?? null, id)).toBe('transparent');
+  await page.evaluate((id) => { const b = document.getElementById(id); window.selectBlock?.(id); window.showStickerProperties(b); }, id);
+  await page.click('#stk-t-fill-add'); await raf(page);
+  expect((await st2(page, id, K)).v, '★＋ = 지난 색').toBe('#ff0000');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
