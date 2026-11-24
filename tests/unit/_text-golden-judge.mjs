@@ -46,7 +46,7 @@ function load(files, { mutate } = {}) {
   return ctx.__T.buildTextPropsHtml;
 }
 const SHARED = ['js/props/text-type-class.js', 'js/effects-registry.js'];
-const NOW = ['js/props/prop-text-utils.js', 'js/props/_helpers.js', 'js/props/_section-spec.js', 'js/props/_panel-frame.js', 'js/props/_typo-section.js', 'js/props/_stroke-section.js', ...SHARED, 'js/props/prop-text-template.js'];   // 표준 Stroke(태양 261123~) — 텍스트 Stroke 절 = 부품 strokeSectionHTML(탑 261124 P2 실측 «not defined»)
+const NOW = ['js/props/prop-text-utils.js', 'js/props/_helpers.js', 'js/props/_section-spec.js', 'js/props/_panel-frame.js', 'js/props/_fill-section.js', 'js/props/_typo-section.js', 'js/props/_stroke-section.js', ...SHARED, 'js/props/prop-text-template.js'];   // 표준 Stroke(태양 261123~) — 텍스트 Stroke 절 = 부품 strokeSectionHTML(탑 261124 P2 실측 «not defined»)
 const OLD = ['js/props/prop-text-utils.js', 'js/props/_helpers.js', 'js/props/_typo-section.js', ...SHARED, 'js/props/prop-text-template.js'];
 const OLD_FROM_BASE = new Set(['js/props/prop-text-utils.js', 'js/props/_helpers.js', 'js/props/_typo-section.js', 'js/props/prop-text-template.js']);
 const nowFiles = () => NOW.map((r) => [r, readNow(r)]);
@@ -242,14 +242,26 @@ const STROKE_STD = {
   idLost: ['txt-stroke-w-slider'], idAdded: ['txt-stroke-more', 'txt-stroke-pop', 'txt-stroke-style'],
 };
 /** 그 상태 Stroke 절 안에서만 «잃음/생김» 허용 목록을 만든다(옛·새 절 둘 다 있을 때만 · 개수 그대로 = 절 밖 같은 것은 못 빠진다) */
-function strokeStdAllow(o, n) {
-  const so = STROKE_STD.scope(o), sn = STROKE_STD.scope(n);
-  if (!so || !sn) return { cLost: [], cAdd: [], lLost: [], lAdd: [], iLost: [], iAdd: [] };
+function strokeStdAllow(o, n) {   // ★표준 Fill F4 — 부르는 자리(탑 P2 줄 옆)를 안 건드리려 FILL_STD 허용을 여기서 합친다(fillStdAllow · 아래)
+  const fx = fillStdAllow(n), so = STROKE_STD.scope(o), sn = STROKE_STD.scope(n);
+  if (!so || !sn) return fx;
   const co = ctl(so).map((t) => RENAME.reduce((x, [a, b]) => x.replace(a, b), t)), cn = ctl(sn);
   const pick = (xs, rs) => xs.filter((t) => rs.some((r) => (r instanceof RegExp ? r.test(t) : r === t)));
-  return { cLost: pick(minus(co, cn), STROKE_STD.ctlLost), cAdd: pick(minus(cn, co), STROKE_STD.ctlAdded),
+  return { cLost: pick(minus(co, cn), STROKE_STD.ctlLost), cAdd: pick(minus(cn, co), STROKE_STD.ctlAdded).concat(fx.cAdd),
     lLost: pick(minus(labels(so), labels(sn)), STROKE_STD.labelLost), lAdd: pick(minus(labels(sn), labels(so)), STROKE_STD.labelAdded),
-    iLost: pick(minus(ids(so), ids(sn)), STROKE_STD.idLost), iAdd: pick(minus(ids(sn), ids(so)), STROKE_STD.idAdded) };
+    iLost: pick(minus(ids(so), ids(sn)), STROKE_STD.idLost), iAdd: pick(minus(ids(sn), ids(so)), STROKE_STD.idAdded).concat(fx.iAdd) };
+}
+/* ★표준 Fill 이관(태양 F4 · 현빈 GO 261124 · 시안 #mkp-fillstd) — 글자색 줄 → 표준 겹 줄: Fill 부품(data-part=fill) «안»에 눈·− 단추 둘(막힘 · F6/다음 단계)만 더함.
+ *   옛 판엔 그 부품이 없으니 «생김»만 · 개수 = 부품 안 것만(절 밖 같은 단추는 그대로 빨강 — 내장 양성대조 ①c) · 라벨 바뀜 0(텍스트는 이미 라벨 없음 · 재설계 ⑩). */
+const FILL_STD = {
+  scope: (root) => all(root).find((k) => k.attrs['data-part'] === 'fill') || null,
+  ctlAdded: [/^<button type="button" class="prop-icon-btn ui-fill-btn" id="txt-fill-(?:eye|remove)" aria-label="(?:숨기기|칠 지우기)"[^>]*>$/],
+  idAdded: [/^txt-fill-(?:eye|remove)$/],
+};
+function fillStdAllow(n) {
+  const sc = FILL_STD.scope(n), none = { cLost: [], cAdd: [], lLost: [], lAdd: [], iLost: [], iAdd: [] };
+  if (!sc) return none;
+  return { ...none, cAdd: ctl(sc).filter((t) => FILL_STD.ctlAdded.some((r) => r.test(t))), iAdd: ids(sc).filter((i) => FILL_STD.idAdded.some((r) => r.test(i))) };
 }
 
 function judge(name, st, oldHtml, newHtml) {
@@ -312,6 +324,13 @@ console.log(`양성대조 OK — 바꾼 id 를 잡았다 (${blind.length}건)`);
   const caught = ['J1', 'J2', 'J4'].every((j) => planted.some((f) => f.startsWith(`stroke-on ${j}`) && /txt-stroke-more|스타일/.test(f)));
   if (!caught) { console.error('★양성대조 실패(STROKE_STD) — Stroke 절 밖에 심은 것을 못 잡는다:\n  ' + planted.join('\n  ')); process.exit(1); }
   console.log(`양성대조 OK(STROKE_STD) — 절 밖에 심은 ⫶·«스타일»을 잡았다 (${planted.length}건)`); }
+/* ①c 내장 양성대조(FILL_STD) — Fill 부품 «밖»(Position 절 X 칸 뒤)에 Fill 눈 단추를 심으면 J1·J4 가 잡아야 한다 */
+{ const PLANT = '<button type="button" class="prop-icon-btn ui-fill-btn" id="txt-fill-eye" aria-label="숨기기" aria-pressed="false" aria-disabled="true" tabindex="0" title="숨기기 — 곧 지원"></button>';
+  const nowC = load(nowFiles());
+  const planted = runAll((st) => nowC(st).replace(/(<input[^>]*id="txt-x-number"[^>]*>)/, `$1${PLANT}`)).filter((f) => f.startsWith('plain '));
+  const caught = ['J1', 'J4'].every((j) => planted.some((f) => f.startsWith(`plain ${j}`) && /txt-fill-eye/.test(f)));
+  if (!caught) { console.error('★양성대조 실패(FILL_STD) — Fill 부품 밖에 심은 것을 못 잡는다:\n  ' + planted.join('\n  ')); process.exit(1); }
+  console.log(`양성대조 OK(FILL_STD) — 부품 밖에 심은 눈 단추를 잡았다 (${planted.length}건)`); }
 
 /* ② 본 판정 */
 const buildNew = load(nowFiles());

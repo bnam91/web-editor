@@ -22,7 +22,7 @@ function build() {
   const fn = sliceBlock(frame, 'export function unwrapSection(', '★unwrapSection 을 못 찾았다');   // 끝은 괄호를 세어 찾는다(slice-block-shared SB-16)
   const ctx = { window: {}, console };
   vm.createContext(ctx);
-  vm.runInContext(`${strip('js/props/prop-text-utils.js')}\n;${strip('js/props/_typo-section.js')}
+  vm.runInContext(`${strip('js/props/prop-text-utils.js')}\n;${strip('js/props/_fill-section.js')}\n;${strip('js/props/_typo-section.js')}
     ;${fn.replace(/^export\s+/, '')}
     ;globalThis.__RAW = [buildTypographySectionHtml({ p:'mdl-typo', font:'', weight:'', size:36, isBold:false, isItalic:false, isStrike:false, isHighlight:false, lh:1.7, ls:0, sizeMin:10, sizeMax:60 }),
                          buildFillSectionHtml({ p:'mdl-typo', colorHex:'#1c1c1e', alpha:100 })];

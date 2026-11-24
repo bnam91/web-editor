@@ -17,7 +17,7 @@ async function scene(page, color) {
 }
 const st = (page, id) => page.evaluate((id) => { const b = document.getElementById(id), f = document.querySelector('#panel-right .prop-section[data-sec="fill"]');
   return { color: b.dataset.shapeColor ?? null, svg: b.querySelector('svg')?.style.color ?? null, strokeKey: b.dataset.shapeStrokeColor ?? null,
-    layers: f ? f.querySelectorAll('.ui-fill[data-part="fill"] > .ui-fill-layer[data-fill-index="0"]').length : -1, empty: !!f?.querySelector('.ui-fill[data-empty="1"]'),
+    layers: f ? (f.querySelector('.ui-fill[data-part="fill"]')?.querySelectorAll(':scope > .ui-fill-layer[data-fill-index="0"]').length ?? 0) : -1, empty: !!f?.querySelector('.ui-fill[data-empty="1"]'),
     add: !!document.getElementById('shape-fill-add'), hex: document.getElementById('shape-color-hex')?.value ?? null, alpha: document.getElementById('shape-color-alpha')?.value ?? null }; }, id);
 
 test('D1 도형 Fill = 표준 부품 · 겹 줄 하나 · 옛 id · 눈 막힘 · 머리 ＋ 없음', async ({ page }) => {
@@ -76,7 +76,7 @@ async function scene2(page, K, seed) {
   return { errs, id };
 }
 const st2 = (page, id, K) => page.evaluate(([id, key, p, hex]) => { const b = document.getElementById(id), f = document.querySelector('#panel-right .prop-section[data-sec="fill"]');
-  return { v: b.dataset[key] ?? null, layers: f ? f.querySelectorAll('.ui-fill[data-part="fill"] > .ui-fill-layer[data-fill-index="0"]').length : -1, add: !!document.getElementById(`${p}-add`), hex: document.getElementById(hex)?.value ?? null }; }, [id, K.key, K.p, K.hex]);
+  return { v: b.dataset[key] ?? null, layers: f ? (f.querySelector('.ui-fill[data-part="fill"]')?.querySelectorAll(':scope > .ui-fill-layer[data-fill-index="0"]').length ?? 0) : -1, add: !!document.getElementById(`${p}-add`), hex: document.getElementById(hex)?.value ?? null }; }, [id, K.key, K.p, K.hex]);
 for (const [kind, K] of Object.entries(F2)) {
   test(`D5 ${kind} — − = ${K.key} transparent · ⌘Z 한 칸 · ＋ = 지난 색 · 옛 id`, async ({ page }) => {
     const { errs, id } = await scene2(page, K, K.seed);
@@ -196,5 +196,58 @@ test('D10 새 radial·zoom = «칠 없음»(옛 기본값) · 옛 «배경 지�
     out[kind] = [s.v ?? '', s.layers, s.add, await page.evaluate(() => !!document.querySelector('#rdl-bg-clear, input[name="zm-bg"]'))];
   }
   expect(out, '★새 블럭 = 옛 기본(radial bg 없음 · zoom checker) = «칠 없음» + 머리 ＋ · 옛 단추·라디오 0').toEqual({ radial: ['', 0, true, false], zoom: ['checker', 0, true, false] });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* F3ⓐ — 그라데이션 블럭 Fill = 표준 겹 줄(이름칸 Linear/Radial · 견본 = goya-cp 그라데이션 탭만 · − 막힘) + 옛 정지점 바·목록 = 슬롯(옛 id)
+ * D11 탭 방출(goya-cp:gradient) → 정지점 키 gradStops · 종류 · 방향 = 가까운 프리셋(지디 (가) · 100° → «to right») · 견본 툴팁에 맞춘 이름·각도(조용히 안 바뀜) · commit = ⌘Z 한 칸
+ * D12 옛 손잡이(종류 select)를 바꾸면 견본 이름칸·시드가 따라온다 · − 막힘(까닭) · 단색/이미지 탭 막힘 표식(cpModes)
+ * 양성대조: _patches/fill-f3-CTL.patch(탭 방출이 방향을 안 맞춤) ⇒ D11 빨강 */
+async function gradScene(page) {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const id = await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); const sec = await window.addSection(); window.deselectAll(); window.selectSection(sec); const b = window.addGradientBlock(); const el = (b && b.id && document.getElementById(b.id)) || [...document.querySelectorAll('.gradient-block')].pop(); window.selectBlock?.(el.id); window.showGradientProperties(el); window.clearHistory?.(); return el.id; });
+  await page.waitForSelector('#panel-right .prop-section[data-sec="fill"] [data-part="fill"]', { state: 'attached' });
+  return { errs, id };
+}
+test('D11 그라데이션 블럭 — 탭 방출 → 정지점·종류·방향(가까운 프리셋) · 툴팁 = 맞춘 이름 · ⌘Z 한 칸', async ({ page }) => {
+  const { errs, id } = await gradScene(page);
+  const g0 = await page.evaluate((id) => ({ ds: { ...document.getElementById(id).dataset }, name: document.getElementById('grad-fill-hex')?.value, ro: document.getElementById('grad-fill-hex')?.readOnly, modes: document.getElementById('grad-fill-color')?.dataset.cpModes, slot: !!document.querySelector('[data-slot-kind="gradient-stops"] #grad-stops-bar') }), id);
+  expect([g0.name, g0.ro, g0.modes, g0.slot], '[전제] 이름칸 Linear(읽기 전용) · 탭 = 그라데이션만 · 옛 정지점 바 = 슬롯').toEqual(['Linear', true, 'gradient', true]);
+  await page.evaluate(() => { const i = document.getElementById('grad-fill-color'); const detail = { type: 'linear', angle: 100, stops: [{ color: '#ff0000', offset: 0, opacity: 1 }, { color: '#0000ff', offset: 1, opacity: 0.5 }], commit: true };
+    i.dispatchEvent(new CustomEvent('goya-cp:gradient', { bubbles: true, detail })); i.dispatchEvent(new CustomEvent('goya-cp:gradient-commit', { bubbles: true, detail })); });
+  const g1 = await page.evaluate((id) => { const b = document.getElementById(id); return { dir: b.dataset.gradDirection, style: b.dataset.gradStyle, stops: JSON.parse(b.dataset.gradStops || '[]'), sel: document.getElementById('grad-direction')?.value, tip: document.getElementById('grad-fill-color')?.closest('.prop-color-swatch')?.title || '' }; }, id);
+  expect([g1.dir, g1.style, g1.sel], '★100° → 가까운 프리셋 «to right»(키 gradDirection 그대로) · 방향 select 도').toEqual(['to right', 'linear', 'to right']);
+  expect(g1.stops, '★정지점 = 탭 값(키 gradStops · alpha = opacity)').toEqual([{ color: '#ff0000', alpha: 1, offset: 0 }, { color: '#0000ff', alpha: 0.5, offset: 1 }]);
+  expect(g1.tip, '★툴팁 = 맞춘 방향 이름 + 탭 각도(조용히 안 바뀜)').toMatch(/좌→우.*100°/);
+  await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z');
+  await expect.poll(() => page.evaluate((id) => document.getElementById(id)?.dataset.gradDirection ?? null, id), { message: '★⌘Z 한 칸 = 옛 방향' }).toBe(g0.ds.gradDirection ?? null);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+test('D12 옛 종류 select → 이름칸·시드 따라옴 · − 막힘(까닭)', async ({ page }) => {
+  const { errs, id } = await gradScene(page);
+  await page.selectOption('#grad-style', 'radial');
+  const r = await page.evaluate(() => ({ name: document.getElementById('grad-fill-hex')?.value, seed: JSON.parse(document.getElementById('grad-fill-color')?.dataset.cpGradient || '{}').type, rm: document.getElementById('grad-fill-remove')?.getAttribute('aria-disabled'), why: document.getElementById('grad-fill-remove')?.title || '' }));
+  expect([r.name, r.seed], '★종류 select = Radial → 이름칸·탭 시드 Radial').toEqual(['Radial', 'radial']);
+  expect([r.rm, /지울 수 없/.test(r.why)], '★− 막힘 + 까닭').toEqual(['true', true]);
+  await page.click('#grad-fill-remove', { force: true });
+  expect(await page.evaluate((id) => !!document.getElementById(id)?.dataset.gradStops || !!document.getElementById(id)?.dataset.gradStart, id), '★막힌 − = 칠 그대로').toBe(true);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* F4 — 텍스트류 Fill(이름 «Fill» = 글자색 · 현빈 GO 261124) = 공용 빌더 buildFillSectionHtml 한 곳 → 표준 겹 줄(옛 색 칸 id txt-color/-hex/-alpha 그대로 · 이름 = 칸 aria-label «글자색» · 눈·− 막힘)
+ * D13 텍스트 패널 Fill = 부품 · 겹 줄 하나 · 옛 id · 옛 «글자색» 라벨 줄 없음 · 눈·− 막힘(까닭) · 글자색 칸 입력 = 옛 배선 그대로 글자에 칠함 */
+test('D13 텍스트 Fill = 표준 겹 줄 · 옛 id · 눈·− 막힘 · 글자색 칸 = 옛 배선', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const id = await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); const sec = await window.addSection(); window.deselectAll(); window.selectSection(sec); window.addTextBlock('body'); const b = [...sec.querySelectorAll('.text-block')].pop(); b.id = b.id || 'txtF'; window.selectBlock?.(b.id); window.showTextProperties?.(b); return b.id; });
+  await page.waitForSelector('#panel-right .prop-section[data-sec="fill"] [data-part="fill"]', { state: 'attached' });
+  const ui = await page.evaluate(() => { const f = document.querySelector('#panel-right .prop-section[data-sec="fill"]'); const ok = (i) => !!f.querySelector('.ui-fill-layer[data-fill-index="0"] #' + i);
+    return { layers: f.querySelectorAll('.ui-fill-layer').length, ids: ['txt-color', 'txt-color-hex', 'txt-color-alpha'].every(ok), aria: document.getElementById('txt-color')?.getAttribute('aria-label'),
+      oldLabel: [...f.querySelectorAll('.prop-label')].some((l) => l.textContent.trim() === '글자색'), eye: document.getElementById('txt-fill-eye')?.getAttribute('aria-disabled'), rm: document.getElementById('txt-fill-remove')?.getAttribute('aria-disabled') }; });
+  expect(ui, '★겹 줄 하나 · 옛 id · 이름 = aria «글자색» · 옛 라벨 줄 없음 · 눈·− 막힘').toEqual({ layers: 1, ids: true, aria: '글자색', oldLabel: false, eye: 'true', rm: 'true' });
+  await page.fill('#txt-color-hex', 'FF0000'); await page.locator('#txt-color-hex').press('Enter'); await raf(page);
+  const col = await page.evaluate((id) => { const b = document.getElementById(id); const t = b.querySelector('[class^="tb-"]') || b; return getComputedStyle(t).color; }, id);
+  expect(col, '★글자색 칸 = 옛 배선 그대로 글자에 칠함').toBe('rgb(255, 0, 0)');
   expect(errs, errs.join(' | ')).toEqual([]);
 });

@@ -601,8 +601,7 @@ function _renderAutoPanel(ss) {
         <input type="range" class="prop-slider" id="ss-bgopa-slider" min="0" max="100" step="1" value="${bgOpacity}">
         <input type="number" class="prop-number" id="ss-bgopa-num" min="0" max="100" value="${bgOpacity}">
       </div>
-      <div class="ui-fill-slot" data-slot="below" data-slot-kind="bg-image"><span class="prop-field-label">Image</span>
-      <button class="prop-action-btn secondary" id="ss-bg-img-btn">이미지 선택</button>
+      <div class="ui-fill-slot" data-slot="below" data-slot-kind="bg-image"><div class="prop-row"><span class="prop-label">이미지</span><button class="prop-action-btn secondary" id="ss-bg-img-btn" style="flex:1">이미지 선택</button></div>
       <input type="file" id="ss-bg-img-input" accept="image/*" style="display:none">
       ${ss.dataset.bgImg ? '' : `<div id="ss-bg-empty-box">
       <button class="prop-action-btn ${_bgEmpty ? 'primary' : 'secondary'}" id="ss-bg-img-empty" style="margin-top:4px;"
@@ -630,7 +629,7 @@ function _renderAutoPanel(ss) {
             ${_bgSizeCustom ? `<option value="${_bgSizeNow}" selected>직접 조절</option>` : ''}
           </select>
         </div>
-        <button class="prop-action-btn secondary" id="ss-bg-pos-btn" style="margin-top:4px;">배경이미지 편집</button>
+        <div class="prop-row"><span class="prop-label">위치</span><button class="prop-action-btn secondary" id="ss-bg-pos-btn" style="flex:1">배경이미지 편집</button></div>
         <!-- 1120b P3(현빈 261120) — 「이미지 제거」(#ss-bg-img-clear) 단추 걷음 -->
       ` : ''}</div>
 `, { headTools: fillHeadToolsHTML({ prefix: 'ss-fill', on: fillOn }) }),   // 표준 Fill F2 — 칠 없음이면 머리 ＋ 만(이미지·투명도 줄은 그대로 = 슬롯)

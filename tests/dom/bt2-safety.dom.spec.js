@@ -215,7 +215,7 @@ test('T6 그리드 패널 — 상태 7가지의 우측 패널 HTML 이 핀과 �
     dataRename: { 'data-bbg-x': 'data-bbg-h', 'data-bbg-y': 'data-bbg-v', 'data-cpos-x': 'data-cpos-h', 'data-cpos-y': 'data-cpos-v' },
     LABEL_TO: { 'data-ha': '가로 정렬 · 모든 열', 'data-va': '세로 정렬 · 블록', 'grd-cell-align': '가로 정렬 · 이 칸', 'grd-cell-valign': '세로 정렬 · 이 칸', 'grd-line-align': '가로 정렬 · 이 줄', 'data-nva': '세로 정렬 · 이 열' },
     HINT_GONE: ['^가로×세로 칸 수를 고른다$', '^줄이면 잘린 칸 내용은 사라진다', '^예: 1:1:2', '^행/열 사이 간격', '^격자와 아래 블럭 사이', '^칸 하나만 바꾸려면', '^이 칸에만 적용된다', '^칸과 칸 «사이»', '^자르기 전에는', '^그림 폭이 100%', '^비우면 자동', '행을 열 \\d+개의', '^이 열에 기본값이 걸려'],   // 마지막 = 칸 꾸미기 접기 제목 「· 열 기본값 있음」으로(M4 예산)
-  };
+  }; T6_SPEC.strokeStd.scope += ', [data-part="fill"]';   /* ★표준 Fill F4(현빈 GO 261124) — 그리드 글자색 줄 = 표준 Fill 부품: 더함 면제 범위에 부품 안(눈·− 막힘 단추)만 · 탑 posFlow 줄과 떨어진 자리(판정 줄 무변) */
   if (UPDATE && fs.existsSync(GOLD('grid-panel'))) {
     const old = JSON.parse(fs.readFileSync(GOLD('grid-panel'), 'utf8'));
     const bad = await page.evaluate(({ old, got, S }) => {
@@ -250,7 +250,7 @@ test('T6 그리드 패널 — 상태 7가지의 우측 패널 HTML 이 핀과 �
         if (S.added.some(id => !b.querySelector('#' + id))) out.push(`${k} ② 스코프칩 넷이 없다`);
         // ④ 라벨
         const lb = new Map([...b.querySelectorAll('.prop-label')].map(l => [rowKey(l), l.textContent.trim()]));
-        for (const l of a.querySelectorAll('.prop-label')) { const key = rowKey(l); if (!key || l.closest(S.strokeStd.scope) || (S.strokeStd.labelGone.includes(key) && !b.querySelector('#' + key))) continue;   /* Stroke 부품 안 라벨은 stroke-std 가 잰다 — 팝오버 «점선 끝»·«꼭짓점» 줄은 첫 컨트롤 키(data-value)가 같아 짝이 엇갈린다(같은 골든끼리도 거짓 거절 · 실측) */ const want = S.LABEL_TO[key] || l.textContent.trim(); if (lb.get(key) !== want) out.push(`${k} ④ 라벨 ${key}: 「${l.textContent.trim()}」 → 「${lb.get(key)}」(기대 「${want}」)`); }
+        for (const l of a.querySelectorAll('.prop-label')) { const key = rowKey(l); if (!key || l.closest(S.strokeStd.scope) || (S.strokeStd.labelGone.includes(key) && !b.querySelector('#' + key)) || (key === 'grd-typo-color' && b.querySelector('#' + key)?.closest('[data-part="fill"]'))) continue;   /* ★표준 Fill F4: 글자색 «라벨 줄» → 표준 겹 줄(라벨 없음 · 이름 = 칸 aria-label) — 그 칸이 Fill 부품 안으로 간 때만 */   /* Stroke 부품 안 라벨은 stroke-std 가 잰다 — 팝오버 «점선 끝»·«꼭짓점» 줄은 첫 컨트롤 키(data-value)가 같아 짝이 엇갈린다(같은 골든끼리도 거짓 거절 · 실측) */ const want = S.LABEL_TO[key] || l.textContent.trim(); if (lb.get(key) !== want) out.push(`${k} ④ 라벨 ${key}: 「${l.textContent.trim()}」 → 「${lb.get(key)}」(기대 「${want}」)`); }
         // ⑤ 하위 제목
         const ta = subTitles(a).filter(t => !(t.text === 'Layout' || (t.text === 'Typography' && t.n === 0))).map(t => t.text).sort();   // 순서는 틀이 정한다(SECTION_ORDER) — 집합만 견준다
         const tb = subTitles(b).map(t => t.text).sort();
