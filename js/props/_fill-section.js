@@ -4,6 +4,7 @@
  *   겹 줄 = 옛 색 칸(colorFieldHTML · 견본 · 이름칸 · %) + 눈(숨김 · F6 전엔 막힘) + −(칠 지우기 = 어댑터 none)
  *   이름칸: 단색 = HEX · 그라데이션 = «Linear»/«Radial» · 이미지 = «Image»(읽기 전용 — 종류는 견본 클릭 = 앱 color-picker 탭에서 바꾼다)
  *   칠 없음 = «칠 없음 — ＋ 로 더하기» 한 줄 + 머리 ＋(fillHeadToolsHTML · 어댑터 add)
+ *   ⛔그 줄은 .prop-hint 가 아니다(.ui-fill-none) — 힌트면 패널 힌트 수(≤2)·힌트 명부 spec 에 잡힌다(radial-t4-b H0 · 지혜맥 261124)
  * 견본 클릭 = 앱 color-picker(goya-cp · 단색/그라데이션/이미지 탭) 그대로 — 계획의 «종류 팝오버»를 새로 짓지 않는다(실측 261124).
  * ⛔color-picker 를 부품이 부르지 않는다: 색 칸 마크업은 부르는 쪽이 colorFieldHTML 로 만들어 colorHtml 로 준다(옛 id·배선 그대로 · 블럭마다 그라데이션/이미지 길이 다름).
  * 데이터 = 어댑터 { add(), none(), commit() } — 부품은 블럭을 모른다.
@@ -45,7 +46,7 @@ export function fillSectionHTML({ prefix, colorHtml, on = true, kind = 'solid', 
         </div>`;
   return `
       <div class="ui-fill" data-part="fill"${on ? '' : ' data-empty="1"'}>
-        ${on ? layer : '<div class="prop-hint ui-fill-none">칠 없음 — ＋ 로 더하기</div>'}${slotsBelow}
+        ${on ? layer : '<div class="ui-fill-none">칠 없음 — ＋ 로 더하기</div>'}${slotsBelow}
       </div>`;
 }
 
