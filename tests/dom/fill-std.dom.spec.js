@@ -573,3 +573,45 @@ for (const [name, make, sel, show, px, hex] of F62B) {
     expect(errs, errs.join(' | ')).toEqual([]);
   });
 }
+
+/* D27 내보내기 경로마다 1칸(지디 261124 «산출물 경로 하나 = 검사 하나») — 프레임·에셋·아이콘원(CSS 규칙) · 브리지·심플카드(렌더러)
+ *   PNG = 섹션 «이 섹션 내보내기»(png) 진짜 다운로드 파일을 풀어 유일 색 화소 수 — ★두 갈래 따로: native(앱 = Electron 이면 늘 이것 · isNativeCapture · captureSectionCdp 를 main.js 와 같은 CDP Page.captureScreenshot 로 · annot-export-show 선례) · h2c(electronAPI.captureSection 없을 때 = 브라우저) · HTML = exportHTMLFile 진짜 다운로드 파일을 «따로 연 페이지»(망 끊음)에서 그 블럭 계산된 그림
+ *   [전제] 보일 때 내보내면 그 색이 «있다» → 눈 → 다시 내보내면 «없다»
+ * 양성대조: D26 CTL 패치(_patches/fill-f6-2b-CTL-<블럭>.patch)를 걸면 그 블럭 숨김 내보내기에 색이 다시 나와 빨강 */
+const fsx = require('fs');
+for (const [name, make, sel, show, px, hex] of F62B) {
+  test(`D27 ${name} — 숨김이 PNG·HTML 내보내기에도 · [전제] 보일 땐 실림`, async ({ page, context }) => {
+    test.setTimeout(240000);
+    await page.setViewportSize({ width: 1500, height: 1100 });
+    const errs = await bootApp(page);
+    const cdp = await context.newCDPSession(page);
+    await page.exposeFunction('__cdpShot', async ({ x = 0, y = 0, width, height }) => (await cdp.send('Page.captureScreenshot', { format: 'png', clip: { x: Math.round(x), y: Math.round(y), width: Math.ceil(width), height: Math.ceil(height), scale: 1 }, captureBeyondViewport: true, fromSurface: true })).data);
+    const lane = (native) => page.evaluate((native) => { window.electronAPI = new Proxy({}, { get: (t, k) => k === 'captureSection' ? (native ? (() => Promise.resolve(null)) : undefined) : k === 'captureSectionCdp' ? ((o) => window.__cdpShot(o)) : (() => Promise.resolve(null)) }); }, native);
+    const ids = await page.evaluate(async ([make, sel, show]) => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+      const sec = await window.addSection(); window.deselectAll(); window.selectSection(sec); await eval(make); const b = sec.querySelector(sel); window.selectBlock(b.id); window[show](b); return { id: b.id, sec: sec.id }; }, [make, sel, show]);
+    if (!(await page.$(`#${hex}`)) && (await page.$(`#${px}-add`))) { await page.click(`#${px}-add`); await raf(page); }
+    await page.fill(`#${hex}`, '#12ab34'); await page.press(`#${hex}`, 'Enter'); await raf(page);
+    const png = async (native) => { await lane(native); await page.evaluate((s) => { window.deselectAll(); const sec = document.getElementById(s); window.selectSection(sec); window.showSectionProperties?.(sec); }, ids.sec);
+      await page.waitForSelector('#sec-export-btn'); await page.selectOption('#sec-export-format', 'png');
+      const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }), page.evaluate(() => document.getElementById('sec-export-btn').click())]);   // 단추가 창 아래끝(y≈1041)이라 page.click 은 «누를 수 있나» 기다리다 멈춤(실측) — 단추 동작 그대로 부름
+      const b64 = fsx.readFileSync(await dl.path()).toString('base64');
+      await page.evaluate(() => document.querySelector('#exres-modal [data-act="close"]')?.click());   // 내보내기 결과 창(#exres-modal)이 패널을 덮어 다음 눈 누름이 멈춤(실측) — 그 창의 닫기 단추로 닫음
+      return page.evaluate(async (b64) => { const im = new Image(); im.src = 'data:image/png;base64,' + b64; await im.decode(); const cv = document.createElement('canvas'); cv.width = im.width; cv.height = im.height; const x = cv.getContext('2d'); x.drawImage(im, 0, 0);
+        const d = x.getImageData(0, 0, cv.width, cv.height).data; let n = 0; for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - 18) < 6 && Math.abs(d[i + 1] - 171) < 6 && Math.abs(d[i + 2] - 52) < 6 && d[i + 3] > 200) n++; return n; }, b64); };
+    const html = async () => { const [dh] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }), page.evaluate(() => { window.exportHTMLFile(); return null; })]);
+      const body = fsx.readFileSync(await dh.path(), 'utf8'); const xp = await context.newPage(); await xp.setViewportSize({ width: 1500, height: 1100 });
+      await xp.route('**/*', (rq) => { const u = rq.request().url(); if (u === 'http://fx.test/export.html') return rq.fulfill({ contentType: 'text/html', body }); if (u.startsWith('data:') || u.startsWith('blob:')) return rq.continue(); return rq.abort(); });
+      await xp.goto('http://fx.test/export.html');
+      const r = await xp.evaluate(async (id) => { await Promise.all(document.getAnimations().map((an) => an.finished.catch(() => {}))); const b = document.getElementById(id); if (!b) return 'no-block'; const re = /rgb\(18, 171, 52\)/;
+        return [b, ...b.querySelectorAll('*')].some((e) => { const cs = getComputedStyle(e); if (re.test(cs.backgroundColor) || re.test(cs.backgroundImage)) return true; return e instanceof SVGElement && re.test(cs.fill) && parseFloat(cs.fillOpacity) !== 0; }); }, ids.id);
+      await xp.close(); return r; };
+    const shown = { native: await png(true), h2c: await png(false), html: await html() };
+    expect([shown.native > 0, shown.h2c > 0, shown.html], `[전제] 보일 때 내보내면 실린다 ${JSON.stringify(shown)}`).toEqual([true, true, true]);
+    await page.evaluate(([id, show]) => { window.deselectAll(); const b = document.getElementById(id); window.selectBlock(id); window[show](b); }, [ids.id, show]);
+    await page.click(`#${px}-eye`); await raf(page);
+    const hidden = { native: await png(true), h2c: await png(false), html: await html() };
+    console.log(`[D27 ${name} 실측]`, JSON.stringify({ shown, hidden }));
+    expect(hidden, '★숨기면 PNG(native·h2c) 화소 0 · 따로 연 HTML 에서 안 보임').toEqual({ native: 0, h2c: 0, html: false });
+    expect(errs, errs.join(' | ')).toEqual([]);
+  });
+}
