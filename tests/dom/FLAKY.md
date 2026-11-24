@@ -477,3 +477,6 @@ ft-restore-remeasures-at-other-width.dom.spec.js:112 X0   빨강 1/1 (u6m 전수
 - `iconify-bundle-preview.dom.spec.js:59` B2 — 인텔 전수 1/1 빨강 · 인텔 workers 1 ×3 0/3 · srv workers 1 ×5 0/5 · srv workers 2 ×3 0/3.
 - `s3v-icon-text.dom.spec.js:122` ⒤⒦ — 인텔 전수 1/1 빨강 · 인텔 workers 1 ×3 0/3.
 - `ft-restore-remeasures-at-other-width.dom.spec.js:112` X0 — 인텔 전수 1/1 빨강 · 인텔 workers 1 ×3 0/3(앞 2026-11-21 dev16 줄과 같은 칸).
+
+## 2026-11-24 · train/0913-d 표적 438(e301ce57f) — 이름 ＋ 수 (⛔원인 라벨 없이)
+- `text-dot-anchor-clip.dom.spec.js:118` S2 — srv 표적 1 워커 flaky 1/1 · 머리 ×6 0/6 · dev bb85e952f 제품 판 ×6 0/6 빨강.
