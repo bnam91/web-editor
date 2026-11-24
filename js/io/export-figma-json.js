@@ -173,7 +173,7 @@ function _shapeFigmaBlock(el) {
   /* 별의 갯수·간격·통통함·꼭짓점 둥글기·별마다 배율·평점 칠 — 옛 판은 여기서 0건이라 Figma 엔 «별 하나 + 색 하나»로 갔다(t1bstar 2026-10-10 기록).
    ⇒ 261117 SHAPE-STAR-FIGMA-EXPORT-FIXED-FORM-01 이 아래 starViewBox·starPolygons 로 고쳤다(캔버스가 이미 그린 SVG 를 그대로 싣는다). */
   const out = {
-    type: 'shape', id: el.id || '',
+    type: 'shape', id: el.id || '', ...(el.dataset?.fillHidden === '1' ? { fillHidden: true } : {}),   // F7 숨김(= _fh · 이 함수는 유닛이 홀로 잘라 쓰니 helper 없이 같은 한 줄)
     shapeType: el.dataset.shapeType || 'rect',
     color,
     // ★0 보존(0918 기본 테두리 0) — `|| 1` 이면 0이 1이 돼 피그마에 1px 테두리가 생긴다. 누락/NaN 만 1.
@@ -686,8 +686,9 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         const _ds = el.dataset.bgColor;
         bgColor = (_ds && _ds !== '#e8e8e8') ? _ds : null;
       }
+      if (_fh(el).fillHidden) { const _hc = el.dataset.bgColor; if (_hc && _hc !== '#e8e8e8' && _hc !== 'transparent') bgColor = _hc; }   // F7 숨김 — 계산 style 은 숨김 규칙에 투명이라 null(→ 렌더러 빈 원 체커)이 됐다 · 원래 색 + fillHidden 으로 보내 Figma 칠 눈만 끔
       const _circleOut = {
-        type:    'circle',
+        type:    'circle', ..._fh(el),
         id:      el.id || ('icb_' + Math.random().toString(36).slice(2, 8)),
         size,
         bgColor,
@@ -828,7 +829,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         canvasH:   parseInt(el.dataset.canvasH)   || 400,
         radius:    parseInt(el.dataset.radius)    || 16,
         imgRatio:  parseInt(el.dataset.imgRatio)  || 75,
-        cardMode:  el.dataset.cardMode || 'simple',
+        cardMode:  el.dataset.cardMode || 'simple', ...((el.dataset.cardMode || 'simple') === 'simple' ? _fh(el) : {}),   // F7 — 숨김 키는 카드 하나(레이어 모드 배경과 같은 키) · Figma 로 가는 칠은 심플 글 배경뿐이라 심플일 때만
         textBg:    el.dataset.textBg   || '#cccccc',
         labelPos:      el.dataset.labelPos || 'below',
         overlayHeight: parseInt(el.dataset.overlayHeight) || 180,
@@ -953,7 +954,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     if (el.classList.contains('step-block')) {
       let steps = []; try { steps = JSON.parse(el.dataset.steps || '[]'); } catch {}
       return {
-        type: 'step', id: el.id || '',
+        type: 'step', id: el.id || '', ..._fh(el),
         steps: steps.map(s => ({ title: s.title || '', desc: s.desc || '' })),
         startNumber: parseInt(el.dataset.startNumber) || 1,
         numBg: el.dataset.numBg || '#222222',
@@ -973,7 +974,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     if (el.classList.contains('banner02-block')) {
       let lines = []; try { lines = JSON.parse(el.dataset.lines || '[]'); } catch {}
       return {
-        type: 'banner02', id: el.id || '',
+        type: 'banner02', id: el.id || '', ..._fh(el),
         bannerW: parseInt(el.dataset.bannerW) || 780,
         bannerH: parseInt(el.dataset.bannerH) || 260,
         radius: parseInt(el.dataset.radius) || 20,
@@ -1128,7 +1129,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       else push('text', ds.textText, ds.textHtml);
       const bw = parseInt(ds.borderW) || 0;
       return {
-        type: 'generic', id: el.id || '', kind: 'modal', variant: ds.variant || 'plain',
+        type: 'generic', id: el.id || '', kind: 'modal', variant: ds.variant || 'plain', ..._fh(el),
         width: (ds.wMode === 'fixed' && parseInt(ds.width)) || null,
         height: (ds.hMode === 'fixed' && parseInt(ds.height))
                 || Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 0),
@@ -1222,7 +1223,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       });
       const ds = el.dataset || {};
       const out = {
-        type: 'generic', id: el.id || '', kind: ds.type || '',
+        type: 'generic', id: el.id || '', kind: ds.type || '', ..._fh(el),
         width: w, height: h || 0, bg: ds.bg || '', radius: parseInt(ds.radius) || 0,
         svg: [...el.querySelectorAll('svg')].find(s => _notKid(s) && !s.closest('.itb-icon'))?.outerHTML || '', texts,   /* ICONTEXT-EMPTY-ICON-PLACEHOLDER-IN-EXPORT-01 — .itb-icon 안 svg 는 편집 자리표시뿐(고른 아이콘·사진은 img) */
       };
@@ -1553,7 +1554,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       });
       const _bg = fb.dataset.bg || '';
       const out = { type: 'frame', id: fb.id || '', width: w, height: h,
-               bg: _bg, radius: parseInt(fb.dataset.radius) || 0, free, children };
+               bg: _bg, radius: parseInt(fb.dataset.radius) || 0, free, children, ..._fh(fb) };
       { const _bd = _strokeBorderOut(fb.dataset, parseInt(fb.dataset.borderWidth) || 0, fb.dataset.borderColor || '', fb.dataset.borderStyle || 'solid'); if (_bd) out.border = _bd; }   // 표준 Stroke 4-3 — 프레임 테두리(굵기 0 = 안 실음)
       // ★0919 QA: 배경 그라데이션 → 모델(렌더러가 set_gradient 로 칠함). 예전엔 렌더러가 CSS 문자열에서 «처음 나오는 rgba()»
       //   를 단색으로 칠해 가운데 스탑 색 한 가지가 됐다.
@@ -1774,6 +1775,9 @@ window.figmaGrainNotice      = figmaGrainNotice;
 window.buildFigmaExportJSONInlined = buildFigmaExportJSONInlined;
 
 /* ══ 표준 Stroke 4-3 — CSS 테두리 → Figma(굵기 0 이면 null = 안 실음 = 옛 바이트) · 면별 키(strokeWidthTop/Right/Bottom/Left · js/stroke-look.js 와 같은 이름) 있으면 sides ══ */
+/* F7 표준 Fill 숨김(지디 261124) — 블럭 data-fill-hidden="1" 이면 { fillHidden:true }(색·종류 키는 그대로 · 렌더러가 그 칠만 visible:false) · 아니면 {}(바이트 무변) */
+function _fh(el) { return el?.dataset?.fillHidden === '1' ? { fillHidden: true } : {}; }
+
 function _strokeBorderOut(ds, width, color, style) {
   const w = Number(width) || 0;
   if (!(w > 0)) return null;

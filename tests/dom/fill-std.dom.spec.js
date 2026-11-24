@@ -707,3 +707,40 @@ test('D29 여러 고름 Fill — Mix · 색 일괄 · ⌘Z 한 번 전부 · 눈
   expect((await ui()).fill, '★표 밖(글)이 섞이면 Fill 절 없음').toBe(false);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* F7 내보내기(지디 261124) — D30 Figma JSON(buildFigmaExportJSON): 숨기면 그 블럭 항목에 fillHidden:true · 색 키 그대로 · 안 숨기면 키 0(옛 바이트)
+ *   종류 = Figma 로 칠이 실제로 가는 것(실측 · 프레임 빼고 7: 도형·아이콘원·스텝 카드·배너02·모달·이너카드·방사 + 심플카드 글 배경) · 아이콘원은 숨기면 null(→ 빈 원 체커) 대신 원래 색
+ *   ⛔프레임은 자유 배치 프레임만 bg 가 Figma 로 간다(흐름 프레임은 펴서 bg 안 실음 · 옛 꼴) — 장면 세우기를 srv 에서 못 돌려 이 칸 밖 · 렌더러 쪽은 유닛 figma-fill-hidden-f7 R1 frame
+ *   ⛔옛 결손 6종(에셋 배경·캔버스 레이어 배경·브리지·글 스티커 배경·쿠폰·줌)은 Figma 로 Fill 이 «아예» 안 감 = F8 후보(지디) · 이 칸 밖
+ * 양성대조: _patches/fill-f7-CTL-export.patch(_fh 가 늘 {}) → D30 빨강 */
+const F7X = [
+  ['shape', "window.addShapeBlock('rectangle')", '.shape-block', 'color', {}],
+  ['icon-circle', 'window.addIconCircleBlock()', '.icon-circle-block', 'bgColor', {}],
+  ['step', 'window.addStepBlock()', '.step-block', 'cardBg', { stepStyle: 'card' }],
+  ['banner02', 'window.addBanner02Block()', '.banner02-block', 'bg', {}],
+  ['modal', 'window.addModalBlock()', '.modal-block', 'bg', {}],
+  ['innercard', 'window.addInnerCardBlock()', '.innercard-block', 'bg', {}],
+  ['radial', 'window.addRadialBlock()', '.radial-block', 'bg', {}],
+  ['simple-card', 'window.addCanvasBlock()', '.canvas-block', 'textBg', {}],
+];
+for (const [name, make, sel, key, prep] of F7X) {
+  test(`D30 ${name} — Figma JSON: 숨김 = fillHidden:true · 색 그대로 · 아니면 키 0`, async ({ page }) => {
+    await page.setViewportSize({ width: 1500, height: 1100 });
+    const errs = await bootApp(page);
+    const id = await page.evaluate(async ([make, sel, prep]) => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+      const sec = await window.addSection(); window.deselectAll(); window.selectSection(sec); await eval(make); const b = sec.querySelector(sel); Object.assign(b.dataset, prep);
+      const m = await import('/js/props/_fill-section.js'); const it = m.fillKindOf(b); it.k.paint(it.block, '#12ab34'); return b.id; }, [make, sel, prep]);
+    const entry = () => page.evaluate((id) => { const j = window.buildFigmaExportJSON(null); let hit = null;
+      (function walk(o) { if (!o || typeof o !== 'object' || hit) return; if (o.id === id && o.type) { hit = o; return; } Object.values(o).forEach(walk); })(j);
+      return hit ? JSON.parse(JSON.stringify(hit)) : null; }, id);
+    const e0 = await entry();
+    expect(e0, '[전제] 그 블럭 항목이 Figma JSON 에 있다').not.toBeNull();
+    expect(String(e0[key] || '').toLowerCase(), `[전제] 칠 색이 ${key} 로 간다`).toMatch(/12ab34|18, ?171, ?52/);
+    expect('fillHidden' in e0, '[지킴] 안 숨기면 fillHidden 키 0(옛 바이트)').toBe(false);
+    await page.evaluate(async (id) => { const m = await import('/js/props/_fill-section.js'); const it = m.fillKindOf(document.getElementById(id)); m.fillSetHidden(it.block, it.k, true); }, id);
+    const e1 = await entry();
+    expect(e1.fillHidden, '★숨기면 fillHidden:true').toBe(true);
+    expect(String(e1[key] || '').toLowerCase(), '★색 키 그대로(숨김은 색을 안 지움 · 아이콘원도 null 아님)').toMatch(/12ab34|18, ?171, ?52/);
+    expect(errs, errs.join(' | ')).toEqual([]);
+  });
+}

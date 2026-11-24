@@ -90,6 +90,16 @@ function applyBorder(nodeId, border) {
   run('set_stroke_color', { nodeId, color: hex(st.color || '#000000'), strokeWeight: st.weight, ...(st.sides ? { sides: st.sides } : {}), align: 'INSIDE', ...(dash ? { dashPattern: dash } : {}), ...(st.style === 'dotted' ? { strokeCap: 'ROUND' } : {}) });
 }
 
+/* F7 표준 Fill 숨김(지디 261124 · 시트 0.9.14 82행 FIGMA-PLUGIN-REIMPORT-F7-01) — 내보내기 fillHidden 이면 그 칠 페인트만 visible:false(색·종류 그대로 = Figma 에서 칠 눈을 다시 켜면 돌아옴)
+   플러그인 set_node_properties fillsVisible(691fc4c83) · ⛔옛 플러그인은 인자를 조용히 버리고 돌려준 값에 fillsVisible 이 없다 → 한 번만 경고(안내 문구 = FILL_HIDDEN_OLD_PLUGIN_MSG) */
+export const FILL_HIDDEN_OLD_PLUGIN_MSG = '⚠️ 숨긴 칠(Fill 눈 끔)이 Figma 에서 보여요 — Figma 플러그인이 옛 판이에요. 플러그인을 다시 불러온(import) 뒤 내보내면 숨긴 칠이 «칠 눈 꺼짐»으로 들어가요.';
+let _fillHiddenOldWarned = false;
+function _hideFills(nodeId) {
+  if (!nodeId) return;
+  const r = run('set_node_properties', { nodeId, fillsVisible: false });
+  if (r && !('fillsVisible' in r) && !_fillHiddenOldWarned) { _fillHiddenOldWarned = true; console.log(`  ${FILL_HIDDEN_OLD_PLUGIN_MSG}`); }
+}
+
 function hex(h) {
   if (!h) return { r: 0, g: 0, b: 0, a: 1 };
   // rgb(r, g, b) or rgba(r, g, b, a)
@@ -275,6 +285,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       const _gr = run('set_gradient', { nodeId: frame.id, ..._gPaint });
       if (!_gr) console.log(`      ⚠️ frame gradient 실패 → 투명 폴백 ${block.id}`);
     }
+    if (block.fillHidden) _hideFills(frame.id);   // F7
     if (block.radius) run('set_corner_radius', { nodeId: frame.id, radius: block.radius });
     if (block.free) {
       for (const ch of (block.children || [])) {
@@ -619,6 +630,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
         console.log(`      · circle ${size}×${size} → ${node.id}${fillResult ? ' ✓ 이미지' : (hasBg ? ' (배경색)' : ' (빈 원 투명)')}`);
       } else if (hasBg) {
         run('set_fill_color', { nodeId: node.id, color: hexToRgb(block.bgColor) });
+        if (block.fillHidden) _hideFills(node.id);   // F7
         console.log(`      · circle ${size}×${size} → ${node.id} (배경색: ${block.bgColor})`);
       } else {
         run('set_fill_color', { nodeId: node.id, color: TRANSPARENT });
@@ -953,7 +965,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
         const labelBg = card.cellBg || (isIconCard ? '' : textBg);
         labelFrame = run('create_frame', { x: 0, y: thisImgH, width: cardW, height: thisLabelH, name: `card_label_${i}`, parentId: cardFrame.id });
         if (labelFrame) {
-          if (labelBg) run('set_fill_color', { nodeId: labelFrame.id, color: hex(labelBg) });
+          if (labelBg) { run('set_fill_color', { nodeId: labelFrame.id, color: hex(labelBg) }); if (block.fillHidden && !card.cellBg) _hideFills(labelFrame.id); }   // F7 — 칸별 cellBg 는 숨김 Fill 이 아니다(캔버스도 그대로)
           else run('set_fill_color', { nodeId: labelFrame.id, color: { r: 1, g: 1, b: 1, a: 0 } });
         }
       }
@@ -1119,6 +1131,12 @@ function renderBlock(block, parentId, x, y, availableWidth) {
         const walk = (n) => { if (!n) return; if (/^(VECTOR|ELLIPSE|RECTANGLE|POLYGON|STAR|BOOLEAN_OPERATION)$/.test(n.type) && Array.isArray(n.fills) && n.fills.length) run('set_gradient', { nodeId: n.id, ...paint }); (n.children || []).forEach(walk); };
         walk(info?.document || info);
       }
+      /* F7 숨김 — 칠이 SVG 글 안이라 «칠 있는 벡터 자식»마다 칠 visible:false(선은 stroke 라 그대로 · 원뿔 갈래와 같은 걸음 · 지디 (가)) */
+      if (node && def.fill && block.fillHidden) {
+        const info = run('get_node_info', { nodeId: node.id });
+        const walk = (n) => { if (!n) return; if (/^(VECTOR|ELLIPSE|RECTANGLE|POLYGON|STAR|BOOLEAN_OPERATION)$/.test(n.type) && Array.isArray(n.fills) && n.fills.length) _hideFills(n.id); (n.children || []).forEach(walk); };
+        walk(info?.document || info);
+      }
     }
     return h;
   }
@@ -1190,6 +1208,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const card = run('create_frame', { x, y, width: availableWidth, height: h, name: `step_${block.id || ''}`, parentId });
     if (!card) return h;
     run('set_fill_color', { nodeId: card.id, color: hex(block.cardBg || '#ffffff') });
+    if (block.fillHidden) _hideFills(card.id);   // F7
     run('set_corner_radius', { nodeId: card.id, radius: 16 });
     const fontB = loadFontSafe('Pretendard', 'Bold');
     const font = loadFontSafe('Pretendard', 'Regular');
@@ -1230,6 +1249,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const frame = run('create_frame', { x: bx, y, width: bw, height: bh, name: `banner02_${block.id || ''}`, parentId });
     if (!frame) return block.height || bh;
     run('set_fill_color', { nodeId: frame.id, color: /^transparent$/i.test(block.bg || '') ? { r: 1, g: 1, b: 1, a: 0 } : hex(block.bg || '#1a1f3d') });   // 표준 Fill F2-2 — 칠 없음 = 투명(hex() 는 # 아닌 글자를 흰색으로 읽는다 · 공용 함수는 안 고침)
+    if (block.fillHidden) _hideFills(frame.id);   // F7
     if (block.radius) run('set_corner_radius', { nodeId: frame.id, radius: block.radius });
     // 우측 이미지(또는 플레이스홀더)
     if (block.imgW > 0) {
@@ -1461,7 +1481,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const frame = run('create_frame', { x: fx, y, width: Math.max(1, w), height: Math.max(1, h || 1), name: `${block.kind || 'block'}_${block.id || ''}`, parentId });
     if (frame) {
       const bgc = (block.bg || '').trim();
-      if (bgc.startsWith('#') || bgc.startsWith('rgb')) run('set_fill_color', { nodeId: frame.id, color: hex(bgc) });
+      if (bgc.startsWith('#') || bgc.startsWith('rgb')) { run('set_fill_color', { nodeId: frame.id, color: hex(bgc) }); if (block.fillHidden) _hideFills(frame.id); }   // F7
       else run('set_fill_color', { nodeId: frame.id, color: { r: 1, g: 1, b: 1, a: 0 } });
       if (block.radius) run('set_corner_radius', { nodeId: frame.id, radius: block.radius });
       applyBorder(frame.id, block.border);   // 표준 Stroke 4-3 — 모달 테두리 · 그리드 블럭 외곽선(G17 면별)
