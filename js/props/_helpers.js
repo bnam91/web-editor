@@ -353,6 +353,25 @@ export function alignBtn(family, key, o = {}) {
   return _iconBtnHtml(icon, o);
 }
 
+/**
+ * ★현빈 261123 S1-4 — 떠 있는 블럭 «하나» = 부모(섹션 · 프레임 안이면 프레임) 기준 정렬 6칸. 정본 시안 = 8910 floatalign(탑 gdragon 1bd9ebe).
+ * 마크업은 시안 그대로(.prop-field-label «Alignment» + .prop-row[data-float-align-row] 안 .prop-align-group 둘 · 단추 = .prop-align-btn) · 새 CSS 0.
+ * ⚠️시안과 다른 한 가지: 그림 = 앱의 alignBtn 그림(object-h · object-v) — 시안은 가로 그림을 90° 돌려 썼다(앱엔 세로 그림이 이미 있다 · 다중 선택 «서로 맞춤»과 같은 그림).
+ * ⛔data-align 금지(prop-text-wireup-align.js 가 data-align 단추를 «글자 정렬»로 잡는다) → data-float-align(l·c·r·t·m·b). 배선 = overlay-float.js wireFloatAlign.
+ * 부르는 자: overlay-float.js floatPositionRowHTML(window 로 — 그 파일은 순수 모듈만 import) · prop-text-template.js(떠 있는 글자 Position 줄).
+ */
+export function floatAlignRowHTML() {
+  const st = 'flex:1 1 0;min-width:0;padding:0';
+  const b = (fam, key, k, lab) => alignBtn(fam, key, { label: `${lab} — 섹션 기준`, title: `${lab} — 섹션(부모) 기준으로 맞춤 · 하나만 골랐을 때`, attrs: { type: 'button', 'data-float-align': k }, style: st });
+  const grp = (lab, inner) => `<div class="prop-align-group" role="group" aria-label="${lab}" style="flex:1 1 0;flex-wrap:nowrap;min-width:0">${inner}</div>`;
+  return `<span class="prop-field-label" title="하나만 골랐을 때 = 섹션(부모) 기준 · 여럿 고르면 고른 것끼리">Alignment</span>`
+    + `<div class="prop-row" data-float-align-row="parent" style="gap:var(--ui-space-1_5)">`
+    + grp('가로 정렬(섹션 기준)', b('object-h', 'left', 'l', '왼쪽') + b('object-h', 'center', 'c', '가로 가운데') + b('object-h', 'right', 'r', '오른쪽'))
+    + grp('세로 정렬(섹션 기준)', b('object-v', 'top', 't', '위') + b('object-v', 'middle', 'm', '세로 가운데') + b('object-v', 'bottom', 'b', '아래'))
+    + `</div>`;
+}
+if (typeof window !== 'undefined') window.floatAlignRowHTML = floatAlignRowHTML;   // overlay-float.js floatPositionRowHTML 이 window 로 부른다
+
 /* ★문자열 조립은 «한 벌» — alignBtn 과 borderBtn 이 같이 쓴다(G17 에서 뽑아냄, 산출 바이트 불변).
  *   ⛔두 헬퍼에 조립을 따로 적지 마라 — 위 「하지 않는 것」 넷이 한쪽에서만 지켜지게 된다. */
 function _iconBtnHtml(icon, o) {
@@ -393,15 +412,17 @@ export function borderBtn(key, o = {}) {
    ⚠️산출 문자열은 골든 픽스처(tests/fixtures/text-props-golden*.html)가 바이트로 고정한다 —
      들여쓰기·줄바꿈까지 그대로 유지할 것(호출부는 8칸 들여쓰기 자리에 놓는다).
 ═══════════════════════════════════════════════════════════════════════════ */
+/* ★IAL-01(0.9.13 186행 · 현빈 승인 261122 · 시안 8910 «ial» 열) — 이름·아이콘 = Figma «Ignore Auto Layout»(네 모서리 괄호 + 작은 네모) · 옛 «오버레이»(네모 둘 겹침) */
+export const IAL_TITLE = 'Ignore Auto Layout — 자동배치에서 빼서 그 자리에 둔다(옛 «오버레이»). 다시 누르면 원래 자리로 돌아간다.';
 export function overlayToggleBtnHTML({ id, active = false, title } = {}) {
-  const t = title || '오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다(Figma의 Ignore Auto Layout과 같은 개념). 다시 누르면 원래 있던 자리로 돌아갑니다.';
+  const t = title || IAL_TITLE;
   return `
         <button type="button" class="prop-chain-btn prop-chain-btn--overlay${active ? ' active' : ''}" id="${id}"
-          aria-pressed="${active ? 'true' : 'false'}"
+          aria-pressed="${active ? 'true' : 'false'}" aria-label="Ignore Auto Layout"
           title="${t}">
-          <svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2">
-            <rect x="1" y="4" width="6" height="6" rx="1"/>
-            <rect x="5" y="1" width="6" height="6" rx="1" fill="var(--ui-bg-card)"/>
+          <svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1">
+            <path d="M1 3.5V1h2.5M8.5 1H11v2.5M11 8.5V11H8.5M3.5 11H1V8.5"/>
+            <rect x="3.8" y="3.8" width="4.4" height="4.4" rx=".6"/>
           </svg>
         </button>`;
 }

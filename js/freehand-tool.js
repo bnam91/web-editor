@@ -1,7 +1,7 @@
 /* freehand-tool.js — t13A-02(현빈 GO 261119) 연필(N) · 붓(⇧B) · 떨림 보정(공통 «보정 세기» 하나)
  *
  * 연필 = 끌며 모은 점 → freehand-fit 맞춤(오차 = 보정 세기) → 펜 노드 → pen-tool commitPenNodes(펜과 «같은» 확정 길):
- *        섹션 안 = 벡터 블럭(penNodes · 점 편집·두께·색 그대로) · 섹션 밖 = 스크래치 펜 항목(t13A-04 와 같은 길 · «시작한 곳» 기준).
+ *        섹션 안 = 벡터 블럭(penNodes · 점 편집·두께·색 그대로) · 섹션 밖 = 떠 있는 펜 벡터(★t13G-03 · 펜과 같은 _finalizeDraw 길 · «시작한 곳» 기준).
  * 붓   = 같은 맞춤 곡선의 «채운 외곽»(필압 없음 · 프리셋 둘: 양 끝 가늘게 · 서예 펜촉) — 획이 아니라 채움이라 점 편집은 없다(모양이 곧 붓).
  *        섹션 안 = 벡터 블럭(채움 #000000 = 벡터 색 칸이 바꾼다) · 섹션 밖 = 스크래치 그림.
  * 결과 꼴 근거(붓 = 채운 외곽): SVG 획은 한 줄에 굵기가 하나뿐이라 «가늘어지는 끝»을 못 그린다 — Illustrator Blob·perfect-freehand 와 같은 꼴(RESEARCH-t13A-02 §2 ②).
@@ -90,7 +90,15 @@ function commitFreehand(host, pts, tool = _tool) {
   const pad = 2, w = Math.max(20, Math.ceil(maxX - minX + pad * 2)), h = Math.max(20, Math.ceil(maxY - minY + pad * 2));
   const local = poly.map((p) => ({ x: p.x - minX + pad, y: p.y - minY + pad }));
   const svg = `<svg xmlns="${SVG_NS}" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}"><path d="${polygonToPath(local)}" fill="#000000"/></svg>`;
-  if (host.id === 'canvas-scaler') {   // 섹션 밖 = 스크래치 그림(재료 · t13A-04 와 같은 «시작한 곳» 규칙)
+  if (host.id === 'canvas-scaler') {
+    /* ★BRUSH-OUTSIDE-SECTION-FLOAT-01(0.9.13 211행 · 현빈 261124 [4]) — 섹션 밖 붓 = 그린 자리에 떠 있는(IAL) 그림(펜·연필 t13G-03 과 일관 · 받을 섹션 = penNearestSection · 섹션 상자 안 조임) · 이력 «붓» 한 칸(push-after) · 섹션 0 이면 옛 길(스크래치 그림) */
+    const z = _zoom(), hr = host.getBoundingClientRect();
+    const tgt = window.penNearestSection?.(hr.top + ((minY + maxY) / 2) * z);
+    if (tgt && typeof window.placeSvgVectorInSection === 'function') {
+      const tr = tgt.getBoundingClientRect();
+      const vb = window.placeSvgVectorInSection(tgt, svg, w, h, Math.round((hr.left + (minX - pad) * z - tr.left) / z), Math.round((hr.top + (minY - pad) * z - tr.top) / z), 'Brush');
+      if (vb) { window.pushHistory?.('붓'); window.scheduleAutoSave?.(); return vb; }
+    }
     window._scratchAddAndSave?.('data:image/svg+xml;base64,' + btoa(svg), Math.round(minX - pad), Math.round(minY - pad), w);
     return host;
   }

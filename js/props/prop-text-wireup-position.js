@@ -42,6 +42,7 @@ export function wirePositionSection({ tb }) {
     });
   }
 
+  window.OverlayFloat?.wireFloatAlign?.({ block: tb });   // 현빈 261123 S1-4② — 떠 있는 글자 정렬 6칸(떠 있지 않으면 무동작)
   const xNumber = document.getElementById('txt-x-number');
   const yNumber = document.getElementById('txt-y-number');
   if (xNumber) {

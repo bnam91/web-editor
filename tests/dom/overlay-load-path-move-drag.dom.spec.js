@@ -1,3 +1,4 @@
+/* ★기대 바뀜(IAL-01 · 0.9.13 186행 · 현빈 승인 261122) — «오버레이» → «Ignore Auto Layout»(이력 이름 포함) */
 /* overlay-load-path-move-drag.dom.spec.js — 「저장된 오버레이 블럭이 «다시 연 뒤»에도 마우스로
  * 움직이는가」 (2026-09-21 마지막 라운드 / 최종반영 QA medium)
  *
@@ -194,6 +195,6 @@ for (const kind of KINDS) {
     await dragBy(page, 120, 60);
     const after = await posOf(page);
     expect(after.pushes, `${kind}: 전용 드래그의 onUp 이 안 돌았다(마우스업 가드도 같이 빠진다)`)
-      .toContain('오버레이 이동');
+      .toContain('Ignore Auto Layout 이동');
   });
 }

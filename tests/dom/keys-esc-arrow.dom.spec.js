@@ -19,7 +19,7 @@ const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'editor.js'), 'utf8');
+const SRC = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'editor.js'), 'utf8');  const SF_SRC = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'shape-frame.js'), 'utf8');   // editor.js 가 import 하는 isShapeFrame(aacbf8402 이후 _freePositionedAncestor 가 부름)
 
 /** 중괄호 균형으로 `function <name>(…){…}` 을 실물 소스 그대로 떠낸다. */
 function extractFn(src, name) {
@@ -69,7 +69,7 @@ const BUNDLE = [
   extractFn(SRC, '_fpVisible'),
   extractFn(SRC, 'closeFpMenus'),
   extractFn(SRC, '_deepestCanvasSelection'),
-  extractFn(SRC, '_freePositionedAncestor'),
+  extractFn(SF_SRC, 'isShapeFrame'), extractFn(SRC, '_freePositionedAncestor'),   // ★전제(하네스): 떠낸 함수가 부르는 import 를 같이 싣는다 — 안 실으면 ReferenceError(0913-b 인텔 빨강 5)
   extractFn(SRC, '_freeNudgeTargets'),
   extractFn(SRC, '_selectFlowSibling'),   // t13D-01 — 화살표 분기가 ⇧↑↓ 흐름 고르기에서 부른다(안 실으면 그 갈래에서 ReferenceError)
   'window.__closeFpMenus = closeFpMenus;',
@@ -144,7 +144,7 @@ test('T-102-① «바깥클릭» 규칙 보존 — 자기 영역을 누르면 �
 const FREE_DOM = `<div id="canvas">
   <div class="section-block selected"><div class="section-inner">
     <div class="frame-block selected" data-free-layout style="position:relative">
-      <div id="shape" class="shape-block selected" style="position:absolute;left:0;top:0"></div>
+      <div id="shape" class="asset-block selected" style="position:absolute;left:0;top:0"></div>   <!-- ★전제(0913-b 인텔 회귀 · aacbf8402): 직속 .shape-block 을 가진 프레임 = 도형 래퍼(shape-frame.js SSOT · 앱엔 «자유 프레임 직속 도형»이 없다 · 래퍼째 밂 = S3-4 I7) → 이 칸의 뜻(«성질로 고름»)은 도형 아닌 블럭으로 잰다 · id 는 그대로 -->
     </div>
   </div></div>
 </div>`;
@@ -184,7 +184,7 @@ test('T-102-② 흐름(stack) 블럭은 밀 곳이 없다 → 대상 0 (캔버�
 test('T-102-② 중첩 free 프레임 — 조상과 자식이 둘 다 잡히면 조상을 버린다', async ({ page }) => {
   await page.setContent(`<div id="canvas"><div class="frame-block" data-free-layout>
       <div id="outer" class="frame-block selected" data-free-layout style="position:absolute;left:5px;top:5px">
-        <div id="inner" class="shape-block selected" style="position:absolute;left:1px;top:1px"></div>
+        <div id="inner" class="asset-block selected" style="position:absolute;left:1px;top:1px"></div>   <!-- ★전제: 위 FREE_DOM 과 같은 까닭(직속 도형 = 바깥 프레임이 도형 래퍼가 됨) -->
       </div></div></div>`);
   await page.addScriptTag({ content: BUNDLE });
   const ids = await page.evaluate(() => window.__freeNudgeTargets().map(e => e.id));
