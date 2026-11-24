@@ -1,6 +1,6 @@
-/* appearance-std-c1.dom.spec.js — 표준 Appearance A4 Opacity 갈래 C1(graph · comparison · chat · divider · table · bridge · quote · gap)
+/* appearance-std-c1.dom.spec.js — 표준 Appearance A4 Opacity 갈래 C1(graph · chat · divider · bridge · quote · gap — table·comparison 은 대성 갈래로 이관 261125)
  *   (정본 시안 8910 #mkp-appstd · PLAN-appearance-layout-std-261124 §3 A4 · 탑 발주 tp0914-c1)
- *   Appearance 절이 없던 블럭 = 새 절(Opacity 만 · 모서리 칸·단추 없음) · 있던 블럭(comparison · chat) = Opacity 가 R 앞 칸
+ *   Appearance 절이 없던 블럭 = 새 절(Opacity 만 · 모서리 칸·단추 없음) · 있던 블럭(chat) = Opacity 가 R 앞 칸
  *   계약(갈래 E 몫 · 여기선 가짜): window.setBlockOpacity(block, v 0~100) · window.readBlockOpacity(block) → 0~100 · 100 = 키 지움
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js tests/dom/appearance-std-c1.dom.spec.js --workers=1 */
 const { test, expect } = require('@playwright/test');
@@ -28,10 +28,8 @@ for (const [name, add, cls, show, pfx, radius] of [
   ['bridge', 'window.addBridgeBlock()', 'bridge-block', 'showBridgeProperties', 'brg', false],
   ['divider', 'window.addDividerBlock()', 'divider-block', 'showDividerProperties', 'dvd', false],
   ['graph', 'window.addGraphBlock()', 'graph-block', 'showGraphProperties', 'grb', false],
-  ['table', 'window.addTableBlock()', 'table-block', 'showTableProperties', 'tbl', false],
   ['quote', 'window.addQuoteBlock()', 'quote-block', 'showQuoteProperties', 'qt', false],
   ['chat', 'window.addChatBlock()', 'chat-block', 'showChatProperties', 'chb', true],
-  ['comparison', 'window.addComparisonBlock()', 'comparison-block', 'showComparisonProperties', 'cmp', true],
 ]) {
   test(`AC1 ${name} Appearance Opacity 칸 — 부품 안 · 100 · 모서리 ${radius ? '있음(R 앞)' : '없음'} · 40 = 계약 + 키 · 이력 1 · 다시 그리면 40`, async ({ page }) => {
     const errs = await scene(page, add, cls, show);

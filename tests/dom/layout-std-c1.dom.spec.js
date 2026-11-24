@@ -1,4 +1,4 @@
-/* layout-std-c1.dom.spec.js — 표준 Layout L2~L4 갈래 C1(graph · comparison · chat · divider · table · bridge · quote · gap)
+/* layout-std-c1.dom.spec.js — 표준 Layout L2~L4 갈래 C1(graph · chat · divider · bridge · quote · gap — table·comparison 은 대성 갈래로 이관 261125)
  *   (정본 시안 8910 #mkp-layoutstd · PLAN-appearance-layout-std-261124 §2·§4 · 탑 발주 tp0914-c1 · 현빈 261124 L-4 슬라이더 걷음)
  *   Layout 묶음(size·layout·padding) 안 슬라이더 0 · 옛 숫자 칸 id 가 부품([data-part="layout"]) 안 + 라벨 끌기 손잡이 ·
  *   숫자 change = 저장 키 + 이력 1 · 빈 칸 change = 옛 값 되돌림(이력 0) · 패딩 축마다 제 상한 · divider 너비 끌기로 max = 전폭(키 지움 · 탑 판정 261125)
@@ -28,10 +28,8 @@ const CASES = [
   ['bridge', 'window.addBridgeBlock()', 'bridge-block', 'showBridgeProperties', ['brg-h-number'], { id: 'brg-h-number', v: 120, k: 'bridgeHeight', want: '120' }],
   ['divider', 'window.addDividerBlock()', 'divider-block', 'showDividerProperties', ['dvd-width-number', 'dvd-length-number', 'dvd-padx-number', 'dvd-pady-number'], { id: 'dvd-pady-number', v: 40, k: 'padV', want: '40' }],
   ['graph', 'window.addGraphBlock()', 'graph-block', 'showGraphProperties', ['grb-h-number', 'grb-bar-thickness-number', 'grb-padx-number', 'grb-item-gap-number'], { id: 'grb-h-number', v: 400, k: 'chartHeight', want: '400' }],
-  ['table', 'window.addTableBlock()', 'table-block', 'showTableProperties', ['tbl-rowh-number', 'tbl-pad-number', 'tbl-padx-number'], { id: 'tbl-padx-number', v: 40, k: 'tablePadX', want: '40' }],
   ['quote', 'window.addQuoteBlock()', 'quote-block', 'showQuoteProperties', ['qt-gap-number'], { id: 'qt-gap-number', v: 20, k: 'gap', want: '20' }],
   ['chat', 'window.addChatBlock()', 'chat-block', 'showChatProperties', ['chb-bubble-maxw-val', 'chb-tail-val', 'chb-profile-size-num', 'chb-gap', 'chb-profile-gap-num', 'chb-padding-val', 'chb-bubble-padding-val'], { id: 'chb-gap', v: 12, k: 'gap', want: '12' }],
-  ['comparison', 'window.addComparisonBlock()', 'comparison-block', 'showComparisonProperties', ['cmp-ovl-num', 'cmp-rowh-num', 'cmp-rowgap-num', 'cmp-padx-num', 'cmp-pady-num'], { id: 'cmp-padx-num', v: 40, k: 'padX', want: '40' }],
 ];
 
 for (const [name, add, cls, show, ids, ed] of CASES) {
@@ -56,11 +54,8 @@ for (const [name, add, cls, show, ids, ed] of CASES) {
   });
 }
 
-test('LC2 패딩 축마다 제 상한 — comparison 좌우 160 · 상하 80 · divider 좌우 2000 · 상하 120', async ({ page }) => {
-  const errs = await scene(page, 'window.addComparisonBlock()', 'comparison-block', 'showComparisonProperties');
-  await setNum(page, 'cmp-padx-num', 999); await setNum(page, 'cmp-pady-num', 999);
-  expect([await key(page, 'comparison-block', 'padX'), await key(page, 'comparison-block', 'padY')]).toEqual(['160', '80']);
-  await page.evaluate(() => { window.addDividerBlock(); window.showDividerProperties([...document.querySelectorAll('#canvas .divider-block')].pop()); });
+test('LC2 패딩 축마다 제 상한 — divider 좌우 2000 · 상하 120(comparison 칸 = 대성 갈래로 이관 261125)', async ({ page }) => {
+  const errs = await scene(page, 'window.addDividerBlock()', 'divider-block', 'showDividerProperties');
   await setNum(page, 'dvd-pady-number', 999); await setNum(page, 'dvd-padx-number', 2500);
   expect([await key(page, 'divider-block', 'padV'), await key(page, 'divider-block', 'padH')]).toEqual(['120', '2000']);
   expect(errs).toEqual([]);
