@@ -241,8 +241,9 @@ test('T10 ★아이콘 패널이 공용 토글·X/Y 를 부르고, 떠 있으면
 test('T11 ★벡터 패널이 공용 토글·X/Y 를 부르고, 드래그 X/Y 되비침 명부에 vb- 가 있다', () => {
   const vec = S('js/props/prop-vector.js');
   assert.ok(vec.length > 500, '전제 — prop-vector.js 를 읽었다');
-  assert.match(vec, /overlayToggleBtnHTML\?\.\(\s*\{\s*id:\s*'vb-float-toggle'/, '벡터 패널에 vb-float-toggle 이 없다');
-  assert.match(vec, /floatPositionRowHTML\(\s*\{\s*prefix:\s*'vb'/, "벡터 패널에 floatPositionRowHTML(prefix 'vb') 이 없다");
+  /* ★2026-11-24 기대 바뀜 — 표준 Position P3(0.9.14 73행): 벡터 패널은 부품(_position-section.js)으로 — 토글 = positionHeadToolsHTML({ …, ialId: 'vb-float-toggle' }) · 자리 줄 = positionSectionHTML({ prefix: 'vb' })(안에서 공용 floatPositionRowHTML 을 부른다) */
+  assert.match(vec, /overlayToggleBtnHTML\?\.\(\s*\{\s*id:\s*'vb-float-toggle'|positionHeadToolsHTML\(\s*\{[^}]*ialId:\s*'vb-float-toggle'/, '벡터 패널에 vb-float-toggle 이 없다');
+  assert.match(vec, /floatPositionRowHTML\(\s*\{\s*prefix:\s*'vb'|positionSectionHTML\(\s*\{\s*prefix:\s*'vb'/, "벡터 패널에 floatPositionRowHTML(prefix 'vb') 이 없다");
   assert.match(vec, /wireFloatToggle\?\.\(\s*\{[^}]*buttonId:\s*'vb-float-toggle'/, '벡터 패널이 wireFloatToggle 을 안 부른다');
   assert.match(vec, /wireFloatPosition\?\.\(\s*\{[^}]*xId:\s*'vb-x-number'/, '벡터 패널이 wireFloatPosition 을 안 부른다');
   assert.doesNotMatch(vec, /class="prop-chain-btn prop-chain-btn--overlay/, '버튼 리터럴 사본 금지 — overlayToggleBtnHTML 로');
