@@ -1,5 +1,6 @@
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML, sliderRowHTML, escHtml, rotRowHTML, wireRotRow } from './_helpers.js';
+import { blockHeaderHTML, sliderRowHTML, escHtml, wireRotRow } from './_helpers.js';
+import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from './_position-section.js';   // 표준 Position 절(0.9.14 73행 P3)
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_POP_WHY } from './_stroke-section.js';
@@ -250,7 +251,7 @@ export function showStickerProperties(block) {
         <button class="prop-action-btn secondary" id="stk-icon-replace" style="width:100%;">아이콘 교체</button>
       </div>`);
     put('position', `
-      <span class="prop-field-label">Rotation</span>${rotRowHTML({ p: 'stk-icon', numberId: 'stk-icon-rot-num', value: parseFloat(block.dataset.rotation) || 0, flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' })}`);
+      ${positionSectionHTML({ prefix: 'stk-icon', posEl: null, xy: false, rot: { p: 'stk-icon', numberId: 'stk-icon-rot-num', value: parseFloat(block.dataset.rotation) || 0, flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' } })}`);
     put('size', `
       <div class="prop-row">
         <span class="prop-label">크기</span>
@@ -537,7 +538,7 @@ export function showStickerProperties(block) {
       </div>`);
     put('position', `
     <div id="stk-text-rot-section">
-      <span class="prop-field-label">Rotation</span>${rotRowHTML({ p: 'stk-t', numberId: 'stk-t-rot-num', value: tRotation, flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' })}
+      ${positionSectionHTML({ prefix: 'stk-t', posEl: null, xy: false, rot: { p: 'stk-t', numberId: 'stk-t-rot-num', value: tRotation, flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' } })}
     </div>`);
   }
   if (isGlow) put('effects', glowSectionHTML(block));
@@ -565,6 +566,7 @@ export function showStickerProperties(block) {
     kind: { id: 'stk-fav-section', headTools: `
         <button class="prop-action-btn" id="stk-fav-add" title="현재 스티커 스타일을 즐겨찾기에 추가"
           style="width:auto;padding:2px 8px;font-size:11px;${FAV_ALLOWED_SHAPES.includes(shape) ? '' : 'opacity:0.4;cursor:not-allowed;'}">★ 추가</button>` },
+    position: (isText || isIcon) ? { headTools: positionHeadToolsHTML({ prefix: isText ? 'stk-t' : 'stk-icon' }) } : {},   // 표준 Position P3 — 머리 [슬라이드](IAL 없음 · 옛도 없음)
     stroke: isText ? { headTools: strokeHeadToolsHTML({ prefix: 'stk-t-stk', on: tStrokeWidth > 0 }) } : {},
     effects: isText ? { id: 'stk-text-shadow-section', headTools: `
         <label class="prop-toggle" title="그림자 켜기/끄기" style="display:inline-flex;align-items:center;gap:4px">
@@ -664,6 +666,7 @@ export function showStickerProperties(block) {
   _bindTPair('stk-t-sh-b',  'stk-t-sh-b-num',  'shadowBlur',    0,    40,  1);
   _bindTPair('stk-t-rot',   'stk-t-rot-num',   'rotation',      -180, 180, 1);
   wireRotRow({ p: 'stk-t', numberId: 'stk-t-rot-num', host: () => block });   // Q17 · Q20(시안 v10)
+  wirePositionSection({ prefix: 'stk-t', numberId: 'stk-t-rot-num', rerender: () => showStickerProperties(block) });
   _bindTPair('stk-t-pad-x', 'stk-t-pad-x-num', 'padX',          0,    400, 1);
   _bindTPair('stk-t-pad-y', 'stk-t-pad-y-num', 'padY',          0,    400, 1);
   _bindTPair('stk-t-radius', 'stk-t-radius-num', 'cornerRadius', 0,   400, 1);
@@ -1110,6 +1113,7 @@ export function showStickerProperties(block) {
   _bindTPair('stk-icon-size', 'stk-icon-size-num', 'size',     16,   600, 1);
   _bindTPair('stk-icon-rot',  'stk-icon-rot-num',  'rotation', -180, 180, 1);
   wireRotRow({ p: 'stk-icon', numberId: 'stk-icon-rot-num', host: () => block });   // Q17 · Q20(시안 v10)
+  wirePositionSection({ prefix: 'stk-icon', numberId: 'stk-icon-rot-num', rerender: () => showStickerProperties(block) });
   // B2 — 톱니 스탬프
   _bindTPair('stk-burst-teeth', 'stk-burst-teeth-num', 'burstTeeth', BURST_LIMITS.teeth.min, BURST_LIMITS.teeth.max, 1);
   _bindTPair('stk-burst-depth', 'stk-burst-depth-num', 'burstDepth', BURST_LIMITS.depth.min, BURST_LIMITS.depth.max, 1);

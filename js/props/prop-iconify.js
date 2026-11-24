@@ -1,8 +1,9 @@
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
+import { blockHeaderHTML, wireRotRow } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { strokeSectionHTML, wireStrokeSection } from './_stroke-section.js';
+import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from './_position-section.js';   // 표준 Position 절(0.9.14 73행 P3)
 import { sanitizeSvgString } from '../util/sanitize-svg.js';
 import { normIconStroke, isStrokeIcon, iconStrokeOf, applyIconStroke, msFillState, msNameFor, ICON_STROKE_MIN, ICON_STROKE_MAX, ICON_STROKE_STEP } from '../blocks/icon-variant.js';   /* ICON-FEATHER-MATERIAL(261121) 선 두께·채움 */
 
@@ -66,7 +67,7 @@ export function showIconifyProperties(block) {
         <button class="prop-align-btn${rotation === 180 ? ' active' : ''}" data-deg="180">180°</button>
         <button class="prop-align-btn${rotation === 270 ? ' active' : ''}" data-deg="270">270°</button>
       </div>
-      <span class="prop-field-label">Rotation</span>${rotRowHTML({ p: 'icn', numberId: 'icn-rot-number', value: (rotation > 180 ? rotation - 360 : rotation), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' })}`, { headTools: window.overlayToggleBtnHTML?.({ id: 'icn-float-toggle', active: floating }) || '' }),
+      ${positionSectionHTML({ prefix: 'icn', posEl: block, xy: false, rot: { p: 'icn', numberId: 'icn-rot-number', value: (rotation > 180 ? rotation - 360 : rotation), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' } })}`, { headTools: positionHeadToolsHTML({ prefix: 'icn', ialId: 'icn-float-toggle', ialOn: floating }) }),   // 표준 Position P3(지디 261124 — 90° 단추 4 = 빠른 단추 그대로 · 슬라이드 모드 씀)
       sec('size', `
       <div class="prop-row">
         <span class="prop-label">크기</span>
@@ -396,7 +397,8 @@ export function showIconifyProperties(block) {
       b.classList.toggle('active', parseInt(b.dataset.deg) === norm);
     });
     if (_icnRotS) _icnRotS.value = signed;
-    if (_icnRotN && !typing) _icnRotN.value = signed;   // QA2 M4 — 치는 중엔 칸을 다시 안 쓴다(«-30» 을 칠 수 있게) · 끝낼 때(change) 범위로 정규화
+    if (_icnRotN && !typing) _icnRotN.value = signed;
+    const _icnSlide = propPanel.querySelector('#icn-rot-number-slider'); if (_icnSlide) _icnSlide.value = signed;   // 슬라이드 모드 슬라이더(부품)도 90° 단추를 따라간다   // QA2 M4 — 치는 중엔 칸을 다시 안 쓴다(«-30» 을 칠 수 있게) · 끝낼 때(change) 범위로 정규화
   };
   const applyRotation = deg => {
     window.applyRotationDeg?.(block, deg);
@@ -415,7 +417,8 @@ export function showIconifyProperties(block) {
   _icnRotN?.addEventListener('input',  () => _icnFree(_icnRotN.value, true));
   _icnRotS?.addEventListener('change', () => window.pushHistory?.());
   _icnRotN?.addEventListener('change', () => { _icnFree(_icnRotN.value); window.pushHistory?.(); });
-  wireRotRow({ p: 'icn', numberId: 'icn-rot-number', host: () => block });   // Q17 · Q20(시안 v10 — 슬라이더 없음 · 0/90/180/270 묶음은 Q19 미결이라 그대로)
+  wireRotRow({ p: 'icn', numberId: 'icn-rot-number', host: () => block });
+  wirePositionSection({ prefix: 'icn', numberId: 'icn-rot-number', rerender: () => window.showIconifyProperties?.(block) });   // Q17 · Q20(시안 v10 — 슬라이더 없음 · 0/90/180/270 묶음은 Q19 미결이라 그대로)
 
   // 교체 버튼
   const openModal = () => window.openIconifyModal?.();

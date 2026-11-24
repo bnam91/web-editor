@@ -8,7 +8,8 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-pic
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_STYLES_CSS, STROKE_POP_WHY } from './_stroke-section.js';
 import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, setFillKindName, fillLast, fillKindOfCss } from './_fill-section.js';
 import { hasSides, readSides, writeSides, cssSideWidths, sidesMixed } from '../stroke-look.js';
-import { bindSlider, alignBtn, blockHeaderHTML, sliderRowHTML, overlayToggleBtnHTML, rotRowHTML, wireRotRow } from './_helpers.js';
+import { bindSlider, alignBtn, blockHeaderHTML, sliderRowHTML, overlayToggleBtnHTML, wireRotRow } from './_helpers.js';
+import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from './_position-section.js';   // 표준 Position 절(0.9.14 73행 P3)
 import { applyFrameTransform, frameAlignOffset, framePadding, applyFrameHAlignToChild } from '../frame-geometry.js';
 import { isShapeFrame as _isShapeFrameEl } from '../shape-frame.js';
 /* 버즈(1012t1Z5) — 버즈 표식 프레임이면 머리 바로 뒤에 「Buzz」 절을 그린다(절의 마크업 · 배선은 그 파일의 것). */
@@ -537,11 +538,11 @@ function _renderAutoPanel(ss) {
           </div>
         </div>
       </div>
-      <span class="prop-field-label">Rotation</span>${/* Q17 · Q20(시안 v10) — 각도 칸 + 90° · 반전 한 줄(옛 id · 옛 배선 그대로) */
-      rotRowHTML({ numberId: 'ss-rotate-deg', value: parseInt(ss.dataset.rotateDeg) || 0, min: -360, max: 360, flipH: ss.dataset.flipH === '1', flipV: ss.dataset.flipV === '1', ids: { r90: 'ss-rotate-90', fh: 'ss-flip-h', fv: 'ss-flip-v' } })}
+      ${/* Q17 · Q20(시안 v10) — 각도 칸 + 90° · 반전 한 줄(옛 id · 옛 배선 그대로) · 표준 Position P3 부품(슬라이드 모드) */
+      positionSectionHTML({ prefix: 'ss', posEl: null, xy: false, rot: { numberId: 'ss-rotate-deg', value: parseInt(ss.dataset.rotateDeg) || 0, min: -360, max: 360, flipH: ss.dataset.flipH === '1', flipV: ss.dataset.flipV === '1', ids: { r90: 'ss-rotate-90', fh: 'ss-flip-h', fv: 'ss-flip-v' } } })}
 `, {
         /* 플로팅 토글 = Position 머리 손잡이(§2-1) */
-        headTools: _canFloat ? overlayToggleBtnHTML({ id: 'ss-float-toggle', active: _groupFloat, title: 'Ignore Auto Layout — ' + (_isGroupFrame ? '그룹' : '프레임') + '을 자동배치에서 빼서 그 자리에 둔다(옛 «오버레이»). 다시 누르면 원래 자리로 돌아간다.' }) : '',
+        headTools: positionHeadToolsHTML({ prefix: 'ss' }) + (_canFloat ? overlayToggleBtnHTML({ id: 'ss-float-toggle', active: _groupFloat, title: 'Ignore Auto Layout — ' + (_isGroupFrame ? '그룹' : '프레임') + '을 자동배치에서 빼서 그 자리에 둔다(옛 «오버레이»). 다시 누르면 원래 자리로 돌아간다.' }) : ''),
       }),
       sec('size', `
       <div class="prop-row">
@@ -866,6 +867,7 @@ function _renderAutoPanel(ss) {
     window.pushHistory?.();
   });
   wireRotRow({ numberId: 'ss-rotate-deg', host: () => ss, scrubOnly: true });   // 아이콘 끌기만(90°·반전은 위 옛 배선)
+  wirePositionSection({ prefix: 'ss', numberId: 'ss-rotate-deg', rerender: () => _renderAutoPanel(ss) });
   // 초기 flip 상태 반영
   if (ss.dataset.flipH === '1') document.getElementById('ss-flip-h')?.classList.add('active');
   if (ss.dataset.flipV === '1') document.getElementById('ss-flip-v')?.classList.add('active');

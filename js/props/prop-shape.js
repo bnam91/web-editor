@@ -5,7 +5,8 @@ import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, setFillKindName, f
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_POP_WHY, STROKE_STYLES_SVG, endsSlotHTML, wireEnds } from './_stroke-section.js';
 import { readLook, writeLook, svgLook, derivedDash, hasSides, readSides, writeSides, sidesMixed } from '../stroke-look.js';
 import { svgStopRemap } from './gradient-model.js';
-import { overlayToggleBtnHTML, blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
+import { blockHeaderHTML, wireRotRow } from './_helpers.js';
+import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from './_position-section.js';   // 표준 Position 절(0.9.14 73행 P3)
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
 import { starPoints, starClipPath, clampStarN, STAR_MIN, STAR_MAX,
          starPointsList, starViewBox, clampStarCount, STAR_COUNT_MIN, STAR_COUNT_MAX,
@@ -207,8 +208,7 @@ export function showShapeProperties(block) {
       </div>` : ''),
       // 플로팅 토글 = Position 절 머리 손잡이(§2-1) · X/Y · 회전
       sec('position', `
-      ${floatPositionRowHTML({ prefix: 'shape', posEl: floatPosEl })}
-      <span class="prop-field-label">Rotation</span>${rotRowHTML({ p: 'shape', numberId: 'shape-rot-num', value: parseInt(block.dataset.shapeRotation || '0'), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' })}`, { headTools: overlayToggleBtnHTML({ id: 'shape-overlay-toggle', active: isFloatOverlay }) }),
+      ${positionSectionHTML({ prefix: 'shape', posEl: floatPosEl, rot: { p: 'shape', numberId: 'shape-rot-num', value: parseInt(block.dataset.shapeRotation || '0'), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' } })}`, { headTools: positionHeadToolsHTML({ prefix: 'shape', ialId: 'shape-overlay-toggle', ialOn: isFloatOverlay }) }),
       sec('size', `
       <div class="prop-row">
         <span class="prop-label">W</span>
@@ -1213,6 +1213,7 @@ export function showShapeProperties(block) {
     });
     rotNum.addEventListener('change', () => window.pushHistory?.());
     wireRotRow({ p: 'shape', numberId: 'shape-rot-num', host: () => block });   // Q17 — 90° · 반전 · 아이콘 끌기
+    wirePositionSection({ prefix: 'shape', numberId: 'shape-rot-num', rerender: () => showShapeProperties(block) });
   }
 
   /* 오버레이(플로팅) 토글 — 텍스트 패널과 «같은 함수»를 부른다(js/overlay-float.js).

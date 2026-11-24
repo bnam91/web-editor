@@ -138,3 +138,39 @@ for (const [name, add, pfx, num] of ROT_KINDS) {
     expect(errs).toEqual([]);
   });
 }
+
+/* ── P3b — shape · frame · iconify(90° 단추 4 그대로 · 지디 261124) · sticker 텍스트/아이콘: 슬라이더 → 옛 숫자 칸 → 옛 저장 키(dataset) ── */
+const ROT_KINDS_B = [
+  ['shape', "window.addShapeBlock('rectangle')", 'shape', 'shape-rot-num', 'shapeRotation'],
+  ['frame', 'window.addFrameBlock()', 'ss', 'ss-rotate-deg', 'rotateDeg'],
+  ['iconify', 'window.addIconifyBlock()', 'icn', 'icn-rot-number', 'rotation'],
+  ['sticker-text', "window.addStickerBlock({ shape: 'text' })", 'stk-t', 'stk-t-rot-num', 'rotation'],
+  ['sticker-icon', "window.addStickerBlock({ shape: 'icon' })", 'stk-icon', 'stk-icon-rot-num', 'rotation'],
+];
+for (const [name, add, pfx, num, key] of ROT_KINDS_B) {
+  test(`PS8 ${name} — 머리 슬라이드 토글 · 슬라이더 20 → ${num} → dataset.${key}`, async ({ page }) => {
+    const errs = await flowScene(page, add);
+    await page.evaluate(() => { try { localStorage.removeItem('goditor.rotSlideMode'); } catch (_) {} });
+    await expect.poll(() => page.evaluate((p) => !!document.getElementById(p + '-rot-slide'), pfx), `★${name} 머리 슬라이드 토글`).toBe(true);
+    expect(await page.evaluate((n) => !!document.getElementById(n + '-slider'), num), '끔 = 슬라이더 줄 0').toBe(false);
+    await page.click(`#${pfx}-rot-slide`);
+    await expect.poll(() => page.evaluate((n) => [!!document.getElementById(n + '-slider'), !!document.getElementById(n)], num), '★슬라이더 줄 + 옛 숫자 칸').toEqual([true, true]);
+    await page.evaluate((n) => { const s = document.getElementById(n + '-slider'); s.value = '20'; s.dispatchEvent(new Event('input', { bubbles: true })); s.dispatchEvent(new Event('change', { bubbles: true })); }, num);
+    await expect.poll(() => page.evaluate((n) => document.getElementById(n)?.value, num), '★슬라이더 → 숫자 칸').toBe('20');
+    await expect.poll(() => page.evaluate((k) => [...document.querySelectorAll('#canvas *')].some((e) => e.dataset && e.dataset[k] === '20'), key), `★옛 저장 키 dataset.${key} = 20`).toBe(true);
+    await page.evaluate(() => { try { localStorage.removeItem('goditor.rotSlideMode'); } catch (_) {} });
+    expect(errs).toEqual([]);
+  });
+}
+test('PS9 iconify — 90° 단추 4 그대로 · 단추 누르면 슬라이드 슬라이더도 따라간다', async ({ page }) => {
+  const errs = await flowScene(page, 'window.addIconifyBlock()');
+  await page.evaluate(() => { try { localStorage.removeItem('goditor.rotSlideMode'); } catch (_) {} });
+  await expect(page.locator('#icn-rot-slide')).toHaveCount(1);
+  await page.click('#icn-rot-slide');
+  await expect.poll(() => page.evaluate(() => [document.querySelectorAll('#icn-rotation-group [data-deg]').length, !!document.getElementById('icn-rot-number-slider')])).toEqual([4, true]);
+  await page.click('#icn-rotation-group [data-deg="90"]');
+  await expect.poll(() => page.evaluate(() => [document.getElementById('icn-rot-number').value, document.getElementById('icn-rot-number-slider').value])).toEqual(['90', '90']);
+  await page.evaluate(() => { try { localStorage.removeItem('goditor.rotSlideMode'); } catch (_) {} });
+  expect(errs).toEqual([]);
+});
+
