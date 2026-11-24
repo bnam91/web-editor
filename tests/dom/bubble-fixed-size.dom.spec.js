@@ -8,7 +8,7 @@
  *   P0  전제 — 말풍선이 서고 몸통 너비가 글 길이를 따른다(짧은 글 < 긴 글)
  *   F   패널 「고정」 → 몸통 너비가 지금 크기로 굳고, 긴 글을 넣어도 그 너비 그대로 · 너비 칸 400 → 몸통 400
  *   A   「자동」 → 인라인 너비가 걷히고 다시 글 길이를 따른다
- * 양성대조: GD1001_ROOT=<핀 ca702d40 사본> 이면 F 가 빨강(#bubble-size-group 0).
+ * 양성대조: GD1001_ROOT=<핀 ca702d40 사본> 이면 F 가 빨강(#bubble-size-mode 0 · L4b 전 판은 #bubble-size-group 세그먼트).
  * ⛔고정 대기 없음 — waitForFunction 만. ⛔앱 무접촉(_root-harness.bootApp).
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js bubble-fixed-size
  */
@@ -63,8 +63,9 @@ test('F 「고정」 → 지금 너비로 굳고 긴 글에도 그대로 · 너�
   await openPanel(page);
   const w0 = await bodyW(page);
   const h0 = await bodyH(page);
-  expect(await page.locator('#bubble-size-group [data-bsz="fixed"]').count()).toBe(1);
-  await page.click('#bubble-size-group [data-bsz="fixed"]');
+  /* ★기대 바뀜(L4b · 현빈 L-2): 옛 세그먼트 #bubble-size-group [data-bsz] → 표준 W/H 줄의 모드 드롭다운 #bubble-size-mode(고정/자동) */
+  expect(await page.locator('#bubble-size-mode option[value="fixed"]').count()).toBe(1);
+  await page.selectOption('#bubble-size-mode', 'fixed');
   await page.waitForFunction(() => window.__sb.dataset.bubbleSize === 'fixed');
   expect(Math.abs((await bodyW(page)) - w0)).toBeLessThanOrEqual(1);
   /* ★누르는 순간 모양이 안 튄다 — 높이도 그대로(앱 실측 261026: 정수로 깎은 너비 348 < 실폭 348.445 ⇒ 줄이 꺾여 70→112 로 튀었다) */
@@ -83,9 +84,9 @@ test('A 「자동」 → 인라인 너비가 걷히고 다시 글 길이를 따�
   const errs = await setup(page);
   await setText(page, SHORT);
   await openPanel(page);
-  await page.click('#bubble-size-group [data-bsz="fixed"]');
+  await page.selectOption('#bubble-size-mode', 'fixed');   // ★기대 바뀜(L4b) — 옛 [data-bsz] 단추 → 드롭다운
   await page.waitForFunction(() => window.__sb.dataset.bubbleSize === 'fixed');
-  await page.click('#bubble-size-group [data-bsz="auto"]');
+  await page.selectOption('#bubble-size-mode', 'auto');
   await page.waitForFunction(() => window.__sb.dataset.bubbleSize === undefined);
   const inline = await page.evaluate(() => window.__sb.querySelector('.tb-bubble').style.width);
   expect(inline).toBe('');
