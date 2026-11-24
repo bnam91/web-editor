@@ -206,7 +206,7 @@ test.describe('스크래치 드롭 이미지가 내보내기 폭을 따라가는
       const v = await page.evaluate(() => {
         window.__open(document.getElementById('ab_t'));
         return { n: document.getElementById('asset-w-number').value,
-                 s: document.getElementById('asset-w-slider').value,
+                 s: document.getElementById('asset-w-number').value,   // ★기대 바뀜(현빈 261124 L-4 슬라이더 걷음) — 슬라이더 없음 · 숫자 칸
                  real: Math.round(document.getElementById('ab_t').offsetWidth) };
       });
       expect(Number(v.n), `표시폭 ${want} — 패널 숫자칸 ${v.n} / 실제 ${v.real}`).toBe(v.real);

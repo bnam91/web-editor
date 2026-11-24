@@ -1389,14 +1389,22 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
 .fx-holo-sw:hover, .fx-holo-sw[aria-pressed="true"] { outline: 2px solid var(--ui-accent-primary); outline-offset: 1px; }
 
 /* ═══ 표준 Stroke 절 부품(js/props/_stroke-section.js · 현빈 261123 GO · 정본 시안 8910 strokestd2 — 규칙은 시안 css 그대로 옮김 · 토큰만) ═══ */
-.ui-stroke2 .ui-s2-main, .ui-appearance .ui-s2-main { display: flex; align-items: flex-end; gap: var(--ui-space-1_5); }
-.ui-stroke2 .ui-s2-cell, .ui-appearance .ui-s2-cell { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: var(--ui-space-0_5); }
-.ui-stroke2 .ui-s2-cell > span, .ui-appearance .ui-s2-cell > span { font-size: var(--ui-fs-10); color: var(--ui-text-dim); }
-.ui-stroke2 .ui-s2-cell > *, .ui-appearance .ui-s2-cell > * { flex: 0 0 auto; }
-.ui-stroke2 .ui-s2-cell > select, .ui-stroke2 .ui-s2-cell > .prop-icon-input, .ui-appearance .ui-s2-cell > .prop-icon-input { width: 100%; min-width: 0; height: var(--ui-input-h); box-sizing: border-box; }
-.ui-stroke2 .ui-s2-main > .prop-chain-btn, .ui-appearance .ui-s2-main > .prop-chain-btn { flex: 0 0 auto; }
+.ui-stroke2 .ui-s2-main, .ui-appearance .ui-s2-main, .ui-layout .ui-s2-main { display: flex; align-items: flex-end; gap: var(--ui-space-1_5); }
+.ui-stroke2 .ui-s2-cell, .ui-appearance .ui-s2-cell, .ui-layout .ui-s2-cell { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: var(--ui-space-0_5); }
+.ui-stroke2 .ui-s2-cell > span, .ui-appearance .ui-s2-cell > span, .ui-layout .ui-s2-cell > span { font-size: var(--ui-fs-10); color: var(--ui-text-dim); }
+.ui-stroke2 .ui-s2-cell > *, .ui-appearance .ui-s2-cell > *, .ui-layout .ui-s2-cell > * { flex: 0 0 auto; }
+.ui-stroke2 .ui-s2-cell > select, .ui-stroke2 .ui-s2-cell > .prop-icon-input, .ui-appearance .ui-s2-cell > .prop-icon-input, .ui-layout .ui-s2-cell > .prop-icon-input { width: 100%; min-width: 0; height: var(--ui-input-h); box-sizing: border-box; }
+.ui-stroke2 .ui-s2-main > .prop-chain-btn, .ui-appearance .ui-s2-main > .prop-chain-btn, .ui-layout .ui-s2-main > .prop-chain-btn { flex: 0 0 auto; }
 /* 표준 Appearance(js/props/_appearance-section.js · A1) — 줄 꼴은 Stroke 표준 줄을 같이 씀 · 라벨 끌기 손잡이 · 보류 표식(7-2 눈 · 7-3 모서리 따로) */
-.ui-app-scrub { cursor: ew-resize; touch-action: none; }   /* 표준 줄 · 부위 R 슬롯(appearanceSlotNumberHTML) 공용 */
+.ui-app-scrub { cursor: ew-resize; touch-action: none; }
+.ui-app-unit { flex: 0 0 auto; padding-right: var(--ui-space-1_5); font-size: var(--ui-fs-10); color: var(--ui-text-dim); }   /* A4 Opacity «%» */
+/* 표준 Layout(js/props/_layout-section.js · L1) — 줄 꼴 = 위 Stroke·Appearance 줄 · 빈칸(ui-lay-spacer) = 끝 사슬 자리 맞춤(숫자 칸 끝이 W/H 줄과 같은 자리) */
+.ui-layout + .ui-layout { margin-top: var(--ui-space-1_5); }
+.ui-layout .ui-s2-main > .ui-lay-spacer { flex: 0 0 auto; width: calc(var(--ui-opt-col-w) - var(--ui-space-1_5)); margin-left: calc(var(--ui-space-1_5) - var(--ui-space-1)); }
+.prop-section[data-sec] .prop-row:has(> .ui-lay-spacer:last-child) { margin-right: calc(-1 * var(--ui-opt-col-w)); }
+.ui-layout .ui-s2-cell > .prop-icon-input > select { flex: 1 1 auto; min-width: 0; border: 0; background: transparent; }
+.ui-layout .prop-chain-btn[aria-disabled="true"], .ui-layout .prop-number:disabled { opacity: var(--ui-disabled-opacity, 0.5); cursor: default; }
+.ui-layout .ui-s2-main > .prop-chain-btn.active { background: var(--ui-bg-hover); color: var(--ui-accent); }   /* 표준 줄 · 부위 R 슬롯(appearanceSlotNumberHTML) 공용 */
 .prop-chain-btn[aria-disabled="true"].ui-app-eye, .ui-appearance .prop-chain-btn[aria-disabled="true"] { opacity: var(--ui-disabled-opacity, 0.5); cursor: default; }
 /* ⫶ «Stroke 설정» 팝오버 자리 — 표준 줄 아래 폭 그대로(시안 strokestd2 21·22) · 넘치면 위로(wireStrokePopover 가 --up) · 몸 끝 여백 규칙(⑯·부품 끝 줄)에 안 끼게 줄 «안» 절대 자리 */
 .ui-stroke2 .ui-s2-main { position: relative; overflow: visible; }

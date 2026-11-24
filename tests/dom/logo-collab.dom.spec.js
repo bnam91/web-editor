@@ -31,7 +31,8 @@ async function setup(page, preset = 'logo') {
   }, [SEC, preset]);
   await page.waitForFunction(() => !!document.querySelector('#canvas .asset-block'));
   await page.evaluate(() => window.showAssetProperties?.(document.querySelector('#canvas .asset-block')));
-  await page.waitForFunction(() => !!document.getElementById('asset-h-slider'));
+  /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 폭·높이 슬라이더 없음 → 같은 값·min 을 가진 숫자 칸(옛 id)으로 잰다 */
+  await page.waitForFunction(() => !!document.getElementById('asset-h-number'));
   return errs;
 }
 const pre = (page) => page.evaluate(() => {

@@ -72,7 +72,8 @@ const openWith = (page, w, h) => page.evaluate(({ w, h }) => {
   const ab = window.__mk(w, h);
   window.__open(ab);
   const g = id => { const el = document.getElementById(id); return el ? { v: el.value, min: el.min } : null; };
-  return { ws: g('asset-w-slider'), wn: g('asset-w-number'), hs: g('asset-h-slider'), hn: g('asset-h-number'),
+  /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 폭·높이 슬라이더 없음 → 같은 값·min 을 가진 숫자 칸(옛 id)으로 잰다 */
+  return { ws: g('asset-w-number'), wn: g('asset-w-number'), hs: g('asset-h-number'), hn: g('asset-h-number'),
            realH: Math.round(ab.getBoundingClientRect().height), realW: Math.round(ab.getBoundingClientRect().width) };
 }, { w, h });
 

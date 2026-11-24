@@ -2,13 +2,14 @@
  *
  * 꼴 = FigCraft: 머리 엔드슬롯 [눈] = 7-2 보류 표식(aria-disabled + 까닭) · 몸 = 작은 라벨 + 한 줄 [아이콘 숫자] + 끝 Individual corners = 7-3 보류 표식(자리만)
  *   · 슬라이더 없음 — 숫자 칸 + 아이콘 라벨 끌기(wireNumberScrub)
- *   · Opacity(7-1) = A4 에서 이 줄 앞 칸으로 더한다(새 키 · 지금은 안 그림)
+ *   · Opacity(7-1 · A4) = op 를 주면 이 줄 앞 칸(0~100 %) — 값 적용은 블럭 어댑터(op.apply · 계약 window.setBlockOpacity 는 갈래 E 몫)
  * ⛔저장 키·옛 숫자 칸 id 무변 — 값 적용은 블럭 어댑터(radius.apply). 표식 단추엔 듣개가 없다(눌러도 아무것도 안 함).
  */
 import { wireNumberScrub } from './_helpers.js';
 
 const _appIcon = (d) => `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" aria-hidden="true">${d}</svg>`;
 const APP_EYE_ICON = _appIcon('<path d="M1 6s2-3.5 5-3.5S11 6 11 6 9 9.5 6 9.5 1 6 1 6z"/><circle cx="6" cy="6" r="1.4"/>');
+const APP_OP_ICON = _appIcon('<rect x="1.5" y="1.5" width="9" height="9" rx="1"/><path d="M1.5 10.5 10.5 1.5"/>');
 const APP_RADIUS_ICON = _appIcon('<path d="M1.5 10.5V6a4.5 4.5 0 0 1 4.5-4.5h4.5"/>');
 const APP_CORNERS_ICON = _appIcon('<path d="M1.5 4.5V2.5a1 1 0 0 1 1-1h2M7.5 1.5h2a1 1 0 0 1 1 1v2M10.5 7.5v2a1 1 0 0 1-1 1h-2M4.5 10.5h-2a1 1 0 0 1-1-1v-2"/>');
 export const APP_EYE_WHY = '블럭 보이기 — 보류(7-2 · 현빈 261124 10:59) · 지금은 섹션만';
@@ -19,17 +20,23 @@ export function appearanceHeadToolsHTML({ prefix }) {
   return `<button type="button" class="prop-chain-btn ui-app-eye" id="${prefix}-app-eye" data-part="end-slot" aria-disabled="true" aria-label="${APP_EYE_WHY}" title="${APP_EYE_WHY}">${APP_EYE_ICON}</button>`;
 }
 
+/* 칸 하나(작은 라벨 + [아이콘(끌기) 숫자 (단위)]) — Mixed = 빈 값 + placeholder + data-empty="invalid"(N9) */
+const _appCell = ({ label, field, id, icon, value, min, max, mixed, unit = '' }) =>
+  `<div class="ui-s2-cell"><span>${label}</span><div class="prop-icon-input" data-part="number" data-field="${field}"><span class="prop-xy-label ui-app-scrub" id="${id}-scrub" title="${label} — 좌우로 끌면 바뀐다">${icon}</span><input type="number" class="prop-number" id="${id}" min="${min}" max="${max}" step="1" value="${mixed ? '' : value}"${mixed ? ' placeholder="Mixed" data-empty="invalid"' : ''} aria-label="${label}">${unit ? `<span class="ui-app-unit">${unit}</span>` : ''}</div></div>`;
+
 /**
  * @param {object} o
- * @param {string} o.prefix  블럭의 옛 접두(예: 'ss') — 모서리 따로 단추 = `${prefix}-corners`
- * @param {{numberId:string, value:number, min?:number, max:number, mixed?:boolean}} o.radius  (배선 쪽 = + apply(v) · commit?())  옛 숫자 칸 id 그대로 · 끌기 손잡이 = `${numberId}-scrub`
+ * @param {string} o.prefix  블럭의 옛 접두(예: 'ss') — 모서리 따로 단추 = `${prefix}-corners` · 불투명 칸 = `${prefix}-opacity`
+ * @param {{value:number, mixed?:boolean}|null} [o.op]  A4 Opacity(0~100) — 주면 줄 맨 앞 칸 · 작은 라벨 «Opacity | Corner radius»
+ * @param {{numberId:string, value:number, min?:number, max:number, mixed?:boolean}|null} [o.radius]  (배선 쪽 = + apply(v) · commit?())  옛 숫자 칸 id 그대로 · 끌기 손잡이 = `${numberId}-scrub`
  */
-export function appearanceSectionHTML({ prefix, radius: r }) {
+export function appearanceSectionHTML({ prefix, op = null, radius: r = null }) {
   return `
       <div class="ui-appearance" data-part="appearance">
         <div class="ui-s2-main prop-row">
-          <div class="ui-s2-cell"><span>Corner radius</span><div class="prop-icon-input" data-part="number" data-field="appearance-radius"><span class="prop-xy-label ui-app-scrub" id="${r.numberId}-scrub" title="Corner radius — 좌우로 끌면 바뀐다">${APP_RADIUS_ICON}</span><input type="number" class="prop-number" id="${r.numberId}" min="${r.min ?? 0}" max="${r.max}" step="1" value="${r.mixed ? '' : r.value}"${r.mixed ? ' placeholder="Mixed" data-empty="invalid"' : ''} aria-label="Corner radius"></div></div>
-          <button type="button" class="prop-chain-btn" id="${prefix}-corners" data-part="end-slot" aria-pressed="false" aria-disabled="true" aria-label="${APP_CORNERS_WHY}" title="${APP_CORNERS_WHY}">${APP_CORNERS_ICON}</button>
+          ${op ? _appCell({ label: 'Opacity', field: 'appearance-opacity', id: `${prefix}-opacity`, icon: APP_OP_ICON, value: op.value, min: 0, max: 100, mixed: op.mixed, unit: '%' }) : ''}${r ? `
+          ${_appCell({ label: 'Corner radius', field: 'appearance-radius', id: r.numberId, icon: APP_RADIUS_ICON, value: r.value, min: r.min ?? 0, max: r.max, mixed: r.mixed })}
+          <button type="button" class="prop-chain-btn" id="${prefix}-corners" data-part="end-slot" aria-pressed="false" aria-disabled="true" aria-label="${APP_CORNERS_WHY}" title="${APP_CORNERS_WHY}">${APP_CORNERS_ICON}</button>` : ''}
         </div>
       </div>`;
 }
@@ -43,14 +50,19 @@ export function appearanceSlotNumberHTML({ id, label, value, min = 0, max, kind 
       </div>`;
 }
 
-/** 배선 — 옛 bindSlider 의 숫자 칸 몫 그대로(input = 잘라 적용 · change = 먹은 값 보이기 + 이력 + 저장) + 라벨 끌기 */
-export function wireAppearanceSection({ radius: r }) {
-  const n = document.getElementById(r.numberId);
+/* 숫자 칸 하나 배선 — 옛 bindSlider 의 숫자 칸 몫 그대로(input = 잘라 적용 · change = 먹은 값 보이기 + 이력 + 저장 한 번) + 라벨 끌기 */
+function _appWireNum(id, { min = 0, max, apply, commit }) {
+  const n = document.getElementById(id);
   if (!n) return;
-  const min = r.min ?? 0, max = r.max;
   const clamp = (raw) => { const v = parseInt(raw); return Number.isNaN(v) ? min : Math.min(max, Math.max(min, v)); };
-  n.addEventListener('input', () => r.apply(clamp(n.value)));
-  const commit = r.commit || (() => { window.pushHistory?.(); window.scheduleAutoSave?.(); });   // 블럭이 제 commit 을 넘기면 그것(모달 등)
-  n.addEventListener('change', () => { n.value = clamp(n.value); r.apply(clamp(n.value)); commit(); });
-  wireNumberScrub(document.getElementById(`${r.numberId}-scrub`), n, { min, max });
+  n.addEventListener('input', () => apply(clamp(n.value)));
+  const done = commit || (() => { window.pushHistory?.(); window.scheduleAutoSave?.(); });   // 블럭이 제 commit 을 넘기면 그것(모달 등)
+  n.addEventListener('change', () => { n.value = clamp(n.value); apply(clamp(n.value)); done(); });
+  wireNumberScrub(document.getElementById(`${id}-scrub`), n, { min, max });
+}
+
+/** 배선 — radius:{ numberId, min?, max, apply(v), commit? } · op:{ numberId, apply(v 0~100), commit? }(A4) — 둘 다 고를 수 있다 */
+export function wireAppearanceSection({ radius: r, op } = {}) {
+  if (r) _appWireNum(r.numberId, r);
+  if (op) _appWireNum(op.numberId, { ...op, min: 0, max: 100 });
 }

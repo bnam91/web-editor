@@ -100,7 +100,8 @@ async function mount(page, w) {
 
 const read = (page) => page.evaluate(() => {
   const ab = window.__ab;
-  const sl = document.getElementById('asset-w-slider');
+  /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 폭·높이 슬라이더 없음 → 같은 값·min 을 가진 숫자 칸(옛 id)으로 잰다 */
+  const sl = document.getElementById('asset-w-number');
   const nu = document.getElementById('asset-w-number');
   return {
     cssW: Math.round(ab.getBoundingClientRect().width),
@@ -152,7 +153,7 @@ test.describe('T-078 ㉠ — 에셋 폭 하한 60', () => {
     await boot(page); await mount(page, 60);
     // 슬라이더를 그 자리에서 한 번 튕긴다(사용자가 손잡이를 잡았다 놓은 것과 같은 문).
     await page.evaluate(() => {
-      const sl = document.getElementById('asset-w-slider');
+      const sl = document.getElementById('asset-w-number');   // ★기대 바뀜(현빈 261124 L-4 슬라이더 걷음) — «그 자리에서 한 번 튕김» = 숫자 칸 input
       sl.dispatchEvent(new Event('input', { bubbles: true }));
     });
     const r = await read(page);

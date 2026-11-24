@@ -632,7 +632,7 @@ export function wireRotRow({ p, numberId, host, ids = {}, scrubOnly = false } = 
 export function wireNumberScrub(handle, input, { min = -Infinity, max = Infinity } = {}) {
   if (!handle || !input) return;
   handle.addEventListener('pointerdown', (e) => {
-    if (e.button) return;
+    if (e.button || input.disabled) return;   // 막힌 칸(로고 폭 등)은 끌기도 막힘
     const x0 = e.clientX, v0 = parseFloat(input.value) || 0;
     let moved = false;
     const move = (ev) => {

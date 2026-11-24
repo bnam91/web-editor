@@ -163,7 +163,8 @@ async function boot(page, { io = false } = {}) {
 /** 패널이 «열리긴 했는가» — 빨강의 이유가 「패널이 통째로 안 그려짐」이 아님을 먼저 못박는다. */
 const panelAlive = (page) => page.evaluate(() => {
   const body = document.querySelector('#panel-right .panel-body');
-  const sl = document.getElementById('asset-w-slider');
+  /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 폭·높이 슬라이더 없음 → 같은 값·min 을 가진 숫자 칸(옛 id)으로 잰다 */
+  const sl = document.getElementById('asset-w-number');
   const r = sl ? sl.getBoundingClientRect() : null;
   return {
     sections: body ? body.querySelectorAll('.prop-section').length : 0,
