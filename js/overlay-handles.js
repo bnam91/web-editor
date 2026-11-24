@@ -846,10 +846,8 @@ function _onIconHandleMouseDown(e, block, dir) {
     if (svg) { svg.setAttribute('width', newSize); svg.setAttribute('height', newSize); }
     const img = block.querySelector('img');
     if (img) { img.width = newSize; img.height = newSize; }
-    // 프로퍼티 패널 동기화
-    const slider = document.getElementById('icn-size-slider');
+    // 프로퍼티 패널 동기화 — 숫자 칸만(표준 Layout · 슬라이더 걷음)
     const num    = document.getElementById('icn-size-number');
-    if (slider) slider.value = String(newSize);
     if (num)    num.value    = String(newSize);
     window.scheduleAutoSave?.();
   }
@@ -1107,13 +1105,11 @@ function _onAssetResizeHandleMouseDown(e, ab, dir) {
       const p = anchoredLeftTop(_anchor0.L, _anchor0.T, startW, startH, newW, newH, dir, _rotStart);
       _applyOverlayPos(ab, p.left, p.top);
     }
-    // 우측 패널 슬라이더 동기화
+    // 우측 패널 숫자 칸 동기화(표준 Layout L1 · 슬라이더 걷음)
     const wNum = document.getElementById('asset-w-number');
-    const wSl  = document.getElementById('asset-w-slider');
     const hNum = document.getElementById('asset-h-number');
-    const hSl  = document.getElementById('asset-h-slider');
-    if (wNum) { wNum.value = newW; if (wSl) wSl.value = newW; }
-    if (hNum) { hNum.value = newH; if (hSl) hSl.value = newH; }
+    if (wNum) wNum.value = newW;
+    if (hNum) hNum.value = newH;
     window.scheduleAutoSave?.();
   }
   function onUp() {
@@ -1484,10 +1480,8 @@ function _onCouponResizeHandleMouseDown(e, block, dir) {
     block.style.width = newW + 'px';
     const h = window.cpnBoxH ? window.cpnBoxH(block, newW) : null;
     if (h) block.style.height = h + 'px';
-    const wNum = document.getElementById('cpn-width-number');
-    const wSld = document.getElementById('cpn-width-slider');
+    const wNum = document.getElementById('cpn-width-number');   // 숫자 칸만(표준 Layout · 슬라이더 걷음)
     if (wNum) wNum.value = String(newW);
-    if (wSld) wSld.value = String(newW);
     window.scheduleAutoSave?.();
   }
   function onUp() {
