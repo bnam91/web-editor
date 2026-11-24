@@ -8,9 +8,9 @@ const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
 const { bootApp } = require('./_root-harness.js');
-/* ★단독 실행 권장(지디 261124 · 수지맥 9274c7bd2: 2 워커 전수 = C91 빨강 1 · w1 단독 = 초록) — 75상태를 한 장으로 도는 무거운 한 칸이라 다른 spec 과 동시에 돌면 장면 대기 시한(30~60초)에 걸린다.
-   ⛔흔들림(FLAKY)으로 적지 마라 — `npx playwright test … check-census.dom.spec.js --workers=1` 로 따로 돌려 판정한다.
-   (아래 serial 은 «이 파일 안» 순서만 묶는다 — 다른 파일과의 동시 실행은 못 막는다 ⇒ 위 단독 실행이 정본.) */
+/* ★상태 묶음 쪼갬(지디 261124 · 열차 train/0913-c 인텔 w2 재전수 C91 빨강 52.9s) — 옛 판 = 75상태를 한 test 한 장(시한 40분)에서 돌아 2 워커 전수에서 다른 spec 과 겹치면
+   장면 대기(30~60초)에 걸렸다(«단독 실행 권장» 주석 = 근거 깨짐). ⇒ 상태 8개씩 test 하나(C91-01~10 · 새 앱 부팅 · 제 시한 3분) · 끝 test(C91-합)가 합 92 를 단언하고 check-census.json 을 쓴다.
+   ⛔시한 늘리기·retries 로 덮지 않는다 — 묶음 하나하나가 w2 에서 초록이어야 «제품 지연 아님»이다. serial = 묶음 순서·합 모으기만 묶는다. */
 test.describe.configure({ mode: 'serial' });
 
 const MOCK = {"01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 1, "07": 0, "08": 0, "09": 0, "10": 0, "11": 1, "12": 2, "13": 0, "14": 3, "15": 3, "16": 3, "17": 3, "18": 3, "19": 4, "20": 2, "21": 0, "22": 1, "23": 0, "24": 0, "25": 2, "26": 0, "27": 1, "28": 2, "29": 2, "30": 5, "31": 2, "32": 6, "33": 0, "34": 0, "35": 1, "36": 6, "37": 2, "38": 0, "39": 4, "40": 5, "41": 3, "42": 2, "43": 0, "44": 1, "45": 0, "46": 2, "47": 1, "48": 2, "49": 0, "50": 0, "51": 0, "52": 0, "53": 0, "54": 0, "55": 2, "56": 0, "57": 0, "58": 0, "59": 1, "60": 2, "61": 0, "62": 1, "63": 0, "64": 0, "65": 0, "66": 1, "67": 0, "68": 3, "69": 0, "70": 1, "71": 1, "72": 0, "73": 1, "74": 1, "75": 3};
@@ -73,14 +73,8 @@ const count = (page) => page.evaluate((HP) => {
   return { vis, head };
 }, HEAD_PLUS);
 
-test('C91 ★체크 자리 대조 — 시안 chku 91 ↔ 앱 상태별', async ({ page }) => {
-  test.setTimeout(2400000);   // 느린 맥(수지맥 16분 판) 여유 — 상태마다 조건 대기라 빠른 맥은 그대로 빨리 끝남
-  await page.setViewportSize({ width: 1500, height: 1100 });
-  await bootApp(page);
-  const rows = []; const errs = [];
-  for (const [nn, name, add, cls] of STATES) {
-    if (!/^\d\d$/.test(nn)) continue;
-    try {
+/** 상태 하나 — 블럭 넣고 고르고 패널이 멈출 때까지(옛 한 장 판의 장면 코드 그대로) · 셈 행 하나 */
+async function runState(page, [nn, name, add, cls]) {
       await page.evaluate(() => { if (typeof _cntMode !== 'undefined' && _cntMode) exitCountStickerMode(); window.deselectAll?.(); });
       if (add !== 'SPECIAL') {
         await page.evaluate(() => { window.addSection(); });
@@ -107,7 +101,9 @@ test('C91 ★체크 자리 대조 — 시안 chku 91 ↔ 앱 상태별', async (
         await page.evaluate(() => { window.__ccBefore = new Set(document.querySelectorAll('*')); });   // 마킹 스티커만 «새 것»으로
         /* ★마킹 도구는 캔버스 «진짜 누름»(좌표)만 받는다 — 사건 직접 쏘기(clickEl)로는 안 생겨 40분 매달렸다(srv cf99f3e20) ⇒ 이 장면만 실마우스 · 빈 섹션 가운데라 겹칠 것 없음 */
         /* ★누를 점 = 그 섹션이 «주인»인 점(capture.js 71 처럼 훑음) — 가운데엔 앞 상태의 떠 있는 스티커가 겹쳐 그걸 눌렀다(srv d7fc87442 30초 시한) */
-        const sp = await page.evaluate(() => { const s = window.__ccS; s.scrollIntoView({ block: 'center' }); const b = s.getBoundingClientRect();
+        /* ★묶음 쪼갬 뒤 73 은 «새로 부팅한 판»의 첫 장면 — 부팅 배율 맞추기가 늦게 끝나 섹션이 움직이는 중에 점을 잡으면 빗나간다(srv w2 30초 시한 · memory dom-coords) ⇒ 섹션 사각형이 rAF 두 번 연속 같을 때까지 */
+        await expect.poll(() => page.evaluate(() => new Promise((res) => { const s = window.__ccS; s.scrollIntoView({ block: 'center' }); const a = JSON.stringify(s.getBoundingClientRect()); requestAnimationFrame(() => requestAnimationFrame(() => res(a === JSON.stringify(s.getBoundingClientRect())))); })), { timeout: 30000, message: '73 섹션이 안 멈춘다' }).toBe(true);
+        const sp = await page.evaluate(() => { const s = window.__ccS; const b = s.getBoundingClientRect();
           for (let y = b.top + 12; y < b.bottom - 12; y += 6) for (let x = b.left + 12; x < b.right - 12; x += 6) { const h = document.elementFromPoint(x, y);
             if (h && s.contains(h) && !h.closest('.sticker-block, .text-block, .asset-block, .frame-block, .shape-block')) return [x, y]; }
           return null; });
@@ -124,18 +120,40 @@ test('C91 ★체크 자리 대조 — 시안 chku 91 ↔ 앱 상태별', async (
         const b = await page.evaluate(() => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(() => res(document.getElementById('panel-right').innerHTML)))));
         return a === b && a.length > 0; }, { timeout: 60000, message: nn + ' 패널이 안 멈춘다' }).toBe(true);
       const c = await count(page);
-      rows.push({ nn, name, mock: MOCK[nn] || 0, app: c.vis, head: c.head });
-    } catch (e) { errs.push(nn + ' ' + name + ': ' + String(e.message).slice(0, 160)); rows.push({ nn, name, mock: MOCK[nn] || 0, app: null, head: null }); }
-  }
-  const sum = (k) => rows.reduce((s, r) => s + (r[k] || 0), 0);
-  const diff = rows.filter((r) => r.app === null || r.app !== r.mock);   // ★대조 = 시안 vs 앱(머리＋ 는 따로 칸 · 지디 C91 1차: 시안은 머리＋ 를 안 셈)
-  const out = { mock: sum('mock'), app: sum('app'), head: sum('head'), diff, errs, rows };
+      return { nn, name, mock: MOCK[nn] || 0, app: c.vis, head: c.head };
+}
+
+const ALL = STATES.filter(([nn]) => /^\d\d$/.test(nn));
+const GROUP = 8;
+const GROUPS = []; for (let k = 0; k < ALL.length; k += GROUP) GROUPS.push(ALL.slice(k, k + GROUP));
+const ROWS = [];
+
+GROUPS.forEach((grp, gi) => {
+  test(`C91-${String(gi + 1).padStart(2, '0')} ★체크 자리 대조 — 상태 ${grp[0][0]}~${grp[grp.length - 1][0]}(시안 chku ↔ 앱)`, async ({ page }) => {
+    test.setTimeout(180000);   // 묶음 하나 = 상태 8 · 장면 대기 시한(30~60초)은 그대로
+    await page.setViewportSize({ width: 1500, height: 1100 });
+    await bootApp(page);
+    const rows = [], errs = [];
+    for (const st of grp) {
+      try { rows.push(await runState(page, st)); }
+      catch (e) { errs.push(st[0] + ' ' + st[1] + ': ' + String(e.message).slice(0, 160)); rows.push({ nn: st[0], name: st[1], mock: MOCK[st[0]] || 0, app: null, head: null }); }
+    }
+    ROWS.push(...rows);
+    const diff = rows.filter((r) => r.app === null || r.app !== r.mock);   // ★대조 = 시안 vs 앱(머리＋ 는 따로 칸 · 지디 C91 1차: 시안은 머리＋ 를 안 셈)
+    diff.forEach((r) => console.log('  [C91 어긋남] ' + r.nn + ' ' + r.name + ' 시안 ' + r.mock + ' · 앱 ' + r.app + ' · 머리＋ ' + r.head));
+    errs.forEach((e) => console.log('  [C91 못 엶] ' + e));
+    expect(errs, '못 연 상태 — 장면 문제(셈 아님)').toEqual([]);
+    expect(diff.map((r) => r.nn + ' ' + r.name + ' 시안 ' + r.mock + ' · 앱 ' + r.app), '★91 게이트 — 상태별 시안 chku = 앱 체크').toEqual([]);
+  });
+});
+
+test('C91-합 ★91 게이트 — 묶음 전부의 앱 체크 합 = 시안 합 · check-census.json', async () => {
+  const sum = (k) => ROWS.reduce((t, r) => t + (r[k] || 0), 0);
+  const mockAll = ALL.reduce((t, [nn]) => t + (MOCK[nn] || 0), 0);
+  const out = { mock: mockAll, app: sum('app'), head: sum('head'), diff: ROWS.filter((r) => r.app === null || r.app !== r.mock), rows: ROWS };
   fs.mkdirSync(path.join(__dirname, '..', '..', 'test-results'), { recursive: true });
   fs.writeFileSync(path.join(__dirname, '..', '..', 'test-results', 'check-census.json'), JSON.stringify(out, null, 1));
-  console.log('[C91] 시안 ' + out.mock + ' · 앱 ' + out.app + ' · 머리＋ ' + out.head + ' · 어긋난 상태 ' + diff.length + ' · 못 연 상태 ' + errs.length);
-  diff.forEach((r) => console.log('  [C91 어긋남] ' + r.nn + ' ' + r.name + ' 시안 ' + r.mock + ' · 앱 ' + r.app + ' · 머리＋ ' + r.head));
-  errs.forEach((e) => console.log('  [C91 못 엶] ' + e));
-  expect(errs, '못 연 상태 — 장면 문제(셈 아님)').toEqual([]);
-  expect(diff.map((r) => r.nn + ' ' + r.name + ' 시안 ' + r.mock + ' · 앱 ' + r.app), '★91 게이트 — 상태별 시안 chku = 앱 체크').toEqual([]);
+  console.log('[C91] 시안 ' + out.mock + ' · 앱 ' + out.app + ' · 머리＋ ' + out.head + ' · 잰 상태 ' + ROWS.length + '/' + ALL.length);
+  expect(ROWS.length, '[전제] 모든 묶음이 돌았다(serial)').toBe(ALL.length);
   expect(out.app, '★91 게이트 — 합').toBe(out.mock);
 });
