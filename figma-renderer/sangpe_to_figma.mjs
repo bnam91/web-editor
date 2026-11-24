@@ -1514,7 +1514,19 @@ function renderBlock(block, parentId, x, y, availableWidth) {
          쿠폰 svg 의 <text> 는 generic 글 모음(tb-* 등)에 안 잡혀 겹쳐 그리지 않는다 · 그 밖 generic svg(어노 등)는 종전대로 안 그림 */
       if (_SVG_BODY_KINDS.includes(block.kind) && typeof block.svg === 'string' && /^\s*<svg\b/i.test(block.svg)) {
         const vw = Math.max(1, w), vh = Math.max(1, h || 1);
-        const vsvg = block.svg.replace(/^\s*<svg\b([^>]*)>/i, (m, at) => `<svg${at.replace(/\s(width|height)\s*=\s*("[^"]*"|'[^']*')/gi, '')} width="${vw}" height="${vh}">`);
+        let vsvg = block.svg.replace(/^\s*<svg\b([^>]*)>/i, (m, at) => `<svg${at.replace(/\s(width|height)\s*=\s*("[^"]*"|'[^']*')/gi, '')} width="${vw}" height="${vh}">`);
+        /* 85행 — vector-effect="non-scaling-stroke"(별 스티커 안쪽 고리 등) 는 Figma SVG 가져오기가 선을 버린다(미카사 2차: 고리 벡터 strokes 0 · 보낸 svg 엔 stroke 있음 = 가설: 이 속성)
+           ⇒ 속성을 빼고 선 굵기를 화면과 같은 px 로 viewBox 단위로 바꿔 넣는다(viewBox 100 · 그린 크기 60 → 1.2px = 2 단위) · 이 속성 없는 svg 는 손 0 */
+        const _vb = /viewBox\s*=\s*["']\s*[-\d.]+[\s,]+[-\d.]+[\s,]+([\d.]+)[\s,]+([\d.]+)/i.exec(vsvg);
+        if (_vb && /vector-effect\s*=\s*["']non-scaling-stroke["']/i.test(vsvg)) {
+          const _k = Math.max(parseFloat(_vb[1]) / vw, parseFloat(_vb[2]) / vh) || 1;   // 화면 1px = viewBox _k 단위(늘림 없음 기준 · 비균등이면 굵은 쪽)
+          vsvg = vsvg.replace(/<([a-z]+)\b([^>]*?)\svector-effect\s*=\s*["']non-scaling-stroke["']([^>]*)>/gi, (m, tag, a1, a2) => {
+            const at = a1 + a2; const sw = /\sstroke-width\s*=\s*["']([\d.]+)["']/i.exec(at);
+            const nsw = +(((sw ? parseFloat(sw[1]) : 1) * _k).toFixed(3));
+            const body = sw ? at.replace(sw[0], ` stroke-width="${nsw}"`) : at.replace(/\s*\/?\s*$/, (e) => ` stroke-width="${nsw}"${e.includes('/') ? ' /' : ''}`);
+            return `<${tag}${body}>`;
+          });
+        }
         const vn = run('create_node_from_svg', { svg: vsvg, parentId: frame.id, x: 0, y: 0 }, { timeout: 15000 });
         if (vn) run('resize_node', { nodeId: vn.id, width: vw, height: vh });
         /* F7 숨김 — 브리지 = 칠 있는 벡터(몸 path)마다 칠 눈 끔(도형과 같은 걸음) · 쿠폰·줌은 보낸 svg 가 «캔버스가 숨김으로 그린 그림»(몸 칠 이미 투명)이라 걷지 않음
@@ -1530,8 +1542,9 @@ function renderBlock(block, parentId, x, y, availableWidth) {
         /* FIGMA-GRID-CELL-TEXT-NOT-EXPORTED-01 — 보내는 쪽이 화면에서 잰 폭(t.w)을 실었으면 그 자리·폭·정렬 그대로(y 0 도 참값). 없으면 옛 셈. */
         const sized = typeof t.w === 'number' && t.w > 0;
         const tx = Math.max(0, t.x || 0), ty = Math.max(0, sized ? (t.y || 0) : (typeof t.y === 'number' && t.y) ? t.y : i * 44);
-        const tn = run('create_text', { x: tx, y: ty, width: sized ? t.w : Math.max(20, w - tx), text: t.t, fontSize: t.fs || 24, fontWeight: 400, fontColor: hex(t.color || '#111111'), textAlignHorizontal: sized && ['CENTER', 'RIGHT'].includes(t.align) ? t.align : 'LEFT', textAutoResize: 'HEIGHT', name: `gtext_${i}`, parentId: frame.id });
-        if (tn) { run('set_font_name', { nodeId: tn.id, family: font.family, style: font.style }); applyTextRanges(tn.id, t.ranges, font.family, { run, loadFontSafe, hex }); }
+        const tw = parseInt(t.fw) || 400, tf = tw === 400 ? font : loadFontSafe('Pretendard', toFigmaFontStyle(tw));   // 85행 — 보낸 굵기(fw · 쿠폰 «12만원»·스티커 «NEW» 굵게) · 안 보냈으면 옛 그대로 Regular
+        const tn = run('create_text', { x: tx, y: ty, width: sized ? t.w : Math.max(20, w - tx), text: t.t, fontSize: t.fs || 24, fontWeight: tw, fontColor: hex(t.color || '#111111'), textAlignHorizontal: sized && ['CENTER', 'RIGHT'].includes(t.align) ? t.align : 'LEFT', textAutoResize: 'HEIGHT', name: `gtext_${i}`, parentId: frame.id });
+        if (tn) { run('set_font_name', { nodeId: tn.id, family: tf.family, style: tf.style }); applyTextRanges(tn.id, t.ranges, tf.family, { run, loadFontSafe, hex }); }
       });
     }
     return h;

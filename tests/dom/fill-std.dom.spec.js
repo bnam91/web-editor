@@ -878,3 +878,32 @@ test('D35 원·네모·별 스티커 — Figma JSON bg·둥글기·글·별 svg'
   expect(String(t.bg).toLowerCase(), '[지킴] 글 스티커 bg = bgColor').toBe('#12ab34');
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* 85행 FIGMA-GENERIC-TEXT-STYLE-LOST-01(미카사 2차 실기) — D36 쿠폰 줄(.tb-cpn-line)·스티커 글(.sticker-text) → Figma JSON 글 꼴
+ *   예전: 사본 DOM 의 계산 style 을 읽어 크기 24·색 #111·자리 0·굵기 없음(=Figma 검정·보통·왼위·작게) · 고침: 살아 있는 짝에서 크기·색·굵기·자리·폭·정렬
+ *   ★글마다 = 살아 있는 요소의 fontSize·color·fontWeight 와 같음 · 폭 w > 0(자리 잰 표) · 스티커 글 정렬 CENTER
+ * 양성대조: 고치기 전 판 48e155c14 에서 D36 빨강 */
+test('D36 쿠폰·스티커 글 꼴 — Figma JSON 크기·색·굵기·자리 = 화면', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const ids = await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    const sec = await window.addSection(); const out = [];
+    window.deselectAll(); window.selectSection(sec); { const before = new Set(sec.querySelectorAll('.sticker-block')); window.addStickerBlock({ shape: 'circle' }); out.push([...sec.querySelectorAll('.sticker-block')].find((x) => !before.has(x)).id); }
+    window.deselectAll(); window.selectSection(sec); { const before = new Set(sec.querySelectorAll('.coupon-block')); await window.addCouponBlock(); out.push([...sec.querySelectorAll('.coupon-block')].find((x) => !before.has(x)).id); }
+    return out; });
+  const res = await page.evaluate((ids) => { const j = window.buildFigmaExportJSON(null); const find = (id) => { let hit = null; (function walk(o) { if (!o || typeof o !== 'object' || hit) return; if (o.id === id && o.type) { hit = o; return; } Object.values(o).forEach(walk); })(j); return hit; };
+    return ids.map((id) => { const e = find(id); const live = [...document.getElementById(id).querySelectorAll('.sticker-text, .tb-cpn-line')].filter((x) => (x.innerText || '').trim());
+      return { kind: e?.kind, texts: (e?.texts || []).map((t) => ({ t: t.t, fs: t.fs, color: t.color, fw: t.fw, w: t.w, align: t.align })),
+        live: live.map((x) => { const cs = getComputedStyle(x); return { t: x.innerText.trim(), fs: parseInt(cs.fontSize), color: cs.color, fw: parseInt(cs.fontWeight) }; }) }; }); }, ids);
+  for (const r of res) {
+    expect(r.live.length > 0, `[전제] ${r.kind} 살아 있는 글 있음`).toBe(true);
+    for (const l of r.live) {
+      const e = r.texts.find((t) => t.t === l.t);
+      expect(e, `★${r.kind} 글 «${l.t}» 이 JSON 에 없다`).toBeTruthy();
+      expect([e.fs, e.color, e.fw], `★${r.kind} «${l.t}» 꼴(크기·색·굵기) ≠ 화면 ${JSON.stringify(l)}`).toEqual([l.fs, l.color, l.fw]);
+      expect(e.w > 0, `★${r.kind} «${l.t}» 자리 폭 없음`).toBe(true);
+    }
+  }
+  expect(res[0].texts[0].align, '★스티커 글 가운데').toBe('CENTER');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

@@ -1202,7 +1202,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       /* FIGMA-GRID-CELL-TEXT-NOT-EXPORTED-01 — 그리드 칸 글(.grd-line · 원 안 글 .grd-img-circle-text)도 싣는다.
          이 셋(_LIVE_TXT)은 인라인 left/top 이 없다 ⇒ 살아 있는 문서가 있으면 그 자리·폭·정렬을 블럭 왼위 기준 레이아웃 px 로 싣는다
          (그리드 칸 그림 images 와 같은 셈). 살아 있는 짝이 없으면(다른 페이지) 글만 — 옛 꼴(x·y 0). */
-      const _LIVE_TXT = '.itb-text, .grd-line, .grd-img-circle-text';
+      const _LIVE_TXT = '.itb-text, .grd-line, .grd-img-circle-text, .tb-cpn-line, .sticker-text';   // 85행 — 쿠폰 줄·스티커 글도 살아 있는 짝에서 크기·색·굵기·자리·정렬(사본은 안 그려져 계산 style 이 비어 24·#111·왼위로 갔다)
       const _lt = el.id ? document.getElementById(el.id) : null;
       const _ltr = _lt && _lt.getBoundingClientRect(), _ltz = _ltr ? (_ltr.width / (_lt.offsetWidth || 1)) || 1 : 1;
       const _ltCopy = [...el.querySelectorAll(_LIVE_TXT)], _ltLive = _lt ? [..._lt.querySelectorAll(_LIVE_TXT)] : [];
@@ -1210,7 +1210,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         const i = _ltLive.length === _ltCopy.length ? _ltCopy.indexOf(t) : -1;
         const lv = i >= 0 ? _ltLive[i] : null; if (!lv) return null;
         const r = lv.getBoundingClientRect(), lcs = window.getComputedStyle(lv), al = lcs.textAlign;   // 사본은 안 그려져 computed 가 비었다 — 크기·색도 살아 있는 짝에서
-        return { fs: parseInt(lcs.fontSize) || 24, color: lcs.color || '#111111',
+        return { fs: parseInt(lcs.fontSize) || 24, color: lcs.color || '#111111', fw: parseInt(lcs.fontWeight) || 400,
           x: Math.round((r.left - _ltr.left) / _ltz), y: Math.round((r.top - _ltr.top) / _ltz), w: Math.round(r.width / _ltz),
           align: al === 'center' ? 'CENTER' : (al === 'right' || al === 'end') ? 'RIGHT' : 'LEFT' };
       };

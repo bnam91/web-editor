@@ -262,3 +262,28 @@ test('T3 원 스티커 = 프레임 칠 bg(rgb()) + 둥글기 = 짧은 변 ÷ 2 +
   assert.ok(cmds.some((c) => c.cmd === 'set_corner_radius' && c.params.nodeId === fr.id && c.params.radius === 40), '둥글기 없음');
   assert.ok(cmds.some((c) => c.cmd === 'create_text' && c.params.text === 'NEW'), '글이 없다');
 });
+
+/* ── 85행 FIGMA-GENERIC-TEXT-STYLE-LOST-01(미카사 2차 실기) — 쿠폰·스티커 글이 Figma 에서 검정·보통·왼위·작게 · 별 스티커 안쪽 고리 선 없음
+ *   G1 generic 글 굵기(fw) → create_text fontWeight·set_font_name 스타일 · [지킴] fw 없으면 400·Regular(옛 그대로)
+ *   G2 svg 몸의 vector-effect="non-scaling-stroke" → 속성 빼고 선 굵기를 viewBox 단위로(화면 1.2px · 60px 그림 → 2) · [지킴] 그 속성 없는 svg 는 바이트 그대로
+ *   (색·크기·자리·정렬은 내보내기 쪽 = DOM D36)
+ * 양성대조: _patches/g85-CTL-renderer.patch(옛 렌더러) → G1·G2 빨강 */
+const RING = '<svg class="stk-burst" viewBox="0 0 100 100" preserveAspectRatio="none"><polygon points="50,0 100,50 50,100 0,50" fill="#e74c3c"/><circle cx="50" cy="50" r="36" fill="none" stroke="#ffffff" stroke-width="1.2" stroke-opacity="0.6" vector-effect="non-scaling-stroke"/></svg>';
+test('G1 generic 글 굵기 fw 700 → Bold · [지킴] fw 없으면 Regular 400', () => {
+  const { cmds } = render([stk({ texts: [{ t: 'NEW', fs: 14, color: 'rgb(255, 255, 255)', x: 0, y: 20, w: 60, align: 'CENTER', fw: 700 }, { t: '보통', fs: 14, color: '#111111', x: 0, y: 40 }] })]);
+  const tx = cmds.filter((c) => c.cmd === 'create_text');
+  const ids = Object.fromEntries(tx.map((c) => [c.params.text, c.id]));
+  assert.deepEqual(tx.map((c) => [c.params.text, c.params.fontWeight]), [['NEW', 700], ['보통', 400]]);
+  const fn = Object.fromEntries(cmds.filter((c) => c.cmd === 'set_font_name').map((c) => [c.params.nodeId, c.params.style]));
+  assert.equal(fn[ids['NEW']], 'Bold', 'NEW 가 Bold 가 아니다'); assert.equal(fn[ids['보통']], 'Regular');
+  assert.equal(tx[0].params.textAlignHorizontal, 'CENTER');
+});
+test('G2 non-scaling-stroke 고리 → 속성 빼고 굵기 viewBox 단위(60px 그림 · 1.2 → 2) · [지킴] 없는 svg 바이트 그대로', () => {
+  const { cmds } = render([stk({ width: 60, height: 60, svg: RING })]);
+  const sv = cmds.find((c) => c.cmd === 'create_node_from_svg').params.svg;
+  assert.equal(/vector-effect/i.test(sv), false, 'vector-effect 가 남았다(Figma 가 선을 버림)');
+  assert.match(sv, /<circle[^>]*stroke-width="2"[^>]*\/>/, `고리 굵기가 2 가 아니다: ${sv}`);
+  assert.match(sv, /<polygon[^>]*fill="#e74c3c"/);
+  const plain = render([stk({ width: 60, height: 60, svg: BURST })]).cmds.find((c) => c.cmd === 'create_node_from_svg').params.svg;
+  assert.equal(plain.replace(/^<svg[^>]*>/, ''), BURST.replace(/^<svg[^>]*>/, ''), '[지킴] vector-effect 없는 svg 몸이 바뀌었다');
+});
