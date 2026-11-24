@@ -26,7 +26,7 @@ test('AS1 frame Appearance = 표준 꼴 — 슬라이더 없음 · 숫자 칸(�
     const eye = sec?.querySelector('.prop-sec-head #ss-app-eye'), cor = document.getElementById('ss-corners');
     return {
       slider: !!document.getElementById('ss-radius-slider'),
-      inPart: !!document.getElementById('ss-radius-num')?.closest('[data-part="appearance"]'),
+      inPart: !!document.getElementById('ss-radius-num')?.closest('[data-part="appearance"] [data-field="appearance-radius"]'),   // data-field 이름 = 시안 #mkp-appstd 마크업 줄(appearance-radius)
       label: sec?.querySelector('[data-part="appearance"] .ui-s2-cell > span')?.textContent,
       eye: eye ? [eye.getAttribute('aria-disabled'), /보류/.test(eye.title)] : null,
       corners: cor ? [cor.getAttribute('aria-disabled'), /보류/.test(cor.title), cor.closest('[data-part="appearance"]') === document.getElementById('ss-radius-num')?.closest('[data-part="appearance"]')] : null,

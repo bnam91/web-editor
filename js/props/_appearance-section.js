@@ -28,7 +28,7 @@ export function appearanceSectionHTML({ prefix, radius: r }) {
   return `
       <div class="ui-appearance" data-part="appearance">
         <div class="ui-s2-main prop-row">
-          <div class="ui-s2-cell"><span>Corner radius</span><div class="prop-icon-input" data-part="number" data-field="corner-radius"><span class="prop-xy-label ui-app-scrub" id="${r.numberId}-scrub" title="Corner radius — 좌우로 끌면 바뀐다">${RADIUS}</span><input type="number" class="prop-number" id="${r.numberId}" min="${r.min ?? 0}" max="${r.max}" step="1" value="${r.mixed ? '' : r.value}"${r.mixed ? ' placeholder="Mixed"' : ''} aria-label="Corner radius"></div></div>
+          <div class="ui-s2-cell"><span>Corner radius</span><div class="prop-icon-input" data-part="number" data-field="appearance-radius"><span class="prop-xy-label ui-app-scrub" id="${r.numberId}-scrub" title="Corner radius — 좌우로 끌면 바뀐다">${RADIUS}</span><input type="number" class="prop-number" id="${r.numberId}" min="${r.min ?? 0}" max="${r.max}" step="1" value="${r.mixed ? '' : r.value}"${r.mixed ? ' placeholder="Mixed"' : ''} aria-label="Corner radius"></div></div>
           <button type="button" class="prop-chain-btn" id="${prefix}-corners" data-part="end-slot" aria-pressed="false" aria-disabled="true" aria-label="${APP_CORNERS_WHY}" title="${APP_CORNERS_WHY}">${CORNERS}</button>
         </div>
       </div>`;
