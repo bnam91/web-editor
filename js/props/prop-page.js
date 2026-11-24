@@ -5,6 +5,7 @@ import { propPanel, canvasEl, state } from '../globals.js';   /* ★canvasWrap �
 import { exportFormatOptionsHTML } from '../io/export-formats.js';   /* ★t6-01 — 꼴 명부 정본 한 자리 */
 import { renderPanel, sec } from './_panel-frame.js';
 import { checkHTML } from './_helpers.js';
+import { layoutPadSlotHTML, layoutGapSlotHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(L3 슬롯 · C3)
 import { applyBubbleSenderAlign } from './prop-text-wireup-align.js';
 import { NOT_HIDDEN_VARIATION } from '../variation-visibility.js';   /* 숨긴 A/B 시안은 세지 않는다 — export-image.js exportableSections 와 같은 셈 */
 import { applyCanvasBackground } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) */
@@ -327,11 +328,7 @@ export function showPageProperties() {
 `,
     sections: [
       sec('layout', `
-      <div class="prop-row">
-        <span class="prop-label">섹션 간격</span>
-        <input type="range" class="prop-slider" id="section-gap-slider" min="0" max="200" step="1" value="${gap}">
-        <input type="number" class="prop-number" id="section-gap-number" min="0" max="200" value="${gap}">
-      </div>
+      ${layoutGapSlotHTML({ id: 'section-gap-number', value: gap, max: 200 })}   <!-- ★표준 Layout(현빈 261124 L-4/7 · C3) — 섹션 간격 · 옛 슬라이더 걷음 · id·범위 무변 -->
       <!-- 「Background」 안내 절은 제거했다(현빈 2026-09-05) — 캔버스 바탕색은 왼쪽 Design System 패널. -->
       <div style="opacity:var(--ui-disabled-opacity);pointer-events:none;" title="잘못 누르는 사고 방지로 일시 비활성 — 필요 시 prop-page.js에서 복구">
       <span class="prop-field-label">Bulk Align (비활성)</span>
@@ -357,16 +354,7 @@ export function showPageProperties() {
       </div>
       </div>`),
       sec('padding', `
-      <div class="prop-row">
-        <span class="prop-label">좌우패딩</span>
-        <input type="range" class="prop-slider" id="page-padx-slider" min="0" max="200" step="1" value="${padX}">
-        <input type="number" class="prop-number" id="page-padx-number" min="0" max="200" value="${padX}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">상하패딩</span>
-        <input type="range" class="prop-slider" id="page-pady-slider" min="0" max="200" step="1" value="${padY}">
-        <input type="number" class="prop-number" id="page-pady-number" min="0" max="200" value="${padY}">
-      </div>
+      ${layoutPadSlotHTML({ xId: 'page-padx-number', yId: 'page-pady-number', x: padX, y: padY, max: 200 })}   <!-- ★표준 Layout 패딩 슬롯(C3) — 옛 슬라이더 둘 걷음 · id·범위 무변 -->
       <div class="prop-row">
         ${checkHTML({ id: 'page-padx-asset', label: '에셋블록 제외', checked: padXExcludesAsset })}   <!-- 현빈 261123 «온/오프 = 체크» -->
       </div>
@@ -447,26 +435,7 @@ export function showPageProperties() {
   });
 
 
-  const gapSlider = document.getElementById('section-gap-slider');
-  const gapNumber = document.getElementById('section-gap-number');
-  gapSlider.addEventListener('mousedown', () => window.pushHistory?.());
-  gapSlider.addEventListener('input', () => {
-    state.pageSettings.gap = parseInt(gapSlider.value);
-    canvasEl.style.gap = state.pageSettings.gap + 'px';
-    gapNumber.value = state.pageSettings.gap;
-  });
-  gapSlider.addEventListener('change', () => window.pushHistory?.());   // 끝 표본(mousedown 은 시작 표본)
-  gapSlider.addEventListener('change', () => window.scheduleAutoSave?.());
-  gapNumber.addEventListener('input', () => {
-    const v = Math.min(200, Math.max(0, parseInt(gapNumber.value) || 0));
-    state.pageSettings.gap = v;
-    canvasEl.style.gap = v + 'px';
-    gapSlider.value = v;
-  });
-  gapNumber.addEventListener('change', () => {
-    window.pushHistory?.();
-    window.scheduleAutoSave?.();
-  });
+  wireLayoutSection({ w: { numberId: 'section-gap-number', max: 200, apply: (v) => { state.pageSettings.gap = v; canvasEl.style.gap = v + 'px'; } } });   // commit = pushHistory + autoSave(옛 숫자 칸 그대로)
 
   /* ── 그리드 가이드 (편집 보조) ────────────────────────────────────────
      ★★DOM 도 인라인 스타일도 «안» 건드린다 — 고디터는 캔버스 DOM 을 그대로 직렬화해 저장하므로
@@ -615,8 +584,6 @@ export function showPageProperties() {
     refreshGrid();
   }
 
-  const padxSlider = document.getElementById('page-padx-slider');
-  const padxNumber = document.getElementById('page-padx-number');
   const padxAsset  = document.getElementById('page-padx-asset');
 
   const applyPadX = (v) => {
@@ -625,15 +592,7 @@ export function showPageProperties() {
     window.__gdtRefreshGrid?.();   /* ★그리드는 «패딩 안쪽»에 그려진다 — 같이 다시 재야 한다 */
   };
 
-  padxSlider.addEventListener('mousedown', () => window.pushHistory?.());
-  padxSlider.addEventListener('input', () => { applyPadX(parseInt(padxSlider.value)); padxNumber.value = padxSlider.value; });
-  padxSlider.addEventListener('change', () => window.pushHistory?.());   // 끝 표본(mousedown 은 시작 표본)
-  padxSlider.addEventListener('change', () => window.scheduleAutoSave?.());
-  padxNumber.addEventListener('input', () => { const v = Math.min(200, Math.max(0, parseInt(padxNumber.value)||0)); applyPadX(v); padxSlider.value = v; });
-  padxNumber.addEventListener('change', () => {
-    window.pushHistory?.();
-    window.scheduleAutoSave?.();
-  });
+  wireLayoutSection({ w: { numberId: 'page-padx-number', max: 200, apply: applyPadX } });
 
   padxAsset.addEventListener('change', e => {
     window.pushHistory?.();
@@ -652,17 +611,7 @@ export function showPageProperties() {
     state.pageSettings.padY = v;
     canvasEl.style.setProperty('--page-pady', v + 'px');
   };
-  const padySlider = document.getElementById('page-pady-slider');
-  const padyNumber = document.getElementById('page-pady-number');
-  padySlider.addEventListener('mousedown', () => window.pushHistory?.());
-  padySlider.addEventListener('input', () => { applyPadY(parseInt(padySlider.value)); padyNumber.value = padySlider.value; });
-  padySlider.addEventListener('change', () => window.pushHistory?.());   // 끝 표본(mousedown 은 시작 표본)
-  padySlider.addEventListener('change', () => window.scheduleAutoSave?.());
-  padyNumber.addEventListener('input', () => { const v = Math.min(200, Math.max(0, parseInt(padyNumber.value)||0)); applyPadY(v); padySlider.value = v; });
-  padyNumber.addEventListener('change', () => {
-    window.pushHistory?.();
-    window.scheduleAutoSave?.();
-  });
+  wireLayoutSection({ w: { numberId: 'page-pady-number', max: 200, apply: applyPadY } });
 
   ['left','center','right'].forEach(align => {
     const btn = document.getElementById(`page-align-${align}`);
