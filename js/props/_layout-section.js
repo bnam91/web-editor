@@ -130,8 +130,11 @@ export function layoutSlotNumberHTML({ id, label, value, min = 0, max, step = 1,
 export function wireLayoutSection({ w, h, chain = null, commit } = {}) {
   const done = commit || (() => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
   const axes = [w, h].filter(Boolean).map((a) => ({ ...a, min: a.min ?? 0, n: document.getElementById(a.numberId) })).filter((a) => a.n);
+  /* 편집 전 값 = read()(블럭이 진실) · read 없는 축은 «마지막으로 먹은 값»(last) — 첫 input 때 칸은 이미 새 값(빈 칸이면 '')이라 칸에서 재면 틀린다(C1 261125) */
+  for (const a of axes) { a.last = parseFloat(a.n.value); a.dirty = false; }
   let on = !!chain?.on, start = null, stopped = false;
-  const val = (a) => (a.read ? a.read() : parseFloat(a.n.value));
+  const val = (a) => (a.read ? a.read() : a.last);
+  const put = (a, v) => { a.apply(v); a.dirty = true; };
   const lim = (a, v) => Math.min(a.max, Math.max(a.min, v));   // 축마다 제 범위(패딩 x/y 가 다를 수 있다)
   const num = (a, raw) => (a.step % 1 ? parseFloat(raw) : parseInt(raw, 10));   // 소수 눈금(step 0.1 등) 칸만 소수
   const blockedWhy = () => chain?.blocked?.() || null;
@@ -139,25 +142,31 @@ export function wireLayoutSection({ w, h, chain = null, commit } = {}) {
   const follow = (a, v) => {
     const i = axes.indexOf(a), o = axes[1 - i];
     if (!on || stopped || !o || o.n.disabled || !(start[i] > 0)) return;
+    if (!Number.isFinite(start[1 - i])) return;   // 짝이 Mixed(값 없음)면 비율이 없다
     const ov = lim(o, Math.round(v * start[1 - i] / start[i]));
-    o.apply(ov); o.n.value = ov;
+    put(o, ov); o.n.value = ov;
   };
   for (const a of axes) {
     a.n.addEventListener('input', () => {
       begin();
       const v = num(a, a.n.value);
       if (!Number.isFinite(v) || v < a.min || v > a.max) return;   // 치는 중(범위 밖·빈 칸)은 안 그림 — change 가 자른다
-      a.apply(v); follow(a, v);
+      put(a, v); follow(a, v);
     });
     a.n.addEventListener('change', () => {
       begin();
       const raw = num(a, a.n.value), s = start; start = null;
-      if (!Number.isFinite(raw)) {   // 값 없음 = 아무 일도 없었다(되돌림 · 이력 0)
-        axes.forEach((x, i) => { if (val(x) !== s[i]) x.apply(s[i]); x.n.value = s[i]; });
+      if (!Number.isFinite(raw)) {   // 값 없음 = 아무 일도 없었다(되돌림 · 이력 0) · ⛔NaN 은 절대 apply 안 함
+        axes.forEach((x, i) => {
+          const ok = Number.isFinite(s[i]);
+          if (ok && (x.read ? x.read() !== s[i] : x.dirty)) x.apply(s[i]);
+          x.n.value = ok ? s[i] : ''; x.dirty = false;
+        });
         return;
       }
       const v = lim(a, raw);
-      a.apply(v); a.n.value = v; start = s; follow(a, v); start = null;
+      put(a, v); a.n.value = v; start = s; follow(a, v); start = null;
+      for (const x of axes) { const nv = parseFloat(x.n.value); if (Number.isFinite(nv)) x.last = nv; x.dirty = false; }   // 먹은 값 = 다음 편집의 «전 값»(끌기 끝도 change 라 같은 길)
       refresh(); done();
     });
     wireNumberScrub(document.getElementById(`${a.numberId}-scrub`), a.n, { min: a.min, max: a.max });
