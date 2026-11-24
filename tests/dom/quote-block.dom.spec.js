@@ -1874,7 +1874,8 @@ test('Q21 ★1012t1H 패널 꼴 — 인용구 패널 (H6: 블럭 넣기 select 0
   /* ⑵ H5 — 글자색 = Typography 바로 다음의 Fill 절(텍스트블럭과 같은 자리 · 같은 라벨) */
   const iq = pn.secs.indexOf('typography');
   expect(iq, `★전제 — Typography 절이 있다. 잰 절 ${JSON.stringify(pn.secs)}`).toBeGreaterThanOrEqual(0);
-  expect(pn.secs[iq + 1], `★H5 — Fill 이 Typography 바로 다음이다. 잰 절 ${JSON.stringify(pn.secs)}`).toBe('fill');
+  /* ★기대 바뀜(P-2 SECTION_ORDER v1 · 탑 통합 261125): Fill 은 Stroke·Appearance 앞 → Typography «앞» (텍스트블럭과 같은 자리 그대로) */
+  expect(pn.secs.slice(pn.secs.indexOf('fill'), iq + 1), `★H5 — Fill → Stroke → Appearance → Typography(v1). 잰 절 ${JSON.stringify(pn.secs)}`).toEqual(['fill', 'stroke', 'appearance', 'typography']);
   /* ★U2(right-panel-unify) 의도 갱신 — 「부호 색」이 옛 「인용구(쉼표)」 절에서 Fill 로 왔다(OWNERSHIP: 색 = fill). 글자색이 «먼저». */
   expect(pn.fill, `★H5 — Fill 절 안 라벨은 「글자색」·「부호 색」, 글자색 칸과 .prop-color-row 가 있다. 잰 값 ${JSON.stringify(pn.fill)}`)
     .toEqual({ labels: ['글자색', '부호 색'], hasColor: true, colorRow: true });

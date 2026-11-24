@@ -455,6 +455,9 @@ ft-restore-remeasures-at-other-width.dom.spec.js:112 X0   빨강 1/1 (u6m 전수
 - `itb-photo-upload-door.dom.spec.js:121 U1` — 수지 합친 판 표적 651abaee6(5443 · 1 워커) 빨강 1/1 · 단독 ×3 0/3(651abaee6)
 - `sec-asset-url-card-noop.dom.spec.js:89 U3` — 수지 합친 판 표적 651abaee6(5443 · 1 워커) 빨강 1/1 · 단독 ×3 0/3(651abaee6)
 - `slide-fb.dom.spec.js:57 F1b` — 수지 합친 판 표적 651abaee6(5443 · 1 워커) 빨강 1/1 · 단독 ×3 0/3(651abaee6)
+- `ial-0913b.dom.spec.js:54 I2` — 수지 2차 합친 판 표적 7250496e2 빨강 1/1 · srv 단독 ×3 0/3(2aec0dbe9)
+- `t13d-02-grid-handles-on-create.dom.spec.js:17 A1(수지 두 번 빨강 · srv 늘 초록 — 기계 몫 의심)` — 수지 2차 합친 판 표적 7250496e2 빨강 1/1 · srv 단독 ×3 0/3(2aec0dbe9)
+- `w2c-1020t2.dom.spec.js:306 F4b` — srv 꼬리 빨강 1/1 · 다시 0/1(2aec0dbe9)
 ## 2026-11-23 · 통일판 2맥(아이맥·수지) 전수 — 이름 ＋ 수 (⛔원인 라벨 없이)
 - `t13d-02-grid-handles-on-create.dom.spec.js:17` A1 — 2맥(아이맥·수지) 전수(f7bda8bd8) 1/1 빨강 · 앞 판 7b69bcbd5 전수(수지 샤드) 1/1 빨강 · f7bda8bd8 수지 단독 workers 1 ×3 0/3.
 
