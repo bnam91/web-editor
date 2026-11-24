@@ -8,8 +8,8 @@
  * ⛔새 배선을 짓지 않는다 — 떠 있기·X/Y·정렬·회전은 지금 wireFloatToggle·wireFloatPosition·wireFloatAlign·wireRotRow 그대로. 이 파일은 슬라이드 토글·슬라이더만 잇는다.
  * ⛔저장 키·옛 id 무변(어댑터 = 블럭 패널이 지금 쓰는 id 를 그대로 넘긴다).
  */
-import { overlayToggleBtnHTML, rotRowHTML } from './_helpers.js';
-import { floatPositionRowHTML, POS_FLOW_WHY } from '../overlay-float.js';
+import { overlayToggleBtnHTML, rotRowHTML, POS_FLOW_WHY } from './_helpers.js';
+import { floatPositionRowHTML } from '../overlay-float.js';
 export { POS_FLOW_WHY };
 
 export const ROT_SLIDE_KEY = 'goditor.rotSlideMode';

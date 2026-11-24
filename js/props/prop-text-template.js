@@ -1,6 +1,6 @@
 // HTML template extracted from prop-text.js (Phase 2 refactor)
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
-import { overlayToggleBtnHTML, blockHeaderHTML, sliderRowHTML, rotRowHTML, floatAlignRowHTML } from './_helpers.js';
+import { overlayToggleBtnHTML, blockHeaderHTML, sliderRowHTML, rotRowHTML, floatAlignRowHTML, flowAlignDisabledHTML, POS_FLOW_WHY } from './_helpers.js';
 import { sec, buildPanelHTML } from './_panel-frame.js';
 import { strokeSectionHTML, strokeHeadToolsHTML, STROKE_POP_WHY } from './_stroke-section.js';
 import { sectionOrderFor, sectionRank } from './_section-spec.js';
@@ -370,18 +370,18 @@ export function buildTextPanelSpec(state) {
       </div>`, { id: 'type-section' }),
       sec('content', _bulletSec + _loremSec, { id: _bulletSec ? 'bullet-style-section' : undefined }),   /* 병합(탑 261122): dev 더미 글(_loremSec) 절 유지 · 불릿이면 옛 id 그대로 */
       /* ★2026-09-16g(T-001) — Ignore Auto Layout 토글은 Position «절 머리» 오른쪽 끝(Figma). id·배선 그대로 — 자리 = headTools. */
-      sec('position', `${isOverlayBlock ? floatAlignRowHTML() : (window.OverlayFloat?.flowAlignDisabledHTML?.() || '')}${/* ★현빈 261123 S1-4② — 떠 있는 글자도 같은 6칸(같은 부품 · 시안 8910 floatalign) · 배선 = prop-text-wireup-position.js → overlay-float wireFloatAlign */ ''}
+      sec('position', `${isOverlayBlock ? floatAlignRowHTML() : flowAlignDisabledHTML()}${/* ★현빈 261123 S1-4② — 떠 있는 글자도 같은 6칸(같은 부품 · 시안 8910 floatalign) · 배선 = prop-text-wireup-position.js → overlay-float wireFloatAlign */ ''}
       <div class="prop-lhls-row">
         <div class="prop-lhls-col">
           <div class="prop-icon-input">
             <span class="prop-xy-label">X</span>
-            <input type="number" id="txt-x-number" value="${isOverlayBlock ? currentX : ''}" aria-label="X position"${isOverlayBlock ? '' : ` disabled aria-disabled="true" title="${window.OverlayFloat?.POS_FLOW_WHY || ''}"`}>
+            <input type="number" id="txt-x-number" value="${isOverlayBlock ? currentX : ''}" aria-label="X position"${isOverlayBlock ? '' : ` disabled aria-disabled="true" title="${POS_FLOW_WHY}"`}>
           </div>
         </div>
         <div class="prop-lhls-col">
           <div class="prop-icon-input">
             <span class="prop-xy-label">Y</span>
-            <input type="number" id="txt-y-number" value="${isOverlayBlock ? currentY : ''}" aria-label="Y position"${isOverlayBlock ? '' : ` disabled aria-disabled="true" title="${window.OverlayFloat?.POS_FLOW_WHY || ''}"`}>
+            <input type="number" id="txt-y-number" value="${isOverlayBlock ? currentY : ''}" aria-label="Y position"${isOverlayBlock ? '' : ` disabled aria-disabled="true" title="${POS_FLOW_WHY}"`}>
           </div>
         </div>
       </div>

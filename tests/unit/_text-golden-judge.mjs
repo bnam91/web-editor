@@ -46,7 +46,7 @@ function load(files, { mutate } = {}) {
   return ctx.__T.buildTextPropsHtml;
 }
 const SHARED = ['js/props/text-type-class.js', 'js/effects-registry.js'];
-const NOW = ['js/props/prop-text-utils.js', 'js/props/_helpers.js', 'js/props/_section-spec.js', 'js/props/_panel-frame.js', 'js/props/_typo-section.js', ...SHARED, 'js/props/prop-text-template.js'];
+const NOW = ['js/props/prop-text-utils.js', 'js/props/_helpers.js', 'js/props/_section-spec.js', 'js/props/_panel-frame.js', 'js/props/_typo-section.js', 'js/props/_stroke-section.js', ...SHARED, 'js/props/prop-text-template.js'];   // _stroke-section = 태양 표준 Stroke(텍스트 strokeSection 이 부른다 · _text-template-harness.js 와 같게 · 261124 판정기가 «strokeSectionHTML is not defined»)
 const OLD = ['js/props/prop-text-utils.js', 'js/props/_helpers.js', 'js/props/_typo-section.js', ...SHARED, 'js/props/prop-text-template.js'];
 const OLD_FROM_BASE = new Set(['js/props/prop-text-utils.js', 'js/props/_helpers.js', 'js/props/_typo-section.js', 'js/props/prop-text-template.js']);
 const nowFiles = () => NOW.map((r) => [r, readNow(r)]);
@@ -223,13 +223,18 @@ const PH_OK = new Set(['', '자동', '상속', 'Mix', '없음', 'auto']);   /* a
 /* 2749254f8 Tag Style «Oval» 단추(label·label+circle 상태) — origin/dev 9a724fb78 에서 이 판정이 이미 빨강이었다(태양 261121 실측 · 골든 2벌은 plain·liner 라 그 단추 0) · 같은 꼴로 한 줄. */
 const FEATURE_ADDED = [{ ticket: 'LABEL-OVAL(2749254f8)', n: 1, isCtl: (t) => /id="label-shape-oval"/.test(t), label: null, id: /^label-shape-oval$/ },
   /* ★기대 바뀜(t13E-08·09 2차 · 현빈 확정 261123): 개수 = 슬라이더+숫자(공용 sliderRowHTML) ⇒ range 1 더해 10 · 줄 라벨 «개수» 하나 더 · id txt-lorem-count-slider 하나 더(같은 txt-lorem- 꼴) · option 정규식 = 통일판(dev)의 in="txt-lorem-…" 꼴 그대로(train/0913-a 충돌 풂) */
+  /* ★기대 바뀜(표준 Position P2 · 0.9.14 73행 · 현빈 6-2 확정 261124): 흐름 안 글 = 부모 기준 정렬 6칸을 disabled 로 보인다(숨김 아님) + 윗줄 «Alignment» — 흐름 상태에서만 6(떠 있으면 0 = S1-4 그대로 · 아래 PS_P2_XY 와 짝) */
+  { ticket: 'POSITION-STD-P2', n: 6, isCtl: (t) => /^<button disabled aria-disabled="true" title="흐름 안 블럭은[^"]*" class="prop-align-btn" type="button" data-float-align="[lcrtmb]"/.test(t), label: ['Alignment'], id: /^$/ },
   { ticket: 'TEXT-LOREM-FILL-01', n: 10, isCtl: (t) => /id="txt-lorem-/.test(t) || /^<option value="(word|sentence|paragraph|en|ko)"( selected)?( in="txt-lorem-[a-z]+")?>$/.test(t), label: ['더미 글', '개수'], id: /^txt-lorem-/ }];
 
+/* ★표준 Position P2(6-2) — 흐름 상태(새 산출에 data-float-align-row="flow")에서만: 옛 X/Y 칸(값 있음) → 같은 id 의 disabled · 값 비움 · 툴팁(숨김 아님) */
+const PS_P2_XY = (t) => t.replace(/^<input type="number" id="txt-([xy])-number" value="[^"]*" aria-label="([XY]) position">$/, '<input type="number" id="txt-$1-number" value="" aria-label="$2 position" disabled aria-disabled="true" title="흐름 안 블럭은 자리가 흐름으로 정해져요 — 괄호 단추(Ignore Auto Layout)를 켜면 써요">');
 function judge(name, st, oldHtml, newHtml) {
   const bad = [];
+  const flowNow = /data-float-align-row="flow"/.test(newHtml);
   const o = stripOldHidden(parse(oldHtml), st), nm = panelModel(newHtml), n = nm.root;
   /* ⑫ 매핑 교정 — 말풍선이면 Bubble 만 켜짐: 옛 판이 함께 켜던 Body(내용 칸 클래스 기준)는 꺼진 것이 맞다 */
-  const oc = ctl(o).map((t) => RENAME.reduce((s, [a, b]) => s.replace(a, b), t)).map((t) => (name === 'bubble' ? t.replace(/^<button class="prop-type-btn active" (data-cls="tb-[a-z0-9]+")>$/, '<button class="prop-type-btn " $1>') : t)).filter((t) => !CTL_DROPPED.some((r) => r.test(t))), nc0 = ctl(n);
+  const oc = ctl(o).map((t) => RENAME.reduce((s, [a, b]) => s.replace(a, b), t)).map((t) => (flowNow ? PS_P2_XY(t) : t)).map((t) => (name === 'bubble' ? t.replace(/^<button class="prop-type-btn active" (data-cls="tb-[a-z0-9]+")>$/, '<button class="prop-type-btn " $1>') : t)).filter((t) => !CTL_DROPPED.some((r) => r.test(t))), nc0 = ctl(n);
   /* 병합(탑 261122): dev 쪽 «기능으로 더한 컨트롤»(FEATURE_ADDED — 더미 글 · Tag Oval)을 정확한 개수로 걷고 나서 저쪽(재설계) 규칙으로 잰다 */
   let nc = nc0, featLabels = [], featHit = [];
   for (const f of FEATURE_ADDED) {

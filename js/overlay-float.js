@@ -933,23 +933,10 @@ export function wireFloatPosition({ block, xId, yId }) {
    떠 있지 않을 때는 아예 내지 않는다(오토레이아웃에서는 좌표가 뜻이 없다). */
 /* ★표준 Position 6-2(현빈 확정 261124 · 0.9.14 73행 P2) — 흐름 안 블럭 = 정렬 6·X/Y 를 «같은 id 로 disabled + 툴팁»(숨김 아님). 소비자 전부가 이 함수 한 곳을 지난다.
    flowAlign false = 그 블럭엔 흐름용 정렬이 따로 산다(에셋 가로 3칸 · S1-4) → 부모 기준 6칸(disabled)은 안 그린다. */
-export const POS_FLOW_WHY = '흐름 안 블럭은 자리가 흐름으로 정해져요 — 괄호 단추(Ignore Auto Layout)를 켜면 써요';
-export function flowAlignDisabledHTML() {
-  const dis = ` disabled aria-disabled="true" title="${POS_FLOW_WHY}"`;
-  return ((typeof window !== 'undefined' && window.floatAlignRowHTML?.()) || '').replace(/<button /g, `<button${dis} `).replace('data-float-align-row="parent"', `data-float-align-row="flow" title="${POS_FLOW_WHY}"`);
-}
-function _flowXYHTML(prefix) {
-  const dis = ` disabled aria-disabled="true" title="${POS_FLOW_WHY}"`;
-  return `
-      <span class="prop-field-label">X / Y</span>
-      <div class="prop-lhls-row" data-pos-flow="1" title="${POS_FLOW_WHY}">
-        <div class="prop-lhls-col"><div class="prop-icon-input"><span class="prop-xy-label">X</span><input type="number" id="${prefix}-x-number" value="" aria-label="X position"${dis}></div></div>
-        <div class="prop-lhls-col"><div class="prop-icon-input"><span class="prop-xy-label">Y</span><input type="number" id="${prefix}-y-number" value="" aria-label="Y position"${dis}></div></div>
-      </div>`;
-}
+const _flowWhy = () => (typeof window !== 'undefined' && window.POS_FLOW_WHY) || '';   // 글 한 벌 = _helpers.js POS_FLOW_WHY(이 파일은 순수 모듈만 import → window)
 export function floatPositionRowHTML({ prefix, posEl, flowAlign = true }) {
   if (!posEl) return '';
-  if (posEl.dataset.overlayBlock !== 'true') return (flowAlign ? flowAlignDisabledHTML() : '') + _flowXYHTML(prefix);
+  if (posEl.dataset.overlayBlock !== 'true') return (flowAlign ? ((typeof window !== 'undefined' && window.flowAlignDisabledHTML?.()) || '') : '') + _flowXYHTML(prefix);
   const x = parseInt(posEl.dataset.offsetX) || 0;
   const y = parseInt(posEl.dataset.offsetY) || 0;
   /* 윗줄 라벨 = 「X / Y」 — ⛔「Position」 이면 틀의 Position 절 제목을 되풀이한다(panel-section-gate 라벨=제목 0).
@@ -974,10 +961,20 @@ export function floatPositionRowHTML({ prefix, posEl, flowAlign = true }) {
       </div>`;
 }
 
+/* 흐름 안 X/Y(disabled) — floatPositionRowHTML «아래»에 둔다: panel-label-dup N1 변이(첫 «X / Y» 라벨 → «Position»)가 떠 있는 줄을 집게(함수 선언은 끌어올려진다) */
+function _flowXYHTML(prefix) {
+  const why = _flowWhy(), dis = ` disabled aria-disabled="true" title="${why}"`;
+  return `
+      <span class="prop-field-label">X / Y</span>
+      <div class="prop-lhls-row" data-pos-flow="1" title="${why}">
+        <div class="prop-lhls-col"><div class="prop-icon-input"><span class="prop-xy-label">X</span><input type="number" id="${prefix}-x-number" value="" aria-label="X position"${dis}></div></div>
+        <div class="prop-lhls-col"><div class="prop-icon-input"><span class="prop-xy-label">Y</span><input type="number" id="${prefix}-y-number" value="" aria-label="Y position"${dis}></div></div>
+      </div>`;
+}
 /* classic script / 타 모듈용 전역 — 이름은 «옛 이름 그대로» 유지한다(block-drag.js 가 부른다). */
 if (typeof window !== 'undefined') {
   window._bindOverlayMoveDrag = bindFloatMoveDrag;
-  window.OverlayFloat = { posElOf, isFloat, floatHostOf, rehomeStrayFloat, enterFloat, exitFloat, bindFloatMoveDrag, wireFloatToggle, wireFloatPosition, wireFloatAlign, floatPositionRowHTML, flowAlignDisabledHTML, POS_FLOW_WHY };
+  window.OverlayFloat = { posElOf, isFloat, floatHostOf, rehomeStrayFloat, enterFloat, exitFloat, bindFloatMoveDrag, wireFloatToggle, wireFloatPosition, wireFloatAlign, floatPositionRowHTML };
   /* ★1020t2f3 — 스티커 끌기(classic script js/sticker-select.js)가 오버레이와 «같은 탄성 곡선»을 쓰게 낸다.
      ⛔사본을 만들지 않는다 — 곡선이 둘이면 손맛이 조용히 갈라진다(T-068 이 이동·크기조절을 한 벌로 묶은 까닭과 같다). */
   window.OverlayFloat.elastic = { clamp: _elasticClampToSection, axisInverse: _elasticAxisInverse, zoneScreenPx: OVERLAY_RESIST_ZONE_SCREEN_PX };

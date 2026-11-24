@@ -209,7 +209,8 @@ test('T9 ★도형·에셋 패널에도 오버레이 X/Y 두 칸이 있고, 동�
   assert.match(SRC.float, /export function floatPositionRowHTML/, '좌표칸 마크업 SSOT 가 없다');
   assert.match(SRC.float, /export function wireFloatPosition/, '좌표칸 배선 SSOT 가 없다');
   for (const k of ['shape', 'asset']) {
-    assert.match(SRC[k], /floatPositionRowHTML\(\{ prefix: '(shape|asset)', posEl: floatPosEl \}\)/,
+    /* ★2026-11-24 기대 바뀜 — 표준 Position P2(0.9.14 73행): 에셋은 flowAlign:false(흐름용 가로 3칸이 따로 산다) 인자를 더 넘긴다 */
+    assert.match(SRC[k], /floatPositionRowHTML\(\{ prefix: '(shape|asset)', posEl: floatPosEl(, flowAlign: false)? \}\)/,
       `${k} 패널이 오버레이 좌표칸을 안 낸다 — 도형·에셋은 드래그로만 자리를 잡을 수 있다`);
     assert.match(SRC[k], /wireFloatPosition\(\{ block/, `${k} 패널이 좌표칸을 안 배선한다`);
   }
