@@ -27,9 +27,12 @@ export function sec(key, html, { title, headTools = '', id } = {}) {
  *  Q2 Type 띠: kind 절은 머리 없이 블록 이름표 바로 아래 띠(이름표 상자 안). data-sec="kind" · id · 몸 id 는 그대로(배선·시험이 #id 로 잰다).
  *  Q1 Layout 묶음: size · layout · padding 은 머리 «Layout» 하나 아래 몸 여럿(패널 순서 그대로). 몸마다 data-sec(key) · 옛 몸 id 그대로.
  *    작은 제목 «Size» · «Padding» 은 둘 이상 묶일 때만 · layout 몸은 작은 제목 없음(시안 v10 실측 — PLAN «시안 v10 실측표»).
+ *    표준 Layout 부품 몸(data-part="layout")은 작은 제목 대신 부품 안 작은 라벨 줄(PLAN-appearance-layout-std-261124 §7-2 · L1).
  *  key · SECTION_ORDER · OWNERSHIP 은 안 바뀐다 — 게이트(tests/dom/_panel-sections.js)는 묶음 안 몸을 절 하나로 읽는다. */
 export const LAYOUT_GROUP = Object.freeze(['size', 'layout', 'padding']);
 const GROUP_SUB = Object.freeze({ size: 'Size', padding: 'Padding' });
+/* 표준 Layout 부품(_layout-section.js · L1)을 쓰는 몸은 FigCraft 작은 라벨 줄(Width | Height · Padding · Gap)을 제 안에 갖는다 → 작은 제목을 또 안 단다(몸 id·key 무변 · 옛 몸은 그대로) */
+const _ownsLabels = (html) => String(html).includes('data-part="layout"');
 
 /** 절 목록 → 패널 HTML(순수 함수 — 유닛 시험이 이걸 본다). */
 export function buildPanelHTML({ header = '', sections = [], panel = '' } = {}) {   // panel = _section-spec SECTION_ORDER_EXCEPT 의 이름(없으면 전역 순서)
@@ -68,7 +71,7 @@ export function buildPanelHTML({ header = '', sections = [], panel = '' } = {}) 
       /* 겉 = 머리 하나(data-sec 없음 · data-sec-group) · 몸 = 옛 절 그대로의 .prop-section[data-sec](id · 몸 id · data-sec-state) — closest('.prop-section[data-sec]') 이 key 를 그대로 준다 */
       out.push(`
     <div class="prop-section prop-sec-group" data-sec-group="${group.map((g) => g.key).join(' ')}"${ord} id="${s.id}-group">${head(s.id, SECTION_TITLE.layout, group.map((g) => g.headTools).join(''))}${group.map((g) => `
-      <div class="prop-section prop-sec-part" data-sec="${g.key}" data-sec-state="${g.stKey}" data-title="${g.title}"${ord} id="${g.id}">${multi && GROUP_SUB[g.key] ? `
+      <div class="prop-section prop-sec-part" data-sec="${g.key}" data-sec-state="${g.stKey}" data-title="${g.title}"${ord} id="${g.id}">${multi && GROUP_SUB[g.key] && !_ownsLabels(g.html) ? `
       <div class="prop-sec-sub-row"><span class="prop-field-label prop-sec-sub">${GROUP_SUB[g.key]}</span></div>` : ''}
       <div class="prop-sec-body" id="${g.id}-body">${g.html}
       </div>
