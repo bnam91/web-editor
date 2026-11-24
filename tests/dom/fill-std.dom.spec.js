@@ -332,3 +332,17 @@ test('D16 laurel — 일괄 색 = 표준 줄 · − 막힘(잎이 안 보임) ·
   expect(r, '★일괄 색 = 겹 줄 · − 막힘 까닭 · 프리셋 = 슬롯').toEqual({ inLayer: true, rm: 'true', why: '잎이 안 보이게 되는 길이라 지금은 못 지워요', preset: true });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* F5-1b — iconify: 아이콘 색 = 표준 줄(− 막힘 = 아이콘이 안 보임) · «채움/선»(Material Symbols) = 슬롯(ms-fill) · 이미지 아이콘 = 옛 까닭 줄(막힘)
+ * D17 아이콘 색 = 겹 줄 · 옛 id icn-color-* · − 막힘 까닭 · «채움/선» 무리가 있으면 슬롯 안 */
+test('D17 iconify — 아이콘 색 = 표준 줄 · − 막힘 · 채움/선 = 슬롯', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); const sec = await window.addSection(); window.deselectAll(); window.selectSection(sec); window.addIconifyBlock(); const b = [...sec.querySelectorAll('.icon-block')].pop(); window.selectBlock?.(b.id); window.showIconifyProperties(b); });
+  await page.waitForSelector('#icn-color-color', { state: 'attached' });
+  const r = await page.evaluate(() => { const g = document.getElementById('icn-ms-fill-group');
+    return { inLayer: ['icn-color-color', 'icn-color-hex', 'icn-color-alpha'].every((i) => !!document.querySelector('.ui-fill-layer #' + i)), rm: document.getElementById('icn-fill-remove')?.getAttribute('aria-disabled'), why: document.getElementById('icn-fill-remove')?.title,
+      msOk: !g || !!g.closest('.ui-fill-slot[data-slot-kind="ms-fill"]') }; });
+  expect(r, '★아이콘 색 = 겹 줄 · − 막힘 까닭 · 채움/선 = 슬롯').toEqual({ inLayer: true, rm: 'true', why: '아이콘이 안 보이게 되는 길이라 지금은 못 지워요', msOk: true });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
