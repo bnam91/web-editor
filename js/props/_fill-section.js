@@ -101,7 +101,8 @@ export const FILL_KINDS = [
   { kind: 'frame', match: (b) => b.classList.contains('frame-block') && !b.dataset.textFrame && !b.dataset.group && !b.dataset.bannerPreset && !b.querySelector(':scope > .shape-block'),
     get: (b) => b.dataset.bg || '', solid: (b) => !_grad(b.dataset.bg),
     paint: (b, c) => { b.style.backgroundImage = ''; b.style.backgroundColor = c; b.dataset.bg = c; window.syncFrameBgVars?.(b); } },
-  { kind: 'asset', match: (b) => b.classList.contains('asset-block'), get: (b) => b.dataset.bgColor || '#a0a0a0', solid: (b) => !_grad(b.dataset.bgColor),
+  /* 74행 곁 — 에셋 get: 키 없음 = '' = 칠 없음(단일 패널 fillOn 과 같은 규칙 · 옛: '#a0a0a0' 로 셈) */
+  { kind: 'asset', match: (b) => b.classList.contains('asset-block'), get: (b) => b.dataset.bgColor || '', solid: (b) => !_grad(b.dataset.bgColor),
     paint: (b, c) => { b.style.background = ''; b.dataset.bgColor = c; b.style.backgroundColor = c; } },
   { kind: 'icon-circle', match: (b) => b.classList.contains('icon-circle-block'), get: (b) => b.dataset.bgColor || '', solid: () => true,
     paint: (b, c) => { b.dataset.bgColor = c; const ci = b.querySelector('.icb-circle'); if (ci) ci.style.backgroundColor = c; } },

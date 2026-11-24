@@ -977,3 +977,30 @@ test('D39 새 에셋(키 없음) 패널 = 칠 없음 · ＋ 로 더하면 켬 ·
   expect([b0.empty, b0.add], '[지킴] 색 지정 에셋 = 켬').toEqual([false, false]);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* 74행 곁(지디 261125) — D40 «두 길 같은 결과»: 키 없는 에셋 = 단일 패널 «칠 없음» ⇔ 여러 고름도 «칠 없음»(옛: 여러 고름은 #a0a0a0 색으로 셈)
+ *   ★키 없는 에셋 둘 = 여러 고름 Fill «칠 없음»(.ui-fill[data-empty]) · 색 칸 없음 · 단일 패널도 «칠 없음» · ★키 없음 + 색 = Mix · [지킴] 색 둘 같음 = 그 색
+ * 양성대조: 고치기 전 판(cf680cce1) 에서 D40 빨강 */
+test('D40 여러 고름 Fill — 키 없는 에셋 = 단일 패널과 같은 «칠 없음» · 섞이면 Mix · [지킴] 같은 색', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const ids = await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    const sec = await window.addSection(); const out = [];
+    for (let i = 0; i < 3; i++) { window.deselectAll(); window.selectSection(sec); const before = new Set(sec.querySelectorAll('.asset-block')); await window.addAssetBlock(); out.push([...sec.querySelectorAll('.asset-block')].find((x) => !before.has(x)).id); }
+    return out; });
+  const open = (sel) => page.evaluate((sel) => { window.deselectAll(); sel.forEach((id) => document.getElementById(id).classList.add('selected')); window.showFlowMultiSelPanel(); }, sel);
+  const ui = () => page.evaluate(() => { const f = document.querySelector('#panel-right .prop-section[data-sec="fill"]'), part = f?.querySelector('[data-part="fill"]'), hx = document.getElementById('msp-fill-hex');
+    return { fill: !!f, empty: part?.dataset.empty === '1', hex: hx ? hx.value : null, mixed: !!f?.querySelector('.ui-fill-mixed') }; });
+  const single = (id) => page.evaluate((id) => { window.deselectAll(); window.selectBlock?.(id); window.showAssetProperties(document.getElementById(id)); return document.querySelector('#panel-right [data-part="fill"]')?.dataset.empty === '1'; }, id);
+  expect(await single(ids[0]), '[전제] 단일 패널 = 칠 없음').toBe(true);
+  await open([ids[0], ids[1]]);
+  expect(await ui(), '★키 없는 에셋 둘 = 여러 고름도 «칠 없음»(색 칸 0)').toEqual({ fill: true, empty: true, hex: null, mixed: false });
+  await page.evaluate(async (id) => { const m = await import('/js/props/_fill-section.js'); const it = m.fillKindOf(document.getElementById(id)); it.k.paint(it.block, '#12ab34'); }, ids[2]);
+  await open([ids[0], ids[2]]);
+  expect((await ui()).mixed, '★키 없음 + 색 = Mix').toBe(true);
+  await page.evaluate(async (id) => { const m = await import('/js/props/_fill-section.js'); const it = m.fillKindOf(document.getElementById(id)); it.k.paint(it.block, '#12ab34'); }, ids[1]);
+  await open([ids[1], ids[2]]);
+  const same = await ui(); same.hex = String(same.hex).toLowerCase();   // 색 칸은 대문자로 보여줌(12AB34) — 값만 견줌
+  expect(same, '[지킴] 같은 색 둘 = 그 색').toEqual({ fill: true, empty: false, hex: '12ab34', mixed: false });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

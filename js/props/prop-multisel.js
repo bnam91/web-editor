@@ -228,15 +228,16 @@ function _fillMulti(units) {
   const hidN = its.filter(({ block }) => fillHiddenOf(block)).length;
   const hidden = hidN === 0 ? false : hidN === its.length ? true : 'mixed';
   const solid = its.every(({ block, k }) => k.solid(block));
+  const allOff = cols.every((c) => !c || c === 'transparent');   // 74행 곁 — 단일 패널과 같은 규칙: 색 키 없음·transparent = 칠 없음 · 다 그러면 «칠 없음» · 섞이면 아래 Mix
   let colorHtml = colorFieldHTML({ idPrefix: 'msp-fill', hex: same && /^#[0-9a-f]{6}$/i.test(cols[0]) ? cols[0] : '#000000' });
   if (!same) colorHtml = colorHtml.replace('class="prop-color-swatch" style="background:', 'class="prop-color-swatch ui-fill-mixed" data-mixed="1" style="--mixed-was:')
     .replace(/(id="msp-fill-hex" )value="[^"]*"/, '$1value="" placeholder="Mix" data-empty="invalid"');
   if (!solid) colorHtml = colorHtml.replace('<div class="prop-color-field">', '<div class="prop-color-field" aria-disabled="true" title="그라데이션·이미지 칠이 섞여 있어 여러 개를 한 번에 못 바꿔요 — 하나씩 고르세요">');
   return {
-    html: fillSectionHTML({ prefix: 'msp-fill', hiddenWhy: '', hidden, colorHtml, removeWhy: '여러 블럭의 칠 지우기는 아직 — 하나씩 고르세요' }),
+    html: fillSectionHTML({ prefix: 'msp-fill', hiddenWhy: '', hidden, colorHtml, on: !allOff, removeWhy: '여러 블럭의 칠 지우기는 아직 — 하나씩 고르세요' }),
     wire() {
       wireFillSection({ prefix: 'msp-fill', adapter: { add() {}, none() {}, hide: (on) => its.forEach(({ block, k }) => fillSetHidden(block, k, on)), commit: () => { window.pushHistory?.(); window.scheduleAutoSave?.(); } } });
-      if (solid) wireColorField('msp-fill', { onApply: (c) => its.forEach(({ block, k }) => k.paint(block, c)), onCommit: () => { window.pushHistory?.(); window.scheduleAutoSave?.(); } });
+      if (solid && !allOff) wireColorField('msp-fill', { onApply: (c) => its.forEach(({ block, k }) => k.paint(block, c)), onCommit: () => { window.pushHistory?.(); window.scheduleAutoSave?.(); } });
     },
   };
 }
