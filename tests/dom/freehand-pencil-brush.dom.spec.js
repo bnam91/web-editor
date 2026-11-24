@@ -185,3 +185,21 @@ test('H7 보정 손잡이 만진 뒤 ⇧B = 붓 · N = 연필 · Esc = 끝', asy
   await expect(page.locator('#fh-bar'), '★손잡이 포커스에서도 Esc = 끝').toHaveCount(0);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* H8 — 0.9.13 211행 BRUSH-OUTSIDE-SECTION-FLOAT-01(현빈 결정 261124 10:47 [4]): 붓 섹션 밖 = 떠 있는(IAL) 그림(연필·펜 t13G-03 과 일관). 옛: 스크래치 그림.
+ *   섹션 밖 끌기 → 섹션 벡터 +1 · 떠 있음 · penNodes 없음(채운 외곽 = 붓 꼴 그대로) · 스크래치 무변 · ⌘Z 한 번 = 벡터 0 */
+test('H8 붓 섹션 밖 → 떠 있는 붓 그림 · 스크래치 무변 · ⌘Z 한 번', async ({ page }) => {
+  const errs = await scene(page);
+  const b0 = (await vecs(page)).length, s0 = await page.evaluate(() => document.querySelectorAll('.scratch-item').length);
+  await page.evaluate(() => { window.clearHistory?.(); window.enterFreehand('brush'); });
+  const pts = await page.evaluate(() => { const c = document.getElementById('canvas').getBoundingClientRect(); return Array.from({ length: 25 }, (_, i) => ({ x: c.right + 60 + i * 6, y: c.top + 150 + 20 * Math.sin(i / 3) })); });
+  expect(await page.evaluate((p) => !document.elementFromPoint(p.x, p.y)?.closest('#canvas'), pts[0]), '[전제] 캔버스 밖').toBe(true);
+  await drag(page, pts);
+  await expect.poll(() => vecs(page).then((v) => v.length), '★섹션 벡터 +1(옛: 스크래치 그림)').toBe(b0 + 1);
+  expect(await page.evaluate(() => document.querySelectorAll('.scratch-item').length), '★스크래치 무변').toBe(s0);
+  expect(await page.evaluate(() => { const v = [...document.querySelectorAll('#canvas .section-block .vector-block')].pop(); return { pen: !!v.dataset.penNodes, float: v.dataset.overlayBlock === 'true' || !!v.closest('[data-overlay-block="true"]'), path: !!v.querySelector('svg path') }; }), '★떠 있는 붓 그림(점 편집 없음 · 채운 외곽)').toEqual({ pen: false, float: true, path: true });
+  await page.evaluate(() => { window.exitFreehand?.(); document.activeElement?.blur?.(); });
+  await page.keyboard.press('Meta+z');
+  await expect.poll(() => vecs(page).then((v) => v.length), '★⌘Z 한 번 = 벡터 0').toBe(b0);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
