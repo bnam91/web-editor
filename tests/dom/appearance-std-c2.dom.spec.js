@@ -31,6 +31,7 @@ async function scene(page, add, prefix) {
     const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
     const sec = await window.addSection(); window.deselectAll?.(); window.selectSection?.(sec);
     (0, eval)(add);
+    document.activeElement?.blur?.();   // 넣자마자 글 편집이면 빠진다(재는 동안 편집 커밋 이력 0)
   }, add);
   await expect(page.locator(`#${prefix}-opacity`), `[전제] ${prefix}-opacity 칸`).toHaveCount(1);
   return errs;

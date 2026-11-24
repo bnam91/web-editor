@@ -162,7 +162,8 @@ test('D0a ★PREMISE — 레포 CSS 가 물렸다(패널 240px · 실물 toggle 
   /* ★★2026-10-20 실측 — .prop-toggle 은 flex 항목이라 display 는 판정에 안 쓴다(로그만). CSS 가 물린 신호 = 32×18 치수. */
   const read = () => page.evaluate(() => {
     const panel = document.getElementById('panel-right');
-    const tg = document.querySelector('#panel-right .prop-row .ui-check-box');   // ★옛 .prop-toggle 32×18 → check 상자(--ui-check-size)
+    /* ★기대 바뀜(표준 Layout C2 · 현빈 L-4 §2-b) — 글 스티커의 줄 체크(박스 너비 stk-t-boxw-on)가 너비 모드 드롭다운으로 바뀌어 «줄 안» 체크가 없다 ⇒ 패널 안 아무 체크 상자(그림자 «켜기» 등)로 css 물림을 잰다 */
+    const tg = document.querySelector('#panel-right .prop-row .ui-check-box') || document.querySelector('#panel-right .ui-check-box');   // ★옛 .prop-toggle 32×18 → check 상자(--ui-check-size)
     const fh = document.querySelector('#panel-right .prop-sec-head > .prop-section-title');   /* 틀 머리 제목 */
     const ro = document.querySelector('#panel-right .prop-row');
     const g = (e) => (e ? getComputedStyle(e) : null);
@@ -303,10 +304,13 @@ test('D4 대조군 — `.prop-row > .prop-toggle`(41곳 꼴)과 `#grd-bbg-sectio
   /* ★표본을 ★두 패널에서 모은다 — 한 패널에 토글이 하나뿐이면 「대조군 1개」가 되어 자가 ★약해진다. */
   await addBodyText(page);
   const plainText = await settled(page, readPlainToggles, 'D4 보통줄 토글(텍스트 패널)', { allowEmpty: true });
-  await addTextSticker(page);
-  const plainStk = await settled(page, readPlainToggles, 'D4 보통줄 토글(스티커 패널)');
+  /* ★기대 바뀜(표준 Layout C2 · 현빈 L-4 §2-b) — 글 스티커의 줄 체크(박스 너비)가 너비 모드 드롭다운이 되어 스티커 패널 표본이 0 ⇒ 두 번째 출처 = step 패널(«연결선» 줄 체크 stb-connector) */
+  await selectSection(page);
+  await page.evaluate(() => window.addStepBlock());
+  await expect.poll(() => page.evaluate(() => !!document.getElementById('stb-connector')), '★전제: step 패널(연결선 체크)이 떴다').toBe(true);
+  const plainStk = await settled(page, readPlainToggles, 'D4 보통줄 토글(step 패널)');
   const plain = [...plainText, ...plainStk];
-  console.log('[D4 보통줄 토글 ' + plain.length + '개 — 텍스트 ' + plainText.length + ' ＋ 스티커 ' + plainStk.length + '] ' + JSON.stringify(plain));
+  console.log('[D4 보통줄 토글 ' + plain.length + '개 — 텍스트 ' + plainText.length + ' ＋ step ' + plainStk.length + '] ' + JSON.stringify(plain));
   expect(plain.length, '★전제: `.prop-row > .prop-toggle` 표본이 있다 — ⛔0건을 초록으로 닫지 않는다').toBeGreaterThanOrEqual(1);
   const badPlain = plain.filter((r) => Math.abs(r.dGlyph) > TOL);
   expect(badPlain, `★대조군이 움직였다 ${badPlain.length}/${plain.length} — 잰 값: ${JSON.stringify(plain)}`).toEqual([]);

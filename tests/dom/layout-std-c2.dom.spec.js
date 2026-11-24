@@ -22,7 +22,10 @@ const CASES = [
   ['step', 'window.addStepBlock()', 'step-block', ['stb-num-size-number', 'stb-gap-number', 'stb-badge-gap-number', 'stb-padl-number', 'stb-padr-number'],
     { id: 'stb-gap-number', v: 40, over: 9999, cut: 200, key: 'gap' }],
   ['iconify', "window.addIconifyBlock('', '', 64)", 'icon-block', ['icn-size-number'], { id: 'icn-size-number', v: 100, over: 9999, cut: 512, key: 'size' }],
-  ['cert', 'window.addCertBlock()', 'cert-block', ['crt-sheetw-number', 'crt-sheeth-number', 'crt-jitter-number'], { id: 'crt-jitter-number', v: 30, over: 999, cut: 100, key: 'jitter', keyV: ['0.3', '1'] }],
+  /* cert 새 블럭 기본 = 격자(⑩) — 격자: 용지 높이·가로/세로 간격 / 스택: 용지 크기·높이·흩뿌림(수지 261125 r1: 스택 칸을 격자에서 찾아 [전제] 빨강 → 둘로 가름) */
+  ['cert(격자)', 'window.addCertBlock()', 'cert-block', ['crt-sheeth-number', 'crt-gapx-number', 'crt-gapy-number'], { id: 'crt-gapx-number', v: -20, over: 999, cut: 80, key: 'gapX' }],
+  ['cert(스택)', "window.addCertBlock(); { const b = [...document.querySelectorAll('#canvas .cert-block')].pop(); b.dataset.mode = 'stack'; window.renderCertBlock?.(b); window.showCertProperties(b); }", 'cert-block',
+    ['crt-sheetw-number', 'crt-sheeth-number', 'crt-jitter-number'], { id: 'crt-jitter-number', v: 30, over: 999, cut: 100, key: 'jitter', keyV: ['0.3', '1'] }],
 ];
 
 async function scene(page, add, firstId) {
@@ -32,6 +35,7 @@ async function scene(page, add, firstId) {
     const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
     const sec = await window.addSection(); window.deselectAll?.(); window.selectSection?.(sec);
     (0, eval)(add);
+    document.activeElement?.blur?.();   // 넣자마자 글 편집(글 스티커 등)이면 빠진다 — 재는 동안 편집 커밋 이력이 끼지 않게(수지 261125 r1 LC2 sticker(글))
   }, add);
   await expect(page.locator(`#${firstId}`), `[전제] ${firstId} 칸`).toHaveCount(1);
   return errs;

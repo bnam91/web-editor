@@ -603,7 +603,8 @@ test('OV1 겹침 순서 — 기본 왼쪽이 위(⑮) · 오른쪽 명시', asyn
   await page.click('#crt-grid-picker .grid-picker-cell[data-c="2"][data-r="2"]');
   for (const ax of ['x', 'y']) { await page.fill(`#crt-gap${ax}-number`, '-40'); await page.dispatchEvent(`#crt-gap${ax}-number`, 'change'); }   // ⑱ 가로·세로 둘 다
   expect(await page.inputValue('#crt-overlap'), '⑮ 기본 = 왼쪽이 위').toBe('left');
-  expect(await page.evaluate(() => document.getElementById('crt-gapy-number').closest('.prop-row').nextElementSibling?.querySelector('#crt-overlap') != null), '«세로 간격» 바로 아래(⑱)').toBe(true);
+  /* ★기대 바뀜(표준 Layout C2 · 현빈 L-4) — 가로/세로 간격 = 간격 슬롯 한 줄 두 칸(부품 .ui-layout) ⇒ 그 줄 바로 아래가 겹침 순서 */
+  expect(await page.evaluate(() => document.getElementById('crt-gapy-number').closest('.ui-layout').nextElementSibling?.querySelector('#crt-overlap') != null), '«세로 간격» 바로 아래(⑱)').toBe(true);
   const top = () => page.evaluate((id) => {
     const b = document.getElementById(id); b.scrollIntoView({ block: 'center' });
     const C = [...b.querySelectorAll('.cert-cell')], R = C.map((c) => c.getBoundingClientRect());
