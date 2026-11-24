@@ -274,7 +274,7 @@ test('G4-6 사각 쌓기 — 모양이 없으면 마스크 없이 막대 두께 
   expect(g[1].on).toBe(false);
   /* 두께 칸의 위 끝은 여전히 «칸 폭»(마디가 아니라) */
   await openPanel(page, id);
-  const thk = await page.evaluate((id) => { const s = document.getElementById('grb-bar-thickness-slider'); return [Number(s.max), document.getElementById(id).querySelector('.grb-bar-col').clientWidth]; }, id);
+  const thk = await page.evaluate((id) => { const s = document.getElementById('grb-bar-thickness-number');   /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 숫자 칸 max */ return [Number(s.max), document.getElementById(id).querySelector('.grb-bar-col').clientWidth]; }, id);
   expect(thk[0], `두께 상한 ${thk[0]} = 칸 폭 ${thk[1]}`).toBe(thk[1]);
   /* 마디를 걷으면 옛 길 — 처음과 바이트 동일 */
   await setDs(page, id, { items: base });

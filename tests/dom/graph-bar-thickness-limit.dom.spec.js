@@ -36,9 +36,10 @@ async function setup(page, type) {
 }
 /** 전제 — 패널이 떴고 칸이 보이고 시작값이 60 이 아니다. */
 async function premise(page, f) {
-  const num = page.locator('#grb-bar-thickness-number'), sl = page.locator('#grb-bar-thickness-slider');
+  /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 슬라이더 대신 라벨 끌기 손잡이(#…-scrub) */
+  const num = page.locator('#grb-bar-thickness-number'), sl = page.locator('#grb-bar-thickness-number-scrub');
   await expect(num, '숫자칸이 안 떴다 — 아래 전부 헛것').toBeVisible();
-  await expect(sl, '슬라이더가 안 떴다').toBeVisible();
+  await expect(sl, '라벨 끌기 손잡이가 안 떴다').toBeVisible();
   const r = await page.evaluate(({ key }) => { const b = document.getElementById('tg'); return { ds: b.dataset[key], n: document.getElementById('grb-bar-thickness-number').value }; }, f);
   expect(r.ds, '시작부터 키가 있다').toBeUndefined();
   expect(r.n, '시작값이 이미 60 이면 「60 → 60」은 처음부터 참').not.toBe('60');
@@ -49,29 +50,22 @@ const capOf = (page, f) => f.type === 'bar-h' ? Promise.resolve(60)
   : page.evaluate(() => Math.floor(document.querySelector('#tg .grb-bar-fill').parentElement.clientWidth));
 const state = (page, f) => page.evaluate(({ key, fill, type }) => {
   const b = document.getElementById('tg'); const e = b.querySelector(fill);
-  return { ds: b.dataset[key], num: document.getElementById('grb-bar-thickness-number').value, sl: document.getElementById('grb-bar-thickness-slider').value,
+  return { ds: b.dataset[key], num: document.getElementById('grb-bar-thickness-number').value,
     px: type === 'bar-h' ? e.offsetHeight : e.offsetWidth, other: type === 'bar-h' ? b.dataset.vBarThickness : b.dataset.barThickness };
 }, { key: f.key, fill: f.fill, type: f.type });
 
 for (const f of FORMS) {
-  test(`T1 range [${f.type}] 슬라이더 End 키 → 위 끝(가로 60 · 세로·비교 칸 폭)`, async ({ page }) => {
-    const errs = await setup(page, f.type); const { sl } = await premise(page, f);
+  /* ★기대 바뀜(표준 Layout · 슬라이더 걷음) — 옛 T1 「슬라이더 End 키」·「끝 너머로 끌기」 → 라벨 끌기로 위 끝 «너머» 끌기 = 위 끝(잘림 · step 1 이라 홀수 칸 폭도 그대로) */
+  test(`T1 scrub [${f.type}] 라벨 끌기로 위 끝 «너머» → 위 끝(가로 60 · 세로·비교 칸 폭)`, async ({ page }) => {
+    const errs = await setup(page, f.type); const { num, sl } = await premise(page, f);
     const cap = await capOf(page, f);
-    await sl.focus(); await page.keyboard.press('End');
+    await num.fill(String(cap - 10)); await num.press('Tab');
+    await sl.scrollIntoViewIfNeeded(); const bb = await sl.boundingBox();
+    await page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2); await page.mouse.down();
+    await page.mouse.move(bb.x + bb.width / 2 + 60, bb.y + bb.height / 2, { steps: 8 }); await page.mouse.up();
+    await expect.poll(async () => (await state(page, f)).ds).toBe(String(cap));
     const s = await state(page, f);
-    /* 슬라이더 step 2(min 8) — 홀수 칸 폭(예 245)이면 End 는 244 에 앉는다. 막대·칸은 그 값과 같아야 한다. */
-    expect(Math.abs(+s.ds - cap), `dataset ${s.ds} ≈ cap ${cap}`).toBeLessThanOrEqual(1); expect(s.px, '그림 속 막대 크기 = 키').toBe(+s.ds); expect(s.num).toBe(s.ds);
-    expect(Math.abs(+s.sl - cap), `슬라이더(step 2 라 홀수 cap 은 1 아래로 앉을 수 있다) ${s.sl}`).toBeLessThanOrEqual(1);
-    expect(errs, errs.join('\n')).toEqual([]);
-  });
-  test(`T1 range [${f.type}] 슬라이더를 오른쪽 끝 «너머»로 끌기 → 위 끝`, async ({ page }) => {
-    const errs = await setup(page, f.type); const { sl } = await premise(page, f);
-    const cap = await capOf(page, f);
-    const bb = await sl.boundingBox();
-    await page.mouse.move(bb.x + bb.width * 0.3, bb.y + bb.height / 2); await page.mouse.down();
-    await page.mouse.move(bb.x + bb.width + 80, bb.y + bb.height / 2, { steps: 8 }); await page.mouse.up();
-    const s = await state(page, f);
-    expect(Math.abs(+s.ds - cap), `끌기 끝 = 위 끝(슬라이더 step 2) ds=${s.ds} cap=${cap}`).toBeLessThanOrEqual(1); expect(Math.abs(s.px - cap)).toBeLessThanOrEqual(1);
+    expect(s.px, '그림 속 막대 크기 = 키').toBe(cap); expect(s.num).toBe(String(cap));
     expect(errs, errs.join('\n')).toEqual([]);
   });
   test(`T2 number [${f.type}] 60 을 타자로 → 60`, async ({ page }) => {

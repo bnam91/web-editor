@@ -49,9 +49,9 @@ test('E106 ★꺾은선 새 그래프: 패널 «좌우 패딩» == 16 == 그려�
   const r = await page.evaluate((id) => {
     const g = document.getElementById(id), path = g.querySelector('.grb-line-path');
     const first = path.tagName === 'polyline' ? +path.getAttribute('points').trim().split(/[\s,]+/)[0] : +path.getAttribute('d').match(/M\s*([\d.]+)/)[1];
-    return { panel: +document.getElementById('grb-padx-number').value, slider: +document.getElementById('grb-padx-slider').value, firstX: Math.round(first), key: g.dataset.padX ?? null };
+    return { panel: +document.getElementById('grb-padx-number').value, firstX: Math.round(first), key: g.dataset.padX ?? null };   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — slider 칸 걷힘
   }, id);
-  expect(r).toEqual({ panel: 16, slider: 16, firstX: 16, key: null });
+  expect(r).toEqual({ panel: 16, firstX: 16, key: null });
   expect(errs).toEqual([]);
 });
 test('E110 ★가로 막대 · 라벨 크기 18(숫자 크기 키 없음): 패널 «숫자 크기» == 54 == 그려진 % 글자', async ({ page }) => {

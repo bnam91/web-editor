@@ -270,7 +270,7 @@ test('G2-2 패널 — 「모양」을 고르면 실루엣이 되고 두께 줄�
   const html0 = await inner(page, id);
   await expect(page.locator('#grb-shape-select'), '전제: 세로 막대 패널에 모양 줄이 있다').toHaveCount(1);
   expect(await page.inputValue('#grb-shape-select'), '전제: 기본 막대').toBe('');
-  expect(await page.locator('#grb-bar-thickness-slider').count(), '전제: 두께 줄이 있다').toBe(1);
+  expect(await page.locator('#grb-bar-thickness-number').count(), '전제: 두께 줄이 있다').toBe(1);
   expect(await page.evaluate(() => [...document.getElementById('grb-shape-select').options].map(o => [o.value, o.textContent.trim()]))).toEqual([['', '기본 막대'], ['person', '사람'], ['bottle', '약통'], ['drop', '물방울'], ['custom', '사용자 SVG']]);
   /* 절 순서: Size → Chart Type → Shape → Bar Settings → Data
      ★1020t2c2 — 「Preset」 절을 지웠다(현빈 2026-10-20). ★이 주석도 같이 고친 것이다 —
@@ -279,7 +279,7 @@ test('G2-2 패널 — 「모양」을 고르면 실루엣이 되고 두께 줄�
      유형 단추·실루엣 = kind(Type) · 좌우 패딩 = padding · Data = content. 양성대조: prop-graph.js 에서 shapeSectionHTML 의 kind 조각을 sec('content') 로 옮기면 빨강. */
   /* U6: querySelectorAll 은 «문서 순»으로 돌려준다 — §2-1 순서로 절이 정렬되자 배열이 kind·kind·content·size·padding 로 섞였다(r0913rp).
      id → 절을 «id 순»으로 잰다(기대 배열 그대로 · 각 id 의 절 단언). 없는 id 는 null 로 남아 빨강. */
-  expect(await page.evaluate(() => ['grb-h-slider', 'grb-type-v', 'grb-shape-select', 'grb-padx-slider', 'grb-data-list'].map(i => document.getElementById(i)?.closest('.prop-section[data-sec]')?.dataset.sec ?? null)))
+  expect(await page.evaluate(() => ['grb-h-number', 'grb-type-v', 'grb-shape-select', 'grb-padx-number', 'grb-data-list'].map(i => document.getElementById(i)?.closest('.prop-section[data-sec]')?.dataset.sec ?? null)))
     .toEqual(['size', 'kind', 'kind', 'padding', 'content']);
   /* ★래칫 — 절이 ★되돌아오면 ★빨강. ⛔이 줄이 없으면 절이 돌아와도 ★초록이다(위 배열은 ★없는 id 를 그냥 건너뛴다).
      ★핀 a42d76d59f45a70eb3ee0e1f68a8ed37650f7565 에서는 ★4개였다(default·dark·minimal·colorful). */
@@ -288,7 +288,7 @@ test('G2-2 패널 — 「모양」을 고르면 실루엣이 되고 두께 줄�
   await page.locator('#grb-shape-select').selectOption('person');
   await expect.poll(() => ds(page, id, 'barShape')).toBe('person');
   expect(await count(page, id, '.grb-shape-box.grb-shape-on'), '상자 = 항목 수').toBe(n);
-  expect(await page.locator('#grb-bar-thickness-slider').count(), '모양이 켜지면 두께 줄 없음').toBe(0);
+  expect(await page.locator('#grb-bar-thickness-number').count(), '모양이 켜지면 두께 줄 없음').toBe(0);
   expect(await page.inputValue('#grb-shape-select')).toBe('person');
   expect(await page.locator('#grb-data-list .grb-data-icon-btn').count(), '항목마다 «이 항목만 SVG» 버튼').toBe(n);
   /* 패널이 가로로 안 넘친다(항목 줄 포함) */
@@ -300,7 +300,7 @@ test('G2-2 패널 — 「모양」을 고르면 실루엣이 되고 두께 줄�
   await page.locator('#grb-shape-select').selectOption('');
   await expect.poll(() => ds(page, id, 'barShape')).toBeNull();
   expect(await inner(page, id), '기본 막대: 처음과 바이트 동일').toBe(html0);
-  expect(await page.locator('#grb-bar-thickness-slider').count(), '두께 줄이 돌아온다').toBe(1);
+  expect(await page.locator('#grb-bar-thickness-number').count(), '두께 줄이 돌아온다').toBe(1);
   expect(await page.locator('#grb-data-list .grb-data-icon-btn').count(), '항목 버튼은 모양이 켜졌을 때만').toBe(0);
   /* ⌘Z: 기본 막대 ← 물방울 ← 사람 ← (처음) — 한 번에 한 단계 */
   await page.evaluate(() => document.activeElement?.blur?.());

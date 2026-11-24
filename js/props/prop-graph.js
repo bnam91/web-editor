@@ -2,6 +2,8 @@ import '../graph-limits.js';   // side-effect import — window.GRAPH_LIMITS 를
 import { propPanel, state } from '../globals.js';
 import { blockHeaderHTML, escHtml, checkHTML } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
+import { layoutSizeRowHTML, layoutPadSlotHTML, layoutGapSlotHTML, layoutSlotNumberHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(L2~L4 · C1)
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A4 Opacity)
 import { colorFieldHTML, wireColorField, parseAlphaFromColor, swatchHex } from './color-picker.js';
 import { strokeSectionHTML, wireStrokeSection } from './_stroke-section.js';
 import { isBlurIntoPanel, parkEditing } from './_text-selection.js';
@@ -47,30 +49,12 @@ function gridColorRowHTML(block) {
  * 1012t1G2 — hideThickness: 모양(실루엣)이 켜지면 «두께» 줄을 뺀다(폭은 실루엣의 비가 정한다 — 두께 키는 안 지운다). */
 function barSettingsHTML({ chartType, barThickness, thicknessMax = BAR_THICKNESS_MAX, padX, itemGap, pctSize, pctMin, barColor, barAlpha, hideThickness = false, segGap = null, segWave = false }) {
   return {
-    size: hideThickness ? '' : `
-      <div class="prop-row">
-        <span class="prop-label">두께</span>
-        <input type="range" class="prop-slider" id="grb-bar-thickness-slider" min="${BAR_THICKNESS_MIN}" max="${thicknessMax}" step="2" value="${barThickness}">
-        <input type="number" class="prop-number" id="grb-bar-thickness-number" min="${BAR_THICKNESS_MIN}" max="${thicknessMax}" value="${barThickness}">
-      </div>`,
-    padding: `
-      <div class="prop-row">
-        <span class="prop-label">좌우패딩</span>
-        <input type="range" class="prop-slider" id="grb-padx-slider" min="0" max="80" step="4" value="${padX}">
-        <input type="number" class="prop-number" id="grb-padx-number" min="0" max="80" value="${padX}">
-      </div>
-`,
-    layout: `
-      <div class="prop-row">
-        <span class="prop-label">항목 간격</span>
-        <input type="range" class="prop-slider" id="grb-item-gap-slider" min="8" max="80" step="4" value="${itemGap}">
-        <input type="number" class="prop-number" id="grb-item-gap-number" min="8" max="80" value="${itemGap}">
-      </div>${segGap == null ? '' : `
-      <div class="prop-row" title="마디(비율별 조각) 사이 흰 틈(px)">
-        <span class="prop-label">마디 간격</span>
-        <input type="range" class="prop-slider" id="grb-seg-gap-slider" min="${SEG_GAP_MIN}" max="${SEG_GAP_MAX}" step="1" value="${segGap}">
-        <input type="number" class="prop-number" id="grb-seg-gap-number" min="${SEG_GAP_MIN}" max="${SEG_GAP_MAX}" value="${segGap}">
-      </div>
+    /* ★표준 Layout L2~L4(현빈 261124 L-4 · 시안 #mkp-layoutstd) — 옛 두께·좌우패딩·항목 간격·마디 간격 슬라이더 걷음 · 숫자 칸 id·키·범위 무변
+       두께·마디 간격 = 블럭 슬롯 숫자(layoutSlotNumberHTML) · 좌우패딩 = 패딩 슬롯 x 만 · 항목 간격 = 표준 Gap 슬롯 */
+    size: hideThickness ? '' : layoutSlotNumberHTML({ id: 'grb-bar-thickness-number', label: '두께', min: BAR_THICKNESS_MIN, max: thicknessMax, value: barThickness }),
+    padding: layoutPadSlotHTML({ xId: 'grb-padx-number', x: padX, max: 80 }),
+    layout: `${layoutGapSlotHTML({ id: 'grb-item-gap-number', value: itemGap, min: 8, max: 80 })}${segGap == null ? '' : `
+      ${layoutSlotNumberHTML({ id: 'grb-seg-gap-number', label: '마디 간격', min: SEG_GAP_MIN, max: SEG_GAP_MAX, value: segGap })}
       <div class="prop-row" title="마디 경계를 물결 모양으로(흰 틈이 같은 두께로 물결친다)">
         ${checkHTML({ id: 'grb-seg-wave-toggle', label: '경계 물결', checked: segWave })}
       </div>`}
@@ -548,21 +532,13 @@ ${_rd ? '' : `      <div class="prop-row">
           </div>${_segOn ? segListHTML(item, i) : ''}`).join('')}
       </div>
       <button class="prop-btn-full" id="grb-add-item" data-own="content">+ 항목 추가</button>`),   /* data-own: 항목 «추가» 단추 — 바로 앞 형제(항목 목록)에 항목 색 칸이 들어 있어 게이트의 색짝 어림이 Fill 로 끈다(_panel-sections readPanel prev.querySelector) */
-      sec('size', `
-      <div class="prop-row">
-        <span class="prop-label">높이</span>
-        <input type="range" class="prop-slider" id="grb-h-slider" min="80" max="2000" step="8" value="${chartH}">
-        <input type="number" class="prop-number" id="grb-h-number" min="80" max="2000" value="${chartH}">
-      </div>
+      /* ★표준 Layout L2 — 옛 grb-h-slider 걷음 · H 만 = 한 칸(one · 아이콘 ↕) */
+      sec('size', `${layoutSizeRowHTML({ prefix: 'grb-h', one: { id: 'grb-h-number', label: 'Height', icon: 'h', min: 80, max: 2000, value: chartH } })}
 ${_bar.size || ''}`),
       sec('layout', _bar.layout || ''),
       sec('padding', `${_bar.padding || ''}
     ${chartType === 'line' ? `
-      <div class="prop-row">
-        <span class="prop-label">좌우패딩</span>
-        <input type="range" class="prop-slider" id="grb-padx-slider" min="0" max="80" step="4" value="${padX}">
-        <input type="number" class="prop-number" id="grb-padx-number" min="0" max="80" value="${padX}">
-      </div>
+      ${layoutPadSlotHTML({ xId: 'grb-padx-number', x: padX, max: 80 })}
 ` : ''}`),
       sec('typography', `
       <div class="prop-row">
@@ -613,6 +589,7 @@ ${_bar.fill || ''}
         <input type="number" class="prop-number" id="grb-fillalpha-number" min="0" max="100" value="${fillAlpha}">
       </div>` : ''}${chartType === 'bar-v' ? gridColorRowHTML(block) : ''}${_shape.fill || ''}`),
       /* ★표준 Stroke 2-5(현빈 261124 ⓑ · 8910 #mkp-linestroke) — 꺾은선: 굵기만(색 = 계열마다 · Content) · ＋/− · 위치 · ⫶ 없음 · 옛 id grb-stroke-number · 1~12 그대로 */
+      sec('appearance', appearanceSectionHTML({ prefix: 'grb', op: { value: window.readBlockOpacity?.(block) ?? 100 } }), { headTools: appearanceHeadToolsHTML({ prefix: 'grb' }) }),   // A4 Opacity 만(모서리 없음)
       sec('stroke', chartType === 'line' ? strokeSectionHTML({ prefix: 'grb-stroke', noColor: true, noAlign: true, width: strokeWidth, minWidth: 1, maxWidth: 12, widthId: 'grb-stroke-number' }) : ''),
       sec('effects', _isPie ? pieShadowSectionHTML(block.dataset) : ''),
       sec('special', chartType === 'line' ? `
@@ -950,49 +927,14 @@ ${pieTagTypoRowsHTML(block)}
     showGraphProperties(block);
   });
 
+  /* 표준 Layout 배선(부품) — input = 범위 안이면 바로 · change = 잘라 + 이력 한 번 · 빈 칸 = 옛 값 되돌림 · 라벨 끌기 · 칸 없으면(차트 종류) 아무 일 없음 */
+  const lay = (numberId, min, max, apply) => wireLayoutSection({ w: { numberId, min, max, apply: (v) => { apply(v); window.renderGraph(block); } } });
   // 차트 높이
-  const hSlider = document.getElementById('grb-h-slider');
-  const hNumber = document.getElementById('grb-h-number');
-  const applyChartH = v => {
-    v = Math.min(2000, Math.max(80, v));
-    block.dataset.chartHeight = v;
-    window.renderGraph(block);
-    hSlider.value = v; hNumber.value = v;
-  };
-  hSlider.addEventListener('input',  () => applyChartH(parseInt(hSlider.value)));
-  hNumber.addEventListener('change', () => { applyChartH(parseInt(hNumber.value)); window.pushHistory(); });
-  hSlider.addEventListener('change', () => window.pushHistory());
-
+  lay('grb-h-number', 80, 2000, (v) => { block.dataset.chartHeight = v; });
   // 항목 간격 (bar-h·bar-v·bar-pair)
-  const igSlider = document.getElementById('grb-item-gap-slider');
-  const igNumber = document.getElementById('grb-item-gap-number');
-  if (igSlider) {
-    const applyItemGap = v => {
-      v = Math.min(80, Math.max(8, v));
-      block.dataset[_vKey('itemGap','vItemGap')] = v;
-      window.renderGraph(block);
-      igSlider.value = v; igNumber.value = v;
-    };
-    igSlider.addEventListener('input',  () => applyItemGap(parseInt(igSlider.value)));
-    igNumber.addEventListener('change', () => { applyItemGap(parseInt(igNumber.value)); window.pushHistory(); });
-    igSlider.addEventListener('change', () => window.pushHistory());
-  }
-
-  // 1020t2g1ⓐ — 마디 간격(세로 막대). 기본값(SEG_GAP_DEFAULT)과 같으면 키를 지운다(범례 간격 1017t1f1 과 같은 «없음 = 키 없음» — 옛 저장본 바이트 그대로).
-  {
-    const sl = document.getElementById('grb-seg-gap-slider'), nu = document.getElementById('grb-seg-gap-number');
-    if (sl && nu) {
-      const apply = v => {
-        v = Math.min(SEG_GAP_MAX, Math.max(SEG_GAP_MIN, Number.isFinite(v) ? v : SEG_GAP_DEFAULT));
-        if (v === SEG_GAP_DEFAULT) delete block.dataset.segGap; else block.dataset.segGap = v;
-        window.renderGraph(block);
-        sl.value = v; nu.value = v;
-      };
-      sl.addEventListener('input',  () => apply(parseInt(sl.value)));
-      nu.addEventListener('change', () => { apply(parseInt(nu.value)); window.pushHistory(); });
-      sl.addEventListener('change', () => window.pushHistory());
-    }
-  }
+  lay('grb-item-gap-number', 8, 80, (v) => { block.dataset[_vKey('itemGap','vItemGap')] = v; });
+  // 1020t2g1ⓐ — 마디 간격(세로 막대). 기본값(SEG_GAP_DEFAULT)과 같으면 키를 지운다(범례 간격 1017t1f1 과 같은 «없음 = 키 없음» — 옛 저장본 바이트 그대로)
+  lay('grb-seg-gap-number', SEG_GAP_MIN, SEG_GAP_MAX, (v) => { if (v === SEG_GAP_DEFAULT) delete block.dataset.segGap; else block.dataset.segGap = v; });
 
   // 1020t2g1ⓑ — 마디 경계 물결(세로 막대). 끄면 키를 지운다(옛 저장본과 같은 바이트 · 직선 경계).
   document.getElementById('grb-seg-wave-toggle')?.addEventListener('change', e => {
@@ -1016,35 +958,11 @@ ${pieTagTypoRowsHTML(block)}
     psSlider.addEventListener('change', () => window.pushHistory());
   }
 
-  // 바 두께 (bar-h·bar-v·bar-pair)
-  const btSlider = document.getElementById('grb-bar-thickness-slider');
-  const btNumber = document.getElementById('grb-bar-thickness-number');
-  if (btSlider) {
-    const applyBarThickness = v => {
-      v = Math.min(_thkMax, Math.max(BAR_THICKNESS_MIN, v));   // H1 — 세로·비교는 칸 폭까지(가로는 60)
-      block.dataset[_vKey('barThickness','vBarThickness')] = v;
-      window.renderGraph(block);
-      btSlider.value = v; btNumber.value = v;
-    };
-    btSlider.addEventListener('input',  () => applyBarThickness(parseInt(btSlider.value)));
-    btNumber.addEventListener('change', () => { applyBarThickness(parseInt(btNumber.value)); window.pushHistory(); });
-    btSlider.addEventListener('change', () => window.pushHistory());
-  }
-
-  // 좌우 패딩 (bar-h·bar-v·bar-pair)
-  const pxSlider = document.getElementById('grb-padx-slider');
-  const pxNumber = document.getElementById('grb-padx-number');
-  if (pxSlider) {
-    const applyPadX = v => {
-      v = Math.min(80, Math.max(0, v));
-      block.dataset[_vKey('padX','vPadX')] = v;
-      window.renderGraph(block);
-      pxSlider.value = v; pxNumber.value = v;
-    };
-    pxSlider.addEventListener('input',  () => applyPadX(parseInt(pxSlider.value)));
-    pxNumber.addEventListener('change', () => { applyPadX(parseInt(pxNumber.value)); window.pushHistory(); });
-    pxSlider.addEventListener('change', () => window.pushHistory());
-  }
+  // 바 두께 (bar-h·bar-v·bar-pair) — H1 상한 = 세로·비교는 칸 폭까지(가로는 60)
+  lay('grb-bar-thickness-number', BAR_THICKNESS_MIN, _thkMax, (v) => { block.dataset[_vKey('barThickness','vBarThickness')] = v; });
+  // 좌우 패딩 (bar-h·bar-v·bar-pair · line)
+  lay('grb-padx-number', 0, 80, (v) => { block.dataset[_vKey('padX','vPadX')] = v; });
+  wireAppearanceSection({ op: { numberId: 'grb-opacity', apply: (v) => window.setBlockOpacity?.(block, v) } });   // A4 — 계약(갈래 E) 없으면 그리기 0
 
   // 색상 — line 차트는 선 색상(lineColor)에, bar 차트는 막대 색상(barColor)에 적용
   if (document.getElementById('grb-bar-color')) {

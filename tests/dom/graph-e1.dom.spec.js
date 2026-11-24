@@ -39,7 +39,8 @@ test('T1 ★H1 — 세로 막대 패널 두께 상한 = 칸 폭(옛 60)', async 
   await pick(page, id);
   const cw = await colW(page, id);
   expect(cw, '전제 — 칸이 60 보다 넓다').toBeGreaterThan(60);
-  expect(await page.evaluate(() => [document.getElementById('grb-bar-thickness-slider').max, document.getElementById('grb-bar-thickness-number').max]), `★max = 칸 폭 ${cw}`).toEqual([String(cw), String(cw)]);
+  /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 슬라이더 max 자리 = 숫자 칸 max 하나 */
+  expect(await page.evaluate(() => document.getElementById('grb-bar-thickness-number').max), `★max = 칸 폭 ${cw}`).toBe(String(cw));
   expect(errs).toEqual([]);
 });
 test('T2 ★H1 — 칸 폭보다 큰 수 → 칸 폭으로 잘린다 · 막대 = 칸 폭(넘침 0)', async ({ page }) => {

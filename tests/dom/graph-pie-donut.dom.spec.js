@@ -112,7 +112,7 @@ test('P3 패널 배치 — 유형 버튼 ★6개가 안 넘치고 · 구멍 줄�
   expect(g0.ids).toEqual(['grb-type-v', 'grb-type-h', 'grb-type-line', 'grb-type-pair', 'grb-type-pie', 'grb-type-radial']);
   expect(g0.labels.slice(4)).toEqual(['원형', '방사형']);   /* ★261020 b8055ada 방사형 이식으로 ＋1 — ⛔slice(4) 는 «마지막부터»가 아니라 «5번째부터»다 */
   expect(g0).toMatchObject({ active: ['grb-type-v'], fits: true, widths: true });
-  expect(await page.locator('#grb-bar-thickness-slider').count(), '전제: 막대에선 두께 줄이 있다').toBe(1);
+  expect(await page.locator('#grb-bar-thickness-number').count(), '전제: 막대에선 두께 줄이 있다').toBe(1);
   await page.locator('#grb-type-pie').click();
   await expect.poll(() => ds(page, id, 'chartType')).toBe('pie');
   expect(await page.locator('#grb-pie-donut-toggle').count(), '전제: 원형이면 도너츠 토글이 있다').toBe(1);
@@ -123,18 +123,18 @@ test('P3 패널 배치 — 유형 버튼 ★6개가 안 넘치고 · 구멍 줄�
   expect(await grp()).toMatchObject({ active: ['grb-type-pie'], fits: true, widths: true });
   expect(await page.locator('#grb-pie-hole-slider').count()).toBe(1);
   expect(await page.locator('#grb-pie-hole-number').count()).toBe(1);
-  expect(await page.locator('#grb-bar-thickness-slider').count(), '도넛: 막대 설정 없음').toBe(0);
+  expect(await page.locator('#grb-bar-thickness-number').count(), '도넛: 막대 설정 없음').toBe(0);
   expect((await dOf(page, id)).filter(Boolean).length, '캔버스도 도넛으로 그려졌다 — 기본 5항목이 다 조각').toBe(5);
   await page.locator('#grb-pie-donut-toggle').locator('xpath=..').click();
   await expect.poll(() => ds(page, id, 'pieDonut')).toBeNull();
   expect(await ds(page, id, 'chartType')).toBe('pie');
   expect(await grp()).toMatchObject({ active: ['grb-type-pie'], fits: true, widths: true });
   expect(await page.locator('#grb-pie-hole-slider').count(), '원형: 구멍 줄 없음').toBe(0);
-  expect(await page.locator('#grb-bar-thickness-slider').count()).toBe(0);
+  expect(await page.locator('#grb-bar-thickness-number').count()).toBe(0);
   /* 기존 유형으로 돌아가는 길도 그대로 */
   await page.locator('#grb-type-h').click();
   await expect.poll(() => ds(page, id, 'chartType')).toBe('bar-h');
-  expect(await page.locator('#grb-bar-thickness-slider').count()).toBe(1);
+  expect(await page.locator('#grb-bar-thickness-number').count()).toBe(1);
   expect(errs).toEqual([]);
 });
 
