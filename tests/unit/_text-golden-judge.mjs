@@ -278,7 +278,7 @@ function judge(name, st, oldHtml, newHtml) {
     if (hit.length === f.n) { nc = nc.filter((t) => !f.isCtl(t)); featHit.push(f); if (f.label) featLabels.push(...[].concat(f.label)); }
   }
   const drift = DRIFT_PRE.states.includes(name);
-  const sx = strokeStdAllow(o, n);
+  const sx = withCheckStd(strokeStdAllow(o, n), checkStdAllow(o, n));   // ★+ 온/오프 → 체크 부품(CHECK_STD · 탑 261124)
   nc = minus(nc, sx.cAdd);
   const l1 = minus(minus(oc, sx.cLost), nc), e1 = minus(nc, minus(oc, sx.cLost)).filter((t) => !CTL_ADDED.some((r) => r.test(t)) && !(drift && DRIFT_PRE.ctl.test(t)));
   if (l1.length || e1.length) bad.push(`J1 컨트롤: 잃음 ${JSON.stringify(l1)} · 생김 ${JSON.stringify(e1)}`);
@@ -317,6 +317,32 @@ function runAll(buildNew) {
 const blind = runAll(load(nowFiles(), { mutate: (s) => s.replace('id="txt-x-number"', 'id="txt-x-numbr"') }));
 if (!blind.some((f) => f.includes('txt-x-numbr'))) { console.error('★양성대조 실패 — id 를 바꿔도 판정이 못 잡는다(자가 눈멀었다)'); process.exit(1); }
 console.log(`양성대조 OK — 바꾼 id 를 잡았다 (${blind.length}건)`);
+/* ★온/오프 → 체크 부품 이관(현빈 261123 «온/오프 = 체크» · 태양 §2c · 탑 tp/0913-check → dev) — 옛 맨 체크박스(+ 옆 .prop-label)가
+ *   label.ui-check[data-part=check] > input.ui-check-box + span.ui-check-label 로 감싸였다.
+ *   허용 = 그 부품 «안» 체크박스가 옛 맨 체크박스와 id·type·checked 가 같을 때만 «class=ui-check-box 덧붙음» · 그 옛 라벨 글이 부품 글(.ui-check-label)과 같을 때만 라벨이 옮겨감.
+ *   부품 밖 체크박스·옛 짝 없는 체크박스·checked 가 바뀐 것 = 그대로 빨강(내장 양성대조 ①d). */
+function checkStdAllow(o, n) {
+  const out = { cLost: [], cAdd: [], lLost: [] };
+  const oldBox = (id) => all(o).find((k) => k.tag === 'input' && k.attrs.type === 'checkbox' && k.attrs.id === id && !has(k, 'ui-check-box'));
+  for (const part of all(n).filter((k) => k.tag === 'label' && has(k, 'ui-check') && k.attrs['data-part'] === 'check')) {
+    const box = all(part).find((k) => k.tag === 'input' && has(k, 'ui-check-box') && k.attrs.type === 'checkbox');
+    const ob = box && box.attrs.id && oldBox(box.attrs.id);
+    if (!ob || ('checked' in ob.attrs) !== ('checked' in box.attrs)) continue;
+    out.cLost.push(tagNorm(ob.raw)); out.cAdd.push(tagNorm(box.raw));
+    const lt = all(part).filter((k) => has(k, 'ui-check-label')).map((k) => text(k).trim())[0];
+    if (lt && labels(o).includes(lt)) out.lLost.push(lt);
+  }
+  return out;
+}
+function withCheckStd(sx, cx) { return { ...sx, cLost: (sx.cLost || []).concat(cx.cLost), cAdd: (sx.cAdd || []).concat(cx.cAdd), lLost: (sx.lLost || []).concat(cx.lLost),
+  lAdd: sx.lAdd || [], iLost: sx.iLost || [], iAdd: sx.iAdd || [] }; }
+/* ①d 내장 양성대조(CHECK_STD) — 옛 짝 없는 체크 부품을 Position 절 X 칸 뒤에 심으면 J1·J4 가 잡아야 한다(옛 체크박스 «바꿈»만 허용) */
+{ const PLANT = '<label class="ui-check" data-part="check"><input type="checkbox" class="ui-check-box" id="txt-fake-check"><span class="ui-check-label">가짜 체크</span></label>';
+  const nowD = load(nowFiles());
+  const planted = runAll((st) => nowD(st).replace(/(<input[^>]*id="txt-x-number"[^>]*>)/, `$1${PLANT}`)).filter((f) => f.startsWith('plain '));
+  const caught = ['J1', 'J4'].every((j) => planted.some((f) => f.startsWith(`plain ${j}`) && /txt-fake-check/.test(f)));
+  if (!caught) { console.error('★양성대조 실패(CHECK_STD) — 옛 짝 없는 체크 부품을 못 잡는다:\n  ' + planted.join('\n  ')); process.exit(1); }
+  console.log(`양성대조 OK(CHECK_STD) — 옛 짝 없는 체크 부품을 잡았다 (${planted.length}건)`); }
 /* ①b 내장 양성대조(STROKE_STD) — Stroke 절 «밖»(Position 절 X 칸 뒤)에 ⫶ 단추 + «스타일» 라벨을 심으면 J1·J2·J4 가 잡아야 한다(절 안만 허용) */
 { const PLANT = '<button type="button" class="prop-chain-btn ui-stroke-more" id="txt-stroke-more" aria-haspopup="dialog" aria-expanded="false" aria-label="Stroke 설정"></button><span class="prop-label">스타일</span>';
   const nowB = load(nowFiles());
