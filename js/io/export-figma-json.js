@@ -507,7 +507,20 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     return { fontSize, fontWeight, color, lineHeight, letterSpacing, textAlign, fontFamily, textShadow };
   }
 
+  /* ★A4 블럭 불투명도(지디 261124) — data-opacity(0~100 · 키 없음 = 100) → 노드 opacity(0~1). 키 없으면 아무것도 안 실음(옛 바이트).
+     ⛔미리 곱하지 않는다 — 겹친 노드(프레임 > 블럭)는 각자 제 값을 싣고 Figma 가 곱한다. */
+  function _opacityOf(el) {
+    const raw = el?.dataset?.opacity;
+    const n = Number(raw);
+    return raw == null || raw === '' || !Number.isFinite(n) || n >= 100 ? null : Math.max(0, n) / 100;
+  }
   function _block(el, ps) {
+    const out = _blockRaw(el, ps);
+    const op = _opacityOf(el);
+    if (out && op != null) out.opacity = op;
+    return out;
+  }
+  function _blockRaw(el, ps) {
     if (el.classList.contains('gap-block')) {
       return { type: 'gap', height: parseFloat(el.style.height) || 50 };
     }
@@ -1517,11 +1530,17 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
 
     const blocks = [];
     _frameBlockOfSection = _frameBlock;   // 위 머리말 — 이 섹션의 psEx 로
-    function _processFrameBlock(fb) {
+    /* shortcut: 흐름 프레임은 Figma 노드가 없다(자식이 섹션에 납작하게 깔림) ⇒ 그 프레임 불투명도만 자식에 곱해 싣는다
+       (겹침 없는 흐름이라 그림은 같다 · 흐름 프레임이 노드를 갖게 되면 노드에 싣고 곱셈을 걷는다). */
+    function _processFrameBlock(fb, mul = 1) {
+      const m = mul * (_opacityOf(fb) ?? 1);
       _blockChildren(fb).forEach(b => {
-        _blockAll(b, psEx).forEach(x => blocks.push(x));   // G19 — 그리드면 자식 블럭까지
+        _blockAll(b, psEx).forEach(x => {   // G19 — 그리드면 자식 블럭까지
+          if (m < 1 && x.type !== 'gap') x.opacity = Math.round((x.opacity ?? 1) * m * 1000) / 1000;
+          blocks.push(x);
+        });
       });
-      fb.querySelectorAll(':scope > .frame-block').forEach(nested => _processFrameBlock(nested));
+      fb.querySelectorAll(':scope > .frame-block').forEach(nested => _processFrameBlock(nested, m));
     }
     // free-layout 프레임: 절대배치 구조 보존(높이·배경·자식 위치) → 렌더 충실도↑.
     function _frameBlock(fb) {
@@ -1554,6 +1573,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       const _bg = fb.dataset.bg || '';
       const out = { type: 'frame', id: fb.id || '', width: w, height: h,
                bg: _bg, radius: parseInt(fb.dataset.radius) || 0, free, children };
+      { const _op = _opacityOf(fb); if (_op != null) out.opacity = _op; }   // ★A4 — 프레임 노드 제 값(자식은 제 노드에 따로)
       { const _bd = _strokeBorderOut(fb.dataset, parseInt(fb.dataset.borderWidth) || 0, fb.dataset.borderColor || '', fb.dataset.borderStyle || 'solid'); if (_bd) out.border = _bd; }   // 표준 Stroke 4-3 — 프레임 테두리(굵기 0 = 안 실음)
       // ★0919 QA: 배경 그라데이션 → 모델(렌더러가 set_gradient 로 칠함). 예전엔 렌더러가 CSS 문자열에서 «처음 나오는 rgba()»
       //   를 단색으로 칠해 가운데 스탑 색 한 가지가 됐다.
