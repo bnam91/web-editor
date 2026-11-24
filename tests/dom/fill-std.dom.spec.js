@@ -392,3 +392,26 @@ test('D19 글 스티커 배경 − / ⌘Z / ＋ · 아이콘·형광펜·원 = �
   expect((await st2(page, id, K)).v, '★＋ = 지난 색').toBe('#ff0000');
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* F5-2c — 심플카드: 글 영역 배경(일괄) = 표준 줄(옛 «투명» 단추 = −/＋ · 같은 몸 setTextBgNone = 밝은 글자 자동 어둡게 그대로) · 어둠 그라데이션 = 슬롯(card-overlay) · 라벨 배경·제목·설명·아이콘 = 부위 색
+ * D20 − = textBg transparent + 흰 제목 자동 어둡게(옛 몸) · ⌘Z 한 칸 · ＋ = 지난 색 · 슬롯 card-overlay 안 cvb-grad-op-row
+ * 양성대조: _patches/fill-f5-2c-CTL.patch(− 어댑터가 몸을 안 부름) ⇒ D20 빨강 */
+test('D20 심플카드 글 영역 배경 − / ⌘Z / ＋ · 옛 «투명» 몸 · 어둠 그라데이션 슬롯', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const id = await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); const sec = await window.addSection(); window.deselectAll(); window.selectSection(sec); window.addCanvasBlock({ cardMode: 'simple' }); const b = [...sec.querySelectorAll('.canvas-block')].pop(); b.dataset.textBg = '#ff0000'; b.dataset.titleColor = '#ffffff'; window.renderCanvas?.(b); window.selectBlock?.(b.id); window.showSimpleCardProperties(b); window.clearHistory?.(); return b.id; });
+  await page.waitForSelector('#cvb-textbg-hex', { state: 'attached' });
+  const pre = await page.evaluate(() => ({ slot: !!document.querySelector('.ui-fill-slot[data-slot-kind="card-overlay"] #cvb-grad-op-row'), layer: !!document.querySelector('.ui-fill-layer #cvb-textbg-hex'), hex: document.getElementById('cvb-textbg-hex')?.value }));
+  expect(pre, '[전제] 겹 줄 · 옛 id · 어둠 그라데이션 = 슬롯').toEqual({ slot: true, layer: true, hex: 'FF0000' });
+  await page.click('#cvb-textbg-fill-remove'); await raf(page);
+  const s1 = await page.evaluate((id) => { const b = document.getElementById(id); return { bg: b.dataset.textBg, title: b.dataset.titleColor, add: !!document.getElementById('cvb-textbg-fill-add') }; }, id);
+  expect(s1, '★− = transparent · 흰 제목 자동 어둡게(옛 몸) · 머리 ＋').toEqual({ bg: 'transparent', title: '#222222', add: true });
+  await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z');
+  await expect.poll(() => page.evaluate((id) => document.getElementById(id)?.dataset.textBg ?? null, id), { message: '★⌘Z 한 칸 = 지우기 전 색' }).toBe('#ff0000');
+  await page.keyboard.press('Meta+Shift+z'); await expect.poll(() => page.evaluate((id) => document.getElementById(id)?.dataset.textBg ?? null, id)).toBe('transparent');
+  await page.evaluate((id) => { const b = document.getElementById(id); window.selectBlock?.(id); window.showSimpleCardProperties(b); }, id);
+  await page.click('#cvb-textbg-fill-add'); await raf(page);
+  const s3 = await page.evaluate((id) => { const b = document.getElementById(id); return { bg: b.dataset.textBg, title: b.dataset.titleColor }; }, id);
+  expect(s3, '★＋ = 지난 색 · 제목 색 되돌림(옛 몸)').toEqual({ bg: '#ff0000', title: '#ffffff' });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
