@@ -794,3 +794,32 @@ test('D32 F8 탐침 — 쿠폰·줌·브리지 svg 실림 · 브리지 숨김 sv
   expect([b1.fillHidden, /fill-opacity:0/.test(b1.svg)], '★브리지 숨김 = fillHidden · 내보낸 svg 엔 fill-opacity:0 없음').toEqual([true, false]);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* F8 ① 탐침(지디 261125 «고치기 전에 캔버스에서 언제 보이나») — D33 에셋 배경색이 «캔버스 화면»에 보이는 경우 실측(로그 [D33 실측])
+ *   (a) 빈 에셋 · 키 없음  (b) 빈 에셋 · bgColor #12ab34  (c) 투명 PNG 그림 + bgColor #12ab34
+ *   잼: .asset-block 계산 background-color/-image(체커 repeating-conic 이 위에 있나) + 화면 스샷 가운데 화소 RGB · 단언은 장면 세우기(전제)만 — 범위(빈 칸만/투명 PNG 까지)는 이 로그로 정한다 */
+test('D33 F8 ① 탐침 — 에셋 배경색: 빈 칸·투명 PNG 에서 화면 화소 · 체커 위아래', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const ids = await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    const sec = await window.addSection(); const out = [];
+    for (let i = 0; i < 3; i++) { window.deselectAll(); window.selectSection(sec); const before = new Set(sec.querySelectorAll('.asset-block')); await window.addAssetBlock(); out.push([...sec.querySelectorAll('.asset-block')].find((x) => !before.has(x)).id); }
+    const m = await import('/js/props/_fill-section.js');
+    for (const id of out.slice(1)) { const it = m.fillKindOf(document.getElementById(id)); it.k.paint(it.block, '#12ab34'); }
+    const cv = document.createElement('canvas'); cv.width = 64; cv.height = 64; const png = cv.toDataURL('image/png');   // 다 투명
+    window.setAssetImageFromSrc(document.getElementById(out[2]), png);
+    window.deselectAll(); return out; });
+  await page.waitForTimeout(600);
+  const res = {};
+  for (const [k, id] of [['a 빈·키없음', ids[0]], ['b 빈·bgColor', ids[1]], ['c 투명PNG·bgColor', ids[2]]]) {
+    await page.evaluate((id) => document.getElementById(id).scrollIntoView({ block: 'center' }), id); await page.waitForTimeout(200);
+    const r = await page.evaluate((id) => { const b = document.getElementById(id), cs = getComputedStyle(b), rc = b.getBoundingClientRect(), img = b.querySelector('.asset-img');
+      return { x: Math.round(rc.left + rc.width / 2), y: Math.round(rc.top + rc.height / 2), w: Math.round(rc.width), h: Math.round(rc.height), bgc: cs.backgroundColor, bgi: cs.backgroundImage.slice(0, 60), inlineBg: b.style.backgroundColor || '', hasImg: !!(img && img.getAttribute('src')), imgVis: img ? getComputedStyle(img).display : null }; }, id);
+    const shot = await page.screenshot({ clip: { x: r.x - 2, y: r.y - 2, width: 4, height: 4 } });
+    const px = await page.evaluate(async (b64) => { const im = new Image(); im.src = 'data:image/png;base64,' + b64; await im.decode(); const c = document.createElement('canvas'); c.width = im.width; c.height = im.height; const x = c.getContext('2d'); x.drawImage(im, 0, 0); return [...x.getImageData(1, 1, 1, 1).data].slice(0, 3); }, shot.toString('base64'));
+    res[k] = { ...r, px };
+  }
+  console.log('[D33 실측]', JSON.stringify(res));
+  expect([res['a 빈·키없음'].w > 0, res['b 빈·bgColor'].inlineBg !== '', res['c 투명PNG·bgColor'].hasImg], '[전제] 장면 셋이 섰다(크기 · b 인라인 색 · c 그림 있음)').toEqual([true, true, true]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
