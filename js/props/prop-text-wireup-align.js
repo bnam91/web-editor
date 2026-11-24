@@ -2,7 +2,8 @@
  * text-align (label / icon-text / 일반)
  * + icon-text 블록 전용 gap
  */
-import { wireLayoutSection } from './_layout-section.js';   // 표준 Layout(C3 · 아이콘 크기 한 칸 · Gap 슬롯)
+import { wireLayoutSection } from './_layout-section.js';
+import { wireAppearanceSection } from './_appearance-section.js';   // A4 Opacity(C3)   // 표준 Layout(C3 · 아이콘 크기 한 칸 · Gap 슬롯)
 
 /** ★가로 정렬 낱말 → 세로 flex 자식의 align-self — ★★이 사상표의 ★유일한 자리 (t7-03 · 2026-10-26 S3 · 지디 처방 ⒝).
  *  ★읽는 자 셋: 이 파일 정렬 단추(U10 · 커스텀 폭 박스) · js/editor.js alignSelectedToParent(⌥A/S/D) ·
@@ -74,6 +75,7 @@ export function applyTextAlignToBlock(tb, contentEl, align) {
 }
 
 export function wireAlignSection({ tb, ctx, propPanel, isIconText }) {
+  wireAppearanceSection({ op: { numberId: 'txt-opacity', apply: (v) => window.setBlockOpacity?.(tb, v) } });   // A4 Opacity — 텍스트 패널 늘 부르는 배선 자리에 얹음(칸 없으면 무동작)
   /* 정렬 */
   propPanel.querySelectorAll('.prop-align-btn').forEach(btn => {
     btn.addEventListener('click', () => {

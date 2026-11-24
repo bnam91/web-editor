@@ -286,7 +286,7 @@ test('N9 ★센서스 — «빈 값을 값으로 다루는» 패널은 모두 �
     'js/props/prop-comparison.js',   // .cmp-row-h    — :251 raw==='' → arr[ri]=null
     'js/props/prop-graph.js',        // grb-fillmax-number — 1012t1G3: 비우면 dataset.fillMax 를 지운다 = 기본 분모 100(placeholder 가 그 값)
     'js/props/prop-grid.js',         // grd-img-height/radius, .grd-row-h-item — :437 :1011
-    'js/props/prop-row.js',          // row-height/child-h — :145 :205 isNaN → 0 → minHeight '' = auto
+    /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C3): prop-row 높이·자식 높이 = 부품 칸 — 빈 칸 = 옛 값 되돌림(부품 · 탑 공지 261125) · 자동 = 0 ⇒ 선언 빠짐 */
     'js/props/prop-table.js',        // .tbl-row-h-item — :847 !isFinite → style.height='' = auto
   ]), `★선언 목록이 바뀌었다. 새 placeholder 를 단 칸이 생겼다면:
   - 정말 「비우면 기본으로 돌아간다」면 여기 한 줄 더하라.
