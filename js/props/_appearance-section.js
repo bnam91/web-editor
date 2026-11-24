@@ -54,10 +54,21 @@ export function appearanceSlotNumberHTML({ id, label, value, min = 0, max, kind 
 function _appWireNum(id, { min = 0, max, apply, commit }) {
   const n = document.getElementById(id);
   if (!n) return;
-  const clamp = (raw) => { const v = parseInt(raw); return Number.isNaN(v) ? min : Math.min(max, Math.max(min, v)); };
-  n.addEventListener('input', () => apply(clamp(n.value)));
+  const clamp = (v) => Math.min(max, Math.max(min, v));
+  /* 빈 칸(값 없음) = 표준 Layout 과 같은 꼴: 치는 중엔 안 그림 · change 면 보이던 값으로 되돌림(Mixed 는 빈 칸 그대로) · 이력 0
+     ⛔옛 꼴은 빈 칸을 min(0)으로 먹였다 — Mixed 칸을 비우면 고른 블럭 전부가 0 이 됐다(P-2) */
+  let shown = n.value, dirty = false;   // shown = 편집 전 칸 값('' = Mixed) · dirty = 이 편집에서 input 이 이미 그렸다
+  n.addEventListener('input', () => { const v = parseInt(n.value); if (Number.isNaN(v)) return; apply(clamp(v)); dirty = true; });
   const done = commit || (() => { window.pushHistory?.(); window.scheduleAutoSave?.(); });   // 블럭이 제 commit 을 넘기면 그것(모달 등)
-  n.addEventListener('change', () => { n.value = clamp(n.value); apply(clamp(n.value)); done(); });
+  n.addEventListener('change', () => {
+    const v = parseInt(n.value);
+    if (Number.isNaN(v)) {   // 되돌림 — 그린 게 없으면 apply 0 · 그렸으면 보이던 값으로 되그림(Mixed 면 되그릴 한 값이 없다)
+      const s = parseInt(shown);
+      if (dirty && !Number.isNaN(s)) apply(s);
+      n.value = shown; dirty = false; return;
+    }
+    n.value = clamp(v); apply(clamp(v)); shown = n.value; dirty = false; done();
+  });
   wireNumberScrub(document.getElementById(`${id}-scrub`), n, { min, max });
 }
 

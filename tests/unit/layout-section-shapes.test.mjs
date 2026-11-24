@@ -137,3 +137,32 @@ test('P11 전 값과 같은 change — apply 0 · 이력 0 · 짝 축 무변 · 
   r.type('w', 650); r.type('w', 600); r.change('w');
   assert.equal(r.commits(), 1);
 });
+
+/* ── P-2 표준 Appearance(_appearance-section.js) 빈 칸 — Mixed 칸을 비우고 change 해도 0 을 먹이지 않는다 ── */
+const appSrc = fs.readFileSync(path.join(ROOT, 'js', 'props', '_appearance-section.js'), 'utf8')
+  .replace(/^import .*$/m, 'const wireNumberScrub = () => {};')
+  .replace(/^export (const|function) /gm, '$1 ');
+function appRig(v0) {
+  class El { get value() { return this._v; } set value(v) { this._v = String(v); }
+    constructor(v) { this.value = v; this.l = {}; } addEventListener(t, f) { (this.l[t] ||= []).push(f); } fire(t) { (this.l[t] || []).forEach((f) => f({})); } }
+  const n = new El(v0), calls = [];
+  let commits = 0;
+  const A = vm.runInNewContext(`${appSrc}\nwireAppearanceSection`, { document: { getElementById: (id) => (id === 'op' ? n : null) }, window: {} });
+  A({ op: { numberId: 'op', apply: (v) => calls.push(v), commit: () => commits++ } });
+  return { n, calls, commits: () => commits, type: (v) => { n.value = v; n.fire('input'); }, change: () => n.fire('change') };
+}
+
+test('A1 Opacity 빈 칸 change — 보이던 값으로 되돌림 · Mixed 는 빈 칸 그대로 · apply 0 · 이력 0 · 숫자는 여전히 잘라 먹음', () => {
+  const m = appRig('');   // Mixed(빈 값 + placeholder)
+  m.type(''); m.change();
+  assert.deepEqual([m.n.value, m.calls, m.commits()], ['', [], 0], '★Mixed 칸을 비운 change 가 값을 먹였다(옛 꼴 = 전부 0)');
+  const r = appRig('70');
+  r.type(''); r.change();
+  assert.deepEqual([r.n.value, r.calls, r.commits()], ['70', [], 0]);
+  r.type('40'); r.type(''); r.change();   // 그렸다가 비움 = 보이던 값으로 되그림 · 이력 0
+  assert.deepEqual([r.n.value, r.calls.at(-1), r.commits()], ['70', 70, 0]);
+  r.type('250'); r.change();   // 대조: 숫자 = 잘라 먹음 + 이력 한 칸
+  assert.deepEqual([r.n.value, r.calls.at(-1), r.commits()], ['100', 100, 1]);
+  r.type(''); r.change();   // 먹은 값이 다음 «보이던 값»
+  assert.deepEqual([r.n.value, r.commits()], ['100', 1]);
+});
