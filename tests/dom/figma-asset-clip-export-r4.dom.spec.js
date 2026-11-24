@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 ①②③ · 태양 §2c check) — 바뀐 칸의 토글 스위치(label.prop-toggle · .prop-toggle-track) → check 부품(label.ui-check · input.ui-check-box) */
 /* figma-asset-clip-export-r4 — 0.9.12 134 FIGMA-ASSET-CLIP-OFF-AND-CROP-MISMATCH-01 r4 (지디 261117 실앱 ◑)
  *   실앱: 에셋 패널 「내용 자르기」 실클릭으로 끔 → data-clip-content=false 인데 window.buildFigmaExportJSON() 결과에 clip 키 0.
  *   뿌리: 빌더는 라이브 캔버스가 아니라 «저장 문자열»(page.canvas)을 DOMParser 로 읽는다 → 마지막 저장 뒤의 편집이 빠진다
@@ -51,7 +52,7 @@ async function clickToggle(page, a1) {
   const r = await page.evaluate((id) => { const el = document.getElementById(id); el.scrollIntoView({ block: 'center' }); const b = el.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; }, a1);
   await page.mouse.click(r.x, r.y); await until(page, () => !!document.getElementById('asset-clip-toggle'));
   expect(await page.evaluate(() => !!document.getElementById('asset-clip-toggle')), '[전제] 에셋 패널에 「내용 자르기」').toBe(true);
-  await page.click('label.prop-toggle:has(#asset-clip-toggle)');
+  await page.click('label.ui-check:has(#asset-clip-toggle)');
 }
 
 test('F1 패널로 «내용 자르기» 끔 → 곧바로 buildFigmaExportJSON() = 그 에셋 clip:false · F2 [지킴] 다시 켬 = clip 키 0', async ({ page }) => {
@@ -64,7 +65,7 @@ test('F1 패널로 «내용 자르기» 끔 → 곧바로 buildFigmaExportJSON()
   expect(off.attr, '[전제] 실클릭으로 끔 — 그 값이 false 가 됐다').toBe('false');
   expect([off.clips, off.ov], '[전제] 끔 — 술어 false · 그림 상자 visible').toEqual([false, 'visible']);
   expect(await exported(page, a1), 'F1 — 끈 에셋이 Figma JSON 에 clip:false 로 안 실렸다(빌더가 저장 전 문자열을 읽었다)').toEqual([{ has: true, clip: false }]);
-  await page.click('label.prop-toggle:has(#asset-clip-toggle)');
+  await page.click('label.ui-check:has(#asset-clip-toggle)');
   await until(page, (id) => window.clipsContent(document.getElementById(id)) === true, a1);
   expect(await axis(page, a1), '[전제] 다시 켬 — 속성 지움 · 술어 자름 · 그림 상자 hidden').toEqual({ attr: null, clips: true, ov: 'hidden' });
   expect(await exported(page, a1), 'F2 — 다시 켰는데 clip 키가 남았다').toEqual([{ has: false }]);

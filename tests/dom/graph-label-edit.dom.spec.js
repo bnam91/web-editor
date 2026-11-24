@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 ①②③ · 태양 §2c check) — 바뀐 칸의 토글 스위치(label.prop-toggle · .prop-toggle-track) → check 부품(label.ui-check · input.ui-check-box) */
 /* graph-label-edit.dom.spec.js — K8⒤ 그래프 카테고리 라벨 캔버스 직접 편집 (태양 lane-f-graph 2026-10-05)
  * 현빈 K8: 카테고리 라벨을 캔버스에서 더블클릭해 바로 고친다. 저장 자리 = dataset.items[i].label 한 곳(패널 .grb-data-label-input 과 같은 키).
  * 고침: drag-utils renderGraph — 블럭 dblclick 위임(색인 = 블럭 안 카테고리 라벨 순서) → contenteditable(plaintext-only) · Enter/blur 확정 · Esc 취소 · 빈 글자 무변
@@ -220,7 +221,7 @@ async function pieSetup(page) {
   return { errs, id };
 }
 async function pieToggle(page, tid) {
-  await page.locator(`label.prop-toggle:has(#${tid})`).click();
+  await page.locator(`label.ui-check:has(#${tid})`).click();
 }
 /* 전제 칸 — 이름이 «항목마다 하나» 있고 보인다. 좁아서 grbPieFitTags 가 숨겼으면 결함 판정이 아니라 장면 미성립이다. */
 async function pieNamesShown(page, id) {

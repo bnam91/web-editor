@@ -113,7 +113,7 @@ test('G2 ★내장 양성대조 — 뒤집은 순서·틀린 제목 표로 재�
   expect(v.filter((x) => !x.startsWith('소유 위반')), '[전제] 소유 «만» 틀린 가짜다').toEqual([]);
 });
 
-test('G2b ★순서 예외 — 섹션 패널만 Fill 이 머리 바로 아래(_section-spec SECTION_ORDER_EXCEPT · 현빈 261118 D5 ①) · 다른 패널은 전역 순서', async ({ page }) => {
+test('G2b ★순서 예외 — 섹션 패널 = Layout 묶음 안 Alignment(layout)가 Size 위 · Fill 은 전역 자리(현빈 261123 «섹션도 예외없이 layout 다음 fill» · D5 걷음) · 다른 패널은 전역 순서', async ({ page }) => {
   await scene(page);
   await page.evaluate(MANUAL.section);
   await page.waitForFunction(() => !!document.getElementById('sec-height-value') && !!document.querySelector('#panel-right .panel-body .prop-section[data-sec="fill"]'));
@@ -123,7 +123,10 @@ test('G2b ★순서 예외 — 섹션 패널만 Fill 이 머리 바로 아래(_s
   const keys = panel.secs.filter((s) => s.sec && s.sec !== '__group' && s.sec !== 'kind').map((s) => s.sec);
   expect(panel.order, '[전제] 섹션 패널 = 예외 이름 section').toBe('section');
   expect(keys, '★순서 = 예외표 몫의 부분열').toEqual(SPEC.sectionOrderFor('section').filter((k) => keys.includes(k)));
-  expect(keys[0], '★Fill 이 첫 절(예외표 first)').toBe(SPEC.SECTION_ORDER_EXCEPT.section.first[0]);
+  /* ★기대 바뀜(현빈 261123 «섹션도 예외없이 일단 layout 다음 fill» — 11-18 D5 «Fill 첫 절» 걷음) · 남은 섹션 예외 = before(layout → size) */
+  expect(keys.indexOf('layout'), '★Alignment(layout)이 Size 앞').toBeLessThan(keys.indexOf('size'));
+  expect(keys.indexOf('padding'), '★Layout 묶음(정렬·크기·여백)이 Fill 앞').toBeLessThan(keys.indexOf('fill'));
+  expect(SPEC.SECTION_ORDER_EXCEPT.section.first, '★섹션 «Fill 맨 앞» 예외가 되살아났다').toBeUndefined();
   expect(judgePanel(panel, SPEC), '정본(예외표)으론 통과').toEqual([]);
   expect(judgePanel(panel, SPEC, SPEC.SECTION_ORDER).join(' | '), '★양성대조 — 전역 순서로 재면 순서 위반').toContain('순서 위반');
   const r = await openKind(page, { cls: 'bridge-block', entry: 'addBridgeBlock' });
@@ -232,4 +235,38 @@ test('G3 접기 없음 — 머리를 눌러도 그대로 · 옛 접기 저장이
   await expect(page.locator('#brg-h-slider'), '[전제] 브릿지 패널').toBeAttached();
   await expect(body('size'), '★옛 접기 저장이 절을 숨겼다').toBeVisible();
   await expect(body('fill'), '★옛 접기 저장이 절을 숨겼다').toBeVisible();
+});
+
+/* G3 ★소리 없는 잘림 0(QA dev37 261123 치명 5 — 칸 넷짜리 줄이 줄 폭 183 을 넘어 .prop-row overflow:hidden 에 잘림: 슬라이드 칸 ✕ · W·H 의 H · 페이지 거터 · 캔버스 그라데이션).
+ * 판정 = 보이는 .prop-row 마다 scrollWidth ≤ clientWidth · 분모 = G1 과 같은 로스터 + 수동 입구(기본 상태). 양성대조 = G3b. */
+const clippedRows = (page) => page.evaluate(() => [...document.querySelectorAll('#panel-right .panel-body .prop-row')]
+  .filter((r) => r.getClientRects().length && getComputedStyle(r).visibility !== 'hidden' && r.scrollWidth > r.clientWidth)
+  .map((r) => `${r.closest('.prop-section')?.dataset.sec || '?'}›${(r.querySelector('.prop-label')?.textContent || r.id || r.className).trim().slice(0, 16)} sw${r.scrollWidth}>cw${r.clientWidth}`));
+test('G3 보이는 .prop-row 가 잘리지 않는다(scrollWidth ≤ clientWidth) — 전 패널', async ({ page }) => {
+  const errs = await scene(page);
+  const roster = await resolveRoster(page);
+  const fails = []; let judged = 0;
+  for (const kind of roster) {
+    if (!kind.entryOk) continue;
+    const r = await openKind(page, kind);
+    if (r.err) continue;
+    judged++; for (const b of await clippedRows(page)) fails.push(`${kind.cls}: ${b}`);
+  }
+  for (const [name, open] of Object.entries(MANUAL)) {
+    if (!open) continue;
+    await page.evaluate(open); judged++;
+    for (const b of await clippedRows(page)) fails.push(`${name}: ${b}`);
+  }
+  expect(judged, '[전제] 로스터 + 수동 입구를 다 쟀다').toBeGreaterThan(30);
+  expect(fails).toEqual([]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+test('G3b ★양성대조 — 칸 넷짜리 줄을 넣으면 G3 판정이 잡는다(잘린 줄 1)', async ({ page }) => {
+  await scene(page);
+  const r = await openKind(page, { cls: 'bridge-block', entry: 'addBridgeBlock' });
+  expect(r.err, '[전제] 브릿지를 넣었다').toBeUndefined();
+  expect(await clippedRows(page), '[전제] 정본 패널은 잘림 0').toEqual([]);
+  await page.evaluate(() => { const body = document.querySelector('#panel-right .panel-body .prop-section[data-sec] > .prop-sec-body');
+    body.insertAdjacentHTML('beforeend', '<div class="prop-row" id="g3b-wide"><span class="prop-label">W</span><input type="number" class="prop-number"><span class="prop-label" style="width:56px">H</span><input type="number" class="prop-number"><input type="number" class="prop-number"></div>'); });
+  expect((await clippedRows(page)).join(' | '), '★넘친 줄을 못 잡는다').toMatch(/›W sw\d+>cw\d+/);   // 넣은 줄 = 라벨 W · H 라벨은 인라인 56 이라 둘째 라벨 규칙이 못 줄임
 });

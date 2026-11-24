@@ -1,5 +1,5 @@
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
+import { blockHeaderHTML, rotRowHTML, wireRotRow, checkHTML } from './_helpers.js';
 import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from './_position-section.js';   // 표준 Position P3
 import { renderPanel, sec } from './_panel-frame.js';
 import { pushHistory } from '../editor.js';
@@ -76,12 +76,8 @@ export function showVectorProperties(block) {
         <span class="prop-label">색</span>
         ${colorFieldHTML({ idPrefix: 'vb', hex: color, alpha: colorAlpha })}
       </div>`) + `${hasPen && penClosed ? `
-      <div class="prop-row" style="margin-top:6px;">
-        <span class="prop-label">채움</span>
-        <label class="prop-toggle" title="닫힌 패스 채움 토글" style="margin-left:auto;">
-          <input type="checkbox" id="vb-pen-fill" ${fillOn ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+      <div class="prop-row" style="margin-top:6px;" title="닫힌 패스 채움 토글">
+        ${checkHTML({ id: 'vb-pen-fill', label: '채움', checked: fillOn })}
       </div>` : ''}`),
       /* ★표준 Stroke 2-5(현빈 261124 ⓑ · 8910 #mkp-linestroke) — 선 블럭: ＋/− 없음 · 위치 칸 없음(가운데 고정) · 펜 = 색 줄(옛 Fill «색» 한 칸을 옮김 — 같은 id vb · 한 값 한 손잡이) · 가져온 SVG = 굵기만(색은 Fill = 그림 전체 바꾸기)
          ⫶ 설정 = 끝모양(늘 보임) · 선 꼴(옛 값 solid/dash/dot · 옛 id vb-stroke-dash) · 꼭짓점·점선 길이 = 막힘(렌더 고정 round · 길이 = 굵기 파생) · 옛 id vb-stroke-w-num */

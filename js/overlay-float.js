@@ -384,7 +384,10 @@ export function enterFloat(posEl) {
   posEl.dataset.overlayReturnAfter  = prevSib ? _ensureId(prevSib) : '';
   /* ★t13D-05 — 흐름 «프레임»은 흐름 끌기(네이티브 HTML5 · draggable=true)를 달고 있다 ⇒ 떠 있는 동안 그대로면 첫 움직임에 dragstart 가 끌기를 가로챈다
      (실측: 일반 프레임 오버레이 끌기 Δ 한 걸음만). 떠 있는 동안 끄고 해제 때 되돌린다(표식은 저장본에도 남아 다시 연 뒤 해제도 맞다). 글 프레임은 무접촉. */
-  if (posEl.matches?.('.frame-block:not([data-text-frame])') && posEl.getAttribute('draggable') === 'true') { posEl.dataset.overlayWasDraggable = '1'; posEl.setAttribute('draggable', 'false'); }
+  /* ★FLOAT-DRAG-NATIVE-DND-SWALLOW-01(0.9.13 · 지디 261123) — 위 t13D-05 를 «종류 무관»으로 넓힌다: 벡터(vector-block.js 가 블럭 자신에 draggable)·글 프레임도 떠 있는 동안 draggable 을 쥐면
+     마우스 끌기가 몇 px 뒤 HTML5 네이티브 끌기로 넘어가 mousemove/mouseup 이 끊긴다(실측 dragstart 1 · mouseup 0) → 떠 있는 끌기 세션이 안 끝나 블럭이 안 옮겨지고
+     다음 아무 클릭의 mouseup 에서 onUp → killClick 이 그 클릭을 삼켰다(패널 단추 첫 클릭 먹통). 되돌림은 exitFloat 의 overlayWasDraggable 그대로 · 시험 tests/dom/float-native-dnd */
+  if (posEl.getAttribute('draggable') === 'true') { posEl.dataset.overlayWasDraggable = '1'; posEl.setAttribute('draggable', 'false'); }
 
   _freezeWidth(posEl);
   /* ★재진입에도 «섹션 폭 밖» 을 유지한다 (T-068 후속, 2026-09-22 실측).
@@ -713,7 +716,18 @@ export function bindFloatMoveDrag(posEl) {
        통째로 삼켜진다(실측 20px 증발). 직전 자리를 기억해 그 델타를 살린다. */
     let lastClientX = e.clientX, lastClientY = e.clientY;
 
+    /* ★VECTOR-DUP-ID-AFTER-OVERLAY-UNDO-01(0.9.13 125 · 지디 261123 실측) — 끄는 «도중» 캔버스가 통째로 갈리면(⌘Z·⌘⇧Z = restoreSnapshot 의 innerHTML 교체)
+       이 세션은 «떨어져 나간» 옛 posEl·옛 섹션을 쥔 채 남는다 → 다음 움직임에 «커서 아래 라이브 섹션 ≠ 옛 섹션» 이라 아래 hover.appendChild(옛 posEl)
+       = 같은 id 사본이 라이브 섹션에 붙었다(DOM 2 · 저장본 2 · tests/dom/vector-dup-id D1). ⇒ 옛 posEl 이 문서에서 떨어졌으면 세션을 «조용히» 끝낸다
+       (붙이기·쓰기·끝 표본·클릭 삼킴 0 — 캔버스는 이미 되돌린 상태가 정답). */
+    const _endDetached = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      window.SmartGuides?.hideGuides();
+      window.resumeAutoSave?.();
+    };
     const onMove = ev => {
+      if (!posEl.isConnected) { _endDetached(); return; }
       if (!moved) {
         if (Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 3) return;
         moved = true;
@@ -807,6 +821,7 @@ export function bindFloatMoveDrag(posEl) {
       window.scheduleAutoSave?.();
     };
     const onUp = () => {
+      if (!posEl.isConnected) { _endDetached(); return; }   // 125 — 위 _endDetached 머리말
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       window.SmartGuides?.hideGuides();   // t13D-04

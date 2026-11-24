@@ -45,7 +45,7 @@ const measure = (page, id) => page.evaluate((id) => {
   let actual = null;
   if (ct === 'bar-h') { const t = b.querySelector('.grb-bar-h-track'); actual = t ? t.offsetHeight : null; }
   else { const fills = [...b.querySelectorAll('.grb-bar-fill')]; actual = fills.length ? Math.max(...fills.map(f => f.offsetWidth)) : null; }
-  const labels = [...document.querySelectorAll('.prop-label')].filter(l => l.textContent.includes('카테고리') && l.getBoundingClientRect().width > 0)
+  const labels = [...document.querySelectorAll('.prop-label, .ui-check-label')].filter(l => l.textContent.includes('카테고리') && l.getBoundingClientRect().width > 0)   /* ★2026-11-24 기대 바뀜 — 「카테고리 표시」 = 체크 부품(.ui-check-label) · 열차 전수 빨강 · 잘림 단언 그대로 · 줄 수 무변(census 명부 줄 번호) */
     .map(l => ({ text: l.textContent.trim(), sw: l.scrollWidth, cw: l.clientWidth }));
   return { ct, keys, panel, actual, labels };
 }, id);

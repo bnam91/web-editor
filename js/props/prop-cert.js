@@ -1,10 +1,10 @@
 /* prop-cert.js — A4 용지 스택(cert-block · 보이는 이름 «Documents») 우측 패널 (A · 261114 reframe)
- *   dev 관례 그대로: prop-section · sliderRowHTML · colorFieldHTML/wireColorField · .prop-btn · .prop-select · .prop-input · .prop-toggle(새 CSS 0)
+ *   dev 관례 그대로: prop-section · sliderRowHTML · colorFieldHTML/wireColorField · .prop-btn · .prop-select · .prop-input · check 부품 checkHTML(현빈 261123 · 새 CSS 0)
  *   ★우측패널 틀(_panel-frame) 이관 = rp-on-dev ⓐ(261118) — 절은 renderPanel/sec(아래 머리말).
  *   용지 그림 = 캔버스에서만(끌어 놓기·더블클릭·스크래치 끌기 — cert-block.js · canvas-scratch-drop.js) · 패널 용지 카드는 현빈 261114 ⑥ 으로 뺐다.
  *   ⛔값은 escHtml 로 속성에 싣는다(블럭 데이터는 남이 준 프로젝트에서 올 수 있다).
  */
-import { blockHeaderHTML, sliderRowHTML, escHtml, overlayToggleBtnHTML } from './_helpers.js';
+import { blockHeaderHTML, sliderRowHTML, escHtml, overlayToggleBtnHTML, checkHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { wireFloatToggle, wireFloatPosition, floatPositionRowHTML, posElOf, isFloat } from '../overlay-float.js';
 import { colorFieldHTML, wireColorField } from './color-picker.js';
@@ -20,8 +20,7 @@ const PRESET_LABEL = { fan: '부채(기본)', s17: '흩뿌림', stair: '계단',
 /** ⑭ 자석 턱 — v 가 target ±tol 안이면 target 으로(슬라이더 끌기 전용 · 숫자 칸 직접 입력엔 안 씀). */
 const _snapNear = (v, target, tol) => (Math.abs(v - target) <= tol ? target : v);
 const _toggleRow = (id, label, on, title = '') => `<div class="prop-row"${title ? ` title="${escHtml(title)}"` : ''}>
-        <span class="prop-label">${label}</span>
-        <label class="prop-toggle"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}><span class="prop-toggle-track"></span></label>
+        ${checkHTML({ id, label, checked: on })}
       </div>`;
 const _colorRow = (prefix, label, hex) => `<div class="prop-row" data-own="special:Callouts"><span class="prop-label">${label}</span>${colorFieldHTML({ idPrefix: prefix, hex })}</div>`;   // 쓰는 곳 = Callouts 절 하나(⑰ⓓ)
 

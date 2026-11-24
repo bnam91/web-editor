@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 ①②③ · 태양 §2c check) — 바뀐 칸의 토글 스위치(label.prop-toggle · .prop-toggle-track) → check 부품(label.ui-check · input.ui-check-box) */
 /* buzz-frame.dom.spec.js — 버즈(1012t1Z5): 자유배치 프레임 + 진짜 모달 N개 묶음을 «진짜 앱»에서 잰다.
  *
  * 버즈는 새 블럭이 아니다 — 프레임에 표식 data-buzz="1" 이 붙고, 프레임 패널 맨 위에 「Buzz」 절이 뜬다
@@ -1313,7 +1314,7 @@ test('BZ-27 1013t2D1⒝ 새 버즈는 「패딩 제외」가 켜져 있다 — �
   await wnum.press('Tab');
   const wide = await stateOf(page, fid);
   expect(wide.rows.every((r) => r.ow > a.innerW - a.padL - a.padR) && outsideOf(wide).length === 0, `전제: 말풍선 폭(${wide.rows[0].ow})이 끈 뒤의 프레임 폭(${a.innerW - a.padL - a.padR})보다 넓고, 지금은 다 안에 있다`).toBe(true);
-  const sw = page.locator('label.prop-toggle:has(#ss-fullbleed-toggle)');
+  const sw = page.locator('label.ui-check:has(#ss-fullbleed-toggle)');
   await sw.scrollIntoViewIfNeeded();
   await sw.click();
   await expect.poll(async () => (await bleedOf(page, fid)).flag, { message: '스위치를 끄면 표식이 없어진다' }).toBeNull();
@@ -1383,7 +1384,7 @@ test('BZ-29 1013t2D 게이트 — 버즈 «아닌» 보통 자유배치 프레�
   expect([off0.flag, off0.cw, off0.toggle], '전제: 패딩 제외 꺼짐 · 프레임이 패딩 안쪽 폭 · 스위치를 누를 수 있다').toEqual([null, off0.innerW - off0.padL - off0.padR, [false, false]]);
   const right = kids0[1][5] + kids0[1][7];
   expect(right > off0.cw && right <= off0.innerW, `전제: 둘째 모달의 오른쪽 끝(${right})이 끈 폭(${off0.cw}) 밖으로 걸치고 켠 폭(${off0.innerW}) 안에는 든다`).toBe(true);
-  const sw = page.locator('label.prop-toggle:has(#ss-fullbleed-toggle)');
+  const sw = page.locator('label.ui-check:has(#ss-fullbleed-toggle)');
   await sw.scrollIntoViewIfNeeded();
   /* 켬 */
   await sw.click();

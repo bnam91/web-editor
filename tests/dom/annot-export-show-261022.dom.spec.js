@@ -174,6 +174,7 @@ test('A ⓐ 섹션 PNG(«이 섹션 내보내기») — 펜 어노테이션·치
   expect(hzHit.ok, `전제: 섹션 히트존을 맞힘(${hzHit.hit})`).toBe(true);
   await page.mouse.click(hz.x + 10, hz.cy);
   expect(await poll(page, (i) => window.getSelectedSection?.()?.id === i && !!document.getElementById('sec-export-btn'), ids.sec, 4000), '전제: 섹션 골라 Export 단추').toBe(true);
+  await page.click('#sec-export-toggle');   // ★기대 바뀜(Q33 · 섹션 보강 현빈 261123) — Export 는 접힘 · 머리 ＋ 로 펼친다(사람이 하는 길)
   await page.selectOption('#sec-export-format', 'png');
   const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }), page.click('#sec-export-btn')]);
   const buf = fs.readFileSync(await dl.path());

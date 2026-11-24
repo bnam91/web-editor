@@ -21,7 +21,7 @@ import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 /* ★HTML 이스케이프는 ★정본 하나다 — ⛔제 사본을 만들지 마라
    (tests/unit/name-axes-to-markup X9 가 사본 수를 센다). */
-import { blockHeaderHTML, escHtml as _esc, disclosureChevronHtml } from './_helpers.js';
+import { blockHeaderHTML, escHtml as _esc, disclosureChevronHtml, checkHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import {
   COUPON_SLOTS, COUPON_SLOT_KEYS, COUPON_DEFAULTS, COUPON_LIMITS, clampCoupon,
@@ -88,9 +88,7 @@ function _slotListHTML(block, openKey) {
     return `
       <div class="prop-row" data-sec-item${style}>
         <span class="prop-label"${sel} title="${_esc(def.label)}">${_esc(def.label)}</span>
-        <label class="prop-none-check" title="이 칸을 캔버스에 보일지">
-          <input type="checkbox" data-cpn-on="${def.key}"${sl.on ? ' checked' : ''} aria-label="${_esc(def.label)} 표시">
-        </label>
+        ${checkHTML({ ariaLabel: `${def.label} 표시`, checked: sl.on, attrs: `data-cpn-on="${_esc(def.key)}" title="이 칸을 캔버스에 보일지"` })}   <!-- 현빈 261123 «온/오프 = 체크» -->
         <button class="prop-icon-btn" data-cpn-open="${def.key}" aria-expanded="${open ? 'true' : 'false'}"
                 title="${open ? '이 칸 접기' : '이 칸만 열기'}">${disclosureChevronHtml(open)}</button>
         <span class="prop-value-text" style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${preview}</span>
@@ -175,7 +173,7 @@ export function showCouponProperties(block, slotKey) {
       sec('kind', couponPresetChipsHTML(block)),
       sec('content', `
       <div class="prop-hint" style="padding:2px 8px;line-height:1.5">★캔버스에서 글자를 누르면 <b>그 칸만</b> 열립니다. 지금은 ${openKey ? `<b>${_esc(openKey)}</b> 칸이 열려 있습니다.` : '아무 칸도 펼치지 않은 상태입니다.'}${couponStubHasRoom(block) ? '' : `
-        <br>⛔지금은 「스텁/머리 글자」가 <b>들어갈 자리가 없습니다</b> — 분할을 켜거나 절취선을 켜십시오. <span style="opacity:.7">(분할·절취선 조절은 2단계)</span>`}</div>
+        <br>⛔「스텁/머리 글자」가 <b>들어갈 자리가 없습니다</b> — 분할이나 절취선을 켜십시오.`}</div>
 ${_slotListHTML(block, openKey)}
 ${openKey ? _slotPanelHTML(block, openKey) : ''}`),
       sec('size', `

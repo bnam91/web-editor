@@ -412,7 +412,7 @@ test.describe('S6 [10] ⑴ 붙여넣기 = 목적지 서식 잠금', () => {
         await bubbleScene(page, o, way === 'KEY');
         // 패널 「발신자 이름」 켜기(앱 문) — 기본은 숨김
         pre(await clickBlock(page, `[id="${o.B}"] .tb-bubble`, o.B), '말풍선 골라짐');
-        await page.locator('label.prop-toggle:has(#bubble-show-sender)').click();   // 토글 스위치(입력칸은 숨김)
+        await page.locator('label.ui-check:has(#bubble-show-sender)').click();   /* ★기대 바뀜(현빈 261123 ①②③ · check 부품) — 누르는 자리 = label.ui-check */
         pre(await pollTrue(page, () => document.getElementById('bubble-show-sender')?.checked === true, null, 3000), '패널 「발신자 이름」 켜짐');
         pre(await pollTrue(page, (s) => { const e = document.querySelector(s); return !!e && getComputedStyle(e).display !== 'none' && e.offsetWidth > 0; }, nameSel(o.B), 3000), '이름표가 보인다');
         await settle(page);

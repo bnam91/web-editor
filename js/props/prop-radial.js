@@ -11,7 +11,7 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-pic
 import { strokeSectionHTML, wireStrokeSection, STROKE_STYLES_SVG, STROKE_POP_WHY } from './_stroke-section.js';
 import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast } from './_fill-section.js';
 import { readLook, writeLook } from '../stroke-look.js';
-import { blockHeaderHTML, escHtml as _esc } from './_helpers.js';
+import { blockHeaderHTML, escHtml as _esc, checkHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import {
   radialStateOf, radialSetCount, RADIAL_LIMITS, RADIAL_DEFAULTS, RADIAL_ARC_PRESET, RADIAL_LOOK_KEYS,
@@ -246,21 +246,13 @@ export function showRadialProperties(block, idx) {
       sec('padding', `
       ${_rdlCanFB ? `
       <div class="prop-row">
-        <span class="prop-label">패딩 제외</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="rdl-fullbleed-toggle" ${block.dataset.fullBleed === 'true' ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'rdl-fullbleed-toggle', label: '패딩 제외', checked: block.dataset.fullBleed === 'true' })}
       </div>` : ''}
       ${_pairRow('rdl-padx', '좌우패딩', st.padX, L.padX, L.padX.step)}`),
       sec('appearance', isDot ? '' : `
       ${st.cellShape === 'round' ? _numRow('rdl-cellradius-number', '모서리', st.cellRadius, L.cellRadius) : ''}
       <div class="prop-row">
-        <span class="prop-label">내용 자르기</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="rdl-clip-toggle" ${window.clipsContent?.(block) !== false ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'rdl-clip-toggle', label: '내용 자르기', checked: window.clipsContent?.(block) !== false })}
       </div>`),
       sec('typography', st.labelPos === 'none' ? '' : `
       ${_pairRow('rdl-labelsize', '라벨 크기', st.labelSize, L.labelSize)}

@@ -173,6 +173,20 @@
   --ui-hint-color:           var(--ui-text-dim);       /* .prop-hint 옛 회색(2.4:1 ✗AA) → dim(≥4.5:1) */
   --ui-chip-h:               var(--ui-btn-h);          /* 스코프칩 높이 = 버튼 높이 별칭 */
   --ui-focus-ring:           2px solid var(--ui-accent-primary, #2d6fe8);
+  /* ★체크 부품 check(현빈 261123 «온/오프 = 고디터 커스텀 체크박스 하나» · 태양 PLAN §2c · 시안 8910 #parts check · 탑) — 값은 전부 기존 토큰 별칭(새 hex·px 0) */
+  --ui-check-size:           calc(var(--ui-space-3) + var(--ui-space-0_5));   /* 14 */
+  --ui-check-radius:         var(--ui-radius-sm);
+  --ui-check-gap:            var(--ui-space-1_5);
+  --ui-check-bg:             var(--ui-bg-input);
+  --ui-check-border:         var(--ui-divider);
+  --ui-check-border-hover:   var(--ui-text-dim);
+  --ui-check-on-bg:          var(--ui-accent-primary);
+  --ui-check-on-hover:       var(--ui-accent-primary-hover);
+  --ui-check-mark:           var(--ui-text);
+  /* ★중립 켜짐(현빈 261123 — 정렬·서식 «켜짐 = 회색 한 단 밝게» Figma 식 · 파랑은 진짜 켜짐만) — 기존 회색 토큰 별칭(새 값 0) */
+  --ui-sel-neutral-on-bg:     var(--ui-divider);   /* 현빈 261123 «2단 밝게» — 꺼짐(--ui-bg-input) 대비 1.93:1 · 글(--ui-text) 5.65:1 */
+  --ui-sel-neutral-on-border: var(--ui-divider);
+  --ui-sel-neutral-on-text:   var(--ui-text);
   --ui-chevron-transition:   transform .12s;     /* 접기 쉐브론 회전 전이(disclosureChevronHtml 인라인 값 그대로) */  /* 공용 키보드 포커스 링(아래 :focus-visible 규칙의 값 그대로) */
 
   /* ── 미정의로 쓰이던 토큰 → canonical 별칭 (일관성 수정, 2026-05) ──

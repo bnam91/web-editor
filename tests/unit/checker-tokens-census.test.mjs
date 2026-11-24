@@ -200,10 +200,14 @@ test('C4b 톤 속성 이름 — CSS 선택자와 JS 가 거는 dataset 이 «같
   assert.equal(`.asset-block[data-${am[1].replace(/[A-Z]/g, c => '-' + c.toLowerCase())}="dark"]`, ASSET_TONE_SEL);
   assert.ok(stripCss(fs.readFileSync(path.join(ROOT, TOKEN_HOME), 'utf8')).includes(ASSET_TONE_SEL), '정본 CSS 에 에셋 톤 선택자가 없다');
   const nameOf = (src, id) => (src.match(new RegExp(`name="([^"]+)"\\s+id="${id}"`)) || [])[1];
-  const secName = nameOf(js, 'sec-checker-tone-on');
-  assert.ok(secName, `섹션 라디오 name 을 못 읽었다(sec=${secName})`);
+  /* ★기대 바뀜(PRS-04 · 현빈 GO 261122 · 섹션 보강 261123) — 섹션 톤은 라디오 → [라이트 | 다크] 세그먼트 단추(그룹 name 없음 ⇒ 섞일 name 이 없다) */
+  assert.match(js, /id="sec-bg-chk-light"/, '섹션 체크 배경 «라이트» 단추가 없다');
+  assert.match(js, /id="sec-bg-chk-dark"/, '섹션 체크 배경 «다크» 단추가 없다');
+  assert.doesNotMatch(js, /name="sec-checker-tone"/, '섹션 체커 톤이 다시 라디오가 됐다');
+  const secName = 'sec-checker-tone';   // 옛 섹션 라디오 이름 — 프레임 라디오가 이 글자를 다시 쓰지 않게만 본다
   /* 1120b A5(현빈 261120) — 에셋은 라디오 → 토글 체크박스(그룹 없음 ⇒ 섞일 name 이 없다) */
-  assert.match(ajs, /type="checkbox" id="asset-checker-tone-on"/, '에셋 «체커 어둡게» 토글 체크박스가 없다');
+  /* ★기대 바뀜(현빈 261123 «온/오프 = 체크» · 태양 §2c) — 마크업은 checkHTML 이 찍는다(input type=checkbox) */
+  assert.match(ajs, /checkHTML\(\{ id: 'asset-checker-tone-on'/, '에셋 «체커 어둡게» 체크가 없다');
   assert.doesNotMatch(ajs, /name="[^"]*" id="asset-checker-tone-on"/, '에셋 체커 톤이 다시 라디오가 됐다');
   /* 프레임(FRAME-BG-CHECKER-OPTIONS-01) — 같은 글자 대조 · 라디오 name 이 섹션·에셋과 다르다 */
   const fjs = fs.readFileSync(path.join(ROOT, 'js', 'props', 'prop-frame.js'), 'utf8');
@@ -212,7 +216,7 @@ test('C4b 톤 속성 이름 — CSS 선택자와 JS 가 거는 dataset 이 «같
   assert.equal(`.frame-block[data-${fm[1].replace(/[A-Z]/g, c => '-' + c.toLowerCase())}="dark"]`, FRAME_TONE_SEL);
   assert.ok(stripCss(fs.readFileSync(path.join(ROOT, TOKEN_HOME), 'utf8')).includes(FRAME_TONE_SEL), '정본 CSS 에 프레임 톤 선택자가 없다');
   const frameName = nameOf(fjs, 'ss-checker-tone-on');
-  assert.ok(frameName && frameName !== secName, `프레임 라디오 name(${frameName})이 없거나 섹션과 같다(에셋은 1120b A5 부터 토글)`);
+  assert.ok(frameName && frameName !== secName, `프레임 라디오 name(${frameName})이 없거나 옛 섹션 이름과 같다(에셋은 1120b A5 · 섹션은 PRS-04 부터 단추)`);
   // ⛔전역 토글이 되살아나면 빨강 — 명부를 둘로 두지 않는다(2026-10-06 지디).
   for (const rel of ['js/checker-tokens.js', 'js/props/prop-page.js']) {
     const src = stripJs(fs.readFileSync(path.join(ROOT, rel), 'utf8'));

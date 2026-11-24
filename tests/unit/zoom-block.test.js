@@ -1003,20 +1003,20 @@ test('ⓑ-10 ⛔makeZoomBlock 은 a·b 를 «박지 않는다» (끌기 전까�
   assert.ok(SRC.block.includes('function clearPinnedShortEdge'), '자동으로 되돌리는 길이 있어야 한다');
 });
 
-test("ⓑ-14 ★그림자·테두리는 «라디오»다 (⛔체크박스 아님) — 그리고 켤 때 값을 «안 지운다»", () => {
+/* ★기대 바뀜(현빈 261123 온/오프=체크 · chku 1–3 GO · ③ⓐ 세그먼트 — 옛 ‹라디오로› 결정 대체) — 켬/끔 = check 부품(checkHTML) · 저장 값 'on'/'off' 그대로 */
+test("ⓑ-14 ★그림자·테두리는 «체크»다 — 그리고 켤 때 값을 «안 지운다»", () => {
   const s = SRC.prop;
-  assert.equal(/type="checkbox"/.test(s), false, '현빈이 「라디오버튼으로」라고 명시했다');
-  for (const name of ['zm-shadow', 'zm-bd']) {
-    const opts = [...s.matchAll(new RegExp(`type="radio" name="${name}" value="(on|off)"`, 'g'))].map(m => m[1]);
-    assert.deepEqual(opts.sort(), ['off', 'on'], `${name} 라디오가 켬/끔 두 벌이 아니다`);
+  for (const id of ['zm-shadow-on', 'zm-bd-on']) {
+    assert.match(s, new RegExp(`checkHTML\\(\\{ id: '${id}'`), `${id} 켬/끔 체크가 없다`);
   }
-  // ⛔라디오 핸들러가 그림자 값을 지우면 다시 켰을 때 안 돌아온다.
-  const body = sliceBlock(s, 'const bindRadio = (name, key, label) =>');
+  assert.equal(/type="radio" name="zm-(shadow|bd)"/.test(s), false, '옛 켬/끔 라디오가 남았다');
+  // ⛔체크 핸들러가 그림자 값을 지우면 다시 켰을 때 안 돌아온다.
+  const body = sliceBlock(s, 'const bindCheck = (id, key, label) =>');
   for (const k of ['angle', 'length', 'maxop', 'curve', 'narrow', 'spread']) {
     assert.equal(new RegExp(`delete\\s+block\\.dataset\\.${k}\\b`).test(body), false,
       `라디오가 dataset.${k} 를 지운다 — 다시 켜면 값이 사라진다`);
   }
-  assert.ok(/block\.dataset\[key\] = r\.value/.test(body), "라디오는 'on'/'off' 만 쓴다");
+  assert.ok(/block\.dataset\[key\] = on \? 'on' : 'off'/.test(body), "체크는 'on'/'off' 만 쓴다");
 });
 
 /* ═══════════════════════════════════════════════════════════════════════════

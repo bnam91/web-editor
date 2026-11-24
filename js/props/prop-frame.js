@@ -8,7 +8,7 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-pic
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_STYLES_CSS, STROKE_POP_WHY } from './_stroke-section.js';
 import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, setFillKindName, fillLast, fillKindOfCss } from './_fill-section.js';
 import { hasSides, readSides, writeSides, cssSideWidths, sidesMixed } from '../stroke-look.js';
-import { bindSlider, alignBtn, blockHeaderHTML, sliderRowHTML, overlayToggleBtnHTML, wireRotRow } from './_helpers.js';
+import { bindSlider, alignBtn, blockHeaderHTML, sliderRowHTML, overlayToggleBtnHTML, wireRotRow, checkHTML, wireCheck } from './_helpers.js';
 import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from './_position-section.js';   // 표준 Position 절(0.9.14 73행 P3)
 import { applyFrameTransform, frameAlignOffset, framePadding, applyFrameHAlignToChild } from '../frame-geometry.js';
 import { isShapeFrame as _isShapeFrameEl } from '../shape-frame.js';
@@ -564,11 +564,7 @@ function _renderAutoPanel(ss) {
       </div>
       ${sliderRowHTML('좌우패딩', 'ss-padx-slider', 'ss-padx-num', { min: 0, max: 100, step: 2, value: padX })}${_cellParts ? '' : `
       <div class="prop-row"${canFullBleed ? '' : ' style="opacity:.55"'}>
-        <span class="prop-label">패딩 제외</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="ss-fullbleed-toggle" ${isFullBleed ? 'checked' : ''}${canFullBleed ? '' : ' disabled'}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'ss-fullbleed-toggle', label: '패딩 제외', checked: isFullBleed, blockedWhy: canFullBleed ? '' : String(_fbWhy || '지금은 패딩 제외를 쓸 수 없습니다') })}   <!-- 막힘 = aria-disabled + 까닭(아래 안내 줄 그대로 · 태양 §2c) -->
       </div>
       ${canFullBleed ? '' : `
       <div class="prop-row" style="align-items:flex-start">
@@ -587,11 +583,7 @@ function _renderAutoPanel(ss) {
              ★현빈 1009t3-② 로 ★★기본이 ★★«자름»이 되었다(css/editor-blocks.css 맨 위 .frame-block).
            ⇒ ★★켬 판정의 ★참값은 ★★js/clip-content.js 의 ★술어 ★하나다(2026-10-10 c2 에서 ★한 자리로 모았다). -->
       ${_cellParts ? '' : `<div class="prop-row">
-        <span class="prop-label">내용 자르기</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="ss-clip-toggle" ${clipsContent(ss) ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'ss-clip-toggle', label: '내용 자르기', checked: clipsContent(ss) })}
       </div>`}
 `),
       sec('fill', `
@@ -1115,7 +1107,7 @@ function _renderAutoPanel(ss) {
   bindSlider(widthSlider, widthNum, applyWidth, { min: minWidth, max: 860 });
 
   // 패딩 제외 (full-bleed) — 기본 «끔». 끄면 흔적만 지우고 제 폭을 되살린다.
-  const fbToggle = document.getElementById('ss-fullbleed-toggle');
+  const fbToggle = wireCheck(document.getElementById('ss-fullbleed-toggle'));   // 막힘(aria-disabled)이면 click 을 막는다(옛 disabled 자리 · 태양 §2c)
   if (fbToggle) {
     fbToggle.addEventListener('change', e => {
       window.pushHistory?.('프레임 패딩 제외');

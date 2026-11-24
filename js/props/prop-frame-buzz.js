@@ -14,7 +14,7 @@
              슬라이더 = bindSlider(_helpers.js)가 mousedown 에 앞 표본 · 숫자 칸 change 에 뒤 표본.
    ⌘Z 는 캔버스를 통째로 갈므로 배선은 노드가 아니라 id 로 프레임을 다시 잡는다(F()). */
 import { propPanel } from '../globals.js';
-import { escHtml, bindSlider, sliderRowHTML } from './_helpers.js';
+import { escHtml, bindSlider, sliderRowHTML, checkHTML } from './_helpers.js';
 import { isBuzzFrame } from '../blocks/buzz-mark.js';
 import { BUZZ_STYLES, BUZZ_STYLE_KEYS, BUZZ_COUNT, BUZZ_LIMITS, getBuzz, setBuzz, buzzRows,
          relayoutBuzzFrame, applyBuzzStyle, setBuzzFrameBg, setBuzzCount, refitBuzzFrame, buzzCrowded,
@@ -74,11 +74,7 @@ function _profileRows(frame) {
      켜짐 = 지금 프로필이 무엇이든 있다(kind) — 끄면 「프로필 제거」와 같은 끝(사진·이모지·켬 표식 모두). */
   return `<span class="prop-field-label" title="${escHtml(PROFILE_HINT)}">프로필</span>
       <div class="prop-row" title="켜면 카드마다 체크무늬 원 자리가 먼저 보입니다 — 이미지·이모지를 넣으면 그 원이 채워집니다">
-        <span class="prop-label">프로필 켜기</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="bzf-pf-on"${kind ? ' checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'bzf-pf-on', label: '프로필 켜기', checked: kind })}
       </div>
       <div class="prop-row">
         <button class="prop-action-btn secondary" id="bzf-pf-img" style="flex:1">이미지 선택</button>
@@ -101,11 +97,7 @@ function _profileRows(frame) {
         <input type="number" class="prop-number" id="bzf-pfgap-number" min="${G.min}" max="${G.max}" value="${gap}">
       </div>
       <div class="prop-row" title="켜면 카드 높이를 안 늘린다 — 커지면 배경 위아래로 넘쳐 걸친다(현빈 l2c)">
-        <span class="prop-label">오버레이</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="bzf-pf-overlay"${overlay ? ' checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'bzf-pf-overlay', label: '오버레이', checked: overlay })}
       </div>
       <div class="prop-row">
         <button class="prop-action-btn danger" id="bzf-pf-clear" style="flex:1">프로필 제거</button>
@@ -151,11 +143,7 @@ export function buzzSectionHTML(frame) {
       ${layout === 'stack'
         ? _slider('엇갈림', 'bzf-offset', 'offset', getBuzz(frame, 'offset')) + _slider('간격', 'bzf-gap', 'gap', getBuzz(frame, 'gap'))
         : _slider('흩어짐', 'bzf-spread', 'spread', getBuzz(frame, 'spread')) + `<div class="prop-row">
-        <span class="prop-label">겹침</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="bzf-overlap"${getBuzz(frame, 'overlap') === 1 ? ' checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'bzf-overlap', label: '겹침', checked: getBuzz(frame, 'overlap') === 1 })}
       </div>`}
       ${_slider('너비', 'bzf-width', 'width', getBuzz(frame, 'width'), '0 = 글 길이에 맞춤')}
       ${_slider('각도', 'bzf-angle', 'angle', getBuzz(frame, 'angle'))}

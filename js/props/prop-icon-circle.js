@@ -1,5 +1,5 @@
 import { propPanel, state } from '../globals.js';
-import { blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
+import { blockHeaderHTML, rotRowHTML, wireRotRow, checkHTML } from './_helpers.js';
 import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from './_position-section.js';   // 표준 Position P3
 import { renderPanel, sec } from './_panel-frame.js';
 import { gridCircleIconSvg } from '../blocks/grid-circle-icon.js';
@@ -74,21 +74,13 @@ export function showIconCircleProperties(block) {
       <button class="prop-action-btn danger"    id="icb-remove-btn">이미지 제거</button>
       ${window.circleSampleRowHTML?.(block) || ''}
       <div class="prop-row">
-        <span class="prop-label">내용 자르기</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="icb-clip-toggle" ${window.clipsContent?.(block) !== false ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'icb-clip-toggle', label: '내용 자르기', checked: window.clipsContent?.(block) !== false })}
       </div>` : `
       <button class="prop-action-btn primary" id="icb-upload-btn">이미지 선택</button>
       <div class="prop-hint" style="margin-top:6px;">또는 블록에 파일을 드래그</div>
       ${window.circleSampleRowHTML?.(block) || ''}
       <div class="prop-row">
-        <span class="prop-label">내용 자르기</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="icb-clip-toggle" ${window.clipsContent?.(block) !== false ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'icb-clip-toggle', label: '내용 자르기', checked: window.clipsContent?.(block) !== false })}
       </div>`}
       <div id="icb-kids-section">
       <div class="prop-row" style="align-items:center;gap:6px;">

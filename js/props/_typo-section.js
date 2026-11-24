@@ -99,6 +99,7 @@ export function buildTypographySectionHtml({
   sizePh, lhPh, lsPh,
   mix,
   bare = false,
+  omitHidden = false,   /* true = 끈 칸(show*:false)을 숨기지 않고 «아예 안 그림»(R15 현빈 261123 · 챗처럼 배선이 그 칸을 안 찾는 패널만) · 기본 false = 바이트 동일 */
 } = {}) {
   const _mix = mix || _NO_MIX;
   const _sizeVal = _mix.fontSize.mixed ? '' : size;
@@ -117,6 +118,7 @@ export function buildTypographySectionHtml({
      ★왜 이 셋이 필요했나 — 챗 블럭이 네 번째 소비자로 들어왔는데(2026-10-06), 렌더러(chat-block.js)가 읽는 것은
        dataset.fontSize «하나»다. 안 읽는 칸을 펴 두면 「눌리는데 아무 일도 안 난다」가 된다(prop-grid.js 머리말의 그 고질). */
   const _hide = (show) => (show ? '' : ' style="display:none"');
+  const O = (show, html) => (omitHidden && !show ? '' : html);   /* omitHidden 일 때만 끈 칸을 통째로 뺀다(기본은 html 그대로 = 바이트 동일) */
   /* ★data-own="typography"(U2 · 절 게이트 소유 덮어쓰기) — 형광펜/점/밑줄/글로우 «서식 단추가 켜는 하위 칸»(색·x/y·글로우 세기 — 점 크기는 소유표 dot>size 가 잡는다)과
      글로우 단추는 이 글자 서식의 일부라 Typography 절에 산다. 소유표 단어(color·size·x/y·glow)로 읽으면 fill/size/position/effects 로 오판된다.
      ⛔이 표식은 show*Opts·showGlow 분기 «안»에만 — 모달·그리드·챗 기본 산출은 바이트 동일(T1-e·공유 골든). */
@@ -184,8 +186,8 @@ export function buildTypographySectionHtml({
        ★칸 꼴은 형광펜과 같다: colorFieldHTML(색＋불투명도%) ＋ range/number 쌍(세기 0~100 → --tb-glow-k 0~1).
        ⚠️240px 패널 폭: 단추 7개 × 28px ＋ 간격 6 × 4px = 220px · 섹션 좌우 패딩 8+8 을 빼면 224px 남는다(★코드로만 셌다 — 안 쟀다.
          스크롤바·상위 여백은 안 셌다. 모자라면 flex 기본 shrink 로 단추가 줄어든다 — 넘치지는 않을 것으로 «읽었다»). */
-  const _body = `${fontLabel ? `
-      <span class="prop-field-label"${_hide(showFont)}>Font</span>` : ''}
+  const _body = `${fontLabel && !(omitHidden && !showFont) ? `
+      <span class="prop-field-label"${_hide(showFont)}>Font</span>` : ''}${O(showFont, `
       <div class="font-picker" id="${p}-font-picker"${_hide(showFont)}>
         <button class="font-picker-trigger" id="${p}-font-trigger" type="button"${fontLabel ? '' : ' aria-label="Font" title="Font"'}>
           <span class="font-picker-current" id="${p}-font-name">${font ? escHtml(_fontDisplayName(font)) : '기본 (시스템)'}</span>
@@ -196,10 +198,10 @@ export function buildTypographySectionHtml({
           <div class="font-picker-list" id="${p}-font-list"></div>
           <button class="font-picker-noonnu" id="${p}-font-noonnu" type="button">🔗 눈누에서 폰트 더 받기</button>
         </div>
-      </div>
+      </div>`)}
 
       <div class="prop-row">
-        <select class="prop-select" id="${p}-font-weight" style="flex:1${showWeight ? '' : ';display:none'}">
+        ${O(showWeight, `<select class="prop-select" id="${p}-font-weight" style="flex:1${showWeight ? '' : ';display:none'}">
           ${_weightMixed ? '<option value="" selected disabled>Mix</option>' : ''}
           <option value="100" ${!_weightMixed && weight==='100'?'selected':''}>Thin 100</option>
           <option value="200" ${!_weightMixed && weight==='200'?'selected':''}>ExtraLight 200</option>
@@ -210,10 +212,10 @@ export function buildTypographySectionHtml({
           <option value="700" ${!_weightMixed && weight==='700'?'selected':''}>Bold 700</option>
           <option value="800" ${!_weightMixed && weight==='800'?'selected':''}>ExtraBold 800</option>
           <option value="900" ${!_weightMixed && weight==='900'?'selected':''}>Black 900</option>
-        </select>
+        </select>`)}
         <input type="number" class="prop-number prop-number-select" id="${p}-size-number" min="${sizeMin}" max="${sizeMax}" value="${_sizeVal}" placeholder="${_sizePh}"${_sizeEmptyAttr} style="flex:1;min-width:0;display:${showSize?'block':'none'}">
       </div>
-
+${O(showStyleGroup, `
       <div class="prop-style-group" id="${p}-style-group" style="margin-top:6px;display:${showStyleGroup?'flex':'none'}">
         <button class="prop-style-btn ${isBold?'active':''}" id="${p}-bold-btn" title="굵게 (⌘B)"><b>B</b></button>
         <button class="prop-style-btn ${isItalic?'active':''}" id="${p}-italic-btn" title="기울임 (⌘I)"><i>I</i></button>${showUnderline ? `
@@ -222,7 +224,7 @@ export function buildTypographySectionHtml({
         <button class="prop-style-btn ${isHighlight?'active':''}" id="${p}-highlight-btn" title="형광펜 (글자 길이만큼 — 선택이 있으면 그 글자만)">H</button>` : ''}${showDots ? `
         <button class="prop-style-btn ${isDot?'active':''}" id="${p}-dot-btn" title="글자 위 점 찍기 (글자마다 하나 — 선택이 있으면 그 글자만)"><svg width="13" height="15" viewBox="0 0 13 15" fill="none" aria-hidden="true"><circle cx="6.5" cy="2.1" r="1.9" fill="currentColor"/><path d="M2 13.4 6.5 6.6l4.5 6.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.1 11.1h4.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>` : ''}${showGlow ? `
         <button class="prop-style-btn ${isGlow?'active':''}" id="${p}-glow-btn" title="글로우 (선택이 있으면 그 글자만)" data-own="typography"><svg width="13" height="15" viewBox="0 0 13 15" fill="none" aria-hidden="true"><path d="M6.5 1v2.2M2.4 2.5l1.2 1.2M10.6 2.5 9.4 3.7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 13.4 6.5 6.6l4.5 6.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.1 11.1h4.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>` : ''}
-      </div>
+      </div>`)}
 ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현빈 tb_5bkw8dq: 「색변경 및 하이라이트 바 높이 조절가능하게」).
            ★H 단추 «바로 아래» — 그 단추가 켜는 것을 고치는 칸이라 같은 자리가 맞다.
            ★형광펜이 꺼져 있으면 «없다» — 정할 것이 없다(섹션 체커 톤 라디오와 같은 규약).
@@ -324,23 +326,23 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
         <input type="range" class="prop-slider" id="${p}-glow-k" min="0" max="100" step="1" value="${glowK}">
         <input type="number" class="prop-number" id="${p}-glow-k-num" min="0" max="100" value="${glowK}">
       </div>
-` : ''}
-      <div class="prop-lhls-row">
+` : ''}${O(showLineHeight || showLetterSpacing, `
+      <div class="prop-lhls-row">${O(showLineHeight, `
         <div class="prop-lhls-col"${_hide(showLineHeight)}>
           <span class="prop-field-label">Line Height</span>
           <div class="prop-icon-input">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M17.5 17a.5.5 0 0 1 0 1h-11a.5.5 0 0 1 0-1zm-5.25-9a.5.5 0 0 1 .476.347l2.25 7a.5.5 0 0 1-.952.306L13.494 14h-2.987l-.531 1.653a.5.5 0 0 1-.952-.306l2.25-7 .03-.075A.5.5 0 0 1 11.75 8zm-1.422 5h2.344L12 9.354zM17.5 6a.5.5 0 0 1 0 1h-11a.5.5 0 0 1 0-1z"/></svg>
             <input type="number" id="${p}-lh-number" min="1" max="3" step="0.05" value="${lh}"${_ph(lhPh)} aria-label="줄간격">
           </div>
-        </div>
+        </div>`)}${O(showLetterSpacing, `
         <div class="prop-lhls-col" id="${p}-ls-col" style="display:${showLetterSpacing?'block':'none'}">
           <span class="prop-field-label">Letter Spacing</span>
           <div class="prop-icon-input">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M6.5 6a.5.5 0 0 1 .5.5v11a.5.5 0 0 1-1 0v-11a.5.5 0 0 1 .5-.5m11 0a.5.5 0 0 1 .5.5v11a.5.5 0 0 1-1 0v-11a.5.5 0 0 1 .5-.5m-5.25 3a.5.5 0 0 1 .472.335l1.75 5a.5.5 0 1 1-.944.33l-.407-1.165H10.88l-.407 1.165a.5.5 0 1 1-.944-.33l1.75-5 .032-.072A.5.5 0 0 1 11.75 9zm-1.02 3.5h1.54L12 10.298z"/></svg>
             <input type="number" id="${p}-ls-number" min="-10" max="40" step="0.5" value="${ls}"${_ph(lsPh)} aria-label="자간">
           </div>
-        </div>
-      </div>
+        </div>`)}
+      </div>`)}
 `;
   /* ★bare(right-panel-unify U2) — 틀(_panel-frame.js sec('typography', …))에 넣을 «몸통»만. 껍데기(절·제목)는 틀이 그린다.
      ⛔기본(bare 없음)은 옛 산출과 «바이트 동일» — 모달·그리드·챗(아직 틀 밖)의 골든이 그대로다. */

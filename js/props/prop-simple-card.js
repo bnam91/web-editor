@@ -1,7 +1,7 @@
 // prop-simple-card.js
 // prop-canvas.js에서 분리: 심플 카드 블록 프로퍼티 패널 (showSimpleCardProperties + _escHtml)
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML, discSecOpen, discSecToggle, wireDisclosureSection, disclosureSectionHtml } from './_helpers.js';
+import { blockHeaderHTML, discSecOpen, discSecToggle, wireDisclosureSection, disclosureSectionHtml, checkHTML, wireCheck } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
 /* 색 코드 칸의 배선은 «한 자리»에서 온다 — 이 파일 안에만 손복사본이 여섯 벌 있었다
    (input/blur 가 아예 없어 무효값이 영원히 남던 사본 포함). 2026-09-20 유닛 colorhex. */
@@ -310,19 +310,15 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
         <div class="grid-picker-label" id="cvb-grid-picker-label">—</div>
       </div>
       <div class="prop-row">
-        <span class="prop-label">이미지 배경</span>
-        <label class="prop-toggle" style="${imgBgLocked ? 'opacity:0.35;pointer-events:none;' : ''}">
-          <input type="checkbox" id="cvb-imgbg-toggle" ${imgBgOn ? 'checked' : ''} ${imgBgLocked ? 'disabled' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'cvb-imgbg-toggle', label: '이미지 배경', checked: imgBgOn, blockedWhy: imgBgLocked ? (isLandscape ? '가로(landscape) 카드는 아직 지원하지 않습니다' : '「숨김」 모드는 이미 이미지가 카드 전체를 덮습니다') : '' })}   <!-- 막힘 = aria-disabled + 까닭 툴팁(태양 §2c · 옛 disabled+흐림) -->
       </div>
       <div class="prop-hint" style="margin-top:2px;">${
         isLandscape ? '가로(landscape) 카드는 아직 지원하지 않습니다'
       : textHide    ? '「숨김」 모드는 이미 이미지가 카드 전체를 덮습니다'
       :               '켜면 이미지가 카드 전체 배경이 되고 라벨이 그 위에 얹힙니다'
       }</div>
+      <span class="prop-field-label">라벨 모드</span>
       <div class="prop-row">
-        <span class="prop-label">라벨 모드</span>
         <div class="prop-align-group" id="cvb-label-mode-group">
           <button class="prop-align-btn${(!isOverlay && !textHide) ? ' active' : ''}" data-mode="separate" title="분리 박스 — 이미지와 텍스트가 별도 영역">분리</button>
           <button class="prop-align-btn${(isOverlay && !textHide) ? ' active' : ''}" data-mode="overlay" title="오버레이 — 이미지 위에 텍스트가 떠 있음 (그라데이션용)">오버레이</button>
@@ -406,11 +402,7 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
         <input type="number" class="prop-number" id="cvb-padx-number" min="0" max="80" value="${padX}">
       </div>
       <div class="prop-row" title="켜면 카드가 섹션 좌우 패딩을 무시하고 가장자리까지 확장됩니다">
-        <span class="prop-label">패딩 제외</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="cvb-fullbleed-toggle" ${block.dataset.fullBleed === 'true' ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'cvb-fullbleed-toggle', label: '패딩 제외', checked: block.dataset.fullBleed === 'true' })}
       </div>
 `),
       sec('appearance', `
@@ -460,8 +452,8 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
         <input type="text" class="prop-color-hex" id="cvb-text-bg-top-raw" value="${_hexBox(block.dataset.textBgTop || '').replace(/"/g, '&quot;')}" placeholder="상속" title="${(block.dataset.textBgTop || '').replace(/"/g, '&quot;')}">
         <button class="prop-align-btn prop-align-btn--aux" id="cvb-text-bg-top-clear" title="해제(상속)">✕</button>
       </div>
-      <div class="prop-row" style="padding-left:60px;gap:4px;">
-        <span class="prop-label" style="font-size:10px;color:var(--ui-text-sub);min-width:0;flex:0 0 auto;margin-right:4px;">그라데이션</span>
+      <div class="prop-row prop-row--wide">
+        <span class="prop-label">그라데이션</span>
         <button class="prop-align-btn cvb-grad-preset" data-graddir="180" title="아래로 어두워짐" style="background:linear-gradient(180deg, transparent, rgba(0,0,0,0.85));">↓</button>
         <button class="prop-align-btn cvb-grad-preset" data-graddir="0" title="위로 어두워짐" style="background:linear-gradient(0deg, transparent, rgba(0,0,0,0.85));">↑</button>
         <button class="prop-align-btn cvb-grad-preset" data-graddir="180" data-grad-strong="1" title="아래 강조" style="background:linear-gradient(180deg, transparent 30%, rgba(0,0,0,0.95));">⇊</button>
@@ -600,7 +592,7 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
   // ── 이미지 배경 (카드 전체를 이미지로) ────────────────────────────────────────
   // 새 상태를 만들지 않는다 — 켜기=오버레이 모드, 끄기=분리 모드. 「라벨 모드」 세그먼트와
   // «같은» _applyCvbLabelMode 를 부르므로 두 컨트롤이 어긋날 수 없다.
-  const imgBgToggle = document.getElementById('cvb-imgbg-toggle');
+  const imgBgToggle = wireCheck(document.getElementById('cvb-imgbg-toggle'));   // 막힘(aria-disabled)이면 click 을 막는다(옛 disabled 자리 · 태양 §2c)
   imgBgToggle?.addEventListener('change', () => {
     _applyCvbLabelMode(block, imgBgToggle.checked ? 'overlay' : 'separate');
   });

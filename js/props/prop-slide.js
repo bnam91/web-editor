@@ -5,7 +5,7 @@
  *   ⛔그림 주소는 escHtml 로 속성에(남이 준 프로젝트에서 올 수 있다).
  */
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML, sliderRowHTML, escHtml, animGifBtnHTML, wireAnimGifBtn } from './_helpers.js';
+import { blockHeaderHTML, sliderRowHTML, escHtml, animGifBtnHTML, wireAnimGifBtn, checkHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField } from './color-picker.js';
 import { grdPickImageFile } from './prop-grid.js';
@@ -23,7 +23,7 @@ const _cellBgOn = (c) => !/^(transparent|rgba\(0, 0, 0, 0\))$/.test(_cellBg(c));
 function _setCellBg(c, v) { c.style.backgroundImage = ''; c.style.backgroundColor = v; c.dataset.bg = v; syncFrameBgVars(c); }
 function _cellRowsHTML(block, st, selCell) {
   const cells = slideCells(block), n = cells.length;
-  const rows = cells.map((c, i) => `<div class="prop-row sld-cell-row${c === selCell ? ' active' : ''}" data-idx="${i}">
+  const rows = cells.map((c, i) => `<div class="prop-row prop-row--wide sld-cell-row${c === selCell ? ' active' : ''}" data-idx="${i}">
         <span class="prop-label">칸 ${i + 1}</span>
         <input type="number" class="prop-number sld-cw" min="20" max="100" step="1" value="${c.dataset.w ?? st.layout.cardW}" aria-label="칸 ${i + 1} ${slideAxis(st.fx) === 'y' ? '높이' : '폭'} %">${slideAxis(st.fx) === 'y' ? '' : `
         <input type="number" class="prop-number sld-ch" min="20" max="100" step="1" value="${c.dataset.h ?? 100}" aria-label="칸 ${i + 1} 높이 %">`}
@@ -42,7 +42,7 @@ function _cellPartsHTML(c, k, st) {
   const vert = slideAxis(st.fx) === 'y';
   return `${sliderRowHTML(vert ? '높이 %' : '폭 %', 'sld-cell-w-slider', 'sld-cell-w-number', { min: 20, max: 100, step: 1, value: c.dataset.w ?? st.layout.cardW })}${vert ? '' : `
       ${sliderRowHTML('높이 %', 'sld-cell-h-slider', 'sld-cell-h-number', { min: 20, max: 100, step: 1, value: c.dataset.h ?? 100 })}`}
-      <div class="prop-row"><span class="prop-label">배경</span><label class="prop-toggle"><input type="checkbox" id="sld-cell-bg-on" ${_cellBgOn(c) ? 'checked' : ''} aria-label="칸 ${k + 1} 배경"><span class="prop-toggle-track"></span></label></div>
+      <div class="prop-row">${checkHTML({ id: 'sld-cell-bg-on', label: '배경', checked: _cellBgOn(c), attrs: `aria-label="칸 ${k + 1} 배경"` })}</div>
       <div class="prop-row"><button class="prop-btn" id="sld-cell-back" style="width:100%">슬라이드 전체 설정</button></div>`;
 }
 /* 그림자 = Effects 절(일반 프레임과 같은 절 이름) · 저장 키 dataset.shadow 그대로(GIF deco·103 기본값이 읽는다) */
@@ -137,19 +137,14 @@ export function showSlideProperties(block, opts = {}) {
         ${[['row', '기본'], ['center', '가운데 캐러셀'], ['single', '단일 컷']].map(([v, t]) => `<option value="${v}"${st.layout.mode === v ? ' selected' : ''}>${t}</option>`).join('')}
       </select></div>
       ${sliderRowHTML('간격', 'sld-gap-slider', 'sld-gap-number', { min: -80, max: 80, step: 1, value: st.layout.gap })}${slideAxis(st.fx) === 'y' ? '' : `
-      <div class="prop-row"><span class="prop-label">점 표시</span><select class="prop-select" id="sld-dots">
-        ${[['none', '없음'], ['top', '위'], ['bottom', '아래']].map(([v, t]) => `<option value="${v}"${st.layout.dots === v ? ' selected' : ''}>${t}</option>`).join('')}
-      </select></div>${st.layout.dots === 'none' ? '' : `
-      ${sliderRowHTML('칸↔점 갭', 'sld-dotgap-slider', 'sld-dotgap-number', { min: 0, max: 40, step: 1, value: st.layout.dotGap })}
-      ${sliderRowHTML('점 간격', 'sld-dotspace-slider', 'sld-dotspace-number', { min: 2, max: 40, step: 1, value: st.layout.dotSpace })}
-      <div class="prop-row"><span class="prop-label">켜진 점</span>${colorFieldHTML({ idPrefix: 'sld-don', hex: st.layout.dotOn })}</div>
-      <div class="prop-row"><span class="prop-label">꺼진 점</span>${colorFieldHTML({ idPrefix: 'sld-doff', hex: st.layout.dotOff })}</div>`}
-      <div class="prop-row"><span class="prop-label">스크롤 고정</span><label class="prop-toggle"><input type="checkbox" id="sld-scroll-fix" ${block.dataset.scrollX ? 'checked' : ''}><span class="prop-toggle-track"></span></label></div>`}`),
-      /* SLIDE-PADDING-EXCLUDE-01 — 에셋·인증서 «패딩 제외»와 같은 줄(prop-row + prop-toggle) */
+      ${_dotsRowsHTML(st.layout)}
+      <div class="prop-row">
+        ${checkHTML({ id: 'sld-scroll-fix', label: '스크롤 고정', checked: block.dataset.scrollX })}
+      </div>`}`),
+      /* SLIDE-PADDING-EXCLUDE-01 — 에셋·인증서 «패딩 제외»와 같은 줄(prop-row + check 부품) */
       sec('padding', canFB ? `
       <div class="prop-row">
-        <span class="prop-label">패딩 제외</span>
-        <label class="prop-toggle"><input type="checkbox" id="sld-fullbleed" ${block.dataset.fullBleed === 'true' ? 'checked' : ''}><span class="prop-toggle-track"></span></label>
+        ${checkHTML({ id: 'sld-fullbleed', label: '패딩 제외', checked: block.dataset.fullBleed === 'true' })}
       </div>` : ''),
       sec('export', animGifBtnHTML(), { id: 'sld-anim-section' }),
     ],
@@ -203,21 +198,48 @@ export function showSlideProperties(block, opts = {}) {
   /* SLIDE-TEMP-HSCROLL-FIX-EXPORT-01 — 켜면 캔버스 임시 가로 자리(막대)를 data-scroll-x 로 굳혀 내보내기가 그 자리 · 끄면 키 지움(흔적 0) */
   $('sld-scroll-fix')?.addEventListener('change', (e) => { setSlideScrollFix(block, e.target.checked); commit(); });
   /* SLIDE-INDICATOR-DOTS-01 — 점 표시(가로 효과만 · 세로면 줄 없음) */
-  $('sld-dots')?.addEventListener('change', (e) => { setSlideLayout(block, { dots: e.target.value }); commit(); reopen(); });   // 켜면 점 칸 줄이 생긴다
+  /* SLIDE-PROGRESS-BAR-01 — 표시 모양(없음 = 위치 none · 점/진행바 = 지금 위치 그대로 · 처음 켜면 아래) · 엔드슬롯 = 위↔아래 · 모양 바뀌면 아래 줄 다시 그림 */
+  $('sld-dots-kind')?.addEventListener('change', (e) => { const v = e.target.value, L0 = readSlideState(block).layout; setSlideLayout(block, v === 'none' ? { dots: 'none' } : { dots: L0.dots === 'none' ? 'bottom' : L0.dots, dotShape: v }); commit(); reopen(); });
+  $('sld-dots-pos')?.addEventListener('click', () => { const L0 = readSlideState(block).layout; setSlideLayout(block, { dots: L0.dots === 'top' ? 'bottom' : 'top' }); commit(); reopen(); });
   /* SLIDE-DOTS-SPACING-01 — 칸↔점 갭 · 점↔점 간격 · 켜진/꺼진 점 색(첫 장면·GIF 같은 값) */
-  for (const [id, key] of [['sld-dotgap', 'dotGap'], ['sld-dotspace', 'dotSpace']]) {
+  for (const [id, key] of [['sld-dotgap', 'dotGap'], ['sld-dotspace', 'dotSpace'], ['sld-bargap', 'dotGap'], ['sld-barh', 'barThick']]) {
     const sl = $(`${id}-slider`), nu = $(`${id}-number`);
     sl?.addEventListener('input', () => { nu.value = sl.value; setSlideLayout(block, { [key]: +sl.value }); });
     sl?.addEventListener('change', commit);
     nu?.addEventListener('change', () => { sl.value = nu.value; setSlideLayout(block, { [key]: +nu.value }); commit(); });
   }
-  for (const [pre, key] of [['sld-don', 'dotOn'], ['sld-doff', 'dotOff']]) {
+  for (const [pre, key] of [['sld-don', 'dotOn'], ['sld-doff', 'dotOff'], ['sld-bon', 'dotOn'], ['sld-boff', 'dotOff']]) {
     wireColorField(pre, { onApply: (c) => { setSlideLayout(block, { [key]: String(c) }); }, onCommit: commit });   // 소독은 normLayout(#rrggbb[aa] 만 · 그 밖은 기본색)
   }
 
   wireAnimGifBtn(document.getElementById('open-anim-btn'), block);   // 텍스트 패널(prop-text.js _applyAnimGate)과 같은 판정·글 — _helpers.js 한 벌(슬라이드·그리드 공용)
 }
 window.showSlideProperties = showSlideProperties;
+/* SLIDE-PROGRESS-BAR-01(0.9.13 195 · 현빈 261123 D 확정 · 정본 시안 8910 sbarend/sbarendbar · 탑 f2236dd·e1df443) — 한 줄 [점 표시 | 표시 모양 ▾(없음·점·진행바) | 엔드슬롯 위↔아래]
+   · 위치(dots top/bottom)는 엔드슬롯 단추(.prop-chain-btn = 끝 칼럼 규칙 · 새 CSS 0) · «없음» = 표시 모양 맨 앞(현빈 답 대기 · 추천안대로 — 바뀌면 이 줄)
+   · 아래 줄: 점 = 칸↔점 갭 · 점 간격 · 켜진/꺼진 점 / 진행바 = 칸↔바 갭 · 바 두께 · 채운/빈 색(갭·색 = 점과 같은 키 — 모양을 바꿔도 유지) */
+const _SB_UP = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M2 1.5h8M6 10.5V4.5M3.5 7L6 4.5 8.5 7"/></svg>';
+const _SB_DN = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10.5h8M6 1.5v6M3.5 5L6 7.5 8.5 5"/></svg>';
+function _dotsRowsHTML(L) {
+  const kind = L.dots === 'none' ? 'none' : L.dotShape, top = L.dots === 'top';
+  const posT = `점 표시 위치: ${top ? '위' : '아래'} — 누르면 ${top ? '아래' : '위'}`;
+  const head = `
+      <div class="prop-row"><span class="prop-label">점 표시</span><select class="prop-select" id="sld-dots-kind" aria-label="표시 모양" title="표시 모양 — 없음 · 점 · 진행바" style="flex:1 1 0;min-width:0">
+        ${[['none', '없음'], ['dots', '점'], ['bar', '진행바']].map(([v, t]) => `<option value="${v}"${kind === v ? ' selected' : ''}>${t}</option>`).join('')}
+      </select>${kind === 'none' ? '' : `<button type="button" class="prop-chain-btn" id="sld-dots-pos" data-pos="${top ? 'top' : 'bottom'}" aria-label="${posT}" title="${posT}">${top ? _SB_UP : _SB_DN}</button>`}</div>`;
+  if (kind === 'none') return head;
+  if (kind === 'bar') return head + `
+      ${sliderRowHTML('칸↔바 갭', 'sld-bargap-slider', 'sld-bargap-number', { min: 0, max: 40, step: 1, value: L.dotGap })}
+      ${sliderRowHTML('바 두께', 'sld-barh-slider', 'sld-barh-number', { min: 1, max: 12, step: 1, value: L.barThick })}
+      <div class="prop-row"><span class="prop-label">채운 색</span>${colorFieldHTML({ idPrefix: 'sld-bon', hex: L.dotOn })}</div>
+      <div class="prop-row"><span class="prop-label">빈 색</span>${colorFieldHTML({ idPrefix: 'sld-boff', hex: L.dotOff })}</div>`;
+  return head + `
+      ${sliderRowHTML('칸↔점 갭', 'sld-dotgap-slider', 'sld-dotgap-number', { min: 0, max: 40, step: 1, value: L.dotGap })}
+      ${sliderRowHTML('점 간격', 'sld-dotspace-slider', 'sld-dotspace-number', { min: 2, max: 40, step: 1, value: L.dotSpace })}
+      <div class="prop-row"><span class="prop-label">켜진 점</span>${colorFieldHTML({ idPrefix: 'sld-don', hex: L.dotOn })}</div>
+      <div class="prop-row"><span class="prop-label">꺼진 점</span>${colorFieldHTML({ idPrefix: 'sld-doff', hex: L.dotOff })}</div>`;
+}
+
 /** 142 — 칸의 프레임 패널(prop-frame)이 부르는 «슬라이드 칸» 조각: content = 칸 줄 + 고른 칸 넷 · effects = 그림자 3단(Q4) · wire = 배선 한 벌 */
 export function slideCellPanelParts(cell) {
   const block = cell?.closest?.('.slide-block');

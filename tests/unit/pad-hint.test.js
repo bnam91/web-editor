@@ -327,7 +327,8 @@ test('T5 ★힌트는 «좌우»와 «아래» 두 곳에서 불린다 (그 밖�
    ⇒ 절의 어휘가 «라디오»로 바뀌었다. 옛 단언을 남겨 두면 «현빈이 시킨 것»을 검사가 도로 막는다.
    ⛔그래서 지우는 게 아니라 «방향을 뒤집어» 그대로 세운다 — 어휘가 섞이면 안 된다는 «규칙 자체»는 살아 있다.
      (체크박스가 몰래 돌아오는 것도 여전히 빨강이다. 조건이 하나 늘었지 줄지 않았다.) */
-test('T6 ★페이지 패널 Grid 절 «안»에 패딩 비주얼 «라디오 쌍»이 있다 (어휘가 안 섞인다)', () => {
+/* ★기대 바뀜(현빈 261123 «온/오프 = 고디터 커스텀 체크 하나» — 옛 «켬/끔 라디오 쌍»(현빈 2026-09-09 «라디오버튼으로») 결정 대체) — 어휘 = 체크 */
+test('T6 ★페이지 패널 Grid 절 «안»에 패딩 비주얼 «체크»가 있다 (어휘가 안 섞인다)', () => {
   const src = codeOnly(PAGE);
 
   /* ★입력이 살아 있다 — Grid 절을 «실제로» 찾았나. 못 찾으면 아래는 통째로 공회전이다. */
@@ -342,15 +343,11 @@ test('T6 ★페이지 패널 Grid 절 «안»에 패딩 비주얼 «라디오 �
     `Grid 절을 ${grid.length}자로 떴다 — 0 이면 잴 게 없고, 너무 크면 절 경계를 놓쳤다`);
 
   /* 형제(그리드 가이드)가 «같은 절 안»에 있나 — 이 절을 제대로 떴다는 양성대조. */
-  assert.match(grid, /id="page-grid-on"/, 'Grid 절 안에 그리드 가이드 체크박스가 없다 — 엉뚱한 덩이를 떴다');
+  assert.match(grid, /id: 'page-grid-on'/, 'Grid 절 안에 그리드 가이드 체크가 없다 — 엉뚱한 덩이를 떴다');
 
-  assert.match(grid, /type="radio"[^>]*id="page-pad-hint-on"/,
-    '★Grid 절 안에 패딩 비주얼 «라디오»가 없다 (현빈 2026-09-09)');
-  assert.match(grid, /id="page-pad-hint-off"/,
-    '★끔 라디오가 없다 — 라디오는 «짝»이 있어야 끌 수 있다(.checked=false 로는 못 끈다)');
-  /* ⛔한 절에 두 어휘를 섞지 않는다 — 이제 어휘는 «라디오»다. 체크박스가 돌아오면 빨강. */
-  assert.doesNotMatch(grid, /type="checkbox"/,
-    '★같은 절에 체크박스가 섞였다 — 이 절의 어휘는 라디오다');
+  assert.match(grid, /checkHTML\(\{ id: 'page-pad-hint-on'/, '★Grid 절 안에 패딩 비주얼 «체크»가 없다');
+  /* ⛔한 절에 두 어휘를 섞지 않는다 — 이제 어휘는 «체크»다. 라디오가 돌아오면 빨강. */
+  assert.doesNotMatch(grid, /type="radio"/, '★같은 절에 라디오가 섞였다 — 이 절의 어휘는 체크다');
 });
 
 /* ⇐ 되돌리면 빨강: `raw === null` 분기를 지우거나 `!!o.on` 으로 바꾸면(=기본 꺼짐) 터진다. */
@@ -509,7 +506,7 @@ test('T13 ★색 피커 둘이 Grid 절 «안»에 각자 자기 로우에 있�
   assert.ok(nx > gi, '이 special 절이 Grid 가 아니다 — 엉뚱한 절을 떴다');
   const grid = src.slice(gi, nx);
   assert.ok(grid.length > 200 && grid.length < 6000, `Grid 절을 ${grid.length}자로 떴다`);
-  assert.match(grid, /id="page-grid-on"/, 'Grid 절 안에 그리드 라디오가 없다 — 엉뚱한 덩이를 떴다');
+  assert.match(grid, /id: 'page-grid-on'/, 'Grid 절 안에 그리드 체크가 없다 — 엉뚱한 덩이를 떴다');   // ★기대 바뀜(현빈 261123 «온/오프 = 고디터 커스텀 체크 하나» — 옛 «켬/끔 라디오 쌍»(현빈 2026-09-09 «라디오버튼으로») 결정 대체)
 
   assert.match(grid, /type="color"[^>]*id="page-grid-color"/,
     '★그리드 가이드 색 피커가 Grid 절 안에 없다 (현빈 ②「그리드 가이드 켬 라디오 같은 로우에」)');
@@ -519,7 +516,7 @@ test('T13 ★색 피커 둘이 Grid 절 «안»에 각자 자기 로우에 있�
   /* ★각 피커가 «자기 로우» 안에 있나 — 한 로우에 둘이 몰리면 폭이 넘친다(211px 실측). */
   for (const [pickId, radioId] of [['page-grid-color', 'page-grid-on'], ['page-pad-hint-color', 'page-pad-hint-on']]) {
     const pi = grid.indexOf('id="' + pickId + '"');
-    const ri = grid.indexOf('id="' + radioId + '"');
+    const ri = grid.indexOf("id: '" + radioId + "'");   // check 부품(checkHTML) 꼴
     assert.ok(pi > ri && pi > 0 && ri > 0, `★${pickId} 가 ${radioId} 보다 앞에 있다 — 로우 짝이 어긋났다`);
     /* 그 사이에 «다음 로우의 시작»이 끼면 다른 로우에 붙은 것이다. */
     const between = grid.slice(ri, pi);

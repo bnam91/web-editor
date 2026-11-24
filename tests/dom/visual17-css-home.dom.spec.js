@@ -113,7 +113,14 @@ test('V17 규칙 자리만 옮김 — 툴바 단추 계산된 스타일(가만�
   expect(['probe:ab', 'probe:ai', 'probe:busy'].every((k) => k in a), '[전제] 섹션 툴바 시료 셋').toBe(true);
   expect(Object.keys(a).sort(), '[전제] 두 판 단추 목록 같음(장면 같음)').toEqual(Object.keys(b).sort());
   expect(a, '가만히 — 단추마다 계산된 스타일 같음').toEqual(b);
-  expect(await readHover(now), 'hover — 같음').toEqual(await readHover(old));
+  /* ★기대 바뀜(현빈 261123 «호버 = 중립 · 파랑은 진짜 활성·큰 단추만») — AB 호버 색 두 칸만 옛 판과 «일부러» 다르다 → 비교에서 빼고 따로 잰다 */
+  const hn = await readHover(now), ho = await readHover(old), AB = '[data-v17="ab"]';
+  const neutral = await now.evaluate(() => { const p = document.createElement('span'); p.style.backgroundColor = 'var(--ui-sel-neutral-on-bg)'; document.body.appendChild(p); const v = getComputedStyle(p).backgroundColor; p.remove(); return v; });
+  expect(hn[AB]['background-color'], '★AB 호버 바탕 = 중립 켜짐 토큰').toBe(neutral);
+  /* AB 의 테두리 색은 따로 정하지 않아 currentColor(= 글자색)를 따른다 ⇒ 글자색이 중립이 되면 같이 바뀐다(지디 수지맥 7088436d0 V17 −1/+1 · srv 실측 rgb(119,161,240) → rgb(224,224,224)) — 그 «따라감»을 잰다 */
+  expect(hn[AB]['border-top-color'], '★AB 호버 테두리 = 글자색 따라감(currentColor)').toBe(hn[AB].color);
+  for (const k of ['background-color', 'color', 'border-top-color']) { delete hn[AB][k]; delete ho[AB][k]; }
+  expect(hn, 'hover — 같음(AB 색 세 칸 뺌 · 테두리는 글자색 따라감)').toEqual(ho);
   await ctxA.close(); await ctxB.close();
 });
 

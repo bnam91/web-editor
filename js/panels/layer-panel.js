@@ -184,6 +184,7 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
             window.transformSectionToBadge?.(sec, newName.replace(/^\*\*badge_/i, '').trim() || '정품인증');
             window.buildLayerPanel?.();   // BADGE-SECTION-LAYER-TREE-STALE-01: inner 를 통째로 갈았다 — 트리가 옛 자식(Gap/Heading…)을 그대로 보였다
           }
+          window.applyYoutubeThumbName?.(sec, prevName);   // ★«ytb_» 이스터에그(현빈 261123) — 이름이 ytb_ 로 시작하면 썸네일 섹션 · 떼면 원상복구 · 아래 pushHistory «앞» = ⌘Z 한 칸
           window.pushHistory?.('섹션명 변경');
           window.scheduleAutoSave?.(); // FIX-LP-01: 이름 변경 후 저장 보장
         } else {

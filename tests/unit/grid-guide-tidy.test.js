@@ -77,13 +77,13 @@ test('T-G1 ★「저장·내보내기에는 나오지 않습니다」 안내문�
    T-G2 — #11 칼럼 + 거터를 «한» prop-row 로
    ═══════════════════════════════════════════════════════════════════════════ */
 test('T-G2 ★칼럼·프리셋·거터가 «같은 .prop-row» 안에 있다', () => {
-  const anchor = PAGE.indexOf('<div class="prop-row" id="page-grid-opts">');
+  const anchor = PAGE.search(/<div class="prop-row[^"]*" id="page-grid-opts">/);   // ★기대 바뀜(QA dev37 261123 치명 — 이 줄에 .prop-row--wide · 끝 칼럼까지)
   assert.ok(anchor > 0, '그리드 옵션 행(#page-grid-opts)을 못 찾았다');
 
   const rowSrc = extractDiv(PAGE, anchor);
   /* ★입력이 살아 있다 — 행 소스를 «진짜로» 떠냈나. 빈 문자열이면 아래 3건이 전부 공회전한다. */
   assert.ok(rowSrc.length > 0, '★행 소스를 못 떠냈다 (div 균형이 안 맞는다) — T-G2 는 아무것도 안 쟀다');
-  assert.ok(rowSrc.startsWith('<div class="prop-row"'), `떠낸 것이 행이 아니다: ${rowSrc.slice(0, 40)}`);
+  assert.ok(rowSrc.startsWith('<div class="prop-row'), `떠낸 것이 행이 아니다: ${rowSrc.slice(0, 40)}`);
 
   /* ⚠️되돌리면 빨개진다: 거터를 다시 «자기 prop-row» 로 떼어내는 순간
        (그러면 거터가 이 행 밖으로 나가 아래 세 번째 단언이 터진다). */

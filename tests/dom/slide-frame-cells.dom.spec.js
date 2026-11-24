@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 ①②③ · 태양 §2c check) — 바뀐 칸의 토글 스위치(label.prop-toggle · .prop-toggle-track) → check 부품(label.ui-check · input.ui-check-box) */
 /* slide-frame-cells — SLIDE-CELL-AS-FRAME-01(현빈 261118 · handoff/PLAN-ty-slide-frame-cells-261118.md) · 커밋 1 = 데이터 두 갈래 + 비파괴 렌더 + 왕복.
  *   js/blocks/slide-block.js: data-cell-mode="frame" = 정본 DOM(.sld-track > .frame-block.sld-cell 자식) · renderSlideBlock 프레임 갈래 = 배치만(칸 자식 무접촉)
  * F0 ★프레임 모드 슬라이드 · 칸 2 에 들어가(_activeFrame = 칸) 진짜 addTextBlock → 그 칸 안 글자(같은 요소 = id 로 잰다 · addTextBlock 프레임 갈래는 content 를 안 받는다)
@@ -754,7 +755,7 @@ test('G1 칸 배경 끄기·켜기·색 — 캔버스·Figma·⌘Z·저장·GIF�
   await expect(page.locator('#sld-cell-bg-on'), '[전제] 배경 켬(기본)').toBeChecked();
   await expect(page.locator('#ss-bg-hex'), '[전제] 배경색 칸(142 — 칸 배경색 = 프레임 패널 Fill)').toHaveCount(1);
   /* 지혜맥 ae8952f79 G1 2/2 — 숨은 진짜 체크박스는 uncheck({force}) 로도 «viewport 밖» ⇒ 사람이 누르는 겉모양(.prop-toggle-track)을 누른다(Playwright 가 패널 스크롤로 넣고 누름) */
-  const bgToggle = page.locator('#sld-cell-bg-on + .prop-toggle-track');
+  const bgToggle = page.locator('label.ui-check:has(#sld-cell-bg-on)');
   await bgToggle.click();
   await expect.poll(() => cellBg(page, id, 1), '★끔 = 칸 투명').toEqual({ bg: 'transparent', cs: 'rgba(0, 0, 0, 0)' });
   await expect(page.locator('#sld-cell-bg-on'), '끈 동안 켜기 꺼짐(142 — 배경색 칸은 프레임 Fill 에 늘 있다)').not.toBeChecked();
@@ -879,7 +880,7 @@ test('D1 칸↔점 갭 — 칸 높이 그대로 · 블럭이 커짐 · 바깥 �
   const { errs, id } = await menuScene(page);
   await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));   // 261120 지혜맥 DIAG: 배율이 멎기 전(실제 0.4566 · 이름 0.4)에 재서 9.1~9.5 — 멎은 뒤 잰다
   await page.evaluate((id) => window.showSlideProperties(document.getElementById(id)), id);
-  await page.locator('#sld-dots').selectOption('bottom');
+  await page.locator('#sld-dots-kind').selectOption('dots'); // ★기대 바뀜(현빈 261123 D «표시 모양» 확정 · 0.9.13 195): 옛 «점 표시» select(없음/위/아래) → [표시 모양 ▾(없음·점·진행바) | 엔드슬롯 위↔아래] — «아래» = 점 고르기(처음 켜면 아래)
   await expect(page.locator('#sld-dotgap-slider'), '[전제] 갭 슬라이더').toHaveCount(1);
   const gapTo = (v) => page.evaluate((v) => { const e = document.getElementById('sld-dotgap-slider'); e.value = String(v); e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); }, v);
   const geo = () => page.evaluate((id) => {
@@ -910,7 +911,7 @@ test('E1 임시 가로 밀기 — 점 띠 고정 · 활성 점 = 보이는 칸 �
   const { errs, id } = await menuScene(page);
   await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));   // 지혜맥 261120 2/3: 색은 맞고 점 x 가 740/748/756 → 742/748/755(가운데 기준 좁아짐) = 배율이 멎기 전 d0 를 잼
   await page.evaluate((id) => window.showSlideProperties(document.getElementById(id)), id);
-  await page.locator('#sld-dots').selectOption('bottom');
+  await page.locator('#sld-dots-kind').selectOption('dots'); // ★기대 바뀜(현빈 261123 D «표시 모양» 확정 · 0.9.13 195): 옛 «점 표시» select(없음/위/아래) → [표시 모양 ▾(없음·점·진행바) | 엔드슬롯 위↔아래] — «아래» = 점 고르기(처음 켜면 아래)
   const dots = () => page.evaluate((id) => { const b = document.getElementById(id); return [...b.querySelectorAll(':scope > .sld-dots > span')].map((d) => ({ x: Math.round(d.getBoundingClientRect().left), c: getComputedStyle(d).backgroundColor })); }, id);
   await expect.poll(() => dots().then((d) => d.length), '[전제] 점 셋').toBe(3);
   const d0 = await dots();
@@ -934,7 +935,7 @@ test('E2 끝까지 밀기 — 활성 점 = 마지막 칸', async ({ page }) => {
   const { errs, id } = await menuScene(page);
   await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));
   await page.evaluate((id) => window.showSlideProperties(document.getElementById(id)), id);
-  await page.locator('#sld-dots').selectOption('bottom');
+  await page.locator('#sld-dots-kind').selectOption('dots'); // ★기대 바뀜(현빈 261123 D «표시 모양» 확정 · 0.9.13 195): 옛 «점 표시» select(없음/위/아래) → [표시 모양 ▾(없음·점·진행바) | 엔드슬롯 위↔아래] — «아래» = 점 고르기(처음 켜면 아래)
   const onIdx = () => page.evaluate((id) => [...document.getElementById(id).querySelectorAll(':scope > .sld-dots > span')].findIndex((d) => d.classList.contains('sld-dot-hs-on')), id);
   const max = await page.evaluate((id) => { const b = document.getElementById(id), t = b.querySelector(':scope > .sld-track'), l = t.lastElementChild; return Math.max(0, Math.round(l.offsetLeft + l.offsetWidth - b.clientWidth)); }, id);
   const c2 = await page.evaluate((id) => document.getElementById(id).querySelector(':scope > .sld-track').children[1].offsetLeft, id);

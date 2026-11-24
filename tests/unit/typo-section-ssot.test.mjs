@@ -273,6 +273,17 @@ test('T2 ★텍스트·모달·그리드·챗 패널이 «전부» _typo-section
   }
 });
 
+test('T2-e omitHidden — 끈 칸을 «아예 안 그림»(R15 현빈 261123 · 챗) · 크기칸은 산다 · 기본 호출 바이트 동일', () => {
+  const ARG = { p: 'chb-typo', size: 32, sizeMin: 4, sizeMax: 400, showFont: false, showWeight: false, showStyleGroup: false, showLetterSpacing: false, showLineHeight: false, showHighlight: false };
+  const H = buildSection('buildTypographySectionHtml', { ...ARG, omitHidden: true });
+  assert.match(H, /id="chb-typo-size-number"[^>]*display:block/, '크기칸은 보여야 한다');
+  for (const re of [/>Font</, /chb-typo-font-picker/, /chb-typo-font-weight/, /chb-typo-style-group/, /chb-typo-lh-number/, /chb-typo-ls-col/, /display:none/])
+    assert.equal(re.test(H), false, '★끈 칸이 DOM 에 남았다: ' + re);
+  // 음성대조 — omitHidden 없으면 예전 그대로(숨김) · 기본 호출은 omitHidden 을 줘도 같다(끈 칸이 없으니까)
+  assert.equal(buildSection('buildTypographySectionHtml', ARG), buildSection('buildTypographySectionHtml', { ...ARG, omitHidden: false }), 'omitHidden:false 가 예전 산출과 다르다');
+  assert.equal(buildSection('buildTypographySectionHtml', { p: 'txt', size: 32 }), buildSection('buildTypographySectionHtml', { p: 'txt', size: 32, omitHidden: true }), '다 켠 호출에서 omitHidden 이 산출을 바꿨다');
+});
+
 test('T2-d ★끈 칸이 «정말» 꺼진다 — 챗이 쓰는 조합에서 ㉠ 크기칸만 보이고 ㉡ 나머지는 숨고 ㉢ 기본 호출은 그대로다', () => {
   /* ★왜 재나 — ⒝ 에서 「렌더러가 안 읽는 칸은 끄고 까닭을 적어라」가 조건이었다(지디). 그 조건은
      «무엇으로 아나»가 같이 걸려야 집행된다 ⇒ 여기가 그 자다.

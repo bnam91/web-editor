@@ -134,7 +134,11 @@ test('S6 아밍 없이 스친 놓기 — 장 src 그대로(실패한 놓기가 �
   const c0 = await counts(page);
   await page.evaluate((id) => { window.__grdCalls = 0;   // 한 번에 놓으면 dropKind = none 이라 펜 갈래는 안 탄다 — 탔으면 «섹션 블럭 무변» 전제가 잡음
     window.grdAssetSrcOf = async () => { window.__grdCalls++; return { asset: true, src: 'goya-asset://p-t13a04/x.svg' }; }; }, id);
-  const a = await page.evaluate((id) => { const r = document.querySelector(`.scratch-item[data-scratch-id="${id}"]`).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, id);
+  /* ★2026-11-24 — 심은 장(seedPenItem · t13G-03 뒤)은 그리자마자 잡으면 부하에서 자리가 아직 안 섰다(열차 train/0913-c 인텔 전수 1/1 빨강 «grdAssetSrcOf 0» · srv ×5 0/5)
+     ⇒ dragToSection 과 같은 «잡을 점 = 그 장 · 멎음» 조건 대기 뒤 잡는다(그 뒤 «한 번에» 옮기는 것은 그대로) */
+  let prev = '', a = null;
+  await expect.poll(async () => { a = await page.evaluate((id) => { const el = document.querySelector(`.scratch-item[data-scratch-id="${id}"]`); const r = el.getBoundingClientRect(); const x = r.left + r.width / 2, y = r.top + r.height / 2; return { x, y, own: document.elementFromPoint(x, y)?.closest('.scratch-item') === el }; }, id); const k = `${a.x},${a.y}`, st = k === prev; prev = k; return a.own && st; },
+    { message: '[전제] 장 가운데 = 그 장 · 멎음', intervals: [50] }).toBe(true);
   const b = await page.evaluate(() => { const r = document.querySelector('#canvas .section-block').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
   await page.mouse.move(a.x, a.y); await page.mouse.down();
   await page.mouse.move(b.x, b.y);   // 한 번에 — 아밍(안내) 기다리지 않음

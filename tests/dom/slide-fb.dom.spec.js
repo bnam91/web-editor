@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 ①②③ · 태양 §2c check) — 바뀐 칸의 토글 스위치(label.prop-toggle · .prop-toggle-track) → check 부품(label.ui-check · input.ui-check-box) */
 /* slide-fb — 현빈 슬라이드 피드백 261118(지디/handoff/ANALYSIS-slide-feedback-261118.md 1·2절) · 가지 ty/slide-fb-261118.
  * F1 SLIDE-SCRATCH-DND-01: 스크래치 그림을 슬라이드 위에 놓으면 → 판정 'slide' · 안내 «슬라이드에 추가» · 슬라이드 «끝»에 한 장 · 옆에 새 에셋 0
  *    · 12장 가득이면 안 붙고 false · 받지 않는 주소(javascript:)도 false
@@ -71,7 +72,7 @@ const geo = (page, id) => page.evaluate((id) => {
 
 /* 토글 = 보이는 스위치(label.prop-toggle:has(#id)) 를 누른다 — 체크박스는 0×0·opacity 0 숨은 것(css/editor-props.css .prop-toggle input · cert-block toggle 과 같은 길) */
 async function flip(page, on) {
-  const sw = page.locator('label.prop-toggle:has(#sld-fullbleed)');
+  const sw = page.locator('label.ui-check:has(#sld-fullbleed)');
   await sw.scrollIntoViewIfNeeded();
   await expect(sw, '[전제] «패딩 제외» 스위치가 패널에 보인다').toBeVisible();
   await sw.click();

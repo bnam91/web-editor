@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 ①②③ · 태양 §2c check) — 바뀐 칸의 토글 스위치(label.prop-toggle · .prop-toggle-track) → check 부품(label.ui-check · input.ui-check-box) */
 /* graph-h2.dom.spec.js — 묶음 E1 H2(현빈 2026-10-05 「격자선을 막대 뒤로」) 잠금 (태양 lane-e1-plus)
  * ★재현(REPRO H2 · d1f642ff): 격자선은 오버레이(.grb-ov · z-index 1 · 막대 뒤 DOM)에 그려져 막대 «위»에 비쳤다.
  * 고침(drag-utils.js _barVPlotGeom): 격자선만 따로 층(.grb-ov-grid-layer · z-index:-1) + 막대 줄 쌓임 맥락(z-index:0 · 격자 켤 때만).
@@ -30,9 +31,9 @@ async function setup(page) {
   return { errs, id };
 }
 async function toggle(page, inputId) {
-  await page.evaluate((i) => document.getElementById(i).closest('.prop-toggle').scrollIntoView({ block: 'center' }), inputId);
-  const r = await waitStableRect(page, `#${inputId} + .prop-toggle-track`);
-  await clickAt(page, r.cx, r.cy, { sel: '.prop-toggle' }, { label: inputId });
+  await page.evaluate((i) => document.getElementById(i).closest('.ui-check').scrollIntoView({ block: 'center' }), inputId);
+  const r = await waitStableRect(page, `label.ui-check:has(#${inputId})`);
+  await clickAt(page, r.cx, r.cy, { sel: '.ui-check' }, { label: inputId });
   await page.waitForFunction((i) => document.getElementById(i).checked, inputId, { timeout: 3000 });
 }
 async function pixelAt(page, x, y) {

@@ -127,10 +127,7 @@ function enterImageEditMode(ab, opts = {}) {
           <span class="prop-label">너비</span>
           <input type="number" class="prop-number" id="img-w" style="width:64px" value="${w}" min="40">
         </div>
-        <div class="prop-row">
-          <span class="prop-label">높이</span>
-          <input type="number" class="prop-number" id="img-h" style="width:64px" value="${Math.round(img.offsetHeight)}" disabled>
-        </div>
+        <!-- 높이 칸 없음: 높이는 너비·원본 비율이 정한다(늘 막힌 칸이라 안 그림 · R5 현빈 261123) -->
       </div>
       <div class="prop-section">
         <div class="prop-section-title">정렬</div>
@@ -170,8 +167,6 @@ function enterImageEditMode(ab, opts = {}) {
       img.style.width = v + 'px';
       ab.dataset.imgW = v;
       syncHandles();
-      const hEl = document.getElementById('img-h');
-      if (hEl) hEl.value = Math.round(img.offsetHeight);
     });
 
     const savePos = () => {
@@ -193,11 +188,9 @@ function enterImageEditMode(ab, opts = {}) {
     const xEl = document.getElementById('img-x');
     const yEl = document.getElementById('img-y');
     const wEl = document.getElementById('img-w');
-    const hEl = document.getElementById('img-h');
     if (xEl) xEl.value = Math.round(parseFloat(img.style.left) || 0);
     if (yEl) yEl.value = Math.round(parseFloat(img.style.top)  || 0);
     if (wEl) wEl.value = Math.round(img.offsetWidth);
-    if (hEl) hEl.value = Math.round(img.offsetHeight);
   }
 
   // 핸들 + 경계선 모두 오버레이에 배치 — section-inner overflow 제약 없이 표시
@@ -2059,9 +2052,7 @@ function enterCircleImageEditMode(icb) {
         <div class="prop-row"><span class="prop-label">너비</span>
           <input type="number" class="prop-number" id="icb-img-w" style="width:64px" value="${w}" min="40">
         </div>
-        <div class="prop-row"><span class="prop-label">높이</span>
-          <input type="number" class="prop-number" id="icb-img-h" style="width:64px" value="${Math.round(img.offsetHeight)}" disabled>
-        </div>
+        <!-- 높이 칸 없음(R5 · 위 이미지 편집과 같음) -->
       </div>
       <div class="prop-section" style="color:#555;font-size:11px;padding-top:0;">
         Esc 또는 블록 밖 클릭으로 편집 종료
@@ -2081,8 +2072,6 @@ function enterCircleImageEditMode(icb) {
       img.style.width = v + 'px';
       icb.dataset.imgW = v;
       syncHandles();
-      const hEl = document.getElementById('icb-img-h');
-      if (hEl) hEl.value = Math.round(img.offsetHeight);
     });
   }
 
@@ -2090,11 +2079,9 @@ function enterCircleImageEditMode(icb) {
     const xEl = document.getElementById('icb-img-x');
     const yEl = document.getElementById('icb-img-y');
     const wEl = document.getElementById('icb-img-w');
-    const hEl = document.getElementById('icb-img-h');
     if (xEl) xEl.value = Math.round(parseFloat(img.style.left) || 0);
     if (yEl) yEl.value = Math.round(parseFloat(img.style.top)  || 0);
     if (wEl) wEl.value = Math.round(img.offsetWidth);
-    if (hEl) hEl.value = Math.round(img.offsetHeight);
   }
 
   // 8 핸들 (icb 기준, circle offsetLeft/Top 보정)

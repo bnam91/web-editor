@@ -531,6 +531,32 @@ ${icon}
 /* ★window 로도 낸다 — prop-grid.js(그리드 오버레이)가 정적 import 없이 부른다(unit 하네스 대역에 이 이름이 없다). */
 if (typeof window !== 'undefined') window.overlayToggleBtnHTML = overlayToggleBtnHTML;   // Node unit 시험엔 window 가 없다
 
+/* ★체크 부품 check(현빈 261123 «온/오프 = 고디터 커스텀 체크박스 하나» · 태양 PLAN §2c 계약 그대로 · 시안 8910 #parts check · 탑).
+   checkHTML({ id, label, checked, ariaLabel, labelledby, blockedWhy, attrs }) — checked: true/false · null = Mixed(indeterminate · wireCheck 가 건다 · 속성으로 직렬화 안 됨).
+   label 이 비면 ariaLabel 또는 labelledby(줄 왼쪽 라벨 id) 필수. blockedWhy = 막힘(aria-disabled · 까닭은 title = P6 자리) — disabled 는 안 쓴다(초점·hover 가 안 와 까닭이 못 뜬다).
+   상호배타(둘 중 하나)는 이 부품이 아니다 → 세그먼트/select. */
+export function checkHTML({ id, label = '', checked = false, ariaLabel = '', labelledby = '', blockedWhy = '', attrs = '', cls = '' } = {}) {
+  const a = [`type="checkbox"`, `class="ui-check-box${cls ? ' ' + escHtml(cls) : ''}"`];   // cls = 배선이 잡는 옛 클래스(목록 칸 등)
+  if (id) a.push(`id="${escHtml(id)}"`);
+  if (checked === null) a.push('data-mixed="1"');
+  else if (checked) a.push('checked');   // 참 같은 값(dataset 글 등)도 켬 — 옛 `${v ? 'checked' : ''}` 와 같은 판정
+  if (!label && ariaLabel) a.push(`aria-label="${escHtml(ariaLabel)}"`);
+  if (!label && labelledby) a.push(`aria-labelledby="${escHtml(labelledby)}"`);
+  if (blockedWhy) a.push('aria-disabled="true"', `title="${escHtml(blockedWhy)}"`);
+  if (attrs) a.push(attrs);
+  return `<label class="ui-check" data-part="check"><input ${a.join(' ')}>${label ? `<span class="ui-check-label">${escHtml(label)}</span>` : ''}</label>`;
+}
+/** 그린 뒤 한 번 — Mixed(data-mixed) 면 indeterminate 를 걸고 · 막힘이면 click 을 막는다(Space 도 click 으로 와 한 자리) · onChange(checked) 는 바뀔 때만. */
+export function wireCheck(target, { onChange } = {}) {
+  const el = typeof target === 'string' ? document.getElementById(target) : target;
+  if (!el) return null;
+  if (el.dataset.mixed === '1') el.indeterminate = true;
+  el.addEventListener('click', (e) => { if (el.getAttribute('aria-disabled') === 'true') e.preventDefault(); });
+  if (onChange) el.addEventListener('change', () => { delete el.dataset.mixed; onChange(el.checked); });
+  return el;
+}
+if (typeof window !== 'undefined') window.checkHTML = checkHTML;   // classic 스크립트(js/liner-transform.js)용 — overlayToggleBtnHTML 과 같은 꼴
+
 /* 라벨 + 슬라이더 + 숫자 한 줄(.prop-row) — 「좌우 패딩」 줄이 섹션·프레임 두 패널에 있다(F5, 2026-10-03).
    마크업 사본을 두 벌 두지 않으려고 뺐다. 결과 HTML 은 prop-section 에 있던 줄과 «글자 그대로» 같다. */
 export function sliderRowHTML(label, sliderId, numberId, { min, max, step, value }) {

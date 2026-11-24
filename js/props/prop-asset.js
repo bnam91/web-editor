@@ -3,7 +3,7 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor, swatchHex } from '
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_POP_WHY } from './_stroke-section.js';
 import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, setFillKindName, fillLast, fillKindOfCss } from './_fill-section.js';
 import { hasSides, readSides, writeSides, cssSideWidths, sidesMixed } from '../stroke-look.js';
-import { alignBtn, overlayToggleBtnHTML, blockHeaderHTML, animGifBtnHTML, wireAnimGifBtn } from './_helpers.js';
+import { alignBtn, overlayToggleBtnHTML, blockHeaderHTML, animGifBtnHTML, wireAnimGifBtn, checkHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
 import { videoTrimSectionHTML, wireVideoTrim } from './asset-video-trim.js';
@@ -11,7 +11,7 @@ import { clipsContent, CLIP_DEFAULTS, applyAssetClip } from '../clip-content.js'
 /* ★폭 하한은 «리터럴로 쓰지 않는다» — asset-width-limits.js 한 자리에서 온다.
    패널(슬라이더·숫자칸·커밋 clamp)과 모서리 핸들이 «같은 수»를 봐야 갈라지지 않는다.
    (선례: prop-modal.js 가 MODAL_LIMITS 를, prop-gap.js 가 GAP_MIN/MAX 를 그렇게 쓴다.) */
-import { ASSET_W_MIN } from '../blocks/asset-width-limits.js';
+import { ASSET_W_MIN, assetRadiusMax } from '../blocks/asset-width-limits.js';
 /* ★1013t2A2 로고 «콜라보» — 모델 수(1~3·간격·× 크기)는 logo-collab-model.js 한 자리, DOM 조작은 logo-collab.js */
 import { COLLAB_MIN, COLLAB_MAX, COLLAB_GAP_MIN, COLLAB_GAP_MAX, COLLAB_X_MIN, COLLAB_X_MAX } from '../blocks/logo-collab-model.js';
 import { isLogoBlock, collabParams, collabSlotSrc, setCollabCount, setCollabStyle, disableCollab,
@@ -34,6 +34,7 @@ export function showAssetProperties(ab) {
   const currentH   = parseInt(ab.style.height) || ab.offsetHeight || 780;
   const hasImage   = ab.classList.contains('has-image');
   const currentR   = parseInt(ab.style.borderRadius) || 0;
+  const R_MAX      = assetRadiusMax(ab.offsetWidth, ab.offsetHeight);   // t13F-03 — 짧은 변 절반(바닥 120)
   const currentAlign = ab.dataset.align || 'center';
   /* 너비: inline px → 그대로 / inline % → px 환산 / 없거나 calc() → 860 (full)
      ★함수로 뽑은 이유 = 「빈 칸을 커밋했을 때 되돌릴 값」도 «같은 셈»이어야 한다.
@@ -103,6 +104,14 @@ export function showAssetProperties(ab) {
      살아서 계속 칠해지는데 «닿는 문»만 없는 막다른 골목). ⇒ hasImage 분기 «밖»에 둔다.
      선례: prop-icon-circle.js 의 Color/배경 절도 hasImage 삼항 밖에 있다. */
   const bgSection = `
+      <!-- ★207행 BLOCK-CONVERT ⓐ(지디 Q1 = 가) — 칠 종류: 이미지(지금 = 에셋) · 단색 = 사각형으로 바꿈(그림은 사각형 이미지 칠로 · 확인창 없이 · ⌘Z 한 칸) -->
+      <div class="prop-row">
+        <span class="prop-label">칠 종류</span>
+        <select class="prop-select" id="asset-fill-kind" aria-label="칠 종류">
+          <option value="image" selected>이미지</option>
+          <option value="solid">단색 — 사각형으로</option>
+        </select>
+      </div>
       ${fillSectionHTML({ prefix: 'asset-fill', on: fillOn, kind: fillKindOfCss(assetBgGrad), colorHtml: colorFieldHTML({ idPrefix: 'asset-bg', hex: assetBgGrad ? '#a0a0a0' : currentBgColor, alpha: currentBgAlpha, gradientCss: assetBgGrad }) })}
       <!-- 1120b A6(현빈 261120) — 「초기화」(#asset-bg-clear) 단추 걷음 -->
       ${hasImage ? '' : `<!-- ★t4-15 체커 톤(현빈 ④) — 꼴·어휘는 섹션 라디오 그대로(새 클래스 0).
@@ -110,12 +119,8 @@ export function showAssetProperties(ab) {
            ★이미지가 있으면 숨긴다 — 체커가 안 보이니 정할 것이 없다(현빈 QA 자 「불필요한 프롭힌트는 없는지」).
            (옛 라디오 name 함정은 체크박스가 되며 사라졌다 — 1120b A5) -->
       <div class="ui-fill-slot" data-slot="below" data-slot-kind="checker"><div class="prop-row" title="이 에셋블럭의 체크무늬만 어둡게 합니다 — 흰 그림이 체커 위에서 보이게. 내보내기에는 체커가 나가지 않습니다.">
-        <span class="prop-label">체커 어둡게</span>
-        <!-- 1120b A5(현빈 261120) — 켬/끔 라디오 → 「내용 자르기」와 같은 토글(.prop-toggle) · 켬 = dataset.checkerTone 'dark' · 끔 = 키 지움(저장 꼴 그대로) -->
-        <label class="prop-toggle">
-          <input type="checkbox" id="asset-checker-tone-on" ${_ckTone === 'dark' ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        <!-- 1120b A5(현빈 261120) 켬/끔 라디오 → 토글 · ★현빈 261123 «온/오프 = 체크» → check 부품 · 켬 = dataset.checkerTone 'dark' · 끔 = 키 지움(저장 꼴 그대로) -->
+        ${checkHTML({ id: 'asset-checker-tone-on', label: '체커 어둡게', checked: _ckTone === 'dark' })}
       </div></div>`}
       ${hasImage && currentFit === 'cover' ? '<div class="prop-hint" style="margin-top:6px;">꽉 채우기에서는 배경이 이미지 뒤에 가려집니다 — 원본 비율에서 보입니다.</div>' : ''}
   `;
@@ -151,11 +156,7 @@ export function showAssetProperties(ab) {
   };
   const collabSection = showCollab ? `
       <div class="prop-row">
-        <span class="prop-label">콜라보</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="asset-collab-toggle" ${collabOn ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'asset-collab-toggle', label: '콜라보', checked: collabOn })}
       </div>
       <div class="prop-row">
         <span class="prop-label">갯수</span>
@@ -234,18 +235,14 @@ export function showAssetProperties(ab) {
       </div>`),
       sec('padding', `
       <div class="prop-row">
-        <span class="prop-label">패딩 제외</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="asset-padx-toggle" ${usePadX ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'asset-padx-toggle', label: '패딩 제외', checked: usePadX })}
       </div>`),
       // 모서리(radius)는 어디서나 Appearance(§8 Q2) · 내용 자르기 · 옛 「그레인」
       sec('appearance', `
       <div class="prop-row">
         <span class="prop-label">모서리</span>
-        <input type="range" class="prop-slider" id="asset-r-slider" min="0" max="120" step="2" value="${currentR}">
-        <input type="number" class="prop-number" id="asset-r-number" min="0" max="120" value="${currentR}">
+        <input type="range" class="prop-slider" id="asset-r-slider" min="0" max="${R_MAX}" step="2" value="${currentR}">
+        <input type="number" class="prop-number" id="asset-r-number" min="0" max="${R_MAX}" value="${currentR}">
       </div>
       <!-- ★★2026-10-10 (현빈 1010t1c2 「이미지 삽입할 수 있는 상황에서 ‘내용자르기’ 기능이 있으면 좋겠다」)
            ★★이름·값꼴은 ★프레임과 ★★같다(★data-clip-content) — ⛔새 이름 ★금지.
@@ -253,11 +250,7 @@ export function showAssetProperties(ab) {
            ⛔★★이 주석에 ★★백틱을 ★쓰지 ★마라 — ★★여기는 ★★템플릿 리터럴 ★안이고 ★백틱이 ★리터럴을 ★끊는다
              (★2026-10-10 에 ★실제로 ★끊었다 · ★내 명부의 ★「in-template 주석이 ★JS 를 깨뜨렸다」 그 자리) -->
       <div class="prop-row">
-        <span class="prop-label">내용 자르기</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="asset-clip-toggle" ${clipsContent(ab) ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'asset-clip-toggle', label: '내용 자르기', checked: clipsContent(ab) })}
       </div>`),   /* 옛 «그레인» 줄 → Effects «Noise» 카드(js/effects-noise.js · 현빈 261123) */
       // 옛 「Background」
       sec('fill', bgSection, { headTools: fillHeadToolsHTML({ prefix: 'asset-fill', on: fillOn }) }),   // 표준 Fill F2-2 — 칠 없음(키 없음 = 체커)이면 머리 ＋
@@ -596,7 +589,7 @@ export function showAssetProperties(ab) {
   rSlider.addEventListener('change', () => { window.pushHistory?.(); });
   rNumber.addEventListener('change', () => { window.pushHistory?.(); });
   rNumber.addEventListener('input', () => {
-    const v = Math.min(120, Math.max(0, parseInt(rNumber.value) || 0));
+    const v = Math.min(assetRadiusMax(ab.offsetWidth, ab.offsetHeight), Math.max(0, parseInt(rNumber.value) || 0));
     applyR(v); rSlider.value = v;
   });
 
@@ -641,6 +634,10 @@ export function showAssetProperties(ab) {
   /* T-011: 배경색 배선은 이미지 유무와 무관하게 «조건 없이» 돈다. else 안에 있던 탓에
      이미지가 들어가면 onGradient 가 사라졌고, color-picker.js 가 onGradient 유무로
      cpModes(solid / solid,gradient)를 정하므로 그라데이션 탭 자체가 안 열렸다. */
+  document.getElementById('asset-fill-kind')?.addEventListener('change', (e) => {
+    if (e.target.value !== 'solid') return;
+    window.convertAssetToRect?.(ab);   // 이력·선택·패널은 그 함수가(사각형 패널로 넘어감)
+  });
   wireColorField('asset-bg', {
     initialAlpha: currentBgAlpha,
     gradientValue: assetBgGrad,   // T-059 2라운드: 재오픈 시드

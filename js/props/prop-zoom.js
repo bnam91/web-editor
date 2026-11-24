@@ -2,7 +2,7 @@
 // 헤더는 신규 블록 체크리스트가 요구하는 풀 구조:
 //   prop-block-label > prop-block-icon + prop-block-info + prop-block-id
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML, wireRotRow } from './_helpers.js';
+import { blockHeaderHTML, wireRotRow, checkHTML, wireCheck } from './_helpers.js';
 import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from './_position-section.js';   // 표준 Position 절(0.9.14 73행 P3)
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
@@ -132,11 +132,7 @@ export function showZoomProperties(block) {
         </div>
       </div>`),
       sec('content', `
-      <div class="prop-row">
-        <span class="prop-label" style="font-size:10px;color:var(--ui-text-muted);">
-          ${hasImg ? '이미지 — 도형 «안»에 담긴다(모양·기하는 안 바뀐다)' : '이미지를 넣으면 도형 안을 채운다'}
-        </span>
-      </div>
+      <div class="prop-hint">${hasImg ? '이미지 — 도형 «안»에 담긴다(모양·기하는 안 바뀐다)' : '이미지를 넣으면 도형 안을 채운다'}</div>
       <div id="zm-img-drop" style="border:2px dashed var(--ui-border-mid, #444);border-radius:6px;padding:18px 10px;text-align:center;color:var(--ui-text-muted);font-size:11px;cursor:pointer;background:var(--ui-bg-input);">
         ${hasImg ? `<img src="${_esc(st.imgSrc)}" style="max-width:80px;max-height:80px;object-fit:contain;display:block;margin:0 auto 6px;">` : ''}
         <div>이미지 드래그앤드롭<br>또는 클릭해서 선택</div>
@@ -174,11 +170,7 @@ export function showZoomProperties(block) {
          ★켬/끔 라디오를 둔 까닭 = ★글자가 ★꺼져 있으면 ★더블클릭할 과녁이 ★없다(빈 확대블럭엔 글자 층이 0개).
            ⛔새 컨트롤이 아니다 — 줌 이펙트·테두리가 쓰는 ★그 라디오 꼴 그대로다. -->
       <div class="prop-row">
-        <span class="prop-label">글자</span>
-        <div class="prop-radio-group" id="zm-tx-group">
-          <label class="prop-radio"><input type="radio" name="zm-tx" value="on"${txOn ? ' checked' : ''}> 켬</label>
-          <label class="prop-radio"><input type="radio" name="zm-tx" value="off"${txOn ? '' : ' checked'}> 끔</label>
-        </div>
+        ${checkHTML({ id: 'zm-tx-on', label: '글자', checked: txOn })}   <!-- 현빈 261123 온/오프=체크 · chku 1–3 GO · ③ⓐ 세그먼트 — 옛 ‹라디오로› 결정 대체 -->
       </div>
       <div id="zm-tx-fields" style="${dim(txOn)}">
         <!-- ⛔안내문을 prop-label 안에 넣으면 «폭 56px 라벨 칸»에서 잘린다(이 파일 아래 실측 주석).
@@ -216,26 +208,18 @@ ${bdrRow}
       </div>
       <div class="ui-stroke-slot" data-slot="below" data-slot-kind="zoom-border">
       <div class="prop-row">
-        <span class="prop-label">테두리</span>
-        <div class="prop-radio-group" id="zm-bd-group">
-          <label class="prop-radio"><input type="radio" name="zm-bd" value="on"${bdOn ? ' checked' : ''}> 켬</label>
-          <label class="prop-radio"><input type="radio" name="zm-bd" value="off"${bdOn ? '' : ' checked'}> 끔</label>
-        </div>
+        ${checkHTML({ id: 'zm-bd-on', label: '테두리', checked: bdOn })}   <!-- 현빈 261123 온/오프=체크 · chku 1–3 GO · ③ⓐ 세그먼트 — 옛 ‹라디오로› 결정 대체 -->
       </div>
       </div>`),
       // 옛 「Zoom Effect」 + 「도형 그림자 (줌 이펙트와 별개)」 → Effects 한 절, 두 행 라벨(줌 이펙트 · 도형 그림자)로 가른다
       sec('effects', `
-      <!-- ★라벨만 «말을 바꿨다». 라디오 자체(name·value·id·핸들러)는 한 글자도 안 건드렸다.
+      <!-- ★라벨만 «말을 바꿨다»(현빈 261123 뒤로 켬/끔 = 체크 · 저장 키 st.shadow 'on'/'off' 그대로).
            ★이름 = 현빈 2026-09-09: 「이건 그림자랑 달라 zoom effect라고 우측패널에 바꿔줘」 — 이제 절 제목은 Effects, 이 줄 라벨이 「줌 이펙트」.
            같은 절 아래 줄 「도형 그림자」가 현빈이 말한 «박스에 거는 드롭섀도»(x·y로 조절, 텍스트블럭 라디오와
            같은 갈래 = CSS 그림자)다. 둘 다 「그림자」라 부르면 사람이 뭐가 뭔지 모른다.
            ⛔상태 키(st.shadow)와 id(zm-shadow*)는 그대로 둔다 — 바꾸면 저장된 프로젝트가 깨진다. -->
       <div class="prop-row">
-        <span class="prop-label">줌 이펙트</span>
-        <div class="prop-radio-group" id="zm-shadow-group">
-          <label class="prop-radio"><input type="radio" name="zm-shadow" value="on"${shadowOn ? ' checked' : ''}> 켬</label>
-          <label class="prop-radio"><input type="radio" name="zm-shadow" value="off"${shadowOn ? '' : ' checked'}> 끔</label>
-        </div>
+        ${checkHTML({ id: 'zm-shadow-on', label: '줌 이펙트', checked: shadowOn })}   <!-- 현빈 261123 온/오프=체크 · chku 1–3 GO · ③ⓐ 세그먼트 — 옛 ‹라디오로› 결정 대체 -->
       </div>
       <div id="zm-shadow-fields" style="${dim(shadowOn)}">
 ${angleRow}${lengthRow}
@@ -253,13 +237,9 @@ ${narrowRow}
            ① 말   — 위 줄 라벨은 「줌 이펙트」, 이 줄은 「도형 그림자」. 둘 다 '그림자'라 안 부른다.
            ② 자리 — U4(right-panel-unify) 뒤로는 둘 다 Effects 절 «안»의 줄이다(§2-1 효과는 한 절).
                     예전엔 Border 절을 사이에 끼워 떨어뜨렸지만, 이제 가르는 것은 ①의 줄 라벨과 ③의 컨트롤 모양이다.
-           ③ 생김 — 광원은 «라디오 켬/끔»(두 갈래), 이건 «버튼 3단»(prop-align-group).
+           ③ 생김 — 광원은 «체크 켬/끔», 이건 «버튼 3단»(prop-align-group).
                     컨트롤 «모양»이 달라 눈으로도 다른 것임을 안다.
-         ⛔체크박스로 만들면 안 된다 — 검사 ⓑ-14 가 이 파일에 체크박스 입력이 «없음»을 단언한다
-           (현빈이 「라디오버튼으로」라고 못박은 것). prop-sticker 의 prop-toggle 을 통째로
-           베끼지 않은 이유가 이것이다. 실측으로 확인하고 골랐다.
-         ⚠️그 «금지된 문자열»을 여기 주석에 그대로 적으면 검사가 오발한다 — 실제로 한 번 물렸다.
-           이 주석은 템플릿 리터럴 «안»이라 JS 주석 걷기가 못 걷어낸다. 말로만 적는다.
+         ★옛 «켬/끔 = 라디오»(현빈 「라디오버튼으로」) 결정은 현빈 261123 «온/오프 = 고디터 커스텀 체크 하나»(chku 1–3 GO)가 대체했다.
          ★어휘(없음/부드럽게/강하게 · none/soft/strong)는 prop-mockup.js:93-95 를 그대로 빌렸다. -->
       <div class="prop-row">
         <span class="prop-label prop-label--auto">도형 그림자</span>
@@ -375,31 +355,28 @@ ${narrowRow}
   //    실측으로 확인했다. 그래도 「없는 요소를 찾는 코드」는 다음 사람을 헷갈리게 하니 가린다.)
   // bindPair('zm-bdr',    'bdr',    '확대블럭 테두리 모서리', 0, 200);
 
-  /* 라디오 두 벌 — ⛔값을 «지우지 않는다». dataset 에 'on'/'off' 만 쓰고 재렌더한다.
+  /* 켬/끔 체크(옛 라디오 두 벌) — ⛔값을 «지우지 않는다». dataset 에 'on'/'off' 만 쓰고 재렌더한다.
      그래서 끄고 켜기를 반복해도 방향·길이·농도가 그대로 돌아온다(검사 ⓑ-14·변이 M14). */
-  const bindRadio = (name, key, label) => {
-    propPanel.querySelectorAll(`input[type="radio"][name="${name}"]`).forEach(r => {
-      r.addEventListener('change', () => {
-        if (!r.checked) return;
-        window.pushHistory?.(label);
-        block.dataset[key] = r.value;
-        rerender();
-        showZoomProperties(block);   // 흐리게/진하게 갱신
-        window.triggerAutoSave?.();
-      });
-    });
+  const bindCheck = (id, key, label) => {   // 현빈 261123 온/오프=체크 · chku 1–3 GO · ③ⓐ 세그먼트 — 옛 ‹라디오로› 결정 대체
+    wireCheck(id, { onChange: (on) => {
+      window.pushHistory?.(label);
+      block.dataset[key] = on ? 'on' : 'off';
+      rerender();
+      showZoomProperties(block);   // 흐리게/진하게 갱신
+      window.triggerAutoSave?.();
+    } });
   };
-  bindRadio('zm-shadow', 'shadow', '줌 이펙트');
+  bindCheck('zm-shadow-on', 'shadow', '줌 이펙트');
   /* 표준 Fill F2-3 — − = fill 'checker'(옛 «체크패턴» 라디오 값) · ＋ = 지난 색 · 없으면 #CFD6E0(옛 «색» 라디오가 피커에서 집던 기본) */
   wireFillSection({ prefix: 'zm-fillstd', adapter: {
     none: () => { fillLast.set(block.id, block.dataset.fill); block.dataset.fill = 'checker'; rerender(); window.triggerAutoSave?.(); showZoomProperties(block); },
     add: () => { block.dataset.fill = fillLast.get(block.id, '#cfd6e0'); rerender(); window.triggerAutoSave?.(); showZoomProperties(block); },
     commit: () => window.pushHistory?.('확대블럭 배경') } });
-  bindRadio('zm-bd',     'bd',     '확대블럭 테두리');
-  /* ★글자 켬/끔 — ★줌 이펙트·테두리와 ★같은 bindRadio 한 벌이다(⛔값은 안 지운다 ⇒ 껐다 켜도 글이 돌아온다).
+  bindCheck('zm-bd-on',     'bd',     '확대블럭 테두리');
+  /* ★글자 켬/끔 — ★줌 이펙트·테두리와 ★같은 bindCheck 한 벌이다(⛔값은 안 지운다 ⇒ 껐다 켜도 글이 돌아온다).
      ★켜면 ★글이 비어 있어도 ★안내문구 층이 서서 ★더블클릭할 과녁이 생긴다
        (그리는 판정은 js/blocks/zoom-geometry.js `zoomTextVisible` ★한 자리). */
-  bindRadio('zm-tx',     'tx',     '확대블럭 글자');
+  bindCheck('zm-tx-on',     'tx',     '확대블럭 글자');
 
   /* 글자 정렬 3단 — ★Shape 프리셋·도형 그림자 토글과 ★같은 하네스다(새 관용구를 안 만든다).
      ★여기는 rerender() 를 ★부른다 — 도형 그림자와 ★다른 까닭: 정렬은 ★마크업의 text-align 으로 나간다

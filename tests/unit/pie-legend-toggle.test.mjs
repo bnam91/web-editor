@@ -34,7 +34,8 @@ const { stripComments } = _req('./_strip-comments.js');
 
 test('T1 ★패널에 ★범례 토글이 있다 — ★배선 ★파생 명부에 ★들어 있다(⛔손으로 단 리스너 금지)', () => {
   const prop = stripComments(rd('js/props/prop-graph.js'));
-  assert.match(prop, /id="grb-pie-legend-toggle"/, '⛔범례 토글 입력칸이 없다');
+  /* ★기대 바뀜(현빈 261123 «온/오프 = 체크» · 태양 §2c) — 입력칸은 checkHTML 이 찍는다 */
+  assert.match(prop, /checkHTML\(\{ id: 'grb-pie-legend-toggle'/, '⛔범례 토글 입력칸이 없다');
   // ★배선은 ★한 자리(파생 명부)에서 와야 한다
   const roster = prop.match(/for \(const \[tid, key[^\]]*\] of \[([\s\S]*?)\]\) \{/);
   assert.ok(roster, '⛔토글 배선 파생 명부를 못 찾았다 — 꼴이 바뀌었으면 이 자를 고쳐라');
@@ -51,7 +52,7 @@ test('T2 ★★기본은 ★보임 — ★키가 ★없으면 ★범례가 ★�
   assert.doesNotMatch(du, /pieLegend\s*===\s*'1'\s*\?\s*`<div class="grb-pie-legend/,
     '⛔극성이 뒤집혔다 — 키가 있을 때만 «넣으면» 옛 저장본의 범례가 전부 사라진다');
   const prop = stripComments(rd('js/props/prop-graph.js'));
-  assert.match(prop, /pieLegendOff\s*!==\s*'1'\s*\?\s*'checked'/,
+  assert.match(prop, /pieLegendOff\s*!==\s*'1'\s*(?:\?\s*'checked'|[,}])/,
     '⛔토글의 checked 가 ★키 없음 = 켜짐 이 아니다(기본이 꺼짐으로 보인다)');
 });
 

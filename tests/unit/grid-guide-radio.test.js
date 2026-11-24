@@ -31,39 +31,26 @@ const PAIRS = [
   { on: 'page-pad-hint-on', off: 'page-pad-hint-off', name: 'page-pad-hint' },
 ];
 
-test('R-1 ★Grid 절의 토글이 «라디오 쌍»이다 (체크박스 잔재 0)', () => {
-  assert.equal(PAIRS.length, 2, '쌍 명부가 낡았다 — 루프가 한 벌을 안 보고 있다');
+/* ★기대 바뀜(현빈 261123 «온/오프 = 고디터 커스텀 체크 하나» — 옛 «켬/끔 라디오 쌍»(현빈 2026-09-09 «라디오버튼으로») 결정 대체) — R-1~R-3 은 «라디오 쌍»의 함정(끔 쪽 리스너 · 끔 쪽 켜기)을 지키던 자리다.
+   체크 하나가 되며 그 함정이 사라졌다 ⇒ 이제 «체크 하나 · 끔 짝 없음 · 리스너는 그 체크에»를 잰다. */
+test('R-1 ★Grid 절의 켬/끔이 «체크 하나»다 (끔 라디오 잔재 0)', () => {
+  assert.equal(PAIRS.length, 2, '명부가 낡았다 — 루프가 한 벌을 안 보고 있다');
   for (const p of PAIRS) {
-    assert.ok(new RegExp(`type="radio"[^>]*id="${p.on}"|id="${p.on}"[^>]*type="radio"`).test(PAGE), `${p.on} 이 라디오가 아니다`);
-    assert.ok(new RegExp(`id="${p.off}"`).test(PAGE), `${p.off}(끔) 이 없다 — 라디오는 «짝»이 있어야 끌 수 있다`);
-    assert.ok(new RegExp(`name="${p.name}"[\\s\\S]{0,400}name="${p.name}"`).test(PAGE), `${p.name} 두 라디오가 같은 name 이 아니다 — 서로를 안 끈다`);
-    assert.ok(!new RegExp(`type="checkbox"[^>]*id="${p.on}"`).test(PAGE), `${p.on} 에 체크박스 잔재가 있다`);
+    assert.match(PAGE, new RegExp(`checkHTML\\(\\{ id: '${p.on}'`), `${p.on} 이 check 부품이 아니다`);
+    assert.ok(!new RegExp(`id="${p.off}"`).test(PAGE), `${p.off}(옛 끔 라디오)가 남았다`);
+    assert.ok(!new RegExp(`name="${p.name}"`).test(PAGE), `${p.name} 라디오가 남았다`);
   }
 });
 
-test('R-2 ★★리스너가 «양쪽»에 걸린다 — 켬에만 걸면 «끔»을 눌러도 아무 일이 없다', () => {
-  assert.ok(/function _radioPairOn\(/.test(PAGE), '_radioPairOn 헬퍼가 없다');
-  /* 헬퍼가 «둘 다»에 거는지 본문으로 확인 — 이름만 보고 믿지 않는다 */
-  const fn = sliceBlock(PAGE, 'function _radioPairOn(');
-  assert.ok(/onEl\.addEventListener/.test(fn) && /offEl\.addEventListener/.test(fn),
-    '★_radioPairOn 이 한쪽에만 건다 — 「끔」을 눌러도 반응이 없다');
-  /* 실제 배선이 그 헬퍼를 «쓰는지» */
-  assert.ok(/_radioPairOn\(gridOn, gridOff/.test(PAGE), '그리드 가이드가 헬퍼를 안 쓴다');
-  assert.ok(/_radioPairOn\(padHintOn, padHintOff/.test(PAGE), '패딩 비주얼이 헬퍼를 안 쓴다');
+test('R-2 ★리스너가 «그 체크»에 걸린다', () => {
+  assert.ok(/gridOn\.addEventListener\('change', refreshGrid\)/.test(PAGE), '그리드 가이드 체크에 change 가 없다');
+  assert.ok(/padHintOn\.addEventListener\('change'/.test(PAGE), '패딩 비주얼 체크에 change 가 없다');
+  assert.ok(!/_radioPair(On|Set)\(/.test(PAGE), '옛 라디오 짝 헬퍼가 남았다');
 });
 
-test('R-3 ★끄기는 «끔 쪽을 켜는» 것이다 (.checked=false 로는 못 끈다)', () => {
-  assert.ok(/function _radioPairSet\(/.test(PAGE), '_radioPairSet 헬퍼가 없다');
-  const fn = sliceBlock(PAGE, 'function _radioPairSet(');
-  assert.ok(/offEl\.checked\s*=\s*!val/.test(fn),
-    '★끔 쪽을 «켜지» 않는다 — 둘 다 꺼진 상태가 생긴다');
-  /* ★그리드 쪽은 «헬퍼를 못 쓴다» — grid-guide-tidy.test.js 의 runInit 이 초기화 구간을
-       «떠내서 실행»하므로 조각 밖 함수를 부르면 ReferenceError 다. 그래서 인라인이다.
-     ⇒ 검사는 «헬퍼 이름»이 아니라 «성질»(끔 쪽을 켠다)을 본다 — 이름을 보면 정당한 인라인을 벌한다. */
-  assert.ok(/if \(gridOff\) gridOff\.checked = !gridOn\.checked;/.test(PAGE),
-    '★그리드: 끔 라디오를 «켜지» 않는다 — 둘 다 꺼진 상태가 생긴다');
-  assert.ok(/_radioPairSet\(padHintOn, padHintOff/.test(PAGE),
-    '패딩: 초기 상태를 헬퍼로 안 세운다');
+test('R-3 ★처음 값은 저장 값으로 «그 체크»에 세운다', () => {
+  assert.ok(/gridOn\.checked = !!pref\.on;/.test(PAGE), '그리드: 처음 값을 안 세운다');
+  assert.ok(/padHintOn\.checked = !!readPadHintOn\(\);/.test(PAGE), '패딩: 처음 값을 안 세운다');
 });
 
 test('R-4 ★프리셋 줄 폭 — #page-grid-col-presets 만 «내용폭»으로 예외 처리', () => {

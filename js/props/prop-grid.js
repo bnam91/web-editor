@@ -2,7 +2,7 @@
    구조(컬럼/라인 추가·삭제)는 CDP/updateGridBlock 영역 — 패널은 간격·정렬·행 높이만 다룬다(P1.5: 글자는 캔버스 인라인 편집 — js/block-drag.js). */
 import { propPanel } from '../globals.js';
 import { parseRatio, parseRatioStrict, noticeRatioRejected, buildGridPicker, alignBtn, borderBtn, bindSlider, blockHeaderHTML, disclosureChevronHtml, sliderRowHTML,
-  discSecOpen as _grdSecOpen, discSecToggle as _grdSecToggle, disclosureSectionHtml as _grdDisclosureHtml, wireDisclosureSection as _grdWireDisclosure, animGifBtnHTML, wireAnimGifBtn } from './_helpers.js';
+  discSecOpen as _grdSecOpen, discSecToggle as _grdSecToggle, disclosureSectionHtml as _grdDisclosureHtml, wireDisclosureSection as _grdWireDisclosure, animGifBtnHTML, wireAnimGifBtn, checkHTML } from './_helpers.js';
 /* ★상·하한은 한 곳에서만 온다 — IMG_MIN_PCT 는 캔버스 코너 드래그(resizeGridImage)가 쓰는
    «그» 하한이다. 패널의 폭(%) 칸이 같은 수를 쓰게 import 한다(손으로 5 를 적지 않는다). */
 import { ROW_H_MAX, IMG_MIN_PCT } from '../grid-cell-resize.js';
@@ -1223,6 +1223,48 @@ export function grdDropTextBlockOnCell(e, src) {
 }
 if (typeof window !== 'undefined') window.grdDropTextBlockOnCell = grdDropTextBlockOnCell;
 
+/* ★HBQA-ASSET-DND-INTO-GRID-CELL-01(0.9.13 203 · 현빈 GO «그대로 재사용되면 그대로») — 에셋(그림) 블럭을 그리드 «칸» 위에 놓으면 그 그림을 칸의 그림 줄(type image · imgSrc)로 넣고
+   원본 에셋은 뗀다 · 실패하면 원본 제자리 · 이력 한 칸 — 위 G9 글자 갈래(grdDropTextBlockOnCell)와 «같은 길»(칸 판정 grdCellAtPoint · 줄 자리 · push-before + noHistory · 끄는 동안 칸 강조).
+   받는 것 = 그림 든 에셋 «하나»(에셋 블럭 자신 또는 그것만 든 행) · 영상·빈 에셋·떠 있는 에셋은 거절(종전 동작).
+   shortcut: imgSrc 를 그리드 문의 문자열 상한(GRID_IMG_MAX_CHARS)째 보낸다(trusted 아님 — 사람이 고른 파일 입구가 아니다) — 실앱은 저장 때 파일로 빼 둔 짧은 주소라 대개 통과 ·
+     아주 큰 data URL 이면 넣기가 거절되고 원본이 제자리로 돌아온다(데이터 손실 0) · 큰 그림도 받아야 하면 그때 바이트 게이트와 trusted 를 같이 낸다(grid-callsite-ssot). */
+export function grdAssetDropSource(src) {
+  if (!src) return null;
+  let ab = null;
+  if (src.classList?.contains('asset-block')) ab = src;
+  else if (src.classList?.contains('row')) { const kids = _grdUnitKids(src); if (kids.length === 1 && kids[0].classList.contains('asset-block')) ab = kids[0]; }
+  if (!ab) return false;
+  if (ab.dataset.overlayBlock === 'true' || ab.querySelector('video') || !ab.dataset.imgSrc) return null;
+  return { ab, imgSrc: ab.dataset.imgSrc };
+}
+if (typeof window !== 'undefined') window.grdAssetDropSource = grdAssetDropSource;
+
+export function grdDropAssetOnCell(e, src) {
+  if (!src || !e) return false;
+  const acc = grdAssetDropSource(src);
+  if (!acc) return false;
+  const { ab, imgSrc } = acc;
+  const cellEl = grdCellAtPoint(e.currentTarget, e.clientX, e.clientY, src);
+  const block = cellEl && cellEl.closest('.grid-block');
+  if (!block || block.contains(ab)) return false;
+  const r = Number(cellEl.dataset.r), c = Number(cellEl.dataset.c);
+  if (!Number.isInteger(r) || !Number.isInteger(c)) return false;
+  const cellLines = [...cellEl.children].filter(k => k.hasAttribute('data-line'));
+  let insertAt = cellLines.length;
+  for (let i = 0; i < cellLines.length; i++) { const b = cellLines[i].getBoundingClientRect(); if (e.clientY < b.top + b.height / 2) { insertAt = i; break; } }
+  const row = ab.closest('.row');
+  const unit = (row && _grdUnitKids(row).length === 1) ? row : ab;
+  const parent = unit.parentNode, next = unit.nextSibling;
+  if (!parent) return true;
+  window.pushHistory?.();   // G9 와 같은 «한 동기 구간»(블럭 있음 → 떼기 → noHistory 로 넣기 → updateGridBlock 끝 표본)
+  unit.remove();
+  const res = grdAddLine(block, { r, c }, insertAt - 1, { type: 'image', imgSrc }, { noHistory: true });
+  if (res && res.ok) window.buildLayerPanel?.();
+  else { parent.insertBefore(unit, next && next.parentNode === parent ? next : null); _grdToastCellFail(res); }   // 실패 — 원본 제자리 + 까닭 알림
+  return true;
+}
+if (typeof window !== 'undefined') window.grdDropAssetOnCell = grdDropAssetOnCell;
+
 /* SVG 마크업 → data URI. 아이콘 새 줄은 기존 image 라인 타입을 그대로 쓴다(현빈 확정:
  * 재착색 불필요 → 새 icon 타입·새 새니타이저 불필요, GRID_LINE_FIELDS 변경 없음). */
 function _grdSvgToDataUri(svg) {
@@ -1970,11 +2012,7 @@ function _grdImageClipSectionHtml(anyHit, block) {
     <div class="prop-section" data-scope="line">
       <div class="prop-section-title">이미지 표시</div>
       <div class="prop-row">
-        <span class="prop-label">내용 자르기</span>
-        <label class="prop-toggle"${locked ? ` title="${_GRD_IMG_CLIP_LOCK}" style="opacity:var(--ui-disabled-opacity);cursor:not-allowed"` : ''}>
-          <input type="checkbox" id="grd-img-clip-toggle" ${on ? 'checked' : ''}${locked ? ' disabled' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'grd-img-clip-toggle', label: '내용 자르기', checked: on, blockedWhy: locked ? _GRD_IMG_CLIP_LOCK : '', attrs: locked ? 'disabled' : '' })}   <!-- 현빈 261123 «온/오프 = 체크» — 막힘 = disabled 그대로 + 까닭 title(aria-disabled) -->
       </div>
     </div>`;   /* ★U1 — 까닭 줄(#grd-img-clip-hint)은 막힌 토글의 title 로(prop-hint ≤2) */
 }
@@ -2860,10 +2898,7 @@ function _grdWireOutlineSection(block) {
 /* 위치 단추 여섯 — 이름은 객체정렬 «정본 6개» 그대로(align-btn-ssot C3: 「이름이 정확히 그 6개」). 세로 가운데 그림 키는 'middle', CSS 값은 'center'. */
 function _grdBlockBgSectionHtml(block) {
   const bg = gridBlockBg(block);
-  const toggle = `<label class="prop-toggle" title="그리드 블럭 전체 뒤에 배경을 깝니다 — 「배경 여백」만큼 블럭 바깥까지">
-          <input type="checkbox" id="grd-bbg-toggle"${bg.on ? ' checked' : ''} aria-label="블럭 배경">
-          <span class="prop-toggle-track"></span>
-        </label>`;
+  const toggle = checkHTML({ id: 'grd-bbg-toggle', label: '켜기', checked: bg.on, attrs: 'aria-label="블럭 배경" title="그리드 블럭 전체 뒤에 배경을 깝니다 — 「배경 여백」만큼 블럭 바깥까지"' });   /* ②ⓒ 머리 홀로 켬/끔 = 체크 + «켜기» */
   if (!bg.on) {
     return `
     <div class="prop-section" id="grd-bbg-section" data-scope="block">
@@ -3132,18 +3167,13 @@ function _grdPadExcludeSectionHtml(block) {
     size: `<div data-scope="block">${_grdWidthRowHtml(block)}</div>`,
     padding: `<div data-scope="block">
       ${_grdCellPadYRowHtml(block)}
-      <div class="prop-row" style="align-items:center;gap:6px;">
-        <span class="prop-label prop-label--auto"${hideBleed ? ' style="display:none;"' : ''}
-              title="섹션 좌우 패딩을 «넘어» 이 그리드만 전폭으로 폅니다 (에셋 블록의 「에셋블록 제외」와 같은 동작)">좌우 패딩 제외 (전폭)</span>
-        <label class="prop-toggle"${hideBleed ? ' style="display:none;"' : ''}>
-          <input type="checkbox" id="grd-use-padx"${on ? ' checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+      <div class="prop-row" style="align-items:center;gap:6px;${hideBleed ? 'display:none;' : ''}" title="섹션 좌우 패딩을 «넘어» 이 그리드만 전폭으로 폅니다 (에셋 블록의 「에셋블록 제외」와 같은 동작)">   <!-- ★t2-08 ⓐ 펼 것이 없으면 줄째 숨김(옛: 이름표·스위치 각각 display:none — check 이관 때 빠졌던 것 되살림) -->
+        ${checkHTML({ id: 'grd-use-padx', label: '좌우 패딩 제외 (전폭)', checked: on })}
       </div>
     </div>`,
     position: `<div data-scope="block">
       <div class="prop-row" style="align-items:center;gap:6px;">
-        ${floating ? '<span class="prop-label prop-label--auto">섹션 위에 떠 있음</span>' : ''}
+        <span class="prop-label prop-label--auto">${floating ? '섹션 위에 떠 있음' : '흐름 안에 있음'}</span>
         <span style="margin-left:auto;"></span>
         ${window.overlayToggleBtnHTML?.({ id: 'grd-float-toggle', active: floating, title: '오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다(Figma의 Ignore Auto Layout과 같은 개념). 다시 누르면 원래 있던 자리로 돌아갑니다.' }) || ''}
       </div>

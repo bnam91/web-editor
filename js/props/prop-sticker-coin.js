@@ -19,6 +19,7 @@
  *   히스토리 = push-after(쓰고 그린 뒤 pushHistory) — glow 절과 같은 규약. 조작 한 번 = 한 칸.
  */
 import { coinLookHTML, wireCoinLook } from './_coin-look.js';
+import { checkHTML } from './_helpers.js';   // check 부품(현빈 261123 · 태양 §2c)
 
 const SEED_MAX = 4294967295;   // uint32 — FxSeed.mulberry32 가 받는 범위
 
@@ -89,11 +90,8 @@ export function coinSections(block) {
         <input type="number" class="prop-number" id="stk-coin-seed" style="flex:1;min-width:0" min="0" max="${SEED_MAX}" step="1" value="${seed}" aria-label="무늬번호" title="같은 번호 = 같은 각도"${off}>
       </div>
 ${coinLookHTML('stk-coin', lookOf(d))}
-      <div class="prop-row"><span class="prop-label">각도 잠금</span>
-        <label class="prop-toggle" title="켜면 다시뽑기와 무늬번호가 이 코인의 각도를 바꾸지 않는다">
-          <input type="checkbox" id="stk-coin-lock" aria-label="각도 잠금"${locked ? ' checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+      <div class="prop-row" title="켜면 다시뽑기와 무늬번호가 이 코인의 각도를 바꾸지 않는다">
+        ${checkHTML({ id: 'stk-coin-lock', label: '각도 잠금', checked: locked, attrs: 'aria-label="각도 잠금"' })}
       </div>
     </div>`;
   return { position, special: [['Coin', special]] };

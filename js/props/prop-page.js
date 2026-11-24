@@ -4,6 +4,7 @@
 import { propPanel, canvasEl, state } from '../globals.js';   /* ★canvasWrap 은 뺐다 — 깔때기(applyCanvasBackground)만 쓰므로 «바인딩 자체»를 없앤다(직접 대입 재유입 방지) */
 import { exportFormatOptionsHTML } from '../io/export-formats.js';   /* ★t6-01 — 꼴 명부 정본 한 자리 */
 import { renderPanel, sec } from './_panel-frame.js';
+import { checkHTML } from './_helpers.js';
 import { applyBubbleSenderAlign } from './prop-text-wireup-align.js';
 import { NOT_HIDDEN_VARIATION } from '../variation-visibility.js';   /* 숨긴 A/B 시안은 세지 않는다 — export-image.js exportableSections 와 같은 셈 */
 import { applyCanvasBackground } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) */
@@ -299,14 +300,6 @@ window.applyPadXToSection = applyPadXToSection;
  *   ⛔함정②: 라디오는 `.checked = false` 로 끌 수 없다 — 그러면 «둘 다 안 켜진» 상태가 된다.
  *            끄려면 «끔 쪽을 켜야» 한다.
  *   ⇒ 읽기는 기존대로 `onEl.checked` 가 그대로 통한다(id 를 켬 쪽에 남겨 뒀다). */
-function _radioPairSet(onEl, offEl, val) {
-  if (onEl) onEl.checked = !!val;
-  if (offEl) offEl.checked = !val;
-}
-function _radioPairOn(onEl, offEl, evt, fn) {
-  if (onEl) onEl.addEventListener(evt, fn);
-  if (offEl) offEl.addEventListener(evt, fn);
-}
 
 export function showPageProperties() {
   if (window.setRpIdBadge) window.setRpIdBadge(null);
@@ -375,20 +368,14 @@ export function showPageProperties() {
         <input type="number" class="prop-number" id="page-pady-number" min="0" max="200" value="${padY}">
       </div>
       <div class="prop-row">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;color:#ccc;">
-          <input type="checkbox" id="page-padx-asset" ${padXExcludesAsset ? 'checked' : ''}> 에셋블록 제외
-        </label>
+        ${checkHTML({ id: 'page-padx-asset', label: '에셋블록 제외', checked: padXExcludesAsset })}   <!-- 현빈 261123 «온/오프 = 체크» -->
       </div>
       <div class="prop-hint" style="font-size:11px;color:#888;">에셋 블록은 좌우 패딩 일괄 적용에서 제외됩니다.</div>
 `),
       sec('special', `
       <!-- data-own=special:Grid: 그리드 가이드 «보기 보조» 켬/끔·색 — 칠하는 색(Fill)이 아니다(현빈 ② Grid 한 절) -->
       <div class="prop-row" data-own="special:Grid">
-        <span class="prop-label prop-label--auto">그리드 가이드</span>
-        <div class="prop-radio-group">
-          <label class="prop-radio"><input type="radio" name="page-grid" id="page-grid-on" value="on"> 켬</label>
-          <label class="prop-radio"><input type="radio" name="page-grid" id="page-grid-off" value="off" checked> 끔</label>
-        </div>
+        ${checkHTML({ id: 'page-grid-on', label: '그리드 가이드' })}   <!-- 현빈 261123 «온/오프 = 체크»(옛 켬/끔 라디오 · 처음 값은 배선이 저장 값으로) -->
         <!-- ★색 피커 — 현빈 ②「그리드 가이드 켬 라디오 같은 로우에 컬러피커 넣어줘도 될것 같고」.
              ★폭 실측(2026-10-07): 가용 211px · 라벨 60 + gap 4 + 라디오쌍 자연폭 65 + gap 4 + 스와치 24 = 157
                ⇒ 여유 54px. 라디오가 눌리지 않는다(주입 후 그룹 119px > 자연폭 65px).
@@ -404,11 +391,7 @@ export function showPageProperties() {
               이 패널엔 그런 제약이 없다. 실제로 바로 위 줄이 체크박스다.) -->
       <!-- data-own=special:Grid: 패딩 «보기 보조» 켬/끔·색 — 패딩 값(Padding)이 아니다(현빈 ② Grid 한 절) -->
       <div class="prop-row" data-own="special:Grid">
-        <span class="prop-label prop-label--auto">패딩 비주얼</span>
-        <div class="prop-radio-group">
-          <label class="prop-radio"><input type="radio" name="page-pad-hint" id="page-pad-hint-on" value="on"> 켬</label>
-          <label class="prop-radio"><input type="radio" name="page-pad-hint" id="page-pad-hint-off" value="off" checked> 끔</label>
-        </div>
+        ${checkHTML({ id: 'page-pad-hint-on', label: '패딩 비주얼' })}   <!-- 현빈 261123 «온/오프 = 체크» -->
         <!-- ★색 피커 — 현빈 ②「혹은 … 패딩비쥬얼 로우에도 넣어도 될듯?」. 여유 64px(위와 같은 자로 실측).
              ★스와치는 «새 어휘»가 아니다 — 그 라디오가 켜는 ★그것의 색이라, 위 :어휘 주석과 부딪치지 않는다
                (지디 2026-10-07 판정). -->
@@ -424,7 +407,7 @@ export function showPageProperties() {
                 프리셋 [6][12] 는 현빈 스케치에 남아 있어 지키는 쪽을 골랐다.
              ⇒ 실측 결과 넘침 0 · 잘린 요소 0 · 여유 +12px.
            ⛔라벨을 34px 로 되돌리지 마라 — 여유가 0 이라 윈도우 폰트에서 잘린다(실측). -->
-      <div class="prop-row" id="page-grid-opts">
+      <div class="prop-row prop-row--wide" id="page-grid-opts">
         <span class="prop-label prop-label--narrow">칼럼</span>
         <div class="prop-type-group" id="page-grid-col-presets">
           <button class="prop-preset-btn prop-type-btn" data-cols="6">6</button>
@@ -498,10 +481,9 @@ export function showPageProperties() {
        여기서 localStorage 를 다시 읽지 마라 — 기본값이 두 벌이 되는 순간 갈린다.
      ★끄면 «즉시» 걷는다 — 슬라이더를 만지던 중에 껐다면 400ms 를 기다릴 이유가 없다. */
   const padHintOn = document.getElementById('page-pad-hint-on');
-  const padHintOff = document.getElementById('page-pad-hint-off');
   if (padHintOn) {
-    _radioPairSet(padHintOn, padHintOff, readPadHintOn());
-    _radioPairOn(padHintOn, padHintOff, 'change', () => {
+    padHintOn.checked = !!readPadHintOn();   // 현빈 261123 «온/오프 = 체크» — 옛 라디오 짝(끔 쪽 켜기) 대신 체크 하나
+    padHintOn.addEventListener('change', () => {
       savePadHintOn(padHintOn.checked);
       if (!padHintOn.checked) {
         document.body.classList.remove('gdt-pad-on');
@@ -538,7 +520,6 @@ export function showPageProperties() {
      ⛔여기에 되살리지 마라 — 같은 것을 두 군데서 정하게 된다. */
 
   const gridOn   = document.getElementById('page-grid-on');
-  const gridOff  = document.getElementById('page-grid-off');
   const gridCols = document.getElementById('page-grid-cols');
   const gridGut  = document.getElementById('page-grid-gut');
   const gridColPresets = document.getElementById('page-grid-col-presets');
@@ -620,8 +601,7 @@ export function showPageProperties() {
          `[gridOn, gridCols, gridGut]` 사이를 «떠내서 실행»한다. 그 조각은 «자족적»이어야 해서
          조각 밖 식별자(gridOff·헬퍼)를 쓰면 ReferenceError 로 터진다 — 내가 두 번 그렇게 깨뜨렸다.
        ⇒ 조각은 한 글자도 안 건드리고, 끔 쪽은 «닻 뒤»에서 켠다. 결과는 같다. */
-    if (gridOff) gridOff.checked = !gridOn.checked;
-    _radioPairOn(gridOn, gridOff, 'change', refreshGrid);
+    gridOn.addEventListener('change', refreshGrid);   // 현빈 261123 «온/오프 = 체크» — 체크 하나(옛 라디오 짝 · 끔 쪽 맞추기 없음)
     /* ★클램프 되쓰기는 «change 에만» 건다.
        ⛔input 에 걸면 min=2 라 `1` 을 치는 순간 2로 튀어서 `12` 를 못 친다. */
     if (gridCols) gridCols.addEventListener('change', () => { gridCols.value = clampCols(gridCols.value); refreshGrid(); });

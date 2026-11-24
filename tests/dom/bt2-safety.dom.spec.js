@@ -157,6 +157,8 @@ test('T1b 옛 버블(data-lines 없음) — 실제 저장→불러오기 뒤 out
  *   ⇒ 그 확인을 손이 아니라 «단언»으로 걸었다: 갱신 모드에서 지워지는 토막이 있으면 쓰기를 거절하고 실패한다(golden guardDeletes ·
  *     더해진 id 목록은 콘솔 [GOLDEN-GUARD] 줄과 annotation 에 찍힌다 — 그 목록이 «이 묶음 것뿐»인지는 갱신하는 사람이 본다).
  *   양성대조 주입(시험용 · 평소 무관): BT2_T6_MUT=del → 패널 «첫 prop-row 하나를 뺀» 값 → 갱신 거절 빨강 / BT2_T6_MUT=add → 줄 하나 «더함» → 갱신 통과. */
+/* 핀 갱신 기록 — 261123 탑(2): check 이관(현빈 261123 «온/오프 = 체크» · 태양 §2c) — 8상태 각 1줄 · BT2_GOLDEN=update 판정 ①~⑥ 통과(라벨은 체크 옆 글 · 머리 «켜기» 는 제목 아님 · 컨트롤 ③ 그대로) */
+/* 핀 갱신 기록 — 261123 탑: c01213d37(QA dev37 권고 묶음 1 «그리드 Position 빈 줄» · 지디 GO) 이 Position 절 빈 칸 자리에 상태 라벨 «흐름 안에 있음»을 넣음(떴을 때 «섹션 위에 떠 있음» 과 짝) → 8상태 각 +1 줄 · 지운 토막 0(가드 통과) */
 test('T6 그리드 패널 — 상태 7가지의 우측 패널 HTML 이 핀과 바이트 같다(C2 host 리팩터 무변 증인)', async ({ page }) => {
   await freshCanvas(page);
   const got = await page.evaluate((png) => {
@@ -232,7 +234,7 @@ test('T6 그리드 패널 — 상태 7가지의 우측 패널 HTML 이 핀과 �
       };
       const aria = (c) => Object.fromEntries([...c.attributes].filter(a => a.name.startsWith('aria-')).map(a => [a.name, a.value]));
       const rowKey = (l) => { const c = l.closest('.prop-row, .prop-color-row')?.querySelector('input,select,button,textarea'); if (!c) return null; if (c.id) return c.id; const d = [...c.attributes].find(a => a.name.startsWith('data-') && a.name !== 'data-scope'); return d ? d.name : null; };
-      const subTitles = (r) => [...r.querySelectorAll('.prop-section-title')].filter(t => !t.closest('.prop-sec-head')).map(t => ({ text: t.textContent.trim(), n: t.closest('.prop-section').querySelectorAll('input,select,button,textarea').length }));
+      const subTitles = (r) => [...r.querySelectorAll('.prop-section-title')].filter(t => !t.closest('.prop-sec-head')).map(t => ({ text: [...t.childNodes].filter(n => n.nodeType === 3 || !n.matches?.('.ui-check')).map(n => n.textContent).join('').trim(),   /* ★기대 바뀜(check 이관 ②ⓒ) — 머리 체크 옆 «켜기» 글은 제목이 아니다(grid-block-bg B1 과 같은 자) */ n: t.closest('.prop-section').querySelectorAll('input,select,button,textarea').length }));
       const out = [];
       for (const k of Object.keys(old)) {
         const a = parse(old[k]), b = parse(got[k] || '');
@@ -249,7 +251,8 @@ test('T6 그리드 패널 — 상태 7가지의 우측 패널 HTML 이 핀과 �
         for (const [key, q] of pool) q.forEach((el) => { if (el.closest(S.strokeStd.scope) || el.closest(S.posFlow.scope)) return; out.push(`${k} ③ 컨트롤 더해짐 ${key}`); });   // + Position P2 흐름 줄 범위 안   // Stroke 부품 범위 안 더함만 면제(밖은 그대로 거절 — plant 양성대조)
         if (S.added.some(id => !b.querySelector('#' + id))) out.push(`${k} ② 스코프칩 넷이 없다`);
         // ④ 라벨
-        const lb = new Map([...b.querySelectorAll('.prop-label')].map(l => [rowKey(l), l.textContent.trim()]));
+        /* ★기대 바뀜(현빈 261123 «온/오프 = 체크» · 태양 §2c) — 켬/끔 줄의 이름은 .prop-label 이 아니라 체크 옆 글(.ui-check-label)로 옮겼다 · 컨트롤(③)은 그대로 */
+        const lb = new Map([...b.querySelectorAll('.prop-label, .ui-check-label')].map(l => [rowKey(l), l.textContent.trim()]));
         for (const l of a.querySelectorAll('.prop-label')) { const key = rowKey(l); if (!key || l.closest(S.strokeStd.scope) || (S.strokeStd.labelGone.includes(key) && !b.querySelector('#' + key)) || (key === 'grd-typo-color' && b.querySelector('#' + key)?.closest('[data-part="fill"]'))) continue;   /* ★표준 Fill F4: 글자색 «라벨 줄» → 표준 겹 줄(라벨 없음 · 이름 = 칸 aria-label) — 그 칸이 Fill 부품 안으로 간 때만 */   /* Stroke 부품 안 라벨은 stroke-std 가 잰다 — 팝오버 «점선 끝»·«꼭짓점» 줄은 첫 컨트롤 키(data-value)가 같아 짝이 엇갈린다(같은 골든끼리도 거짓 거절 · 실측) */ const want = S.LABEL_TO[key] || l.textContent.trim(); if (lb.get(key) !== want) out.push(`${k} ④ 라벨 ${key}: 「${l.textContent.trim()}」 → 「${lb.get(key)}」(기대 「${want}」)`); }
         // ⑤ 하위 제목
         const ta = subTitles(a).filter(t => !(t.text === 'Layout' || (t.text === 'Typography' && t.n === 0))).map(t => t.text).sort();   // 순서는 틀이 정한다(SECTION_ORDER) — 집합만 견준다

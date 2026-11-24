@@ -1,7 +1,7 @@
 import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { strokeSectionHTML, wireStrokeSection, STROKE_POP_WHY, edgeSelectHTML, wireEdgeSelect } from './_stroke-section.js';
-import { parseRatio, parseRatioStrict, noticeRatioRejected, blockHeaderHTML, disclosureSectionHtml, discSecOpen, discSecToggle } from './_helpers.js';
+import { parseRatio, parseRatioStrict, noticeRatioRejected, blockHeaderHTML, disclosureSectionHtml, discSecOpen, discSecToggle, checkHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { withTextSelection, spanExactlyCovering } from './_text-selection.js';
 import { panelRenderedPx } from './_panel-rendered.js';
@@ -371,11 +371,7 @@ export function showTableProperties(block) {
 `),
       sec('content', `
       <div class="prop-row">
-        <span class="prop-label">헤더</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="tbl-show-header" ${curShowHeader ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'tbl-show-header', label: '헤더', checked: curShowHeader })}
       </div>
       <div class="prop-hint">셀을 더블클릭하면 텍스트를 편집할 수 있습니다.</div>`),
       sec('size', `    ${(() => {

@@ -15,6 +15,7 @@
 import './radial-geom.js';
 import './radial-samples.js';
 import { growFrameToFitChildren } from './frame-geometry.js';
+import { checkHTML } from './props/_helpers.js';
 import { fieldRowHTML } from './props/_panel-frame.js';   // 샘플 줄 = 틀의 필드 줄(⛔절 안에 절 제목을 두지 않는다)   // ★261020 이식: dev 는 window 에 안 올리고 export 로만 둔다(frame-geometry.js:435)
 
 const RA_DEFAULTS = Object.freeze({
@@ -332,11 +333,7 @@ function radialArrangeSectionHTML(ss) {
       ${_sliderRow('칸 크기', 'ss-radial-cell', RA_LIMITS.CELL_MIN, RA_LIMITS.CELL_MAX, 4, m.cell)}
       <div class="prop-hint" id="ss-radial-overlap-hint" style="display:none;padding:0 0 6px;text-align:left;">칸끼리 겹칩니다 — 반지름을 키우거나 칸 크기를 줄이세요.</div>
       <div class="prop-row">
-        <span class="prop-label">가운데 칸</span>
-        <label class="prop-toggle" title="원 가운데에 서클 블럭을 하나 더 놓는다">
-          <input type="checkbox" id="ss-radial-center-toggle" ${m.center === '1' ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'ss-radial-center-toggle', label: '가운데 칸', checked: m.center === '1', attrs: 'title="원 가운데에 서클 블럭을 하나 더 놓는다"' })}   <!-- 현빈 261123 «온/오프 = 체크» -->
       </div>
       ${m.center === '1' ? _sliderRow('가운데 크기', 'ss-radial-centersize', RA_LIMITS.CENTER_MIN, RA_LIMITS.CENTER_MAX, 4, m.centerSize) : ''}
       <button class="prop-action-btn secondary" id="ss-radial-fill-samples">샘플 그림 채우기</button>

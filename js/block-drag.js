@@ -1220,6 +1220,27 @@ function bindBlock(block) {
   if (isShape) {
     // 붙여넣기·⌘D·재로드로 id 가 바뀐 사본의 그라데이션 짝을 다시 잇는다(0919 QA)
     try { window.relinkShapeGradient?.(block); } catch (_) {}
+    /* ★207행 BLOCK-CONVERT ⓐ ③(현빈 GO 261123 · Figma 실측 07) — 이미지 파일을 도형 위에 놓으면 «도형 그대로 + 새 이미지(에셋) 블럭»(칠을 바꾸지 않는다).
+       새 블럭 자리 = 도형을 고른 채 addAssetBlock(고른 것 바로 뒤 · 같은 부모) · 그림 = loadImageToAsset(에셋 위 놓기와 같은 길). shortcut: 놓은 «점» 좌표엔 안 둔다 — 필요하면 그때. */
+    if (!block._shapeFileDropBound) {
+      block._shapeFileDropBound = true;
+      block.addEventListener('dragover', e => {
+        if (!e.dataTransfer?.types?.includes('Files')) return;
+        e.preventDefault(); e.stopPropagation();
+      });
+      block.addEventListener('drop', e => {
+        if (!e.dataTransfer?.types?.includes('Files')) return;
+        e.preventDefault(); e.stopPropagation();
+        const file = e.dataTransfer.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith('image/')) { window.showToast?.('이미지 파일만 놓을 수 있습니다.'); return; }
+        selectShapeBlock(block);
+        const before = new Set(document.querySelectorAll('.asset-block'));
+        window.addAssetBlock?.('standard');
+        const ab = [...document.querySelectorAll('.asset-block')].find(x => !before.has(x));
+        if (ab) window.loadImageToAsset?.(ab, file);
+      });
+    }
     block.addEventListener('click', e => {
       e.stopPropagation();
       const sec = block.closest('.section-block');
@@ -3139,7 +3160,7 @@ function _bindFrameFlowDrop(ss) {
     /* G19 — 그리드 «밑» 자리면 그 그리드의 자식으로 넣는다. 아니면 임시 띠만 걷고 종전 그대로(js/grid-children.js). */
     if (window.gridChildDrop?.(e, inner, dragState.dragSrc)) { dragState.dragSrc = null; return; }
     /* G9 — 글자 블럭을 «그리드 칸» 위에 놓았으면 칸의 한 줄로 받는다(prop-grid.js grdDropTextBlockOnCell — 거짓이면 종전 그대로). */
-    if (window.grdDropTextBlockOnCell?.(e, dragState.dragSrc)) { clearDropIndicators(); dragState.dragSrc = null; return; }
+    if (window.grdDropTextBlockOnCell?.(e, dragState.dragSrc) || window.grdDropAssetOnCell?.(e, dragState.dragSrc)) { clearDropIndicators(); dragState.dragSrc = null; return; }   // 203 — 에셋도 칸의 그림 줄로
     window.pushHistory();
     const _fromKids = dragState.dragSrc.parentElement;   // G19 — 그리드 밑 그릇에서 끌어냈으면 비었을 때 걷는다(아래 끝에서)
     /* ★수지③(2026-10-08 · 지디 GO) — 「들어온 것」을 «정체»로 가린다: 넣기 «전» 프레임 자식의 참조 집합(클래스·표시 아님).

@@ -6,7 +6,7 @@
  * C1 켬(기본) · 섹션 아래로 반쯤 나간 떠 있는 글 → 섹션 안 점 = 글 · 섹션 밖 점 = 글 아님(잘림) · 고르면 섹션 밖 아래 손잡이가 보이고 맨 위에서 잡힘
  * C2 패널 체크 끔 → 섹션 밖 점 = 글(보임) · 다시 켬 → 잘림 · ⌘Z 한 번 = 끈 상태로 되돌림
  * C3 PNG — 켬·끔 둘 다 높이 = 섹션 높이(넘친 부분 안 담김)
- * C4 새 섹션 = 체크(저장 키 없음) · 옛 저장본(data-overflow-visible="true")을 열면 체크 꺼짐 · 자리 = Layout 절 맨 아래 · 이름 «Clip content»
+ * C4 ★현빈 261123 E: 새 섹션 = 체크 꺼짐(밖 보임 · 저장 키 data-overflow-visible="true" 를 얹음) · 키 없는 옛 저장본은 저장·다시 열기 뒤에도 체크(자름) 그대로 · 키 켜진 옛 저장본 = 체크 꺼짐 · 자리 = Layout 절 맨 아래 · 이름 «Clip content»
  * 양성대조: _patches/section-clip-CTL.patch(오버레이 크롭 CSS 두 줄 걷음) ⇒ C1 빨강.
  */
 const { test, expect } = require('@playwright/test');
@@ -25,7 +25,7 @@ async function scene(page) {
   const errs = await bootApp(page); await wireCdp(page);
   const ids = await page.evaluate(async () => {
     const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
-    const s1 = await window.addSection(); s1.id = 'sC'; s1.style.backgroundColor = '#ffffff';
+    const s1 = await window.addSection(); s1.id = 'sC'; s1.style.backgroundColor = '#ffffff'; delete s1.dataset.overflowVisible;   // ★전제 바뀜(현빈 261123 E — 새 섹션 기본 끔): C1~C3 은 «켬»을 재는 칸이라 켠 섹션(키 없음 = 옛 저장본 꼴)에서
     const s2 = await window.addSection(); s2.id = 'sN'; s2.style.backgroundColor = '#dddddd';
     window.applyZoom?.(100);
     window.deselectAll(); window.selectSection(s1); window.addTextBlock('h1');
@@ -73,9 +73,9 @@ test('C1 켬(기본) — 섹션 밖은 잘림 · 고르면 밖 손잡이는 보�
 test('C2 패널 체크 끔 → 밖 보임 · 켬 → 잘림 · ⌘Z 한 번', async ({ page }) => {
   const { errs, ids } = await scene(page);
   await showPanel(page);
-  await page.click('label.prop-toggle:has(#sec-clip-content)'); await raf(page);
+  await page.click('label.ui-check:has(#sec-clip-content)');   /* ★기대 바뀜(현빈 261123 check · §2c) — 사람이 누르는 자리 = check 부품 라벨 */ await raf(page);
   const off = { ...(await probe(page, ids.tf)), key: await page.evaluate(() => document.getElementById('sC').dataset.overflowVisible ?? null) };
-  await page.click('label.prop-toggle:has(#sec-clip-content)'); await raf(page);
+  await page.click('label.ui-check:has(#sec-clip-content)');   /* ★기대 바뀜(현빈 261123 check · §2c) — 사람이 누르는 자리 = check 부품 라벨 */ await raf(page);
   const on = { ...(await probe(page, ids.tf)), key: await page.evaluate(() => document.getElementById('sC').dataset.overflowVisible ?? null) };
   await page.evaluate(() => window.undo()); await raf(page);
   const undone = { ...(await probe(page, ids.tf)), key: await page.evaluate(() => document.getElementById('sC').dataset.overflowVisible ?? null) };
@@ -99,14 +99,16 @@ test('C3 PNG — 켬·끔 둘 다 섹션 높이', async ({ page }) => {
 
 test('C4 새 섹션 = 체크 · 옛 저장본(키 켜짐) = 체크 꺼짐 · Layout 절 맨 아래 «Clip content»', async ({ page }) => {
   const { errs } = await scene(page);
-  await showPanel(page);
+  await page.evaluate(() => { const n = document.getElementById('sN'); window.deselectAll(); window.selectSection(n); window.showSectionProperties(n); });   // ★전제 바뀜(현빈 261123 E): «새 섹션» = 장면이 손대지 않은 sN(sC 는 C1~C3 위해 켬)
   const fresh = await page.evaluate(() => { const c = document.getElementById('sec-clip-content'); const sec = c.closest('[data-sec]') || c.closest('.prop-section'); const rows = [...sec.querySelectorAll('.prop-row, .prop-align-group')];
-    return { checked: c.checked, label: c.closest('.prop-row').querySelector('.prop-label')?.textContent.trim(), toggle: !!c.closest('label.prop-toggle')?.querySelector('.prop-toggle-track'), key: document.getElementById('sC').dataset.overflowVisible ?? null, inLayout: (sec.dataset.sec || sec.id || '').includes('layout'), last: rows[rows.length - 1] === c.closest('.prop-row'), oldId: !!document.getElementById('sec-overflow-visible') }; });   // ★기대 바뀜(현빈 261123 «체크박스 → 공용 토글 스위치» label.prop-toggle) — 이름은 줄 라벨 · 스위치 꼴
+    return { checked: c.checked, label: (c.closest('label.ui-check')?.querySelector('.ui-check-label') || c.closest('.prop-row').querySelector('.prop-label'))?.textContent.trim(), toggle: c.classList.contains('ui-check-box') && !!c.closest('label.ui-check[data-part="check"]'),   /* ★열차 합침(탑 261124) — 부품 = check(현빈 261123 «온/오프 = 고디터 커스텀 체크박스» · tp/0913-check) · 장면·자리 = 섹션 보강(sN · Layout 묶음 맨 아래 · v117a) */ key: document.getElementById('sN').dataset.overflowVisible ?? null, inLayout: ['layout', 'size', 'padding'].includes(sec.dataset.sec), last: rows[rows.length - 1] === c.closest('.prop-row'), oldId: !!document.getElementById('sec-overflow-visible') }; });
   if (process.env.SHOT_CLIP) await page.screenshot({ path: `${process.env.SHOT_CLIP}/C4-panel-clip-content.png` });
   await page.evaluate(() => { const s = document.getElementById('sC'); s.dataset.overflowVisible = 'true'; window.showSectionProperties(s); });
   const old = await page.evaluate(() => document.getElementById('sec-clip-content').checked);
   console.log('[C4 실측]', JSON.stringify({ fresh, old }));
-  expect(fresh, '★새 섹션 = 켬(자름) · 공용 토글 스위치 · 키 없음 · Layout 맨 아래 · 이름').toEqual({ checked: true, label: 'Clip content', toggle: true, key: null, inLayout: true, last: true, oldId: false });
+  expect(fresh, '★새 섹션(sN) = 꺼짐(밖 보임) · check 부품 · 키 켜짐 · Layout 맨 아래 · 이름').toEqual({ checked: false, label: 'Clip content', toggle: true, key: 'true', inLayout: true, last: true, oldId: false });   // ★기대 바뀜(현빈 261123 E — 앞 D-3 «기본 켬» 뒤집음) · 부품 = check(열차 합침)
   expect(old, '★옛 저장본(키 켜짐) = 체크 꺼짐').toBe(false);
+  const rt = {}; rt.key = await page.evaluate(async () => { delete document.getElementById('sC').dataset.overflowVisible; const snap = window.serializeProject(); await window.applyProjectData(typeof snap === 'string' ? JSON.parse(snap) : snap); for (let i = 0; i < 50 && !document.getElementById('sC'); i++) await new Promise((r) => requestAnimationFrame(r)); const s = document.getElementById('sC'); window.deselectAll(); window.selectSection(s); window.showSectionProperties(s); return s.dataset.overflowVisible ?? null; }); await page.waitForFunction(() => !!document.getElementById('sec-clip-content'), null, { timeout: 5000 }); rt.checked = await page.evaluate(() => document.getElementById('sec-clip-content').checked); rt.newKey = await page.evaluate(async () => (await window.addSection())?.dataset?.overflowVisible ?? null);
+  expect(rt, '★키 없는 옛 저장본 = 저장·다시 열기 뒤에도 자름(체크) 그대로 · 그 뒤 새로 만든 섹션만 키 켜짐(현빈 261123 E · 옛 저장본은 저장된 그대로)').toEqual({ key: null, checked: true, newKey: 'true' });
   expect(errs, errs.join(' | ')).toEqual([]);
 });

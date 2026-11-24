@@ -369,7 +369,8 @@ test('M10 ★★메시가 켜져도 「배경색」 칸은 ★파생 바닥색�
     .map(v => Number(v).toString(16).padStart(2, '0')).join('').toUpperCase();
   expect(String(r.hex || '').toUpperCase(), `「배경색」 hex = ${r.hex} · 파생 바닥색 = ${live} — 사용자가 고른 적 없는 값이다`)
     .not.toBe(live.replace('#', ''));
-  expect(r.hint, '메시가 켜졌는데 「색을 고르면 메시가 꺼진다」 안내가 없다').toBe(true);
+  /* ★기대 바뀜(PRS-03 · 현빈 GO 261122 · 섹션 보강 261123) — 메시 안내 줄 걷음: 켜도 안내 0 */
+  expect(r.hint, '★걷은 메시 안내 줄이 되살아났다(PRS-03)').toBe(false);
 
   /* ★★음성대조 — 끄면 ★안내도 ★사라진다(⛔늘 떠 있는 줄이면 아무것도 안 잰다) */
   await page.locator('#sec-bg-mesh').click();

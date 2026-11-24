@@ -134,7 +134,7 @@ test('R6 ★패널 — ★평점 칸 ★세 쪼가리가 ★있다(토글·숫�
      ⇒ ★★«낱말이 파일에 있나»가 ★아니라 ★★«그 요소가 ★패널 HTML 로 ★그려지나»를 ★재야 한다.
         ⇒ ★`id="…"` ★속성 꼴로 ★닻을 ★좁혔다. (★「낱말 grep 으로 닫지 마라」) */
   for (const id of ['shape-star-rating-toggle', 'shape-star-rating-num', 'shape-star-rating-preview']) {
-    assert.ok(PANEL.includes(`id="${id}"`), `★패널 HTML 에 ★id="${id}" 가 없다`);
+    assert.ok(PANEL.includes(`id="${id}"`) || PANEL.includes(`checkHTML({ id: '${id}'`), `★패널 HTML 에 ★id="${id}" 가 없다`);   // 토글 = check 부품(현빈 261123)
   }
   /* ★0~5 를 ★입력칸이 ★스스로 ★막는다 — ⛔「코드가 조인다」만 믿지 않는다 */
   assert.match(PANEL, /id="shape-star-rating-num"[^>]*min="\$\{STAR_RATING_MIN\}"/,

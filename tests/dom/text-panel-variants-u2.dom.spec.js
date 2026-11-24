@@ -72,7 +72,7 @@ test('V2 아이콘텍스트 — 간격 · 오류 0', async ({ page }) => {
 test('V3 말풍선 — 발신자 토글(줄 없음 · 줄 모드 둘 다) · 오류 0', async ({ page }) => {
   const errs = await scene(page);
   const id = await open(page, 'speech-bubble-block', 'addSpeechBubbleBlock');
-  await page.locator('#bubble-show-sender + .prop-toggle-track').click();
+  await page.locator('label.ui-check:has(#bubble-show-sender)').click();   /* ★기대 바뀜(현빈 261123 ①②③ · check 부품) — 누르는 자리 = label.ui-check */
   await expect(page.locator(`#${id} .tb-sender-name`), '줄 없음 — 발신자 이름이 섰다').toBeVisible();
   // 줄 모드(D6 — 블럭 단위 글자 절을 숨기는 판)
   await expect(page.locator('#grd-line-add-kind'), '[전제] 「+ 줄 추가」').toBeAttached();
@@ -80,7 +80,7 @@ test('V3 말풍선 — 발신자 토글(줄 없음 · 줄 모드 둘 다) · 오
   await expect.poll(() => page.evaluate((id) => JSON.parse(document.getElementById(id).dataset.lines || '[]').length, id), '[전제] 줄 모드').toBeGreaterThan(1);
   await page.evaluate((id) => { window.deselectAll?.(); window.selectBlock(id); }, id);
   await expect(page.locator('#bubble-style-section'), '줄 모드에도 Bubble 절').toBeAttached();
-  await page.locator('#bubble-show-sender + .prop-toggle-track').click();
+  await page.locator('label.ui-check:has(#bubble-show-sender)').click();   /* ★기대 바뀜(현빈 261123 ①②③ · check 부품) — 누르는 자리 = label.ui-check */
   await expect(page.locator(`#${id} .tb-sender-name`), '줄 모드 — 발신자 이름 끔이 먹었다').toBeHidden();
   expect(errs, errs.join(' | ')).toEqual([]);
 });

@@ -763,7 +763,6 @@
       <!-- 0.9.13 MOTION 슬라이드 블럭 — 노출 = GIF 와 같은 관리자 규칙(js/blocks/slide-block.js syncSlideMenu · animGifVisible) · 기본 숨김 -->
       <button class="fp-menu-item" id="fp-add-slide" style="display:none" onclick="addSlideBlock();toggleFpDropdown('fp-component-dropdown')" title="Slides — 칸(프레임) 여러 개를 담아 GIF 로 흐르게(움직임은 GIF 버튼)">Slides</button>
       <!-- t13C-03 유튜브 썸네일 — 860×484 핀 섹션(1280 내보내기 = 1280×720) · 노출 = 관리자(js/block-factory.js syncYoutubeThumbMenu) · 기본 숨김 -->
-      <button class="fp-menu-item" id="fp-add-yt-thumb" style="display:none" onclick="addYoutubeThumbSection();toggleFpDropdown('fp-component-dropdown')" title="유튜브 썸네일 — 높이 484 섹션 · 1280px (유튜브) 로 내보내면 1280×720">YouTube 썸네일</button>
       <!-- ★Quote 는 텍스트 드롭다운으로 옮겼다(1012t1H1 · 현빈 「텍스트 패널위치로 옮기기」). -->
       <!-- ★[숨김] Info Card · Inner Card — 현빈 2026-09-07 「info카드와 이너카드도 일단 숨김처리해줘」
            ⛔막는 것은 «새로 넣는 입구»뿐이다. 블록 구현·프로퍼티 패널·레이어 패널·저장/로드는
@@ -1853,6 +1852,11 @@
       <path d="M6 6.5v4M4.5 9l1.5 1.5L7.5 9"/>
     </svg>
     바로 아래에 여백 넣기 (G)
+  </div>
+  <!-- ★207행 BLOCK-CONVERT ⓐ(현빈 GO 261123) — Figma «Frame selection ⌥⌘G» = 감싸기(새 빈 프레임이 감쌈 · 바뀌지 않음). 길 = ⌥⌘G 와 같은 wrapSelectedBlocksInFrame 한 벌(⌘Z 한 칸). 누른 블럭이 안 골라져 있으면 그것만 골라서. -->
+  <div class="bcm-item" id="bcm-wrap-frame">
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1" width="10" height="10" rx="1.5" stroke-dasharray="2 1.5"/><rect x="3.5" y="3.5" width="5" height="5" rx="0.8"/></svg>
+    프레임으로 감싸기 <span style="margin-left:auto;opacity:.6;padding-left:12px">⌥⌘G</span>
   </div>
   <div class="bcm-item" id="bcm-send-to-scratch" style="display:none;">
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">

@@ -1,6 +1,6 @@
 import '../graph-limits.js';   // side-effect import — window.GRAPH_LIMITS 를 «이 모듈보다 먼저» 싣는다(하네스·앱 같은 길, 로드 순서 의존 없음)
 import { propPanel, state } from '../globals.js';
-import { blockHeaderHTML, escHtml } from './_helpers.js';
+import { blockHeaderHTML, escHtml, checkHTML } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor, swatchHex } from './color-picker.js';
 import { strokeSectionHTML, wireStrokeSection } from './_stroke-section.js';
@@ -23,11 +23,7 @@ const GR_OVERLAY_TOGGLES = [
 function overlayTogglesHTML(block) {
   return GR_OVERLAY_TOGGLES.map(t => `
       <div class="prop-row" title="${t.title}">
-        <span class="prop-label">${t.label}</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="${t.id}" ${block.dataset[t.key] === '1' ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: `${t.id}`, label: `${t.label}`, checked: block.dataset[t.key] === '1' })}
       </div>`).join('');   // 격자선 색 줄(gridColorRowHTML)은 Fill 절로(right-panel-unify U5)
 }
 /* H7(현빈 2026-10-05) — 격자선 색 칸. 비어 있으면(키 없음) «지금 그려진» 색 = 블럭 글자색(currentColor) · 투명도 20(렌더 기본 그대로).
@@ -76,11 +72,7 @@ function barSettingsHTML({ chartType, barThickness, thicknessMax = BAR_THICKNESS
         <input type="number" class="prop-number" id="grb-seg-gap-number" min="${SEG_GAP_MIN}" max="${SEG_GAP_MAX}" value="${segGap}">
       </div>
       <div class="prop-row" title="마디 경계를 물결 모양으로(흰 틈이 같은 두께로 물결친다)">
-        <span class="prop-label">경계 물결</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="grb-seg-wave-toggle" ${segWave ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'grb-seg-wave-toggle', label: '경계 물결', checked: segWave })}
       </div>`}
 `,
     typography: `
@@ -482,7 +474,7 @@ export function showGraphProperties(block) {
   const showVLabel   = block.dataset.showVLabel !== '0';
   const showXLabel   = block.dataset.showXLabel !== '0';
   const _isPie       = _isPieType(chartType);
-  const _rdHide      = chartType === 'radial' ? ' style="display:none"' : '';   // 프로토 Z6-B — 방사형이 안 쓰는 칸(값 색상 · 값 표시 · Data 값)은 숨긴다. 칸은 DOM 에 남는다(배선 · syncItems 가 읽는다)
+  const _rd          = chartType === 'radial';   // 프로토 Z6-B — 방사형이 안 쓰는 칸(값 색상 · 값 표시 · Data 값)은 «안 그린다»(R16 현빈 261123 · 옛날엔 display:none 으로 DOM 에 남겼다) · 배선은 getElementById 가드 · syncItems 는 값 칸이 없으면 모델 값을 보존
   const _donut       = _isDonut(block.dataset);   // 1013t1C1 — 옛 'donut' 또는 'pie' + pieDonut
   const _pieInt      = (raw, lo, hi, dflt) => { const n = parseInt(raw); return Math.min(hi, Math.max(lo, (raw !== undefined && Number.isFinite(n)) ? n : dflt)); };   // 렌더(_renderPie)와 «같은 식» — 키 없음·NaN = 기본
   const pieGap       = _pieInt(block.dataset.pieGap, PIE_GAP_MIN, PIE_GAP_MAX, PIE_GAP);
@@ -527,19 +519,11 @@ export function showGraphProperties(block) {
         ${GRAPH_TYPES.map(t => `<button class="prop-preset-btn prop-type-btn ${(chartType === t.type || (t.type === 'pie' && chartType === 'donut')) ? 'active' : ''}" id="${t.id}">${t.label}</button>`).join('\n        ')}
       </div>${_shape.kind || ''}`),
       sec('content', `
-      <div class="prop-row"${_rdHide}>
-        <span class="prop-label">값 표시</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="grb-show-vlabel" ${showVLabel ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
-      </div>
+${_rd ? '' : `      <div class="prop-row">
+        ${checkHTML({ id: 'grb-show-vlabel', label: '값 표시', checked: showVLabel })}
+      </div>`}
       <div class="prop-row">
-        <span class="prop-label prop-label--auto">카테고리 표시</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="grb-show-xlabel" ${showXLabel ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'grb-show-xlabel', label: '카테고리 표시', checked: showXLabel })}
       </div>${chartType === 'bar-v' ? overlayTogglesHTML(block) : ''}
     ${chartType === 'bar-pair' ? `
       <div class="prop-row">
@@ -555,7 +539,7 @@ export function showGraphProperties(block) {
         ${items.map((item, i) => `
           <div class="grb-data-item" data-index="${i}" data-sec-item>
             <input type="text" class="grb-data-label-input" value="${escHtml(item.label)}" placeholder="라벨">
-            <input type="number" class="grb-data-val-input" value="${_segOn && _segsOf(item).length ? _segSum(item.segments) : escHtml(item.value)}" min="0" max="9999"${_segOn && _segsOf(item).length ? ' readonly title="마디 값의 합"' : ''}${_rdHide}>
+            ${_rd ? '' : `<input type="number" class="grb-data-val-input" value="${_segOn && _segsOf(item).length ? _segSum(item.segments) : escHtml(item.value)}" min="0" max="9999"${_segOn && _segsOf(item).length ? ' readonly title="마디 값의 합"' : ''}>`}
             ${chartType === 'bar-pair' ? `<input type="number" class="grb-data-val-input grb-data-val2-input" value="${escHtml(item.value2 ?? 0)}" min="0" max="9999" title="시리즈 B 값">` : ''}
             <button class="grb-data-del-btn" data-index="${i}">✕</button>
             ${_isPie ? `<button class="grb-data-icon-btn ${_sliceSel === i ? 'active' : ''}" data-slice-index="${i}" title="${_sliceSel === i ? '조각 고르기 풀기' : '이 조각 고르기(조각별 설정)'}">${ITEM_SLICE_ICON}</button>` : ''}
@@ -592,12 +576,12 @@ ${_bar.typography || ''}`),
         <span class="prop-label">라벨 색상</span>
         ${colorFieldHTML({ idPrefix: 'grb-label', hex: labelColor, alpha: labelAlpha })}
       </div>
-      <div class="prop-row" title="값 라벨(숫자)만 별도 색상"${_rdHide}>
+${_rd ? '' : `      <div class="prop-row" title="값 라벨(숫자)만 별도 색상">
         <span class="prop-label">값 색상</span>
         ${colorFieldHTML({ idPrefix: 'grb-vlabel', hex: _vlabelShown, alpha: parseAlphaFromColor(_vlabelShown) })}
-      </div>
+      </div>`}
       <!-- ★E103 U27(2026-10-05): 「카테고리 색상」·「카테고리 표시」는 56px 고정 라벨에서 잘렸다(sw60/cw56 실측) — 기존 변형 .prop-label--auto(css/editor-props.css, 「그리드 가이드」 선례)를 쓴다. 전역 56px 은 안 건드린다. -->
-      <div class="prop-row" title="카테고리 라벨(7차 입고 등)만 별도 색상">
+      <div class="prop-row prop-row--wide" title="카테고리 라벨(7차 입고 등)만 별도 색상">
         <span class="prop-label prop-label--auto">카테고리 색상</span>
         ${colorFieldHTML({ idPrefix: 'grb-xlabel', hex: _xlabelShown, alpha: parseAlphaFromColor(_xlabelShown) })}
       </div>
@@ -617,11 +601,7 @@ ${_bar.fill || ''}
         ${colorFieldHTML({ idPrefix: 'grb-bar', hex: barColor, alpha: barAlpha })}
       </div>
       <div class="prop-row">
-        <span class="prop-label">면 채우기</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="grb-fillarea-toggle" ${fillArea ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'grb-fillarea-toggle', label: '면 채우기', checked: fillArea })}
       </div>
       <div class="prop-row" id="grb-fillcolor-row" style="display:${fillArea ? 'flex' : 'none'}">
         <span class="prop-label">면 색상</span>
@@ -649,20 +629,12 @@ ${_bar.fill || ''}
         </select>
       </div>
       <div class="prop-row" title="Catmull-Rom 곡선 보간 — 온도 곡선 등 부드러운 추세선">
-        <span class="prop-label">곡선(스무드)</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="grb-smooth-toggle" ${block.dataset.lineSmooth === '1' ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'grb-smooth-toggle', label: '곡선(스무드)', checked: block.dataset.lineSmooth === '1' })}
       </div>
 ` : '', { title: 'Line' }),
       sec('special', _isPie ? `
       <div class="prop-row" title="가운데를 뚫어 도너츠 모양으로">
-        <span class="prop-label">도너츠</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="grb-pie-donut-toggle" ${_donut ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'grb-pie-donut-toggle', label: '도너츠', checked: _donut })}
       </div>${_donut ? `
       <div class="prop-row" title="도너츠 가운데 구멍의 크기(바깥 반지름 대비 %)">
         <span class="prop-label">구멍 크기</span>
@@ -685,26 +657,14 @@ ${_bar.fill || ''}
         <input type="number" class="prop-number" id="grb-pie-leggap-number" min="${PIE_LEG_GAP_MIN}" max="${PIE_LEG_GAP_MAX}" value="${pieLegGap}">
       </div>
       <div class="prop-row" title="조각 안에 순위 배지(1위·2위…)를 넣는다. 좁은 조각은 자동으로 숨는다">
-        <span class="prop-label">순위 표시</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="grb-pie-rank-toggle" ${block.dataset.pieRank === '1' ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'grb-pie-rank-toggle', label: '순위 표시', checked: block.dataset.pieRank === '1' })}
       </div>
       <div class="prop-row" title="조각 안에 항목 이름을 넣는다. 좁은 조각은 줄을 바꾸고 글자를 줄여 보고, 그래도 안 들면 숨긴다">
-        <span class="prop-label">이름 표시</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="grb-pie-name-toggle" ${block.dataset.pieName === '1' ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'grb-pie-name-toggle', label: '이름 표시' })   /* 켬 여부는 아래 배선이 .checked 로(dataset.pieName 을 템플릿에 안 둠 · name-axes X5) */}
       </div>
 ${pieTagTypoRowsHTML(block)}
       <div class="prop-row" title="원형 아래의 범례(색 칩 + 이름 + %)를 보일지. 끄면 조각만 남는다 — 조각 안 순위·이름 표시와 따로 산다">
-        <span class="prop-label">범례 표시</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="grb-pie-legend-toggle" ${block.dataset.pieLegendOff !== '1' ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'grb-pie-legend-toggle', label: '범례 표시', checked: block.dataset.pieLegendOff !== '1' })}
       </div>` : '', { title: 'Pie' }),
       sec('special', _isPie ? pieSliceSectionHTML(items, _sliceSel) : '', { title: 'Slice', id: 'grb-pie-slice-section' }),
       sec('special', _radial, { title: 'Radial' }),
@@ -829,9 +789,10 @@ ${pieTagTypoRowsHTML(block)}
     if (!list) return;
     const prevItems = JSON.parse(block.dataset.items || '[]');
     const newItems = [...list.querySelectorAll('.grb-data-item:not(.grb-seg-item)')].map((row, i) => {
+      const _vIn = row.querySelector('.grb-data-val-input:not(.grb-data-val2-input)');   // 방사형은 값 칸을 안 그린다(R16) → 모델 값 보존
       const it = {
         label: row.querySelector('.grb-data-label-input').value || '',
-        value: parseFloat(row.querySelector('.grb-data-val-input').value) || 0,
+        value: _vIn ? (parseFloat(_vIn.value) || 0) : (Number(prevItems[i] && prevItems[i].value) || 0),
       };
       // bar-pair 2번째 시리즈 — 입력이 없으면(타 차트 타입) 기존 value2 보존해 데이터 유실 방지
       const v2El = row.querySelector('.grb-data-val2-input');
@@ -1189,6 +1150,7 @@ ${pieTagTypoRowsHTML(block)}
      ⛔범례 토글을 ★이 명부 밖에 ★따로 달지 마라 — ★자리가 둘이 된다(재는 자 = pie-legend-toggle.test.mjs T1). */
   for (const [tid, key, inv] of [['grb-pie-rank-toggle', 'pieRank'], ['grb-pie-name-toggle', 'pieName'], ['grb-pie-legend-toggle', 'pieLegendOff', true]]) {
     const tg = document.getElementById(tid);
+    if (tg) tg.checked = (block.dataset[key] === '1') !== !!inv;   // 처음 켬 여부 — DOM 속성으로(템플릿의 checked 와 같은 판정)
     if (tg) tg.addEventListener('change', () => {
       if (tg.checked !== !!inv) block.dataset[key] = '1'; else delete block.dataset[key];
       const _typoRow = document.getElementById(tid.replace('-toggle', '-typo-row'));   // ★t4-17 ⓑ — 그 표시의 «글자» 줄(범례엔 없다)

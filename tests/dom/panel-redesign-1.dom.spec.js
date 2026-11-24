@@ -81,14 +81,15 @@ test('P11 켜진 정렬·B 단추 = border-mid 바탕 · border-strong 테두리
   const r = await page.evaluate(() => {
     const tok = (n, prop = 'color') => { const p = document.createElement('span'); p.style[prop] = `var(${n})`; document.body.appendChild(p); const v = getComputedStyle(p)[prop]; p.remove(); return v; };
     const look = (el) => { const cs = getComputedStyle(el); return [cs.backgroundColor, cs.borderTopColor, cs.color]; };
-    return { want: [tok('--ui-border-mid', 'backgroundColor'), tok('--ui-border-strong'), tok('--ui-text')],
+    return { want: [tok('--ui-sel-neutral-on-bg', 'backgroundColor'), tok('--ui-sel-neutral-on-border'), tok('--ui-sel-neutral-on-text')],   /* 현빈 261123 «2단 밝게» */
       align: look(document.querySelector('#txt-align-group .prop-align-btn.active')),
       style: look(document.querySelector('#txt-style-group .prop-style-btn.active')),
       kind: getComputedStyle(document.querySelector('.prop-type-btn.active[data-cls]')).backgroundColor, accent: tok('--ui-accent-primary', 'backgroundColor') };
   });
   expect(r.align, '★정렬 켜짐').toEqual(r.want);
   expect(r.style, '★B 켜짐').toEqual(r.want);
-  expect(r.kind, '[대조] 타입 단추 켜짐은 파란 채움 그대로').toBe(r.accent);
+  expect(r.kind, '★세그먼트(타입) 켜짐도 같은 중립 회색(현빈 261123)').toBe(r.want[0]);
+  expect(r.want[0], '[대조] 중립 켜짐 ≠ 파랑').not.toBe(r.accent);
   if (!bOn0) await page.locator('#txt-style-group .prop-style-btn').first().click();   // 되돌림(켰을 때만)
   expect(errs, errs.join(' | ')).toEqual([]);
 });

@@ -1,6 +1,6 @@
 // HTML template extracted from prop-text.js (Phase 2 refactor)
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
-import { overlayToggleBtnHTML, blockHeaderHTML, sliderRowHTML, rotRowHTML, floatAlignRowHTML, flowAlignDisabledHTML, POS_FLOW_WHY } from './_helpers.js';
+import { overlayToggleBtnHTML, blockHeaderHTML, sliderRowHTML, rotRowHTML, floatAlignRowHTML, flowAlignDisabledHTML, POS_FLOW_WHY, checkHTML } from './_helpers.js';
 import { sec, buildPanelHTML } from './_panel-frame.js';
 import { strokeSectionHTML, strokeHeadToolsHTML, STROKE_POP_WHY } from './_stroke-section.js';
 import { sectionOrderFor, sectionRank } from './_section-spec.js';
@@ -256,7 +256,7 @@ export function buildTextPanelSpec(state) {
           <input type="color" id="label-bg-color" value="${currentBgColor==='transparent'?'#111111':currentBgColor}">
         </div>
         <input type="text" class="prop-color-hex" id="label-bg-hex" value="${currentBgColor==='transparent'?'':currentBgColor.replace('#','').toUpperCase()}" maxlength="7" aria-label="Color">
-        <label class="prop-none-check"><input type="checkbox" id="label-bg-none" ${currentBgColor==='transparent'?'checked':''}>없음</label>
+        ${checkHTML({ id: 'label-bg-none', label: '없음', checked: currentBgColor === 'transparent' })}   <!-- 현빈 261123 «온/오프 = 체크» -->
       </div>`;
   const _tagRadius = !isLabel ? '' : `
       <div class="prop-row">
@@ -314,13 +314,9 @@ export function buildTextPanelSpec(state) {
             </div>
           </div>
         </div>
-        <div class="prop-row">
-          <span class="prop-label">발신자 이름</span>
-          <label class="prop-toggle" title="발신자 이름 표시 — 이름은 캔버스에서 더블클릭해 고친다">
-            <input type="checkbox" id="bubble-show-sender" ${showSender ? 'checked' : ''}>
-            <span class="prop-toggle-track"></span>
-          </label>
-        </div>
+        <div class="prop-row" title="발신자 이름 표시 — 이름은 캔버스에서 더블클릭해 고친다">
+        ${checkHTML({ id: 'bubble-show-sender', label: '발신자 이름', checked: showSender })}
+      </div>
       </div>`;
 
   const _rotHost = tb?.closest?.('.frame-block[data-text-frame="true"]') || tb;   // 회전·반전이 걸리는 요소(js/asset-rotate.js _textFrameHost 와 같은 판정)

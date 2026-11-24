@@ -10,7 +10,7 @@ import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast } from '.
 import { hasSides, readSides, writeSides, sidesMixed } from '../stroke-look.js';
 /* ★1017a5 — ★배경 크기 칸의 ★현재값·기본값은 js/frame-bg.js 가 정본(⛔사본 금지 · 그 머리말 :22). */
 import { frameBgSize } from '../frame-bg.js';
-import { alignBtn, blockHeaderHTML, escHtml, wireRotRow } from './_helpers.js';
+import { alignBtn, blockHeaderHTML, escHtml, wireRotRow, checkHTML } from './_helpers.js';
 import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from './_position-section.js';   // 표준 Position 절(0.9.14 73행 P1 · 첫 소비자)
 import { renderPanel, sec, unwrapSection, expandSection } from './_panel-frame.js';   /* unwrapSection — _typo-section 빌더가 «절 통째»를 주므로 몸통만(U0c) */
 /* ★오버레이(플로팅) — T3(현빈 섹션메모 `sec_3e0suk0` 「모달 오버레이 기능이 안 보인다」 · 2026-10-07).
@@ -211,11 +211,7 @@ export function showModalProperties(block) {
                min="${MODAL_PROFILE_SIZE_LIMIT.min}" max="${MODAL_PROFILE_SIZE_LIMIT.max}" value="${pfSize}">
       </div>
       <div class="prop-row" title="켜면 카드 높이를 안 늘린다 — 커지면 배경 위아래로 넘쳐 걸친다(현빈 l2c)">
-        <span class="prop-label">오버레이</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="mdl-pf-overlay"${block.dataset.profileOverlay === '1' ? ' checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'mdl-pf-overlay', label: '오버레이', checked: block.dataset.profileOverlay === '1' })}
       </div>
       <button class="prop-action-btn danger" id="mdl-pf-clear" style="margin-top:4px;">프로필 제거</button>` : ''}
 ` : '')),

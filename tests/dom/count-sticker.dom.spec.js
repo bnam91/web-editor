@@ -45,7 +45,7 @@ async function groupSwitch(page, want) {
   const read = () => page.evaluate(() => document.getElementById('stk-count-group')?.checked ?? null);
   const now = await read();
   expect(now, '★전제: 「섹션 전체」 스위치가 패널에 있다').not.toBeNull();
-  if (now !== want) await page.click('label.prop-toggle:has(#stk-count-group)');
+  if (now !== want) await page.click('label.ui-check:has(#stk-count-group)');   /* ★기대 바뀜(현빈 261123 ①②③ · check 부품) — 누르는 자리 = label.ui-check */
   expect(await read(), `「섹션 전체」 스위치 = ${want}`).toBe(want);
 }
 
