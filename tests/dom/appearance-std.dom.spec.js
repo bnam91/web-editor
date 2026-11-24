@@ -109,3 +109,43 @@ for (const [name, add, cls, pfx, numId, max] of [
     expect(errs).toEqual([]);
   });
 }
+
+/* ── AS5(지디 261124 확인): 옛 «change 때만 적용»이던 넷(modal · canvas · innercard · coupon)이 input 즉시가 됐다 —
+ *   키를 여러 번 쳐도(input 여러 번) 이력은 «편집 한 번 = 한 칸»(change 때 1) · ⌘Z 한 번 = 그 편집 전 값 · 라벨 끌기 한 번도 ⌘Z 한 번. */
+for (const [name, add, cls, numId] of [
+  ['modal', 'window.addModalBlock({})', 'modal-block', 'mdl-radius-number'],
+  ['canvas', "window.addCanvasBlock(); { const b = [...document.querySelectorAll('#canvas .canvas-block')].pop(); delete b.dataset.cardMode; window.showCanvasProperties(b); }", 'canvas-block', 'cvb-radius-number'],
+  ['innercard', 'window.addInnerCardBlock()', 'innercard-block', 'icd-radius-number'],
+  ['coupon', 'window.addCouponBlock()', 'coupon-block', 'cpn-radius-number'],
+]) {
+  test(`AS5 ${name} 숫자 칸 키 «3·5» 두 번 + Tab = 이력 1 · ⌘Z 1 = 편집 전 · 라벨 끌기 1 → ⌘Z 1 = 끌기 전`, async ({ page }) => {
+    const errs = await blockScene(page, add, numId);
+    const blockR = () => page.evaluate((cls) => [...document.querySelectorAll('#canvas .' + cls)].pop()?.dataset.radius ?? null, cls);
+    const r0 = await blockR();
+    await page.evaluate(() => { window.__ph = 0; const o = window.pushHistory; window.pushHistory = (...a) => { window.__ph++; return o?.(...a); }; });
+    const n = page.locator('#' + numId); await n.scrollIntoViewIfNeeded();
+    await n.click(); await page.keyboard.press('ControlOrMeta+A'); await page.keyboard.type('35'); await page.keyboard.press('Tab');
+    await expect.poll(blockR).toBe('35');
+    expect(await page.evaluate(() => window.__ph), '★키 두 번 = 이력 한 칸(input 마다 쌓이면 ⌘Z 가 글자로 끊긴다)').toBe(1);
+    await page.evaluate(() => window.undo());
+    await expect.poll(blockR, '★⌘Z 한 번 = 편집 전 값').toBe(r0);
+    await page.evaluate(() => window.redo());
+    await expect.poll(blockR).toBe('35');
+    const h = page.locator(`#${numId}-scrub`); await h.scrollIntoViewIfNeeded(); const b = await h.boundingBox();
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down();
+    await page.mouse.move(b.x + b.width / 2 + 6, b.y + b.height / 2, { steps: 6 }); await page.mouse.up();
+    await expect.poll(blockR).toBe('41');
+    expect(await page.evaluate(() => window.__ph), '★끌기 6 틱 = 이력 한 칸').toBe(2);
+    await page.evaluate(() => window.undo());
+    await expect.poll(blockR, '★⌘Z 한 번 = 끌기 전 값').toBe('35');
+    expect(errs).toEqual([]);
+  });
+}
+
+test('AS6 simple-card «이미지 모양» 슬롯 = 표준 줄 «아래»(시안 슬롯 정본 data-slot below · 지디 261124 (가))', async ({ page }) => {
+  const errs = await blockScene(page, 'window.addCanvasBlock()', 'cvb-radius-number');
+  const o = await page.evaluate(() => { const part = document.getElementById('cvb-radius-number').closest('[data-part="appearance"]'), shape = document.getElementById('cvb-img-shape-group');
+    return { both: !!(part && shape), below: !!(part && shape) && !!(part.compareDocumentPosition(shape) & Node.DOCUMENT_POSITION_FOLLOWING) }; });
+  expect(o).toEqual({ both: true, below: true });
+  expect(errs).toEqual([]);
+});

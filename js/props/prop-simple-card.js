@@ -407,6 +407,7 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
       </div>
 `),
       sec('appearance', `
+      ${appearanceSectionHTML({ prefix: 'cvb', radius: { numberId: 'cvb-radius-number', value: radius, max: 60 } })}   <!-- ★표준 Appearance A2(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·dataset.radius·범위 무변 -->
       <div class="prop-row">
         <span class="prop-label">이미지 모양</span>
         <div class="prop-align-group" id="cvb-img-shape-group">
@@ -417,8 +418,7 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="5.5"/></svg>
           </button>
         </div>
-      </div>
-      ${appearanceSectionHTML({ prefix: 'cvb', radius: { numberId: 'cvb-radius-number', value: radius, max: 60 } })}   <!-- ★표준 Appearance A2(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·dataset.radius·범위 무변 -->
+      </div>   <!-- ★슬롯 image-shape = 표준 줄 «아래»(시안 슬롯 정본 data-slot below · 지디 261124 (가) · 마크업 순서만 · id 무변) -->
 `, { headTools: appearanceHeadToolsHTML({ prefix: 'cvb' }) }),
       sec('typography', `
       <div class="cvb-text-area-dim" style="${_taDim}">
