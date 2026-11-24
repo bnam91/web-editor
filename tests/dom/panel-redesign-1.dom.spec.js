@@ -62,7 +62,7 @@ test('P7 우측 패널 숫자 칸 — 스피너 없음(appearance textfield) · 
   const ap = await page.evaluate(() => [...document.querySelectorAll('#panel-right input[type="number"]')].map((i) => getComputedStyle(i).appearance));
   expect(ap.length, '[전제] 숫자 칸이 있다').toBeGreaterThan(3);
   expect([...new Set(ap)], '★스피너가 남은 숫자 칸').toEqual(['textfield']);
-  const n = page.locator('#txt-x-number');
+  const n = page.locator('#txt-rot-number');   /* ★2026-11-24 기대 바뀜 — 표준 Position 6-2(현빈 확정 · 0.9.14 73행 P2): 흐름 안 X/Y = «있음 + disabled»(숨김 아님) — 흐름 글의 X 칸은 disabled ⇒ ↑ 키 단언은 같은 패널의 쓰는 숫자 칸(회전)으로 */
   const v0 = Number(await n.inputValue());
   await n.focus();
   await page.keyboard.press('ArrowUp');

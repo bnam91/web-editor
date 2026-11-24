@@ -209,6 +209,8 @@ test('T6 그리드 패널 — 상태 7가지의 우측 패널 HTML 이 핀과 �
       ...['blk-tpl-toggle', 'blk-tpl-name', 'blk-tpl-folder', 'blk-tpl-folder-new', 'blk-tpl-tags', 'blk-tpl-save'].map((id) => ({ id, states: ['block', 'h2', 'body', 'gap', 'divider', 'image', 'badge', 'empty'], why: '블록 Template 절 c5686f5a7 — _panel-frame.js(Q37 · 현빈 GO 261120)' }))],
     /* ★표준 Stroke 이관(현빈 Stroke GO 261123 · 지디 261124 (가)) — 그리드 «모든 칸 테두리»·«블럭 외곽선» = 표준 Stroke 부품: 지움 = 옛 굵기 슬라이더 1 · 외곽선 단추 키 = 부품 덧속성(data-stroke-edge/edge-preset · type=button)만 바뀜 · 더함 = Stroke 부품 범위 안 컨트롤만(머리 ＋/− · 위치 · ⫶ 팝오버 · edge 슬롯) · 라벨 ④ «굵기»(슬라이더 줄) 1 · 양성대조 BT2_T6_MUT=plant(Stroke 밖에 칸 하나) = 여전히 거절 */
     strokeStd: { removedIds: ['grd-border-w-slider'], keyDrop: ['data-stroke-edge', 'data-edge-preset'], scope: '[data-part="stroke"], .ui-stroke-pop, .ui-stroke-slot, #grd-outline-group, label:has(> #grd-stroke-on)', labelGone: ['grd-border-w-slider'] },
+    /* ★표준 Position P2(현빈 6-2 확정 261124 · 0.9.14 73행) — 흐름 안 그리드 = 정렬 6·X/Y 를 «disabled» 로 보인다(숨김 아님) · 더함 = 이 두 줄 범위 안 컨트롤만(밖 더함은 그대로 거절) */
+    posFlow: { scope: '[data-float-align-row="flow"], [data-pos-flow]' },
     PH_CHANGE: [{ sel: '.grd-row-h-item', from: '^auto$', to: '^자동( · \\d+)?$' }],
     dataRename: { 'data-bbg-x': 'data-bbg-h', 'data-bbg-y': 'data-bbg-v', 'data-cpos-x': 'data-cpos-h', 'data-cpos-y': 'data-cpos-v' },
     LABEL_TO: { 'data-ha': '가로 정렬 · 모든 열', 'data-va': '세로 정렬 · 블록', 'grd-cell-align': '가로 정렬 · 이 칸', 'grd-cell-valign': '세로 정렬 · 이 칸', 'grd-line-align': '가로 정렬 · 이 줄', 'data-nva': '세로 정렬 · 이 열' },
@@ -244,7 +246,7 @@ test('T6 그리드 패널 — 상태 7가지의 우측 패널 HTML 이 핀과 �
           const cb = q.shift(), ab = aria(cb);
           for (const [n, v] of Object.entries(aria(ca))) if (ab[n] !== v) out.push(`${k} ③-aria ${key} ${n}: 「${v}」 → ${n in ab ? `「${ab[n]}」` : '(지워짐)'}`);
         }
-        for (const [key, q] of pool) q.forEach((el) => { if (el.closest(S.strokeStd.scope)) return; out.push(`${k} ③ 컨트롤 더해짐 ${key}`); });   // Stroke 부품 범위 안 더함만 면제(밖은 그대로 거절 — plant 양성대조)
+        for (const [key, q] of pool) q.forEach((el) => { if (el.closest(S.strokeStd.scope) || el.closest(S.posFlow.scope)) return; out.push(`${k} ③ 컨트롤 더해짐 ${key}`); });   // + Position P2 흐름 줄 범위 안   // Stroke 부품 범위 안 더함만 면제(밖은 그대로 거절 — plant 양성대조)
         if (S.added.some(id => !b.querySelector('#' + id))) out.push(`${k} ② 스코프칩 넷이 없다`);
         // ④ 라벨
         const lb = new Map([...b.querySelectorAll('.prop-label')].map(l => [rowKey(l), l.textContent.trim()]));

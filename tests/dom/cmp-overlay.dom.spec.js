@@ -75,7 +75,8 @@ test('전제 — #cmp-float-toggle 이 패널에 있다 · 켜기 전 dataset.ov
 test('N9 켜기 전 — #cmp-x-number 0(floatPositionRowHTML 이 안 떠 있을 때 아무것도 안 낸다)', async ({ page }) => {
   const errs = await setup(page);
   await selectBlock(page);
-  expect(await page.evaluate(() => document.querySelectorAll('#cmp-x-number').length), '토글 전 X칸 0').toBe(0);
+  /* ★2026-11-24 기대 바뀜 — 표준 Position 6-2(현빈 확정 · 0.9.14 73행 P2): 흐름 안 X/Y = «있음 + disabled»(숨김 아님) */
+  expect(await page.evaluate(() => { const x = document.getElementById('cmp-x-number'); return x ? x.disabled : null; }), '토글 전 X칸 = disabled(옛: 0)').toBe(true);
   expect(errs, errs.join('\n')).toEqual([]);
 });
 
