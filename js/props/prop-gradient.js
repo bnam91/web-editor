@@ -11,10 +11,12 @@
 //   - 높이 슬라이더 (50~1500, 디폴트 300)
 
 import { propPanel } from '../globals.js';
-import { bindSlider, blockHeaderHTML } from './_helpers.js';
+import { blockHeaderHTML } from './_helpers.js';
 import { renderPanel, sec, hintHTML } from './_panel-frame.js';
 import { wireHexText, parseHex6, formatHex6, noticeAlphaText, colorFieldHTML, wireColorField } from './color-picker.js';
 import { fillSectionHTML, setFillKindName } from './_fill-section.js';
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance A4(Opacity 만)
+import { layoutSizeRowHTML, wireLayoutSection, ratioLockOn, setRatioLock } from './_layout-section.js';   // 표준 Layout L2
 
 const DIRS = [
   { v: 'to bottom',       label: '↓ 위→아래' },
@@ -89,18 +91,11 @@ export function showGradientProperties(block) {
       ${hintHTML('바를 클릭해 중간색 추가 · 핸들 드래그로 위치 · ×로 삭제(최소 2개)')}
       <div id="grad-stops-list"></div>
       <button type="button" id="grad-add-stop" class="prop-btn" style="margin-top:6px;width:100%;font-size:12px;">+ 중간색 추가</button></div>` })),   // 표준 Fill F3ⓐ — 겹 줄(이름칸 Linear/Radial · 견본 = goya-cp 그라데이션 탭) + 옛 정지점 바·목록 = 슬롯(옛 id · 걷기는 따로 결정)
-      sec('size', `
-      <div class="prop-row">
-        <span class="prop-label">너비</span>
-        <input type="range" class="prop-slider" id="grad-width-slider" min="200" max="1200" step="10" value="${width}">
-        <input type="number" class="prop-number" id="grad-width-num" min="200" max="1200" value="${width}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">높이</span>
-        <input type="range" class="prop-slider" id="grad-height-slider" min="50" max="1500" step="10" value="${height}">
-        <input type="number" class="prop-number" id="grad-height-num" min="50" max="1500" value="${height}">
-      </div>
+      /* ★표준 Layout L2(현빈 261124 L-4 · 시안 #mkp-layoutstd) — 슬라이더 걷음 · 숫자 칸 id·범위·dataset.gradWidth/gradHeight 무변 · 비율 사슬 기본 끔 */
+      sec('size', `${layoutSizeRowHTML({ prefix: 'grad', chain: { on: ratioLockOn(block, false) },
+        w: { id: 'grad-width-num', value: width, min: 200, max: 1200 }, h: { id: 'grad-height-num', value: height, min: 50, max: 1500 } })}
       ${hintHTML('캔버스에 자유 배치 (드래그로 이동, 우측 컨트롤로 크기 조절)')}`),
+      sec('appearance', appearanceSectionHTML({ prefix: 'grad', op: { value: window.readBlockOpacity?.(block) ?? 100 } }), { headTools: appearanceHeadToolsHTML({ prefix: 'grad' }) }),   // 표준 Appearance A4 — Opacity 만(새 절)
     ],
   });
 
@@ -421,21 +416,12 @@ export function showGradientProperties(block) {
   }
 
   // 너비/높이 — sticker 패턴: dataset만 갱신, renderGradientBlock으로 cssText 재적용
-  const widthSlider = document.getElementById('grad-width-slider');
-  const widthNum    = document.getElementById('grad-width-num');
-  const applyWidth = (v) => {
-    block.dataset.gradWidth = String(v);
-    rerender();
-  };
-  bindSlider(widthSlider, widthNum, applyWidth, { min: 200, max: 1200 });
-
-  const heightSlider = document.getElementById('grad-height-slider');
-  const heightNum    = document.getElementById('grad-height-num');
-  const applyHeight = (v) => {
-    block.dataset.gradHeight = String(v);
-    rerender();
-  };
-  bindSlider(heightSlider, heightNum, applyHeight, { min: 50, max: 1500 });
+  /* 표준 Layout L2 — 옛 bindSlider 자리(슬라이더 걷음) · 부품 배선(input = 바로 · change = 잘라 + 이력·저장 한 번 · 라벨 끌기 · 비율 사슬) */
+  wireLayoutSection({
+    w: { numberId: 'grad-width-num', min: 200, max: 1200, apply: (v) => { block.dataset.gradWidth = String(v); rerender(); }, read: () => parseInt(block.dataset.gradWidth) || width },
+    h: { numberId: 'grad-height-num', min: 50, max: 1500, apply: (v) => { block.dataset.gradHeight = String(v); rerender(); }, read: () => parseInt(block.dataset.gradHeight) || height },
+    chain: { id: 'grad-ratio', on: ratioLockOn(block, false), set: (on) => setRatioLock(block, on, false) } });
+  wireAppearanceSection({ op: { numberId: 'grad-opacity', apply: (v) => window.setBlockOpacity?.(block, v) } });   // A4 — 계약(갈래 E) 없으면 그리기 0
 }
 
 // ── window 노출 ────────────────────────────────────────────────────────────
