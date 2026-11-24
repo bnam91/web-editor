@@ -13,6 +13,8 @@ import { arrowSections, wireArrowSection } from './prop-sticker-arrow.js';
 import { burstPoints, clampBurst, BURST_LIMITS, BURST_DEFAULTS, clampRound, ROUND_MIN, ROUND_MAX } from '../blocks/burst-geometry.js';   // B2 톱니 스탬프
 import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A3)
 
+import { layoutSizeRowHTML, layoutPadSlotHTML, wireLayoutSection, ratioLockOn, setRatioLock } from './_layout-section.js';   // 표준 Layout(L2~L4 · C2)
+
 function _esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -253,12 +255,7 @@ export function showStickerProperties(block) {
       </div>`);
     put('position', `
       ${positionSectionHTML({ prefix: 'stk-icon', posEl: null, xy: false, rot: { p: 'stk-icon', numberId: 'stk-icon-rot-num', value: parseFloat(block.dataset.rotation) || 0, flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' } })}`);
-    put('size', `
-      <div class="prop-row">
-        <span class="prop-label">크기</span>
-        <input type="range" class="prop-slider" id="stk-icon-size" min="16" max="300" step="2" value="${parseInt(block.dataset.size) || 64}">
-        <input type="number" class="prop-number" id="stk-icon-size-num" min="16" max="600" value="${parseInt(block.dataset.size) || 64}">
-      </div>`);
+    put('size', layoutSizeRowHTML({ prefix: 'stk-icon', one: { id: 'stk-icon-size-num', label: 'Size', min: 16, max: 600, value: parseInt(block.dataset.size) || 64 } }));   // ★표준 Layout(C2) — 옛 슬라이더 stk-icon-size 걷음 · 숫자 칸 id·범위 무변
     put('fill', `
       <div class="prop-color-row">
         <span class="prop-label">색상</span>
@@ -286,17 +283,9 @@ export function showStickerProperties(block) {
     </div>`);
   if (isHl) {
     put('size', `
-    <div id="stk-hl-section">
-      <div class="prop-row">
-        <span class="prop-label">너비</span>
-        <input type="range" class="prop-slider" id="stk-hl-w" min="20" max="800" step="2" value="${parseInt(block.dataset.hlW) || 160}">
-        <input type="number" class="prop-number" id="stk-hl-w-num" min="10" max="1200" value="${parseInt(block.dataset.hlW) || 160}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">높이</span>
-        <input type="range" class="prop-slider" id="stk-hl-h" min="6" max="200" step="1" value="${parseInt(block.dataset.hlH) || 28}">
-        <input type="number" class="prop-number" id="stk-hl-h-num" min="4" max="400" value="${parseInt(block.dataset.hlH) || 28}">
-      </div>
+    <div id="stk-hl-section">${layoutSizeRowHTML({ prefix: 'stk-hl', chain: { on: ratioLockOn(block, false) },   /* ★표준 Layout(C2) — 옛 슬라이더 stk-hl-w/h 걷음 · 사슬 기본 끔 */
+        w: { id: 'stk-hl-w-num', min: 10, max: 1200, value: parseInt(block.dataset.hlW) || 160 },
+        h: { id: 'stk-hl-h-num', min: 4, max: 400, value: parseInt(block.dataset.hlH) || 28 } })}
     </div>`);
     put('fill', `
       <div class="prop-color-row">
@@ -348,12 +337,8 @@ export function showStickerProperties(block) {
   if (basic) {
     if (!isCount) put('size', `
     <div id="stk-size-section">
-      <div class="prop-row" id="stk-size-row">
-        <span class="prop-label">크기</span>
-        <input type="range" class="prop-slider" id="stk-size" min="20" max="300" step="2" value="${size}">
-        <input type="number" class="prop-number" id="stk-size-num" min="10" max="600" value="${size}">
-      </div>
-    </div>`);
+      <div id="stk-size-row">${layoutSizeRowHTML({ prefix: 'stk', one: { id: 'stk-size-num', label: 'Size', min: 10, max: 600, value: size } })}</div>
+    </div>`);   // ★표준 Layout(C2) — 옛 슬라이더 stk-size 걷음 · 줄 id stk-size-row(시험이 보임 판정) 남김
     put('typography', `
       <div class="prop-row">
         <span class="prop-label">폰트 크기</span>
@@ -465,15 +450,11 @@ export function showStickerProperties(block) {
         </div>
       </div>
     </div>`);
-    put('size', `
-      <div class="prop-row" title="고정 너비 켜기(끄면 내용맞춤)">
-        ${checkHTML({ id: 'stk-t-boxw-on', label: '박스 너비', checked: tBoxWOn })}
-      </div>
-      <div class="prop-row" id="stk-t-boxw-detail" style="display:${tBoxWOn ? 'flex' : 'none'}">
-        <span class="prop-label">너비</span>
-        <input type="range" class="prop-slider" id="stk-t-boxw" min="40" max="1000" step="2" value="${tBoxWVal}">
-        <input type="number" class="prop-number" id="stk-t-boxw-num" min="20" max="2000" step="1" value="${tBoxWVal}">
-      </div>`);
+    /* ★표준 Layout(C2 · §2-b) — 옛 체크 stk-t-boxw-on(박스 너비) → 너비 모드 드롭다운(고정/자동 · 이미 있는 모드만) · 옛 슬라이더 stk-t-boxw 걷음 · 높이 = 내용(자동) */
+    put('size', layoutSizeRowHTML({ prefix: 'stk-t',
+      w: { id: 'stk-t-boxw-num', min: 20, max: 2000, value: tBoxWVal, auto: !tBoxWOn },
+      h: { id: 'stk-t-h-auto', max: 0, value: 0, auto: true },
+      mode: { w: { id: 'stk-t-boxw-mode', value: tBoxWOn ? 'fixed' : 'auto', options: [['fixed', '고정'], ['auto', '자동']] } } }));
     put('fill', `
     <div id="stk-text-colors-section">
       <div class="prop-color-row">
@@ -512,20 +493,10 @@ export function showStickerProperties(block) {
         </div>
       </div>`);
     put('padding', `
-    <div id="stk-text-pad-section">
-      <div class="prop-row">
-        <span class="prop-label">좌우패딩</span>
-        <input type="range" class="prop-slider" id="stk-t-pad-x" min="0" max="200" step="1" value="${tPadX}">
-        <input type="number" class="prop-number" id="stk-t-pad-x-num" min="0" max="400" step="1" value="${tPadX}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">상하패딩</span>
-        <input type="range" class="prop-slider" id="stk-t-pad-y" min="0" max="200" step="1" value="${tPadY}">
-        <input type="number" class="prop-number" id="stk-t-pad-y-num" min="0" max="400" step="1" value="${tPadY}">
-      </div>
-    </div>`);
+    <div id="stk-text-pad-section">${layoutPadSlotHTML({ xId: 'stk-t-pad-x-num', yId: 'stk-t-pad-y-num', x: tPadX, y: tPadY, max: 400 })}
+    </div>`);   // ★표준 Layout(C2) — 옛 슬라이더 stk-t-pad-x/y 걷음
     put('appearance', `
-      ${appearanceSectionHTML({ prefix: 'stk-t', radius: { numberId: 'stk-t-radius-num', value: tCornerR, max: 400 } })}   <!-- ★표준 Appearance A3(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·키·범위 무변 -->`);
+      ${appearanceSectionHTML({ prefix: 'stk-t', op: { value: window.readBlockOpacity?.(block) ?? 100 }, radius: { numberId: 'stk-t-radius-num', value: tCornerR, max: 400 } })}   <!-- ★표준 Appearance A3(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·키·범위 무변 -->`);
     put('position', `
     <div id="stk-text-rot-section">
       ${positionSectionHTML({ prefix: 'stk-t', posEl: null, xy: false, rot: { p: 'stk-t', numberId: 'stk-t-rot-num', value: tRotation, flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' } })}
@@ -550,6 +521,7 @@ export function showStickerProperties(block) {
       ${sliderRowHTML('테두리', 'stk-ring-bw', 'stk-ring-bw-num', { min: 0, max: 12, step: 1, value: Math.round(parseFloat(block.dataset.ringBorderW) || 0) })}
       <div class="prop-color-row" data-own="special:Mark">${/* data-own: 마크 테두리·둘레 글자 색 한 칸 — 별칭 bc→Stroke 로 가지만 Mark 절의 한 몸(dev B3) */ ''}<span class="prop-label">테두리·둘레색</span>${colorFieldHTML({ idPrefix: 'stk-ring-bc', hex: block.dataset.ringBorderColor || block.dataset.textColor || '#ffffff' })}</div>
       <div class="prop-row"><span class="prop-label">작은 줄</span><input type="text" class="prop-input" id="stk-sub-text" maxlength="60" value="${escHtml(block.dataset.subText || '')}" placeholder="예: COMPLETED" style="flex:1;min-width:0"></div>`, { title: 'Mark', id: 'stk-mark-section' }));
+  if (!isText) put('appearance', appearanceSectionHTML({ prefix: 'stk', op: { value: window.readBlockOpacity?.(block) ?? 100 } }));   // ★표준 Appearance A4(C2) — 글 밖 모양 = Opacity 만(모서리 없음)
   const KEYS = ['kind', 'content', 'position', 'size', 'padding', 'appearance', 'typography', 'fill', 'stroke', 'effects'];
   const OPTS = {
     kind: { id: 'stk-fav-section', headTools: `
@@ -559,7 +531,7 @@ export function showStickerProperties(block) {
     stroke: isText ? { headTools: strokeHeadToolsHTML({ prefix: 'stk-t-stk', on: tStrokeWidth > 0 }) } : {},
     effects: isText ? { id: 'stk-text-shadow-section', headTools: `
         ${checkHTML({ id: 'stk-t-shadow-on', label: '켜기', checked: tShadowOn, attrs: 'aria-label="그림자 켜기"' })}` } : {},   /* ②ⓒ(현빈 261123) — 이름 없이 홀로 선 켬/끔 = 체크 + 옆에 «켜기» 글 */
-    appearance: isText ? { headTools: appearanceHeadToolsHTML({ prefix: 'stk-t' }) } : {},   // 표준 Appearance A3 — 글 스티커만(머리 눈 = 7-2 보류 표식)
+    appearance: { headTools: appearanceHeadToolsHTML({ prefix: isText ? 'stk-t' : 'stk' }) },   // 표준 Appearance A3 — 글 스티커만(머리 눈 = 7-2 보류 표식)
   };
   renderPanel(block, {
     header: blockHeaderHTML({
@@ -654,32 +626,25 @@ export function showStickerProperties(block) {
   _bindTPair('stk-t-rot',   'stk-t-rot-num',   'rotation',      -180, 180, 1);
   wireRotRow({ p: 'stk-t', numberId: 'stk-t-rot-num', host: () => block });   // Q17 · Q20(시안 v10)
   wirePositionSection({ prefix: 'stk-t', numberId: 'stk-t-rot-num', rerender: () => showStickerProperties(block) });
-  _bindTPair('stk-t-pad-x', 'stk-t-pad-x-num', 'padX',          0,    400, 1);
-  _bindTPair('stk-t-pad-y', 'stk-t-pad-y-num', 'padY',          0,    400, 1);
-  wireAppearanceSection({ radius: { numberId: 'stk-t-radius-num', max: 400, apply: (v) => { block.dataset.cornerRadius = v; rerender(); } } });   // 표준 Appearance A3 — 옛 _bindTPair(stk-t-radius) 자리(슬라이더 걷음 · 0~400 · change = 이력 + 저장 같음)
-  _bindTPair('stk-t-boxw',  'stk-t-boxw-num',  'boxW',          20,   2000, 1);
+  /* ★표준 Layout(C2) — 칸 배선은 부품(input = 범위 안이면 바로 · change = 잘라 + 이력 한 번 · 빈 칸 = 옛 값 · 라벨 끌기) · 키·범위 무변 */
+  wireLayoutSection({ w: { numberId: 'stk-t-pad-x-num', max: 400, apply: (v) => { block.dataset.padX = v; rerender(); } } });
+  wireLayoutSection({ w: { numberId: 'stk-t-pad-y-num', max: 400, apply: (v) => { block.dataset.padY = v; rerender(); } } });
+  wireAppearanceSection({ op: { numberId: 'stk-t-opacity', apply: (v) => window.setBlockOpacity?.(block, v) }, radius: { numberId: 'stk-t-radius-num', max: 400, apply: (v) => { block.dataset.cornerRadius = v; rerender(); } } });   // 표준 Appearance A3 — 옛 _bindTPair(stk-t-radius) 자리(슬라이더 걷음 · 0~400 · change = 이력 + 저장 같음)
+  wireLayoutSection({ w: { numberId: 'stk-t-boxw-num', min: 20, max: 2000, apply: (v) => { block.dataset.boxW = v; rerender(); } } });
 
-  // 박스 너비 토글 — off = auto(내용맞춤, 기존 동작), on = 고정 px.
-  //   on 전환 시 현재 렌더 폭(offsetWidth, 줌 미영향)으로 seed → 사용자가 슬라이더로 넓힘.
-  const _boxwOn     = propPanel.querySelector('#stk-t-boxw-on');
-  const _boxwDetail = propPanel.querySelector('#stk-t-boxw-detail');
-  const _boxwS      = propPanel.querySelector('#stk-t-boxw');
-  const _boxwN      = propPanel.querySelector('#stk-t-boxw-num');
-  _boxwOn?.addEventListener('change', e => {
-    if (e.target.checked) {
+  // 박스 너비 모드(옛 체크 stk-t-boxw-on 과 같은 길) — 자동 = boxW 'auto'(내용맞춤) · 고정 = px.
+  //   고정 전환 시 현재 렌더 폭(offsetWidth, 줌 미영향)으로 seed → 패널을 다시 그려 너비 칸을 연다.
+  propPanel.querySelector('#stk-t-boxw-mode')?.addEventListener('change', e => {
+    if (e.target.value === 'fixed') {
       let w = parseInt(block.dataset.boxW);
       if (!Number.isFinite(w) || w <= 0) w = Math.round(block.offsetWidth) || 200;
-      w = Math.min(2000, Math.max(20, w));
-      block.dataset.boxW = String(w);
-      if (_boxwS) _boxwS.value = String(Math.min(1000, Math.max(40, w)));
-      if (_boxwN) _boxwN.value = String(w);
-      if (_boxwDetail) _boxwDetail.style.display = 'flex';
+      block.dataset.boxW = String(Math.min(2000, Math.max(20, w)));
     } else {
       block.dataset.boxW = 'auto';
-      if (_boxwDetail) _boxwDetail.style.display = 'none';
     }
     rerender();
     window.pushHistory?.('텍스트 스티커 박스 너비'); window.scheduleAutoSave?.();
+    showStickerProperties(block);
   });
 
   // 텍스트 스티커 — 정렬
@@ -865,24 +830,10 @@ export function showStickerProperties(block) {
     });
   });
 
-  // Highlight W/H 슬라이더
-  const bindHlPair = (sliderId, numId, key, min, max) => {
-    const s = propPanel.querySelector('#' + sliderId);
-    const n = propPanel.querySelector('#' + numId);
-    if (!s || !n) return;
-    const apply = v => {
-      v = Math.min(max, Math.max(min, v));
-      block.dataset[key] = v;
-      rerender();
-      s.value = Math.min(parseInt(s.max), v);
-      n.value = v;
-    };
-    s.addEventListener('input',  () => apply(parseInt(s.value)));
-    n.addEventListener('change', () => { apply(parseInt(n.value)); window.pushHistory?.(); window.scheduleAutoSave?.(); });
-    s.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
-  };
-  bindHlPair('stk-hl-w', 'stk-hl-w-num', 'hlW', 10, 1200);
-  bindHlPair('stk-hl-h', 'stk-hl-h-num', 'hlH', 4,  400);
+  wireLayoutSection({   // ★표준 Layout(C2) — 옛 bindHlPair(슬라이더) 자리 · 키·범위 무변 · 사슬 = dataset.ratioLock(기본 끔)
+    w: { numberId: 'stk-hl-w-num', min: 10, max: 1200, apply: (v) => { block.dataset.hlW = v; rerender(); }, read: () => parseInt(block.dataset.hlW) || 160 },
+    h: { numberId: 'stk-hl-h-num', min: 4, max: 400, apply: (v) => { block.dataset.hlH = v; rerender(); }, read: () => parseInt(block.dataset.hlH) || 28 },
+    chain: { id: 'stk-hl-ratio', on: ratioLockOn(block, false), set: (on) => setRatioLock(block, on, false) } });
 
   // Highlight color (alpha 70% default)
   wireColorField('stk-hl-color', {
@@ -990,7 +941,10 @@ export function showStickerProperties(block) {
     n.addEventListener('change', () => { apply(parseInt(n.value)); window.pushHistory?.(); window.scheduleAutoSave?.(); });
     s.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
   };
-  bindNumPair('stk-size', 'stk-size-num', 'size',     10, 600, ['sizeW', 'sizeH']);
+  /* ★표준 Layout(C2) — 옛 bindNumPair('stk-size') 자리(한 칸) · sizeW/sizeH 를 같은 값으로 덮는 몫 그대로(코너 리사이즈가 박은 값보다 이 칸이 이긴다) */
+  wireLayoutSection({ w: { numberId: 'stk-size-num', min: 10, max: 600, apply: (v) => {
+    block.dataset.size = v; block.dataset.sizeW = v; block.dataset.sizeH = v; rerender(); syncGroup(['size', 'sizeW', 'sizeH']);
+  } } });
   bindNumPair('stk-fs',   'stk-fs-num',   'fontSize', 6,  150);
 
   // Font weight
@@ -1097,7 +1051,8 @@ export function showStickerProperties(block) {
     }, { favorites: true }); // 스티커 경로 = iconColor 소비 가능 → Favorite 탭 노출
   });
   // icon size / rotation — _bindTPair 패턴 재사용 (rerender 기반)
-  _bindTPair('stk-icon-size', 'stk-icon-size-num', 'size',     16,   600, 1);
+  wireAppearanceSection({ op: { numberId: 'stk-opacity', apply: (v) => window.setBlockOpacity?.(block, v) } });   // ★표준 Appearance A4(C2) — 글 밖 모양(칸 없으면 아무것도 안 함)
+  wireLayoutSection({ w: { numberId: 'stk-icon-size-num', min: 16, max: 600, apply: (v) => { block.dataset.size = v; rerender(); } } });   // ★표준 Layout(C2) — 옛 _bindTPair(stk-icon-size) 자리
   _bindTPair('stk-icon-rot',  'stk-icon-rot-num',  'rotation', -180, 180, 1);
   wireRotRow({ p: 'stk-icon', numberId: 'stk-icon-rot-num', host: () => block });   // Q17 · Q20(시안 v10)
   wirePositionSection({ prefix: 'stk-icon', numberId: 'stk-icon-rot-num', rerender: () => showStickerProperties(block) });
