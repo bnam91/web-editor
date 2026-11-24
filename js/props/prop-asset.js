@@ -8,6 +8,7 @@ import { renderPanel, sec } from './_panel-frame.js';
 import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
 import { videoTrimSectionHTML, wireVideoTrim } from './asset-video-trim.js';
 import { clipsContent, CLIP_DEFAULTS, applyAssetClip } from '../clip-content.js';   /* ★「내용 자르기」 한 자리(2026-10-10 c2) */
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A3)
 /* ★폭 하한은 «리터럴로 쓰지 않는다» — asset-width-limits.js 한 자리에서 온다.
    패널(슬라이더·숫자칸·커밋 clamp)과 모서리 핸들이 «같은 수»를 봐야 갈라지지 않는다.
    (선례: prop-modal.js 가 MODAL_LIMITS 를, prop-gap.js 가 GAP_MIN/MAX 를 그렇게 쓴다.) */
@@ -239,11 +240,7 @@ export function showAssetProperties(ab) {
       </div>`),
       // 모서리(radius)는 어디서나 Appearance(§8 Q2) · 내용 자르기 · 옛 「그레인」
       sec('appearance', `
-      <div class="prop-row">
-        <span class="prop-label">모서리</span>
-        <input type="range" class="prop-slider" id="asset-r-slider" min="0" max="${R_MAX}" step="2" value="${currentR}">
-        <input type="number" class="prop-number" id="asset-r-number" min="0" max="${R_MAX}" value="${currentR}">
-      </div>
+      ${appearanceSectionHTML({ prefix: 'asset', radius: { numberId: 'asset-r-number', value: currentR, max: R_MAX } })}   <!-- ★표준 Appearance A3(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·키·범위 무변 -->
       <!-- ★★2026-10-10 (현빈 1010t1c2 「이미지 삽입할 수 있는 상황에서 ‘내용자르기’ 기능이 있으면 좋겠다」)
            ★★이름·값꼴은 ★프레임과 ★★같다(★data-clip-content) — ⛔새 이름 ★금지.
            ★★켬 판정은 ★js/clip-content.js 의 ★★술어 ★하나가 한다 — ⛔여기서 ★다시 세지 ★않는다.
@@ -251,7 +248,7 @@ export function showAssetProperties(ab) {
              (★2026-10-10 에 ★실제로 ★끊었다 · ★내 명부의 ★「in-template 주석이 ★JS 를 깨뜨렸다」 그 자리) -->
       <div class="prop-row">
         ${checkHTML({ id: 'asset-clip-toggle', label: '내용 자르기', checked: clipsContent(ab) })}
-      </div>`),   /* 옛 «그레인» 줄 → Effects «Noise» 카드(js/effects-noise.js · 현빈 261123) */
+      </div>`, { headTools: appearanceHeadToolsHTML({ prefix: 'asset' }) }),   /* 옛 «그레인» 줄 → Effects «Noise» 카드(js/effects-noise.js · 현빈 261123) · 머리 눈 = 표준 Appearance A3 */
       // 옛 「Background」
       sec('fill', bgSection, { headTools: fillHeadToolsHTML({ prefix: 'asset-fill', on: fillOn }) }),   // 표준 Fill F2-2 — 칠 없음(키 없음 = 체커)이면 머리 ＋
       // 옛 「Border」
@@ -582,16 +579,7 @@ export function showAssetProperties(ab) {
     btn.addEventListener('click', () => { applyAlign(btn.dataset.align); window.pushHistory?.(); });
   });
 
-  const rSlider = document.getElementById('asset-r-slider');
-  const rNumber = document.getElementById('asset-r-number');
-  const applyR = v => { ab.style.borderRadius = v + 'px'; };
-  rSlider.addEventListener('input', () => { applyR(parseInt(rSlider.value)); rNumber.value = rSlider.value; });
-  rSlider.addEventListener('change', () => { window.pushHistory?.(); });
-  rNumber.addEventListener('change', () => { window.pushHistory?.(); });
-  rNumber.addEventListener('input', () => {
-    const v = Math.min(assetRadiusMax(ab.offsetWidth, ab.offsetHeight), Math.max(0, parseInt(rNumber.value) || 0));
-    applyR(v); rSlider.value = v;
-  });
+  wireAppearanceSection({ radius: { numberId: 'asset-r-number', max: assetRadiusMax(ab.offsetWidth, ab.offsetHeight), apply: (v) => { ab.style.borderRadius = v + 'px'; }, commit: () => window.pushHistory?.() } });   // 표준 Appearance A3 — 슬라이더 걷음 · 상한 = t13F-03 짧은 변 절반(바닥 120) 그대로
 
   // ── B23: 외곽선(border) — 도형 stroke와 동등. 에셋은 div라 border-* 사용(box-sizing:border-box로 레이아웃 시프트 없음) ──
   const applyAssetBorder = v => {

@@ -333,7 +333,7 @@ test.describe('T-078 ㉠ — 현빈 신고 경로 통째로 (스크래치 60px �
       document.querySelector('#asset-align-group .prop-align-btn[data-align="right"]').click();
       const st = document.getElementById('asset-stroke-num');   // ★기대 바뀜(표준 Stroke 부품 — 옛 슬라이더 걷음 · 숫자 칸)
       st.value = '2'; st.dispatchEvent(new Event('input', { bubbles: true }));
-      const r = document.getElementById('asset-r-slider');
+      const r = document.getElementById('asset-r-number');   /* ★기대 바뀜(표준 Appearance A3 · 현빈 261124 L-4/7 슬라이더 걷음) — 모서리 = 숫자 칸 하나(같은 id·키·상한) */
       r.value = '8'; r.dispatchEvent(new Event('input', { bubbles: true }));
     });
     const r = await read(page);

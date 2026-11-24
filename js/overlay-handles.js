@@ -968,10 +968,8 @@ function _onAssetRadiusHandleMouseDown(e, ab, dir) {
     const newR = Math.min(assetRadiusMax(ab.offsetWidth, ab.offsetHeight), Math.max(0, Math.round(startRadius + delta)));   // t13F-03 — 패널과 한 자
     ab.style[oneCorner ? cornerProp : 'borderRadius'] = newR + 'px';
     // 프로퍼티 패널 동기화
-    const slider = document.getElementById('asset-r-slider');
     const num    = document.getElementById('asset-r-number');
-    if (slider) slider.value = String(newR);
-    if (num)    num.value    = String(newR);
+    if (num)    num.value    = String(newR);   // 표준 Appearance A3 — 슬라이더 걷음(칸 하나)
     window.scheduleAutoSave?.();
   }
   function onUp() {
@@ -4940,10 +4938,8 @@ function _onGridBgRadiusMouseDown(e, block, dir) {
     const newR = Math.max(0, Math.min(GRID_BLOCK_BG_RADIUS_MAX, Math.round(startR + delta)));
     block.dataset.blockBgRadius = String(newR);
     window.applyGridBlockBg?.(block);
-    const slider = document.getElementById('grd-bbg-radius-slider');
     const num    = document.getElementById('grd-bbg-radius-num');
-    if (slider) slider.value = String(newR);
-    if (num)    num.value    = String(newR);
+    if (num)    num.value    = String(newR);   // 표준 Appearance A3 — 슬라이더 걷음(칸 하나)
     window.scheduleAutoSave?.();
   }
   function onUp() {

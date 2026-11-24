@@ -18,6 +18,7 @@ import {
   radialNormDeg, radialAutoDegs, radialItemIsManual, radialResetPlacement,
   radialSanitizeSvg, radialCenterKeys, radialCenterSvg, radialCenterLabel, RADIAL_ICON_SVG_MAX, radialSetCenterSel, radialNoteOpen,
 } from '../blocks/radial-block.js';
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A3)
 
 const L = RADIAL_LIMITS;
 
@@ -250,10 +251,10 @@ export function showRadialProperties(block, idx) {
       </div>` : ''}
       ${_pairRow('rdl-padx', '좌우패딩', st.padX, L.padX, L.padX.step)}`),
       sec('appearance', isDot ? '' : `
-      ${st.cellShape === 'round' ? _numRow('rdl-cellradius-number', '모서리', st.cellRadius, L.cellRadius) : ''}
+      ${st.cellShape === 'round' ? appearanceSectionHTML({ prefix: 'rdl', radius: { numberId: 'rdl-cellradius-number', value: st.cellRadius, min: L.cellRadius.min, max: L.cellRadius.max } }) : ''}   <!-- ★표준 Appearance A3(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·키·범위 무변 -->
       <div class="prop-row">
         ${checkHTML({ id: 'rdl-clip-toggle', label: '내용 자르기', checked: window.clipsContent?.(block) !== false })}
-      </div>`),
+      </div>`, isDot ? {} : { headTools: appearanceHeadToolsHTML({ prefix: 'rdl' }) }),
       sec('typography', st.labelPos === 'none' ? '' : `
       ${_pairRow('rdl-labelsize', '라벨 크기', st.labelSize, L.labelSize)}
       ${_typeRow('라벨 굵기', 'rdl-labelweight', [['bold', '굵게'], ['normal', '보통']], st.labelWeight)}`),
@@ -452,7 +453,7 @@ export function showRadialProperties(block, idx) {
   wireNum('rdl-icon', 'iconSize');
   wireNum('rdl-cell', 'cellSize');
   wireType('rdl-cellshape', [['circle'], ['round']], 'cellShape');
-  wireOnlyNum('rdl-cellradius-number', 'cellRadius');
+  wireAppearanceSection({ radius: { numberId: 'rdl-cellradius-number', min: L.cellRadius.min, max: L.cellRadius.max, apply: (v) => { block.dataset.cellRadius = String(v); rerender(); }, commit } });   // 표준 Appearance A3(옛 wireOnlyNum · 둥근 칸일 때만 칸)
   wireColor('rdl-cellfill', 'cellFill');
 
   // ── Center ──

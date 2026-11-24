@@ -11,6 +11,7 @@ import { countSections, wireCountSection, syncCountGroup } from './prop-sticker-
 import { coinSections, wireCoinSection } from './prop-sticker-coin.js';
 import { arrowSections, wireArrowSection } from './prop-sticker-arrow.js';
 import { burstPoints, clampBurst, BURST_LIMITS, BURST_DEFAULTS, clampRound, ROUND_MIN, ROUND_MAX } from '../blocks/burst-geometry.js';   // B2 톱니 스탬프
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A3)
 
 function _esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -524,11 +525,7 @@ export function showStickerProperties(block) {
       </div>
     </div>`);
     put('appearance', `
-      <div class="prop-row">
-        <span class="prop-label">코너 라운드</span>
-        <input type="range" class="prop-slider" id="stk-t-radius" min="0" max="60" step="1" value="${tCornerR}">
-        <input type="number" class="prop-number" id="stk-t-radius-num" min="0" max="400" step="1" value="${tCornerR}">
-      </div>`);
+      ${appearanceSectionHTML({ prefix: 'stk-t', radius: { numberId: 'stk-t-radius-num', value: tCornerR, max: 400 } })}   <!-- ★표준 Appearance A3(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·키·범위 무변 -->`);
     put('position', `
     <div id="stk-text-rot-section">
       ${positionSectionHTML({ prefix: 'stk-t', posEl: null, xy: false, rot: { p: 'stk-t', numberId: 'stk-t-rot-num', value: tRotation, flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' } })}
@@ -562,6 +559,7 @@ export function showStickerProperties(block) {
     stroke: isText ? { headTools: strokeHeadToolsHTML({ prefix: 'stk-t-stk', on: tStrokeWidth > 0 }) } : {},
     effects: isText ? { id: 'stk-text-shadow-section', headTools: `
         ${checkHTML({ id: 'stk-t-shadow-on', label: '켜기', checked: tShadowOn, attrs: 'aria-label="그림자 켜기"' })}` } : {},   /* ②ⓒ(현빈 261123) — 이름 없이 홀로 선 켬/끔 = 체크 + 옆에 «켜기» 글 */
+    appearance: isText ? { headTools: appearanceHeadToolsHTML({ prefix: 'stk-t' }) } : {},   // 표준 Appearance A3 — 글 스티커만(머리 눈 = 7-2 보류 표식)
   };
   renderPanel(block, {
     header: blockHeaderHTML({
@@ -658,7 +656,7 @@ export function showStickerProperties(block) {
   wirePositionSection({ prefix: 'stk-t', numberId: 'stk-t-rot-num', rerender: () => showStickerProperties(block) });
   _bindTPair('stk-t-pad-x', 'stk-t-pad-x-num', 'padX',          0,    400, 1);
   _bindTPair('stk-t-pad-y', 'stk-t-pad-y-num', 'padY',          0,    400, 1);
-  _bindTPair('stk-t-radius', 'stk-t-radius-num', 'cornerRadius', 0,   400, 1);
+  wireAppearanceSection({ radius: { numberId: 'stk-t-radius-num', max: 400, apply: (v) => { block.dataset.cornerRadius = v; rerender(); } } });   // 표준 Appearance A3 — 옛 _bindTPair(stk-t-radius) 자리(슬라이더 걷음 · 0~400 · change = 이력 + 저장 같음)
   _bindTPair('stk-t-boxw',  'stk-t-boxw-num',  'boxW',          20,   2000, 1);
 
   // 박스 너비 토글 — off = auto(내용맞춤, 기존 동작), on = 고정 px.

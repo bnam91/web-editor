@@ -20,7 +20,7 @@ test('R1 큰 에셋 — 슬라이더 max = 짧은 변 절반 · 숫자 250 = 250
   const { errs, id } = await scene(page, 700, 640);
   const box = await page.evaluate((i) => { const b = document.getElementById(i); return Math.min(b.offsetWidth, b.offsetHeight); }, id);
   expect(box, '[전제] 짧은 변이 240 보다 크다(120 넘는 상한이 뜻이 있다)').toBeGreaterThan(240);
-  expect(Number(await page.locator('#asset-r-slider').getAttribute('max')), '★슬라이더 max = 짧은 변 절반').toBe(Math.floor(box / 2));
+  expect(Number(await page.locator('#asset-r-number').getAttribute('max')), '★숫자 칸 max = 짧은 변 절반').toBe(Math.floor(box / 2));   /* ★기대 바뀜(표준 Appearance A3 · 현빈 261124 L-4/7 슬라이더 걷음) — 모서리 = 숫자 칸 하나(같은 id·키·상한) */
   await page.fill('#asset-r-number', '250');
   await page.dispatchEvent('#asset-r-number', 'input');
   expect(await page.evaluate((i) => document.getElementById(i).style.borderRadius, id), '★250 이 120 에서 안 잘린다').toBe('250px');
@@ -29,6 +29,6 @@ test('R1 큰 에셋 — 슬라이더 max = 짧은 변 절반 · 숫자 250 = 250
 
 test('R2 작은 에셋 — max 바닥 120', async ({ page }) => {
   const { errs } = await scene(page, 200, 160);
-  expect(Number(await page.locator('#asset-r-slider').getAttribute('max')), '짧은 변 절반 80 < 120 ⇒ 120').toBe(120);
+  expect(Number(await page.locator('#asset-r-number').getAttribute('max')), '짧은 변 절반 80 < 120 ⇒ 120').toBe(120);   /* ★기대 바뀜(표준 Appearance A3 · 현빈 261124 L-4/7 슬라이더 걷음) — 모서리 = 숫자 칸 하나(같은 id·키·상한) */
   expect(errs).toEqual([]);
 });

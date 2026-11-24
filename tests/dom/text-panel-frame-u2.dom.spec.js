@@ -7,7 +7,7 @@
  *    내장 양성대조(B1b): 같은 판정 함수로 Effects 카드 꼬리에 margin-bottom 을 심으면 그 절이 걸린다.
  *    바깥 양성대조: css/editor-props.css 패널 절 블록에서 «몸통 마지막 내용 margin-bottom 0» 줄을 지우면 B1 빨강.
  * R1 ★타입을 바꾸면 패널을 다시 그린다 — Tag 전용 칸(모서리=Appearance · 배경=Fill · 높이=Size)이 제 절에 서고, Body 로 돌아가면 걷힌다 · 포커스는 누른 단추로.
- *    양성대조: prop-text-wireup-type.js 의 `rerender?.()` 를 지우면 Tag 로 바꿔도 #label-radius-slider 가 없어 빨강.
+ *    양성대조: prop-text-wireup-type.js 의 `rerender?.()` 를 지우면 Tag 로 바꿔도 #label-radius-number 가 없어 빨강(A3 전엔 -slider).
  * 앱 통째(bootApp) · 헤드리스 · CDP·라이브 인스턴스 무접촉.
  */
 const { test, expect } = require('@playwright/test');
@@ -75,17 +75,18 @@ test('B1b ★내장 양성대조 — Effects 카드 꼬리에 margin 을 심으�
 test('R1 ★Body → Tag → Body — 태그 칸이 제 절(Appearance·Fill·Size)에 섰다 걷힌다(타입 바꿈 = 다시 그림)', async ({ page }) => {
   const errs = await scene(page);
   await openText(page);
-  const where = () => page.evaluate(() => Object.fromEntries(['label-radius-slider', 'label-bg-color', 'label-pill-height-slider', 'label-shape-pill']
+  /* ★기대 바뀜(표준 Appearance A3 · 현빈 261124 L-4/7) — 태그 모서리 = 숫자 칸 label-radius-number 하나(슬라이더 걷음) */
+  const where = () => page.evaluate(() => Object.fromEntries(['label-radius-number', 'label-bg-color', 'label-pill-height-slider', 'label-shape-pill']
     .map((id) => [id, document.getElementById(id)?.closest('.prop-section[data-sec]')?.dataset.sec ?? null])));
   expect(Object.values(await where()), '[전제] Body 엔 태그 칸 0').toEqual([null, null, null, null]);
   await page.click('#type-section [data-cls="tb-label"]');
-  await expect(page.locator('#label-radius-slider')).toBeAttached();
-  expect(await where()).toEqual({ 'label-radius-slider': 'appearance', 'label-bg-color': 'fill', 'label-pill-height-slider': 'size', 'label-shape-pill': 'typography' });
+  await expect(page.locator('#label-radius-number')).toBeAttached();
+  expect(await where()).toEqual({ 'label-radius-number': 'appearance', 'label-bg-color': 'fill', 'label-pill-height-slider': 'size', 'label-shape-pill': 'typography' });
   await expect(page.locator('#type-section [data-cls="tb-label"]'), '다시 그린 패널도 Tag 가 active').toHaveClass(/active/);
   /* a11y — 다시 그린 뒤 포커스가 누른 타입 단추에 있다. 양성대조: wireTypeSection 의 `…[data-cls=…]?.focus()` 를 지우면 빨강(포커스가 body) */
   expect(await page.evaluate(() => document.activeElement?.matches?.('#type-section [data-cls="tb-label"]') ?? false), '포커스가 Tag 단추로 돌아왔다').toBe(true);
   await page.click('#type-section [data-cls="tb-body"]');
-  await expect(page.locator('#label-radius-slider')).toHaveCount(0);
+  await expect(page.locator('#label-radius-number')).toHaveCount(0);
   await expect(page.locator('#panel-right .prop-section[data-sec="appearance"]'), 'Body 로 돌아가면 Appearance 절이 걷힌다').toHaveCount(0);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

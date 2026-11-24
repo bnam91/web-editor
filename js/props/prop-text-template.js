@@ -6,6 +6,7 @@ import { strokeSectionHTML, strokeHeadToolsHTML, STROKE_POP_WHY } from './_strok
 import { sectionOrderFor, sectionRank } from './_section-spec.js';
 /* T7 — 글머리 명부·판정은 ★한 자리(text-type-class.js). 패널과 배선이 ★같은 하나를 본다. */
 import { BULLET_LIST_STYLES, bulletListStyleOf } from './text-type-class.js';
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A3)
 
 export function buildTextPanelSpec(state) {
   const {
@@ -259,11 +260,7 @@ export function buildTextPanelSpec(state) {
         ${checkHTML({ id: 'label-bg-none', label: '없음', checked: currentBgColor === 'transparent' })}   <!-- 현빈 261123 «온/오프 = 체크» -->
       </div>`;
   const _tagRadius = !isLabel ? '' : `
-      <div class="prop-row">
-        <span class="prop-label">모서리</span>
-        <input type="range" class="prop-slider" id="label-radius-slider" min="0" max="40" step="1" value="${currentRadius}">
-        <input type="number" class="prop-number" id="label-radius-number" min="0" max="40" value="${currentRadius}">
-      </div>`;
+      ${appearanceSectionHTML({ prefix: 'label', radius: { numberId: 'label-radius-number', value: currentRadius, max: 40 } })}   <!-- ★표준 Appearance A3(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·키·범위 무변 -->`;
 
   /* ★말풍선 — special 「Bubble」 한 절(위 머리말: 줄 모드가 Typography/Fill 절을 통째로 숨긴다).
      ★배경색(bubble-bg-*)은 소유표상 fill 이라 그 줄에 data-own="special:Bubble"(U0c 명시 덮어쓰기 · 블록 고유 절은 제목까지). */
@@ -386,7 +383,7 @@ export function buildTextPanelSpec(state) {
       sec('size', _sizeHtml),
       sec('layout', _alignBtns + _itbLayout),
       sec('padding', _paddingHtml),
-      sec('appearance', _tagRadius),
+      sec('appearance', _tagRadius, _tagRadius ? { headTools: appearanceHeadToolsHTML({ prefix: 'label' }) } : {}),
       sec('typography', _typo + _tagShape),
       sec('fill', _fill + (_tagBg && `<div class="ui-fill-slot" data-slot="below" data-slot-kind="tag-bg">${_tagBg}</div>`)),   // 표준 Fill F4 — 태그 배경 = Fill 슬롯(below · tag-bg) · 쓰는 자리에서 감쌈(_tagBg 줄 무변 = dev «체크» 이관 b74749fbc 와 안 겹침 · 탑 261124)
       /* ★1012t1E1/E1 — Stroke(글자 윤곽선 — §8 「Stroke 절 안 행」) · Effects. 대상 밖 = 말풍선·태그·아이콘텍스트(+liner 는 Stroke 만). */

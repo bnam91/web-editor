@@ -8,6 +8,7 @@
 import { markLabelAutoColor, forgetLabelAutoColor } from './label-auto-color.js';
 import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';
 import { labelShapeFromRendered } from './_panel-rendered.js';
+import { wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A3)
 
 export function wireLabelSection({ ctx }) {
   /* 태그 배경색 */
@@ -77,17 +78,7 @@ export function wireLabelSection({ ctx }) {
     });
   }
   /* 태그 모서리 */
-  const rSlider = document.getElementById('label-radius-slider');
-  const rNumber = document.getElementById('label-radius-number');
-  if (rSlider) {
-    rSlider.addEventListener('input', () => { ctx.contentEl.style.borderRadius = rSlider.value+'px'; rNumber.value = rSlider.value; });
-    rSlider.addEventListener('change', () => window.pushHistory?.());
-    rNumber.addEventListener('input', () => {
-      const v = Math.min(40, Math.max(0, parseInt(rNumber.value)||0));
-      ctx.contentEl.style.borderRadius = v+'px'; rSlider.value = v;
-    });
-    rNumber.addEventListener('change', () => window.pushHistory?.());
-  }
+  wireAppearanceSection({ radius: { numberId: 'label-radius-number', max: 40, apply: (v) => { ctx.contentEl.style.borderRadius = v + 'px'; }, commit: () => window.pushHistory?.() } });   // 표준 Appearance A3(슬라이더 걷음 · 칸 없으면 무동작)
 
   /* 태그 pill 높이 (상하 패딩으로 조절) — label-style-section 의 label-pill-height-slider (Tag Style 안) «한 곳».
    * ★U22(2026-10-05 · 지디 ①): Padding 절에 같은 값을 쥔 「박스 높이」(txt-label-h-*)가 하나 더 있었고
@@ -177,9 +168,8 @@ export function wireLabelSection({ ctx }) {
     _resetLabelInline();
     ctx.contentEl.style.borderRadius = '999px';
     ctx.contentEl.style.padding       = '11px 36px';
-    const rSlider2 = document.getElementById('label-radius-slider');
-    const rNumber2 = document.getElementById('label-radius-number');
-    if (rSlider2) { rSlider2.value = 999; rNumber2.value = 999; }
+    const rNumber2 = document.getElementById('label-radius-number');   // 표준 Appearance A3 — 슬라이더 걷음
+    if (rNumber2) rNumber2.value = 999;
     window.scheduleAutoSave?.();
   });
   document.getElementById('label-shape-box')?.addEventListener('click', () => {
@@ -187,9 +177,8 @@ export function wireLabelSection({ ctx }) {
     _resetLabelInline();
     ctx.contentEl.style.borderRadius = '8px';
     ctx.contentEl.style.padding       = '11px 36px';
-    const rSlider2 = document.getElementById('label-radius-slider');
-    const rNumber2 = document.getElementById('label-radius-number');
-    if (rSlider2) { rSlider2.value = 8; rNumber2.value = 8; }
+    const rNumber2 = document.getElementById('label-radius-number');   // 표준 Appearance A3 — 슬라이더 걷음
+    if (rNumber2) rNumber2.value = 8;
     window.scheduleAutoSave?.();
   });
   document.getElementById('label-shape-outline')?.addEventListener('click', () => {
@@ -199,9 +188,8 @@ export function wireLabelSection({ ctx }) {
     ctx.contentEl.style.border = '1.5px solid currentColor'; // 텍스트 색 따라가는 외곽선
     ctx.contentEl.style.borderRadius = '8px';
     ctx.contentEl.style.padding = '11px 36px';
-    const rSlider2 = document.getElementById('label-radius-slider');
-    const rNumber2 = document.getElementById('label-radius-number');
-    if (rSlider2) { rSlider2.value = 8; rNumber2.value = 8; }
+    const rNumber2 = document.getElementById('label-radius-number');   // 표준 Appearance A3 — 슬라이더 걷음
+    if (rNumber2) rNumber2.value = 8;
     window.scheduleAutoSave?.();
   });
   document.getElementById('label-shape-circle')?.addEventListener('click', () => {
@@ -221,9 +209,8 @@ export function wireLabelSection({ ctx }) {
     // ★슬라이더를 지금 지름(64)에 맞춰 둔다. 안 맞추면 첫 드래그에서 «이전 pill 높이»부터
     //   시작해 크기가 툭 튄다(슬라이더가 가리키는 값과 실제가 어긋난 상태).
     syncPillH(64);
-    const rSlider2 = document.getElementById('label-radius-slider');
-    const rNumber2 = document.getElementById('label-radius-number');
-    if (rSlider2) { rSlider2.value = 999; rNumber2.value = 999; }
+    const rNumber2 = document.getElementById('label-radius-number');   // 표준 Appearance A3 — 슬라이더 걷음
+    if (rNumber2) rNumber2.value = 999;
     window.scheduleAutoSave?.();
   });
   /* Oval(타원) — 폭은 글자대로 두고 border-radius:50% = 가로로 긴 타원(Circle 은 64×64 정원 · Pill 은 999px 반원 끝).
@@ -234,9 +221,8 @@ export function wireLabelSection({ ctx }) {
     ctx.contentEl.dataset.shape = 'oval';   // 마커 = 레거시 원형 안전망(css/editor-layout.css «:not([data-shape])»)에서 빠지는 표
     ctx.contentEl.style.borderRadius = '50%';
     ctx.contentEl.style.padding       = '11px 36px';
-    const rSlider2 = document.getElementById('label-radius-slider');
-    const rNumber2 = document.getElementById('label-radius-number');
-    if (rSlider2) { rSlider2.value = 999; rNumber2.value = 999; }
+    const rNumber2 = document.getElementById('label-radius-number');   // 표준 Appearance A3 — 슬라이더 걷음
+    if (rNumber2) rNumber2.value = 999;
     window.scheduleAutoSave?.();
   });
   document.getElementById('label-shape-text')?.addEventListener('click', () => {
@@ -248,9 +234,8 @@ export function wireLabelSection({ ctx }) {
     markLabelAutoColor(ctx.contentEl);   // 0920r6 labeltext: 프리셋이 넣은 색도 «라벨이 넣은 색» — 라벨을 벗어나면 이 색만 걷어낸다
     ctx.contentEl.style.borderRadius = '0';
     ctx.contentEl.style.padding = '0';
-    const rSlider2 = document.getElementById('label-radius-slider');
-    const rNumber2 = document.getElementById('label-radius-number');
-    if (rSlider2) { rSlider2.value = 0; rNumber2.value = 0; }
+    const rNumber2 = document.getElementById('label-radius-number');   // 표준 Appearance A3 — 슬라이더 걷음
+    if (rNumber2) rNumber2.value = 0;
     window.scheduleAutoSave?.();
   });
 

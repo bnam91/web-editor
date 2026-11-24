@@ -45,8 +45,8 @@ const dots = (page) => page.evaluate(async () => {
 });
 const state = (page) => page.evaluate(() => { const g = document.getElementById('rG'); const bg = g.querySelector(':scope > .grd-bg');
   return { ds: g.dataset.blockBgRadius ?? null, css: bg ? getComputedStyle(bg).borderTopLeftRadius : null,
-    slider: document.getElementById('grd-bbg-radius-slider')?.value ?? null, num: document.getElementById('grd-bbg-radius-num')?.value ?? null }; });
-const all = (v) => ({ ds: String(v), css: v + 'px', slider: String(v), num: String(v) });
+    num: document.getElementById('grd-bbg-radius-num')?.value ?? null }; });   /* ★기대 바뀜(표준 Appearance A3 · 현빈 261124 L-4/7 슬라이더 걷음) — 모서리 = 숫자 칸 하나(같은 id·키·상한) */
+const all = (v) => ({ ds: String(v), css: v + 'px', num: String(v) });
 async function drag(page, dot, dx, dy) {
   await page.mouse.move(dot.x, dot.y); await page.mouse.down();
   for (let i = 1; i <= 5; i++) await page.mouse.move(dot.x + dx * i / 5, dot.y + dy * i / 5);

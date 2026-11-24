@@ -73,7 +73,7 @@ async function blockScene(page, add, numId) {
     const sec = await window.addSection(); window.deselectAll?.(); window.selectSection?.(sec);
     (0, eval)(add);
   }, add);
-  await expect(page.locator('#' + numId)).toHaveCount(1);
+  if (numId !== 'canvas') await expect(page.locator('#' + numId)).toHaveCount(1);   // 'canvas' = 칸은 뒤 단계(타입 바꿈 등)에서 선다
   return errs;
 }
 for (const [name, add, cls, pfx, numId, max] of [
@@ -149,3 +149,39 @@ test('AS6 simple-card «이미지 모양» 슬롯 = 표준 줄 «아래»(시안
   expect(o).toEqual({ both: true, below: true });
   expect(errs).toEqual([]);
 });
+
+/* ── A3 — 키가 다른 자리(지디 261124 GO · asset·sticker·grid 는 태양 줄 대조 «겹침 0» 뒤): 숫자 칸 → 그 키 · 라벨 끌기 · 슬라이더 0 ──
+ *   row(자식 카드 일괄)는 옛 card-block 자식에만 칸이 서서(지금 만드는 입구 0) 이 표에 없다 — 표적 DOM·유닛이 마크업/배선만 본다. */
+const A3 = [
+  { name: 'asset', numId: 'asset-r-number', eye: 'asset-app-eye', add: 'window.addAssetBlock()',
+    read: "[...document.querySelectorAll('#canvas .asset-block')].pop()?.style.borderRadius ?? null", want: (v) => v + 'px' },
+  { name: 'text-tag', numId: 'label-radius-number', eye: 'label-app-eye', add: "window.addTextBlock('body')",
+    after: async (page) => { await page.evaluate(() => window.selectBlock([...document.querySelectorAll('#canvas .text-block')].pop().id)); await page.click('#type-section [data-cls="tb-label"]'); },
+    read: "document.querySelector('#canvas .tb-label')?.style.borderRadius ?? null", want: (v) => v + 'px' },
+  { name: 'label-group', numId: 'lg-item-radius-number', eye: 'lg-item-app-eye', add: "window.addLabelGroupBlock(); { const b = [...document.querySelectorAll('#canvas .label-group-block')].pop(); window.showLabelGroupProperties(b, b.querySelector('.label-item')); }",
+    read: "[...document.querySelectorAll('#canvas .label-group-block')].pop()?.querySelector('.label-item')?.dataset.radius ?? null", want: (v) => String(v) },
+  { name: 'radial(둥근 칸)', numId: 'rdl-cellradius-number', eye: 'rdl-app-eye', add: "window.addRadialBlock(); { const b = [...document.querySelectorAll('#canvas .radial-block')].pop(); b.dataset.cellShape = 'round'; window.renderRadialBlock?.(b); window.showRadialProperties(b); }",
+    read: "[...document.querySelectorAll('#canvas .radial-block')].pop()?.dataset.cellRadius ?? null", want: (v) => String(v) },
+  { name: 'sticker(글)', numId: 'stk-t-radius-num', eye: 'stk-t-app-eye', add: "window.addStickerBlock({ shape: 'text' })",
+    read: "[...document.querySelectorAll('#canvas .sticker-block')].pop()?.dataset.cornerRadius ?? null", want: (v) => String(v) },
+  { name: 'grid 블럭 배경', numId: 'grd-bbg-radius-num', eye: null, add: "window.addGridBlock(); { const g = [...document.querySelectorAll('#canvas .grid-block')].pop(); window.updateGridBlock(g.id, { blockBg: { on: true, color: '#ff0000' } }); window.showGridProperties(g); }",
+    read: "[...document.querySelectorAll('#canvas .grid-block')].pop()?.dataset.blockBgRadius ?? null", want: (v) => String(v) },
+];
+for (const c of A3) {
+  test(`AS7 ${c.name} — 표준 꼴(슬라이더 0 · 칸 = 부품 안${c.eye ? ' · 머리 눈 보류 표식' : ''}) · 숫자 20 → 그 키 · 라벨 끌기 +5`, async ({ page }) => {
+    const errs = await blockScene(page, c.add, c.after ? 'canvas' : c.numId);
+    if (c.after) { await c.after(page); await expect(page.locator('#' + c.numId)).toHaveCount(1); }
+    const part = await page.evaluate(([numId, eye]) => { const n = document.getElementById(numId), sec = n?.closest('.prop-section');
+      return { slider: !!n?.closest('[data-part="appearance"]')?.parentElement?.querySelector(':scope > .prop-row input[type=range][id*="radius"], :scope > .prop-row input[type=range][id*="-r-"]') || !!sec?.querySelector('input[type=range][id*="radius"]'),
+        inPart: !!n?.closest('[data-part="appearance"] [data-field="appearance-radius"]'), eye: eye ? document.getElementById(eye)?.getAttribute('aria-disabled') ?? null : 'n/a' }; }, [c.numId, c.eye]);
+    expect(part).toEqual({ slider: false, inPart: true, eye: c.eye ? 'true' : 'n/a' });
+    const read = () => page.evaluate((x) => (0, eval)(x), c.read);
+    await page.evaluate((id) => { const n = document.getElementById(id); n.value = '20'; n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); }, c.numId);
+    await expect.poll(read).toBe(c.want(20));
+    const h = page.locator(`#${c.numId}-scrub`); await h.scrollIntoViewIfNeeded(); const b = await h.boundingBox();
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down();
+    await page.mouse.move(b.x + b.width / 2 + 5, b.y + b.height / 2, { steps: 5 }); await page.mouse.up();
+    await expect.poll(read).toBe(c.want(25));
+    expect(errs).toEqual([]);
+  });
+}

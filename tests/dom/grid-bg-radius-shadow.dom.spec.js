@@ -51,16 +51,15 @@ const probe = (R) => [[R.l + 2, R.t + 2], [R.l + R.w / 2, R.b + 6], [R.l + R.w /
 test('S1 패널 — 배경 켜면 「코너」 + Effects(그림자 하나) · 끄면 없다', async ({ page }) => {
   await setup(page);
   await page.evaluate(() => { window.selectBlock?.(document.getElementById('gG')); window.showGridProperties(document.getElementById('gG')); });
-  expect(await page.evaluate(() => !!document.getElementById('grd-bbg-radius-slider') || !!document.getElementById('grdbb-fx-section'))).toBe(false);
+  expect(await page.evaluate(() => !!document.getElementById('grd-bbg-radius-num') || !!document.getElementById('grdbb-fx-section'))).toBe(false);   /* ★기대 바뀜(표준 Appearance A3 · 현빈 261124 L-4/7 슬라이더 걷음) — 모서리 = 숫자 칸 하나(같은 id·키·상한) */
   await upd(page, { blockBg: { on: true, color: BG } });
   await page.evaluate(() => window.showGridProperties(document.getElementById('gG')));
   const p = await page.evaluate(() => ({
-    slider: document.getElementById('grd-bbg-radius-slider')?.className, num: document.getElementById('grd-bbg-radius-num')?.className,
-    max: document.getElementById('grd-bbg-radius-slider')?.max,
+    slider: !!document.getElementById('grd-bbg-radius-slider'), num: document.getElementById('grd-bbg-radius-num')?.className,
+    max: document.getElementById('grd-bbg-radius-num')?.max, part: !!document.getElementById('grd-bbg-radius-num')?.closest('[data-part="appearance"]'),
     opts: [...(document.querySelectorAll('#grdbb-fx-add option') || [])].map(o => o.value).filter(Boolean),
-    sameAsOpacity: (() => { const a = document.getElementById('grd-bbg-radius-slider'), b = document.getElementById('grd-bbg-op-slider'); return !!a && !!b && a.getBoundingClientRect().width === b.getBoundingClientRect().width; })(),
   }));
-  expect(p).toEqual({ slider: 'prop-slider', num: 'prop-number', max: '80', opts: ['shadow'], sameAsOpacity: true });
+  expect(p).toEqual({ slider: false, num: 'prop-number', max: '80', part: true, opts: ['shadow'] });   /* ★기대 바뀜(표준 Appearance A3 · 현빈 261124 L-4/7 슬라이더 걷음) — 모서리 = 숫자 칸 하나(같은 id·키·상한)  · 옛 «투명도 슬라이더와 폭 같음» 은 슬라이더가 없어 걷음 */
   await page.selectOption('#grdbb-fx-add', 'shadow');
   await expect.poll(() => page.evaluate(() => !!document.getElementById('grdbb-fxsh-card'))).toBe(true);
   expect((await styles(page)).shadow).not.toBe('none');

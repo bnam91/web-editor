@@ -7,6 +7,7 @@ import {
   LABEL_BUILTIN_PRESETS, LABEL_USER_PREFIX, listLabelUserPresets, addLabelUserPreset, updateLabelUserPreset, removeLabelUserPreset,
   resolveLabelPreset, readLabelStyle, applyLabelStyleToItem, applyLabelStyleToBlock,
 } from '../label-presets.js';
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A3)
 
 /** 단일 label-item에 스타일 프리셋 적용 — 기본 4종 또는 'user:<id>'(t3-01 내 프리셋) */
 function _applyPresetToItem(item, presetName) {
@@ -152,12 +153,8 @@ function showLabelGroupProperties(block, selectedItem) {
         <button class="prop-btn" id="lg-shape-unlink" style="width:auto;padding:0 8px" title="지금 모양 그대로 이 칸에 박고 변수 연결을 끊는다(끊어야 색·모서리를 따로 고칠 수 있다)">끊기</button>
       </div>
       ${_shapeNames.length > 1 ? `<div class="prop-row"><span class="prop-label">바꾸기</span><select class="prop-select" id="lg-shape-switch">${_shapeOpts(boundName)}</select></div>` : ''}` : `
-      <div class="prop-row">
-        <span class="prop-label">태그 모서리</span>
-        <input type="range"  class="prop-slider" id="lg-item-radius-slider" min="0" max="50" step="1" value="${itemRadius}">
-        <input type="number" class="prop-number"  id="lg-item-radius-number" min="0" max="50" value="${itemRadius}">
-      </div>
-      ${_shapeNames.length ? `<div class="prop-row"><span class="prop-label">모양 변수</span><select class="prop-select" id="lg-shape-link"><option value="">연결 안 함</option>${_shapeOpts('')}</select></div>` : ''}`),
+      ${appearanceSectionHTML({ prefix: 'lg-item', radius: { numberId: 'lg-item-radius-number', value: itemRadius, max: 50 } })}   <!-- ★표준 Appearance A3(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·키·범위 무변 -->
+      ${_shapeNames.length ? `<div class="prop-row"><span class="prop-label">모양 변수</span><select class="prop-select" id="lg-shape-link"><option value="">연결 안 함</option>${_shapeOpts('')}</select></div>` : ''}`, selectedItem ? { headTools: appearanceHeadToolsHTML({ prefix: 'lg-item' }) } : {}),
       sec('fill', (!selectedItem || boundName) ? '' : `
       <div class="prop-color-row">
         <span class="prop-label">태그 배경</span>
@@ -282,21 +279,7 @@ function showLabelGroupProperties(block, selectedItem) {
   });
 
   // 모서리
-  const rSlider = document.getElementById('lg-item-radius-slider');
-  const rNumber = document.getElementById('lg-item-radius-number');
-  rSlider?.addEventListener('input', () => {
-    selectedItem.style.borderRadius = rSlider.value + 'px';
-    selectedItem.dataset.radius = rSlider.value;
-    rNumber.value = rSlider.value;
-  });
-  rSlider?.addEventListener('change', () => window.pushHistory?.());
-  rNumber?.addEventListener('input', () => {
-    const v = Math.min(50, Math.max(0, parseInt(rNumber.value) || 0));
-    selectedItem.style.borderRadius = v + 'px';
-    selectedItem.dataset.radius = v;
-    rSlider.value = v;
-  });
-  rNumber?.addEventListener('change', () => window.pushHistory?.());
+  wireAppearanceSection({ radius: { numberId: 'lg-item-radius-number', max: 50, apply: (v) => { selectedItem.style.borderRadius = v + 'px'; selectedItem.dataset.radius = v; }, commit: () => window.pushHistory?.() } });   // 표준 Appearance A3(슬라이더 걷음 · 모양 변수에 묶이면 칸 없음 = 무동작)
 
   // B1 — 모양 변수 끊기·바꾸기·연결 (변수 값은 좌측 Design System 에서 고친다)
   const _rebind = (name) => {

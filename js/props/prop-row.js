@@ -5,6 +5,7 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A3)
 
 function showRowProperties(rowEl) {
   const layout = rowEl.dataset.layout || 'stack';
@@ -63,11 +64,7 @@ function showRowProperties(rowEl) {
         <input type="number" class="prop-number" id="row-child-h-number" min="0" max="600" value="${childHeightVal}" placeholder="자동">
       </div>` : '';
   const childRadiusHTML = allCards ? `
-      <div class="prop-row">
-        <span class="prop-label">자식 모서리</span>
-        <input type="range" class="prop-slider" id="row-child-r-slider" min="0" max="40" step="2" value="${childRadiusVal || 0}">
-        <input type="number" class="prop-number" id="row-child-r-number" min="0" max="40" value="${childRadiusVal}">
-      </div>` : '';
+      ${appearanceSectionHTML({ prefix: 'row-child', radius: { numberId: 'row-child-r-number', value: childRadiusVal, max: 40, mixed: childRadiusVal === '' } })}   <!-- ★표준 Appearance A3(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·키·범위 무변 -->` : '';   /* 자식 카드 값이 서로 다르면 Mixed(옛 빈 칸과 같은 뜻) */
 
 
   /* 컬럼 비율 HTML */
@@ -125,7 +122,7 @@ function showRowProperties(rowEl) {
         <input type="range" class="prop-slider" id="row-padx-slider" min="0" max="80" step="4" value="${padX}">
         <input type="number" class="prop-number" id="row-padx-number" min="0" max="80" value="${padX}">
       </div>`),
-      sec('appearance', childRadiusHTML),
+      sec('appearance', childRadiusHTML, childRadiusHTML ? { headTools: appearanceHeadToolsHTML({ prefix: 'row-child' }) } : {}),
     ],
   });
 
@@ -206,20 +203,7 @@ function showRowProperties(rowEl) {
 
     /* ── 자식 블록 일괄: radius (card 전용) ── */
     if (allCards) {
-      const applyChildRadius = v => {
-        if (isNaN(v) || v < 0) v = 0;
-        childBlocks.forEach(b => {
-          b.dataset.radius = v;
-          b.style.borderRadius = v + 'px';
-        });
-        const s = document.getElementById('row-child-r-slider');
-        const n = document.getElementById('row-child-r-number');
-        if (s) s.value = v;
-        if (n) n.value = v;
-      };
-      document.getElementById('row-child-r-slider').addEventListener('input',  e => applyChildRadius(parseInt(e.target.value)));
-      document.getElementById('row-child-r-number').addEventListener('change', e => { applyChildRadius(parseInt(e.target.value)); window.pushHistory(); });
-      document.getElementById('row-child-r-slider').addEventListener('change', () => window.pushHistory());
+      wireAppearanceSection({ radius: { numberId: 'row-child-r-number', max: 40, apply: (v) => { childBlocks.forEach(b => { b.dataset.radius = v; b.style.borderRadius = v + 'px'; }); }, commit: () => window.pushHistory() } });   // 표준 Appearance A3 — 자식 카드 일괄(슬라이더 걷음)
     }
   }
 

@@ -7,16 +7,16 @@
  */
 import { wireNumberScrub } from './_helpers.js';
 
-const I = (d) => `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" aria-hidden="true">${d}</svg>`;
-const EYE = I('<path d="M1 6s2-3.5 5-3.5S11 6 11 6 9 9.5 6 9.5 1 6 1 6z"/><circle cx="6" cy="6" r="1.4"/>');
-const RADIUS = I('<path d="M1.5 10.5V6a4.5 4.5 0 0 1 4.5-4.5h4.5"/>');
-const CORNERS = I('<path d="M1.5 4.5V2.5a1 1 0 0 1 1-1h2M7.5 1.5h2a1 1 0 0 1 1 1v2M10.5 7.5v2a1 1 0 0 1-1 1h-2M4.5 10.5h-2a1 1 0 0 1-1-1v-2"/>');
+const _appIcon = (d) => `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" aria-hidden="true">${d}</svg>`;
+const APP_EYE_ICON = _appIcon('<path d="M1 6s2-3.5 5-3.5S11 6 11 6 9 9.5 6 9.5 1 6 1 6z"/><circle cx="6" cy="6" r="1.4"/>');
+const APP_RADIUS_ICON = _appIcon('<path d="M1.5 10.5V6a4.5 4.5 0 0 1 4.5-4.5h4.5"/>');
+const APP_CORNERS_ICON = _appIcon('<path d="M1.5 4.5V2.5a1 1 0 0 1 1-1h2M7.5 1.5h2a1 1 0 0 1 1 1v2M10.5 7.5v2a1 1 0 0 1-1 1h-2M4.5 10.5h-2a1 1 0 0 1-1-1v-2"/>');
 export const APP_EYE_WHY = '블럭 보이기 — 보류(7-2 · 현빈 261124 10:59) · 지금은 섹션만';
 export const APP_CORNERS_WHY = 'Individual corners(모서리 따로) — 보류(7-3 · 현빈 261124 14:39)';
 
 /** 머리 엔드슬롯 [눈] — 보류 표식 · id = `${prefix}-app-eye` */
 export function appearanceHeadToolsHTML({ prefix }) {
-  return `<button type="button" class="prop-chain-btn ui-app-eye" id="${prefix}-app-eye" data-part="end-slot" aria-disabled="true" aria-label="${APP_EYE_WHY}" title="${APP_EYE_WHY}">${EYE}</button>`;
+  return `<button type="button" class="prop-chain-btn ui-app-eye" id="${prefix}-app-eye" data-part="end-slot" aria-disabled="true" aria-label="${APP_EYE_WHY}" title="${APP_EYE_WHY}">${APP_EYE_ICON}</button>`;
 }
 
 /**
@@ -28,8 +28,8 @@ export function appearanceSectionHTML({ prefix, radius: r }) {
   return `
       <div class="ui-appearance" data-part="appearance">
         <div class="ui-s2-main prop-row">
-          <div class="ui-s2-cell"><span>Corner radius</span><div class="prop-icon-input" data-part="number" data-field="appearance-radius"><span class="prop-xy-label ui-app-scrub" id="${r.numberId}-scrub" title="Corner radius — 좌우로 끌면 바뀐다">${RADIUS}</span><input type="number" class="prop-number" id="${r.numberId}" min="${r.min ?? 0}" max="${r.max}" step="1" value="${r.mixed ? '' : r.value}"${r.mixed ? ' placeholder="Mixed" data-empty="invalid"' : ''} aria-label="Corner radius"></div></div>
-          <button type="button" class="prop-chain-btn" id="${prefix}-corners" data-part="end-slot" aria-pressed="false" aria-disabled="true" aria-label="${APP_CORNERS_WHY}" title="${APP_CORNERS_WHY}">${CORNERS}</button>
+          <div class="ui-s2-cell"><span>Corner radius</span><div class="prop-icon-input" data-part="number" data-field="appearance-radius"><span class="prop-xy-label ui-app-scrub" id="${r.numberId}-scrub" title="Corner radius — 좌우로 끌면 바뀐다">${APP_RADIUS_ICON}</span><input type="number" class="prop-number" id="${r.numberId}" min="${r.min ?? 0}" max="${r.max}" step="1" value="${r.mixed ? '' : r.value}"${r.mixed ? ' placeholder="Mixed" data-empty="invalid"' : ''} aria-label="Corner radius"></div></div>
+          <button type="button" class="prop-chain-btn" id="${prefix}-corners" data-part="end-slot" aria-pressed="false" aria-disabled="true" aria-label="${APP_CORNERS_WHY}" title="${APP_CORNERS_WHY}">${APP_CORNERS_ICON}</button>
         </div>
       </div>`;
 }

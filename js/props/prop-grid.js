@@ -30,6 +30,7 @@ import { fontChain } from './prop-text-utils.js';
 import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
 import { parseAlphaFromColor, swatchHex, wireHexText, parseHex6, formatHex6 } from './color-picker.js';
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokePopover, STROKE_STYLES_CSS, STROKE_POP_WHY, edgeSelectHTML, wireEdgeSelect } from './_stroke-section.js';   // 표준 Stroke 부품(color-picker 무 import — 이 파일 규율 지킴)
+import { appearanceSectionHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A3)
 
 /* ══ 줄(line) 선택 — 「지금 우측 패널이 보고 있는 줄」 ═══════════════════════
  * ★블록별로 «주소»(r,c,li)를 기억한다. prop-banner02.js 의 _bn2ActiveLine 선례(어휘까지 빌린다).
@@ -2951,7 +2952,7 @@ function _grdBlockBgSectionHtml(block) {
         </div>
       </div>
       ${/* ★GRID-BG-RADIUS-SHADOW-01 — 「코너」 = 프레임 Style 절과 같은 말·같은 범위(prop-frame.js ss-radius 0~80) · 같은 그리개 sliderRowHTML */
-        sliderRowHTML('코너', 'grd-bbg-radius-slider', 'grd-bbg-radius-num', { min: 0, max: GRID_BLOCK_BG_RADIUS_MAX, step: 1, value: bg.radius })}
+        appearanceSectionHTML({ prefix: 'grd-bbg', radius: { numberId: 'grd-bbg-radius-num', value: bg.radius, max: GRID_BLOCK_BG_RADIUS_MAX } })}   <!-- ★표준 Appearance A3(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·키·범위 무변 · 자리 = 블럭 배경 슬롯 안 그대로 -->
     </div>`;   /* ★U1 — 그림자(fxSectionHtml 'grdbb')는 Effects 절로 옮겼다(showGridProperties · _grdBlockBgFxHtml) */
 }
 
@@ -2991,7 +2992,7 @@ function _grdWireBlockBgSection(block) {
   bindSlider(document.getElementById('grd-bbg-op-slider'), document.getElementById('grd-bbg-op-num'), live('blockBgOpacity'), { min: 0, max: 100 });
   bindSlider(document.getElementById('grd-bbg-pady-slider'), document.getElementById('grd-bbg-pady-num'), live('blockBgPadY'), { min: 0, max: GRID_BLOCK_BG_PAD_Y_MAX });
   bindSlider(document.getElementById('grd-bbg-padx-slider'), document.getElementById('grd-bbg-padx-num'), live('blockBgPadX'), { min: 0, max: GRID_BLOCK_BG_PAD_X_MAX });
-  bindSlider(document.getElementById('grd-bbg-radius-slider'), document.getElementById('grd-bbg-radius-num'), live('blockBgRadius'), { min: 0, max: GRID_BLOCK_BG_RADIUS_MAX });
+  wireAppearanceSection({ radius: { numberId: 'grd-bbg-radius-num', max: GRID_BLOCK_BG_RADIUS_MAX, apply: live('blockBgRadius') } });   // 표준 Appearance A3(옛 bindSlider · 슬라이더 걷음 · change = 이력 + 저장 같음)
   window.wireFxSection?.(block, 'grdbb', () => window.showGridProperties?.(block));   // GRID-BG-RADIUS-SHADOW-01 — 에셋과 같은 배선
 }
 
