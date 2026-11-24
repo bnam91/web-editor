@@ -90,7 +90,8 @@ test('P165 패널 칸 사이(행) 숫자 = 0', async ({ page }) => {
 test('H ★height 0 = 뜻 없음(계약 [20,600]) → 렌더러·패널·이주 다 기본 140', async ({ page }) => {
   const r = await look(page, { cell: { height: 0 }, legacy: { gap: '24', height: '0' } });
   expect(r.model.height, '전제: 모델 height 0').toBe(0);
-  expect({ minH: r.minH, panel: r.pCellH, all: r.pAllH, allSlider: r.pAllHS, legacy: r.legacyCell?.height }, 'H 0 = 기본(셀 칸 · ★일괄 칸 둘 · 이주)').toEqual({ minH: '140px', panel: '140', all: '140', allSlider: '140', legacy: 140 });
+  /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 일괄 크기 슬라이더 #lrl-all-height 없음 ⇒ allSlider = null(일괄 숫자 칸 하나가 그 몫) */
+  expect({ minH: r.minH, panel: r.pCellH, all: r.pAllH, allSlider: r.pAllHS, legacy: r.legacyCell?.height }, 'H 0 = 기본(셀 칸 · ★일괄 칸 · 이주)').toEqual({ minH: '140px', panel: '140', all: '140', allSlider: null, legacy: 140 });
   expect(r.errs).toEqual([]);
 });
 test('N (음성대조) 0 아닌 값은 그대로 · 키 없으면 기본(24·32·24)', async ({ page }) => {

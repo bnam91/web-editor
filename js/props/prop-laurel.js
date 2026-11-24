@@ -4,6 +4,9 @@ import { renderPanel, sec, expandSection } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { gridNumOr } from '../blocks/grid-block.js';   /* ★C 181 — 0 을 살려 읽는 문 하나(렌더러 laurel-block.js 와 같은 함수 · 두 벌 금지) */
 
+import { layoutSizeRowHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(C2)
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance A4(C2)
+
 function _readCells(block) {
   if (typeof window._readLaurelCells === 'function') return window._readLaurelCells(block);
   try { return JSON.parse(block.dataset.cells || '[]'); } catch (_) { return []; }
@@ -125,13 +128,9 @@ export function showLaurelProperties(block) {
       sec('content', `
       <div id="lrl-cells-container">${cellsHtml}</div>
 `),
-      sec('size', `
-      <div class="prop-row" data-scope="all">
-        <span class="prop-label" title="잎 크기 · 모든 칸(일괄)">일괄 크기</span>
-        <input type="range" class="prop-slider" id="lrl-all-height" min="40" max="320" step="4" value="${parseInt(cells[0]?.height) > 0 ? parseInt(cells[0].height) : 140}">
-        <input type="number" class="prop-number" id="lrl-all-height-num" min="20" max="600" value="${parseInt(cells[0]?.height) > 0 ? parseInt(cells[0].height) : 140}">
-      </div>
-`),
+      /* ★표준 Layout(C2) — 옛 슬라이더 lrl-all-height 걷음 · 숫자 칸 id·범위 무변(잎 크기 · 모든 칸 일괄) */
+      sec('size', `<div data-scope="all" title="잎 크기 · 모든 칸(일괄)">${layoutSizeRowHTML({ prefix: 'lrl', one: { id: 'lrl-all-height-num', label: 'Size', min: 20, max: 600, value: parseInt(cells[0]?.height) > 0 ? parseInt(cells[0].height) : 140 } })}</div>`),
+      sec('appearance', appearanceSectionHTML({ prefix: 'lrl', op: { value: window.readBlockOpacity?.(block) ?? 100 } }), { headTools: appearanceHeadToolsHTML({ prefix: 'lrl' }) }),   // ★표준 Appearance A4(C2) — Opacity 만
       sec('layout', `
       <div class="grid-picker" id="lrl-grid-picker"></div>
       <div class="grid-picker-label" id="lrl-grid-picker-label">${cols} × ${rows}</div>
@@ -281,28 +280,33 @@ export function showLaurelProperties(block) {
   });
 
   // ── 일괄 (All Cells) gap / height ──
+  /* 모든 칸에 같은 값 + 셀 카드 안의 개별 칸 동기화(일괄 크기·간격이 같이 쓴다) */
+  const applyAll = (key, v) => {
+    const cur = _readCells(block);
+    cur.forEach(c => { c[key] = v; });
+    _writeCells(block, cur);
+    rerender();
+    propPanel.querySelectorAll(`.lrl-cell-${key}`).forEach(el => { el.value = Math.min(parseInt(el.max), v); });
+    propPanel.querySelectorAll(`.lrl-cell-${key}-num`).forEach(el => { el.value = v; });
+  };
   const bindAllNumPair = (sliderId, numberId, key, min, max) => {
     const s = propPanel.querySelector('#' + sliderId);
     const n = propPanel.querySelector('#' + numberId);
     if (!s) return;
     const apply = v => {
       v = Math.min(max, Math.max(min, v));
-      const cur = _readCells(block);
-      cur.forEach(c => { c[key] = v; });
-      _writeCells(block, cur);
-      rerender();
+      applyAll(key, v);
       s.value = Math.min(parseInt(s.max), v);
       if (n) n.value = v;
-      // 셀 카드 안의 개별 슬라이더도 동기화
-      propPanel.querySelectorAll(`.lrl-cell-${key}`).forEach(el => { el.value = Math.min(parseInt(el.max), v); });
-      propPanel.querySelectorAll(`.lrl-cell-${key}-num`).forEach(el => { el.value = v; });
     };
     s.addEventListener('input',  () => apply(parseInt(s.value)));
     s.addEventListener('change', () => window.pushHistory?.('일괄 ' + key));
     if (n) n.addEventListener('change', () => { apply(parseInt(n.value)); window.pushHistory?.('일괄 ' + key); });
   };
   bindAllNumPair('lrl-all-gap',    'lrl-all-gap-num',    'gap',     0, 2000);
-  bindAllNumPair('lrl-all-height', 'lrl-all-height-num', 'height', 20, 600);
+  /* ★표준 Layout(C2) — 일괄 크기 칸 = 부품(input = 범위 안이면 바로 · change = 잘라 그린 «뒤» 이력 한 번 · 빈 칸 = 옛 값) · 이력 이름 그대로 */
+  wireLayoutSection({ commit: () => window.pushHistory?.('일괄 height'), w: { numberId: 'lrl-all-height-num', min: 20, max: 600, apply: (v) => applyAll('height', v) } });
+  wireAppearanceSection({ op: { numberId: 'lrl-opacity', apply: (v) => window.setBlockOpacity?.(block, v) } });   // ★표준 Appearance A4(C2)
 
   // Grid 셀 간격 (col/row) — block.dataset에 저장 (cells 배열과 별개)
   const bindGridGap = (sliderId, numberId, datasetKey, min, max) => {
