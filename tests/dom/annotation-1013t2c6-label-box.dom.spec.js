@@ -8,7 +8,7 @@
  *   LB2 고르면 라벨 상자 좌·우 가운데에 손잡이 둘 — 그 자리에서 맨 위(쥘 수 있다)
  *   LB3 오른 손잡이를 끌면 끈 만큼 넓어지고 왼 모서리는 제자리 · 글은 그 너비에서 접힌다(pre-wrap)
  *   LB4 왼 손잡이를 끌면 끈 만큼 넓어지고 오른 모서리는 제자리 · ⌘Z 한 번 = 끌기 한 번
- *   LB5 패널 「너비」 150 → 150px · 「자동」→ 키가 지워지고 글 길이로 · (합침 261026) 일반 어노테이션엔 「모서리」 칸이 없다 — 택일5 그대로 치수선만
+ *   LB5 패널 「너비」 150 → 150px · 너비 모드 「자동」(L4b — 옛 단추 → 드롭다운)→ 키가 지워지고 글 길이로 · (합침 261026) 일반 어노테이션엔 「모서리」 칸이 없다 — 택일5 그대로 치수선만
  *   LB6 rebindAll(리로드·⌘Z 복원과 같은 길) 뒤에도 너비·모서리가 같다 — 라벨 style 의 «속성 차례·값»이 라이브와 같고
  *       (CSSOM 이 고쳐 쓴 글꼴 차이는 패널을 한 번이라도 만진 모든 라벨에 이미 있다 · 이 칸 밖), 두 번 다시 그려도 한 글자도 안 바뀐다(F2)
  * ★만드는 길은 «사람 손» 그대로 — 펜 단추 → 메뉴 「Annotation」 → 섹션 두 점 → Enter → Esc (annotation-1017t1h5 와 같은 꼴).
@@ -154,10 +154,12 @@ test('LB5 패널 — 너비 150 · 자동으로 되돌리기 · 모서리 칸은
   await selectByLabel(page, id);
   const w0 = (await labelBox(page, id)).w;
   expect(await page.inputValue('#panel-right #annot-label-w'), '★전제: 안 정한 너비는 빈 칸(자동)').toBe('');
+  /* ★기대 바뀜(L4b · 현빈 L-2): 옛 «자동» 단추(#annot-label-w-auto) → 너비 모드 드롭다운(#annot-label-w-mode · 고정/자동) · 자동이면 칸이 막혀 있어 «고정»을 먼저 고른다 */
+  await page.selectOption('#panel-right #annot-label-w-mode', 'fixed');
   await setNum(page, '#annot-label-w', 150);
   await expect.poll(async () => (await labelBox(page, id)).w).toBe(150);
   expect((await labelBox(page, id)).dsW).toBe('150');
-  await page.click('#panel-right #annot-label-w-auto');
+  await page.selectOption('#panel-right #annot-label-w-mode', 'auto');
   await expect.poll(async () => (await labelBox(page, id)).dsW, '자동 = 키 삭제').toBe(null);
   const b = await labelBox(page, id);
   expect({ ws: b.ws, w: b.w }, '글 길이로 돌아간다').toEqual({ ws: 'pre', w: w0 });

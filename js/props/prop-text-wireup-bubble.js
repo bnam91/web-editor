@@ -3,6 +3,7 @@
  */
 import { wireColorField } from './color-picker.js';
 import { clearBubbleSenderAlign } from './prop-text-wireup-align.js';
+import { wireNumberScrub } from './_helpers.js';
 
 export function wireBubbleSection({ tb, ctx }) {
   // 말꼬리 방향 — contentEl은 ctx 통해 동적 조회 (R1: type 토글 후 교체 대비)
@@ -69,7 +70,6 @@ export function wireBubbleSection({ tb, ctx }) {
      ★모달(prop-modal.js 너비 풀폭/고정 · 높이 자동/최소)의 뜻을 그대로 옮긴다: 고정 = 너비 고정 + 높이 «최소»(글이 넘치면 자란다 — 잘리지 않게).
      ★고정으로 바꿀 때 지금 그려진 크기(모델 px)를 시작값으로 ⇒ 누르는 순간 모양이 안 튄다.
      ★이력 = push-before(이 파일의 말꼬리·발신자와 같은 규약). */
-  const _sizeBtns = [...document.querySelectorAll('#bubble-size-group [data-bsz]')];
   const _wIn = document.getElementById('bubble-w-number');
   const _hIn = document.getElementById('bubble-h-number');
   const _setSize = (mode) => {
@@ -87,12 +87,14 @@ export function wireBubbleSection({ tb, ctx }) {
       delete tb.dataset.bubbleSize;
     }
     applyBubbleSize(tb);
-    _sizeBtns.forEach((b) => b.classList.toggle('active', b.dataset.bsz === mode));
-    if (_wIn) { _wIn.disabled = mode !== 'fixed'; _wIn.value = tb.dataset.bubbleW || ''; }
-    if (_hIn) { _hIn.disabled = mode !== 'fixed'; _hIn.value = tb.dataset.bubbleH || ''; }
     window.triggerAutoSave?.();
+    window.showTextProperties?.(tb);   // W/H 칸 막힘(자동)·값을 새로 그린다(스타일 드롭다운과 같은 길)
   };
-  _sizeBtns.forEach((b) => b.addEventListener('click', () => _setSize(b.dataset.bsz)));
+  /* ★L4b(현빈 L-2) — 옛 자동/고정 세그먼트 → 모드 드롭다운(같은 _setSize · 같은 키) */
+  document.getElementById('bubble-size-mode')?.addEventListener('change', (e) => {
+    if ((e.target.value === 'fixed') === (tb.dataset.bubbleSize === 'fixed')) return;
+    _setSize(e.target.value);
+  });
   const _wireDim = (input, key, min, max) => input?.addEventListener('change', () => {
     const n = Math.min(max, Math.max(min, parseInt(input.value, 10) || min));
     window.pushHistory?.();
@@ -102,6 +104,8 @@ export function wireBubbleSection({ tb, ctx }) {
   });
   _wireDim(_wIn, 'bubbleW', 60, 860);
   _wireDim(_hIn, 'bubbleH', 40, 2000);
+  wireNumberScrub(document.getElementById('bubble-w-number-scrub'), _wIn, { min: 60, max: 860 });   // 라벨 끌기 — 놓을 때 change 한 번 = 위 길
+  wireNumberScrub(document.getElementById('bubble-h-number-scrub'), _hIn, { min: 40, max: 2000 });
 
   /* BT1 — 발신자 «이름 입력칸»은 패널에서 뺐다. 이름은 캔버스 이름표를 더블클릭해 고친다(js/block-drag.js bindBlock 말풍선 갈래). */
 }

@@ -172,8 +172,8 @@ const RENAME = [[/placeholder="auto"( aria-label="밑줄 (?:두께|위치)")/, '
   [/^(<button type="button" class="prop-chain-btn prop-chain-btn--overlay(?: active)?" id="txt-overlay-toggle" aria-pressed="(?:true|false)")( title=")[^"]*(">)$/, '$1 aria-label="Ignore Auto Layout"$2Ignore Auto Layout — 자동배치에서 빼서 그 자리에 둔다(옛 «오버레이»). 다시 누르면 원래 자리로 돌아간다.$3'],
   /* ★1120b 기준으로 다시 세움(지디 261121 · 판정기 빨강 9줄 = 1120b 앞 커밋들의 의도된 변화 · 항목마다 한 줄) */
   [/^(<input type="checkbox" id="txt-shadow-on"(?: checked)?)>$/, '$1 aria-label="Shadow">'],   /* B3 b338d175c — Effects 머리 토글 → «＋»(이름 = aria-label) */
-  [/^(<input type="number" class="prop-number" id="bubble-w-number" [^>]*")>$/, '$1 aria-label="말풍선 너비">'],   /* B4 0e362728a — Size 절 두 칸(칸 안 라벨 · 이름 aria-label) */
-  [/^(<input type="number" class="prop-number" id="bubble-h-number" [^>]*")>$/, '$1 aria-label="말풍선 최소 높이">'],   /* B4 */
+  [/^(<input type="number" class="prop-number" id="bubble-w-number" (?![^>]*aria-label)[^>]*")>$/, '$1 aria-label="말풍선 너비">'],   /* B4 0e362728a — Size 절 두 칸(칸 안 라벨 · 이름 aria-label) */
+  [/^(<input type="number" class="prop-number" id="bubble-h-number" (?![^>]*aria-label)[^>]*")>$/, '$1 aria-label="말풍선 최소 높이">'],   /* B4 · ★L4b — (?!aria-label) = 옛 판 칸만 고친다(새 판은 Layout 부품 칸이라 이미 aria-label · LAYAPP_STD ② 가 받는다) */
   [/^<button class="prop-anim-btn" id="open-anim-btn">$/, '<button type="button" class="prop-chain-btn" id="open-anim-btn" title="애니메이션 GIF 만들기" aria-label="애니메이션 GIF 만들기">']];   /* F1 83e0afbf1 — GIF 절 머리 ＋ = 이 단추 */
 const ctl = (root) => all(root).flatMap((k) => (['input', 'select', 'button', 'textarea'].includes(k.tag) ? [tagNorm(k.raw)]
   : k.tag === 'option' ? [`<option value="${k.attrs.value ?? ''}"${'selected' in k.attrs ? ' selected' : ''}${(() => { const sel = closest(k, (x) => x.tag === 'select'); return sel?.attrs.id ? ` in="${sel.attrs.id}"` : ''; })()}>`] : []));   // QA2 — 옵션에 «어느 고르개»를 붙여 허용을 그 고르개로 묶는다
@@ -204,6 +204,10 @@ const CTL_DROPPED = [/^<input type="range" class="prop-slider" id="txt-width-sli
   /^<select class="prop-select" id="txt-fx-add" /, /^<option value="(?:|shadow|reflect)" in="txt-fx-add">$/,   /* ⑨ · 시안 v10 — Effects 고르개 → ＋ 단추 + 종류 메뉴(옵션 = 메뉴 항목) */
   /^<input type="range" class="prop-slider" id="txt-rot-slider" /,
   /^<input type="color" id="bubble-bg-color" /, /^<input type="text" class="prop-color-hex" id="bubble-bg-hex" /];   /* 1120b B2 — 위 ID_REMOVED 와 짝 */   /* Q20 회전 슬라이더 걷음(각도 칸만 · 시안 v10) */
+/* ★기대 바뀜(L4b · 현빈 L-2) — 말풍선 크기 «자동/고정» 세그먼트(#bubble-size-group [data-bsz] 둘 · 줄 라벨 «크기») → 표준 W/H 줄의 모드 드롭다운(#bubble-size-mode · 고정/자동 두 옵션 = 이미 있는 두 모드만). W/H 숫자 칸은 LAYAPP_STD ②가 잰다(같은 id·범위). */
+CTL_DROPPED.push(/^<button class="prop-type-btn (?:active)?" data-bsz="(?:auto|fixed)">$/);
+CTL_ADDED.push(/^<select class="prop-select" id="bubble-size-mode" aria-label="너비 모드">$/, /^<option value="(?:fixed|auto)"(?: selected)? in="bubble-size-mode">$/);
+ID_REMOVED.push('bubble-size-group'); ID_ADDED.push(/^bubble-size-mode$/);
 /* Q17 회전 줄 단추 셋(시안 v10 · 현빈 GO 261120) */
 CTL_ADDED.push(/^<button type="button" class="prop-align-btn(?: active)?" id="txt-(?:rot-90|flip-h|flip-v)" title="[^"]*" aria-label="[^"]*"(?: aria-pressed="(?:true|false)")?>$/,
   /^<button type="button" class="prop-chain-btn prop-fx-add-btn" id="txt-fx-add-btn" [^>]*>$/, /^<button type="button" class="fp-menu-item" role="menuitem" data-fx="(?:shadow|reflect)">$/);
@@ -323,7 +327,7 @@ function judge(name, st, oldHtml, newHtml) {
   /* 옛 가짜 절 제목 → 새 field-label: L/R(패딩 연동 머리) · Tag Style(태그 모양 묶음) */
   /* 1120b B5 후속(지디 261121) — 스타일 번호 세 줄 라벨 «번호»×3 → «형광펜»·«점»·«밑줄»(한 말이 셋으로 갈려 LABEL_RENAME 표로는 못 적는다 · 옛 수만큼만) */
   const codeN = labels(o).filter((t) => t === '번호').length;
-  const ol = minus(labels(o).map((t) => LABEL_RENAME[t] ?? t), ['Position', ...LABEL_DROPPED, ...Array(codeN).fill('번호'), ...(name === 'bubble' ? ['너비', '높이'] : [])])   /* 1120b B4 — 말풍선 너비·높이 라벨 글 → 칸 안 라벨(.prop-xy-label) */.concat(['형광펜', '점', '밑줄'].slice(0, codeN))
+  const ol = minus(labels(o).map((t) => LABEL_RENAME[t] ?? t), ['Position', ...LABEL_DROPPED, ...Array(codeN).fill('번호'), ...(name === 'bubble' ? ['너비', '높이', '크기'] : [])])   /* 1120b B4 — 말풍선 너비·높이 라벨 글 → 칸 안 라벨(.prop-xy-label) · ★기대 바뀜(L4b · 현빈 L-2) «크기» = 옛 자동/고정 세그먼트 줄 라벨(→ 모드 드롭다운) */.concat(['형광펜', '점', '밑줄'].slice(0, codeN))
     .concat(ids(n).includes('txt-ph-chain') ? ['좌우패딩'] : [], ids(n).includes('label-style-section') ? ['Tag Style'] : []);   // ⑤ 옛 «L/R» 머리 → «좌우패딩» 줄
   const nl = minus(minus(labels(n), featLabels), sx.lAdd), ol2 = minus(ol, sx.lLost), l2 = minus(ol2, nl), e2 = minus(nl, ol2);
   if (l2.length || e2.length) bad.push(`J2 라벨: 잃음 ${JSON.stringify(l2)} · 생김 ${JSON.stringify(e2)}`);

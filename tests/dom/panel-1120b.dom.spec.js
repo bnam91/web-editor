@@ -115,11 +115,12 @@ test('B3 Bubble — Effects 머리 = ＋(.prop-sec-add 안 #txt-shadow-on) · �
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-test('B4 Bubble — 너비·높이 = Size 절과 같은 두 칸(prop-lhls-row > .prop-icon-input > .prop-xy-label)', async ({ page }) => {
+/* ★기대 바뀜(L4b · 현빈 L-2): 너비·높이 두 칸 = 표준 Layout W/H 줄(.ui-layout[data-part=layout] > .prop-icon-input[data-field=layout-w|h]) + 모드 드롭다운 줄(layout-mode-w) — 옛 prop-lhls-row 두 칸 · 자동/고정 세그먼트 걷음 */
+test('B4 Bubble — 너비·높이 = 표준 Layout W/H 칸 + 모드 줄(L4b)', async ({ page }) => {
   const errs = await open(page, 'bubble');
-  const r = await page.evaluate(() => ['bubble-w-number', 'bubble-h-number'].map((id) => { const e = document.getElementById(id);
-    return `${!!e?.closest('.prop-lhls-row')}:${!!e?.closest('.prop-icon-input')}:${e?.parentElement.querySelector('.prop-xy-label')?.textContent}`; }));
-  expect(r).toEqual(['true:true:너비', 'true:true:높이']);
+  const r = await page.evaluate(() => ['bubble-w-number', 'bubble-h-number', 'bubble-size-mode'].map((id) => { const e = document.getElementById(id);
+    return `${!!e?.closest('.ui-layout[data-part="layout"]')}:${e?.closest('.prop-icon-input')?.dataset.field}`; }));
+  expect(r).toEqual(['true:layout-w', 'true:layout-h', 'true:layout-mode-w']);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 

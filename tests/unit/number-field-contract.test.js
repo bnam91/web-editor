@@ -281,7 +281,7 @@ test('N9 ★센서스 — «빈 값을 값으로 다루는» 패널은 모두 �
        ★배선으로 쟀다 — js/liner-transform.js read(): normRadius(value) → '' 는 0 ⇒ 반지름 모드 끔 = 옛 «블럭 폭» 곡률(둥글게 = 글 길이로 저절로).
        ⛔장식이 아니다 — 빈 값에 뜻이 있다(열차 train/1121-fx 단위 전수에서 잡힘). */
     'js/liner-transform.js',          // lnr-radius — 비우면 자동(옛 곡률 / 둥글게는 글 길이)
-    'js/props/prop-annotation.js',   // annot-label-w — :797 value.trim()==='' → labelWidth null = 자동(글 길이)
+    /* ★기대 바뀜(L4b · 현빈 L-2): annot-label-w = 표준 Layout 부품 칸(빈 칸 = 옛 값 되돌림 · 자동 = 너비 모드 드롭다운 #annot-label-w-mode) ⇒ 「빈 값 = 자동」 길이 없어져 선언 빠짐 */
     'js/props/prop-banner02.js',     // bn2-h/tx/tw/ty — bindAutoNum: 비우면 플래그를 걷고 프리셋/자동
     'js/props/prop-comparison.js',   // .cmp-row-h    — :251 raw==='' → arr[ri]=null
     'js/props/prop-graph.js',        // grb-fillmax-number — 1012t1G3: 비우면 dataset.fillMax 를 지운다 = 기본 분모 100(placeholder 가 그 값)

@@ -267,29 +267,11 @@ export function buildTextPanelSpec(state) {
           <span class="prop-label">배경색</span>
           ${bubbleBgColorHtml || ''}
         </div>
-        <!-- ★1017t1m3 크기 — 「자동」= 글 길이 따라(지금까지) · 「고정」= 너비 고정 + 높이 최소 -->
-        <div class="prop-row">
-          <span class="prop-label">크기</span>
-          <div class="prop-type-group" id="bubble-size-group">
-            <button class="prop-type-btn ${bubbleSizeFixed?'':'active'}" data-bsz="auto">자동</button>
-            <button class="prop-type-btn ${bubbleSizeFixed?'active':''}" data-bsz="fixed">고정</button>
-          </div>
-        </div>
-        <!-- 1120b B4(현빈 261120 「Size 절과 CSS 통일」) — 너비·높이 = Size 절과 같은 두 칸 마크업(prop-lhls-row · 칸 안 라벨 prop-xy-label) · id·배선 그대로 -->
-        <div class="prop-lhls-row">
-          <div class="prop-lhls-col">
-            <div class="prop-icon-input">
-              <span class="prop-xy-label">너비</span>
-              <input type="number" class="prop-number" id="bubble-w-number" min="60" max="860" value="${bubbleW||''}"${bubbleSizeFixed?'':' disabled'} aria-label="말풍선 너비">
-            </div>
-          </div>
-          <div class="prop-lhls-col">
-            <div class="prop-icon-input">
-              <span class="prop-xy-label">높이</span>
-              <input type="number" class="prop-number" id="bubble-h-number" min="40" max="2000" value="${bubbleH||''}"${bubbleSizeFixed?'':' disabled'} aria-label="말풍선 최소 높이">
-            </div>
-          </div>
-        </div>
+        <!-- ★1017t1m3 크기 — 「자동」= 글 길이 따라 · 「고정」= 너비 고정 + 높이 최소 · ★L4b(현빈 L-2) 옛 자동/고정 세그먼트 → 표준 W/H 줄 + 모드 드롭다운(이미 있는 두 모드만 · 한 키 bubbleSize 라 칸 하나) · id·범위 무변 -->
+        <div data-own="special:Bubble">${layoutSizeRowHTML({ prefix: 'bubble', chain: { on: false, blocked: '말풍선 높이는 «최소» 높이라 비율을 묶을 수 없어요' },
+          w: { id: 'bubble-w-number', min: 60, max: 860, value: bubbleW || '', auto: !bubbleSizeFixed },
+          h: { id: 'bubble-h-number', min: 40, max: 2000, value: bubbleH || '', auto: !bubbleSizeFixed },
+          mode: { w: { id: 'bubble-size-mode', value: bubbleSizeFixed ? 'fixed' : 'auto', options: [['fixed', '고정'], ['auto', '자동']] } } })}</div>   <!-- data-own: 모드 칸 id 의 «size» 낱말이 Size 절로 오판되지 않게(배경색 줄과 같은 까닭 · 말풍선 크기는 Bubble 절) -->
         <div class="prop-row" title="발신자 이름 표시 — 이름은 캔버스에서 더블클릭해 고친다">
         ${checkHTML({ id: 'bubble-show-sender', label: '발신자 이름', checked: showSender })}
       </div>
