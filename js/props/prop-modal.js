@@ -9,7 +9,8 @@ import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_STYLE
 import { hasSides, readSides, writeSides, sidesMixed } from '../stroke-look.js';
 /* ★1017a5 — ★배경 크기 칸의 ★현재값·기본값은 js/frame-bg.js 가 정본(⛔사본 금지 · 그 머리말 :22). */
 import { frameBgSize } from '../frame-bg.js';
-import { alignBtn, blockHeaderHTML, overlayToggleBtnHTML, escHtml, rotRowHTML, wireRotRow } from './_helpers.js';
+import { alignBtn, blockHeaderHTML, escHtml, wireRotRow } from './_helpers.js';
+import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from './_position-section.js';   // 표준 Position 절(0.9.14 73행 P1 · 첫 소비자)
 import { renderPanel, sec, unwrapSection, expandSection } from './_panel-frame.js';   /* unwrapSection — _typo-section 빌더가 «절 통째»를 주므로 몸통만(U0c) */
 /* ★오버레이(플로팅) — T3(현빈 섹션메모 `sec_3e0suk0` 「모달 오버레이 기능이 안 보인다」 · 2026-10-07).
    ★★진입·이탈·드래그를 ★여기서 짜지 않는다 — `js/overlay-float.js` 가 ★정본이고 ★그 파일이
@@ -21,7 +22,7 @@ import { renderPanel, sec, unwrapSection, expandSection } from './_panel-frame.j
    ⛔id 는 ★`mdl-float-toggle` 이다 — `_helpers.js` 가 적어 둔 그 함정(에셋이 `asset-overlay-toggle` 을
      ★못 쓴 까닭 = 이미 「이미지 위 어두운 막」 체크박스가 그 id 를 갖고 있다)을 피해 ★`-float-` 꼴로 간다.
      ★실측: `mdl-float-toggle`·`mdl-x-number`·`mdl-y-number` 셋 다 레포 안 ★0건이었다. */
-import { wireFloatToggle, wireFloatPosition, floatPositionRowHTML, posElOf, isFloat }
+import { wireFloatToggle, wireFloatPosition, posElOf, isFloat }
   from '../overlay-float.js';
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
 import { wireFontPicker } from './_font-picker.js';
@@ -115,7 +116,6 @@ export function showModalProperties(block) {
   const _mdlPosEl   = posElOf(block);
   const _mdlIsFloat = !!(_mdlPosEl && isFloat(_mdlPosEl));
   /* ★X/Y 줄도 ★공용 조립기다 — 떠 있지 않으면 ★빈 문자열을 돌려준다(그 함수가 스스로 가른다). */
-  const _mdlFloatRow = floatPositionRowHTML({ prefix: 'mdl', posEl: _mdlPosEl });
   const isIcon = (v === 'icon' || v === 'icon-stack');
   const isGrid = (v === 'grid-2');
   const isRaster = block.dataset.raster === '1';
@@ -218,9 +218,9 @@ export function showModalProperties(block) {
       </div>
       <button class="prop-action-btn danger" id="mdl-pf-clear" style="margin-top:4px;">프로필 제거</button>` : ''}
 ` : '')),
-      sec('position', `${_mdlFloatRow}${/* 현빈 261123 S1-4 — 시안 8910 floatalign 순서(Alignment 6칸 → X/Y → Rotation) · 옛 .prop-row 감쌈은 공용 줄(라벨+6칸+X/Y)을 한 가로줄에 눌러 6칸이 찌그러졌다(실물 png) */ ''}
-      <span class="prop-field-label">Rotation</span>${rotRowHTML({ p: 'mdl', numberId: 'mdl-rot-number', value: parseInt(block.dataset.rotation || '0'), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' })}
-`, { headTools: overlayToggleBtnHTML({ id: 'mdl-float-toggle', active: _mdlIsFloat }) }),
+      /* ★표준 Position 절(0.9.14 73행 · 현빈 261124) — 머리 [슬라이드 모드][IAL] · 흐름이면 정렬 6·X/Y disabled(6-2) · 떠 있으면 S1-4 그대로 · 회전 = 옛 rotRowHTML(+ 슬라이드 모드 슬라이더) · id·키 무변 */
+      sec('position', positionSectionHTML({ prefix: 'mdl', posEl: _mdlPosEl, rot: { p: 'mdl', numberId: 'mdl-rot-number', value: parseInt(block.dataset.rotation || '0'), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' } }),
+        { headTools: positionHeadToolsHTML({ prefix: 'mdl', ialId: 'mdl-float-toggle', ialOn: _mdlIsFloat }) }),
       sec('size', `
       <div class="prop-row">
         <span class="prop-label">너비</span>
@@ -750,6 +750,7 @@ export function showModalProperties(block) {
   }
   /* 떠 있을 때만 나오는 X/Y 두 칸 — 텍스트·도형 Position 절과 «같은 규약»(overlay-float.js). */
   wireFloatPosition({ block, xId: 'mdl-x-number', yId: 'mdl-y-number' });
+  wirePositionSection({ prefix: 'mdl', numberId: 'mdl-rot-number', rerender: () => showModalProperties(block) });   // 슬라이드 모드 토글·슬라이더만(나머지 = 위 옛 배선)
   _syncProfileAddChip(block, isPlainish);
 }
 
