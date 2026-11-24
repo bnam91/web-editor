@@ -1,7 +1,7 @@
 import { propPanel } from '../globals.js';
 import { checkerBgBigColors, checkerSvgFills } from '../checker-tokens.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, setFillKindName, fillLast } from './_fill-section.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, setFillKindName, fillLast, fillHiddenOf, setFillHiddenKey } from './_fill-section.js';
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_POP_WHY, STROKE_STYLES_SVG, endsSlotHTML, wireEnds } from './_stroke-section.js';
 import { readLook, writeLook, svgLook, derivedDash, hasSides, readSides, writeSides, sidesMixed } from '../stroke-look.js';
 import { svgStopRemap } from './gradient-model.js';
@@ -298,7 +298,7 @@ export function showShapeProperties(block) {
       </div>` : ''),
       // 가림막이 켜지면 채우기 색은 무시된다 ⇒ 절을 «안 그린다»(숨긴 줄만 든 빈 머리 금지 · 토글은 패널을 다시 그린다)
       sec('fill', isRedact ? '' : `
-      <div id="shape-fill-row">${fillSectionHTML({ prefix: 'shape-fill', on: fillOn, kind: fillKind, colorHtml: colorFieldHTML({ idPrefix: 'shape-color', hex: color, alpha: colorAlpha, gradientCss }) })}</div>
+      <div id="shape-fill-row">${fillSectionHTML({ prefix: 'shape-fill', on: fillOn, kind: fillKind, hiddenWhy: '', hidden: fillHiddenOf(block), colorHtml: colorFieldHTML({ idPrefix: 'shape-color', hex: color, alpha: colorAlpha, gradientCss }) })}</div>
       ${isEllipse ? `<div id="shape-ellipse-fx">
         ${ellCount > 1 ? `<!-- 1013t2A1 원마다 색 — 꼴은 바로 위 「색상」 줄(prop-color-row + colorFieldHTML)과 같다. 빈 칸 = 블록 색을 따른다. -->
         ${Array.from({ length: ellCount }, (_, i) => `<div class="prop-color-row" id="shape-ellipse-c${i}-row" style="margin-top:8px;">
@@ -647,6 +647,8 @@ export function showShapeProperties(block) {
       block.dataset.shapeColor = 'transparent'; if (svg) svg.style.color = 'transparent';
       window.scheduleAutoSave?.(); showShapeProperties(block); },
     add: () => { _applyShapeSolidFill(block, fillLast.get(block.id, '#d9d9d9')); showShapeProperties(block); },
+    /* F6-1b 숨김 — 면만 끔: svg 뿌리 fill-opacity 0(단색·그라데이션 url·이미지 무늬 다 · 선은 stroke 라 그대로) · 인라인이라 PNG 의 SVG 직렬화에도 실린다 · 색 키 무변 */
+    hide: (on) => { setFillHiddenKey(block, on); if (svg) svg.style.fillOpacity = on ? '0' : ''; window.scheduleAutoSave?.(); },
     commit: () => window.pushHistory?.() } });
 
   /* 단계 5 — 선·화살표 끝점(키 strokeStart/strokeEnd = 그 종류 기본과 다를 때만 · 그림 = block-factory refreshShapeInnerSVG) */

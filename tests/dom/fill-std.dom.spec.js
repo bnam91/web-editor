@@ -20,14 +20,15 @@ const st = (page, id) => page.evaluate((id) => { const b = document.getElementBy
     layers: f ? (f.querySelector('.ui-fill[data-part="fill"]')?.querySelectorAll(':scope > .ui-fill-layer[data-fill-index="0"]').length ?? 0) : -1, empty: !!f?.querySelector('.ui-fill[data-empty="1"]'),
     add: !!document.getElementById('shape-fill-add'), hex: document.getElementById('shape-color-hex')?.value ?? null, alpha: document.getElementById('shape-color-alpha')?.value ?? null }; }, id);
 
-test('D1 도형 Fill = 표준 부품 · 겹 줄 하나 · 옛 id · 눈 막힘 · 머리 ＋ 없음', async ({ page }) => {
+test('D1 도형 Fill = 표준 부품 · 겹 줄 하나 · 옛 id · 눈 산다(F6-1b) · 머리 ＋ 없음', async ({ page }) => {
   const { errs, id } = await scene(page);
   const ui = await page.evaluate(() => { const f = document.querySelector('#panel-right .prop-section[data-sec="fill"]'); const eye = document.getElementById('shape-fill-eye');
     return { ids: ['shape-color-color', 'shape-color-hex', 'shape-color-alpha', 'shape-fill-remove'].every((i) => f.contains(document.getElementById(i))), eye: eye?.getAttribute('aria-disabled'), why: !!eye?.title,
       oldLabel: [...f.querySelectorAll('.prop-label')].some((l) => l.textContent.trim() === '색상') }; });
   const s = await st(page, id);
   expect([s.layers, s.empty, s.add], '★겹 줄 하나 · 칠 있음 · 머리 ＋ 없음').toEqual([1, false, false]);
-  expect(ui, '★옛 색 칸 id 그대로 · 눈 = 막힘(까닭 툴팁) · 옛 «색상» 라벨 없음').toEqual({ ids: true, eye: 'true', why: true, oldLabel: false });
+  /* ★기대 바뀜(F6-1b · 지디 (가) 261124): 옛 «눈 = 막힘(aria-disabled · 까닭 툴팁)» → 눈 산다(막힘 속성·까닭 없음) — 뒤집히면 F6-1b 와 이 줄을 같이 되돌림 */
+  expect(ui, '★옛 색 칸 id 그대로 · 눈 = 산다 · 옛 «색상» 라벨 없음').toEqual({ ids: true, eye: null, why: false, oldLabel: false });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
@@ -448,3 +449,28 @@ for (const [add, cls, part] of [['addChatBlock', 'chat-block', 'chb-bg-left-hex'
     expect(errs, errs.join(' | ')).toEqual([]);
   });
 }
+
+/* F6-1(현빈 GO 261124 · 지디 (가) 눈 = v1) — 숨김(눈) · 새 키 data-fill-hidden="1" 은 숨길 때만(보이면 키 없음 = 옛 바이트) · 색 값은 안 지움
+ * D23 도형 눈 — 누름 = 키 1 · svg fill-opacity 0(면만 · 선은 그대로 · PNG 가 쓰는 SVG 직렬화에도 실리게 인라인) · 색 그대로 · 눈 눌림 · 줄 흐림 · ⌘Z/⇧⌘Z 한 칸 · 다시 누름 = 키 없음 · 숨긴 채 − = 숨김도 걷힘
+ * 양성대조: _patches/fill-f6-1-CTL.patch(도형이 눈을 안 켬 = hiddenWhy 기본 «곧 지원») ⇒ D23 빨강 */
+test('D23 도형 눈 = 숨김 키 · 면만 투명 · 색 지킴 · ⌘Z · 다시 누름 = 키 없음 · − 가 숨김도 걷음', async ({ page }) => {
+  const { errs, id } = await scene(page, '#ff0000');
+  const hs = () => page.evaluate((id) => { const b = document.getElementById(id), eye = document.getElementById('shape-fill-eye'), svg = b.querySelector('svg');
+    return { key: b.getAttribute('data-fill-hidden'), fo: svg?.style.fillOpacity ?? null, color: b.dataset.shapeColor ?? null, dis: eye?.getAttribute('aria-disabled') ?? null,
+      pressed: eye?.getAttribute('aria-pressed') ?? null, dim: document.querySelector('#panel-right .ui-fill-layer')?.getAttribute('data-hidden') ?? null }; }, id);
+  const reopen = () => page.evaluate((id) => { const b = document.getElementById(id); window.selectBlock(id); window.showShapeProperties?.(b); }, id);
+  expect(await hs(), '★처음 = 눈 산다 · 키 없음').toEqual({ key: null, fo: '', color: '#ff0000', dis: null, pressed: 'false', dim: null });
+  await page.click('#shape-fill-eye'); await raf(page);
+  expect(await hs(), '★누름 = 키 1 · 면 투명 · 색 그대로 · 눈 눌림 · 줄 흐림').toEqual({ key: '1', fo: '0', color: '#ff0000', dis: null, pressed: 'true', dim: '1' });
+  await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z'); await raf(page); await reopen();
+  expect((await hs()).key, '★⌘Z 한 칸 = 보임').toBe(null);
+  await page.keyboard.press('Meta+Shift+z'); await raf(page); await reopen();
+  expect(await hs(), '★⇧⌘Z = 다시 숨김(DOM 복원 · 패널도 눌림)').toEqual({ key: '1', fo: '0', color: '#ff0000', dis: null, pressed: 'true', dim: '1' });
+  await page.click('#shape-fill-eye'); await raf(page);
+  expect(await hs(), '★다시 누름 = 키 «없음»(빈 값 아님) · 면 돌아옴').toEqual({ key: null, fo: '', color: '#ff0000', dis: null, pressed: 'false', dim: null });
+  await page.click('#shape-fill-eye'); await raf(page); await page.click('#shape-fill-remove'); await raf(page);
+  await page.click('#shape-fill-add'); await raf(page);
+  const s = await hs();
+  expect([s.key, s.fo, s.color], '★숨긴 채 − → ＋ = 숨김 안 남음 · 지난 색').toEqual([null, '', '#ff0000']);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
