@@ -27,13 +27,13 @@ test('AS1 frame Appearance = 표준 꼴 — 슬라이더 없음 · 숫자 칸(�
     return {
       slider: !!document.getElementById('ss-radius-slider'),
       inPart: !!document.getElementById('ss-radius-num')?.closest('[data-part="appearance"] [data-field="appearance-radius"]'),   // data-field 이름 = 시안 #mkp-appstd 마크업 줄(appearance-radius)
-      label: sec?.querySelector('[data-part="appearance"] .ui-s2-cell > span')?.textContent,
+      label: [...(sec?.querySelectorAll('[data-part="appearance"] .ui-s2-cell > span') || [])].map((x) => x.textContent),   // ★기대 바뀜(A4 · Opacity 칸이 R 앞 · P 9ca5ee216)
       eye: eye ? [eye.getAttribute('aria-disabled'), /보류/.test(eye.title)] : null,
       corners: cor ? [cor.getAttribute('aria-disabled'), /보류/.test(cor.title), cor.closest('[data-part="appearance"]') === document.getElementById('ss-radius-num')?.closest('[data-part="appearance"]')] : null,
       clip: !!document.getElementById('ss-clip-toggle'),
     };
   });
-  expect(o).toEqual({ slider: false, inPart: true, label: 'Corner radius', eye: ['true', true], corners: ['true', true, true], clip: true });
+  expect(o).toEqual({ slider: false, inPart: true, label: ['Opacity', 'Corner radius'], eye: ['true', true], corners: ['true', true, true], clip: true });
   expect(errs).toEqual([]);
 });
 

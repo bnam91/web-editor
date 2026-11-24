@@ -118,8 +118,24 @@ const _blockRotationDeg = blockRotationDeg;
 /** ★export — 선택 오버레이가 테두리 꼭지점을 «이 함수로» 얻는다(핸들과 같은 좌표).
  *  ⛔베끼지 마라 — 베끼는 순간 「핸들은 여기, 선은 저기」로 갈라진다(M39 가 바로 그 병이었다).
  *  ⚠️한계: 회전은 el «자신»의 dataset 만 본다. 회전한 «조상» 안의 자식은 AABB 가 나온다. */
+/* P1.5(대성 261125 · 인텔 trace S8: 끄는 중 selection-overlay _frame → 여기서 강제 재계산 15회 · 113ms · 요소 12k) —
+   HTML5 끌기 동안엔 고른 블럭이 제자리다(놓기 전까지 DOM 자리 무변) ⇒ 그동안만 상자 사각형을 블럭마다 한 번 재고 다시 쓴다.
+   비우는 때: dragend · drop · pointerup(끌기 끝) · scroll(가장자리 자동 스크롤이 화면 자리를 옮긴다). 끌기 밖에선 지금 그대로 매번 잰다. */
+let _csDragging = false, _csRects = new WeakMap();
+const _csClear = () => { _csDragging = false; _csRects = new WeakMap(); };
+if (typeof document !== 'undefined') {
+  document.addEventListener('dragstart', () => { _csDragging = true; _csRects = new WeakMap(); }, true);
+  for (const t of ['dragend', 'drop', 'pointerup']) document.addEventListener(t, _csClear, true);
+  document.addEventListener('scroll', () => { _csRects = new WeakMap(); }, true);
+}
+function _cornerRect(el) {
+  if (!_csDragging) return el.getBoundingClientRect();
+  let r = _csRects.get(el);
+  if (!r) { r = el.getBoundingClientRect(); _csRects.set(el, r); }
+  return r;
+}
 export function _cornerScreen(el, dir, inset = 0) {
-  const rect = el.getBoundingClientRect();
+  const rect = _cornerRect(el);
   const deg = _blockRotationDeg(el);
   if (!deg) {
     // 회귀 0: 기존과 완전히 동일한 rect 모서리 기반 계산
