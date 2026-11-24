@@ -4717,7 +4717,7 @@ async function batchExecute(params) {
 
 // Set node properties (visibility, lock, opacity)
 async function setNodeProperties(params) {
-  const { nodeId, visible, locked, opacity } = params || {};
+  const { nodeId, visible, locked, opacity, fillsVisible } = params || {};
 
   if (!nodeId) {
     throw new Error("Missing nodeId parameter");
@@ -4743,12 +4743,22 @@ async function setNodeProperties(params) {
     node.opacity = opacity;
   }
 
+  /* 고디터 표준 Fill 숨김(F7 · 지디 261124) — 노드가 아니라 «칠 페인트»마다 visible(Figma 의 Fill 눈과 같은 뜻 · 색·종류 그대로)
+     ⛔옛 플러그인은 이 인자를 모르고 조용히 버린다 → 돌려준 값에 fillsVisible 이 «없으면» 옛 플러그인(부르는 쪽이 경고) */
+  if (fillsVisible !== undefined) {
+    if (!("fills" in node) || !Array.isArray(node.fills)) {
+      throw new Error(`Node type ${node.type} does not support fills`);
+    }
+    node.fills = node.fills.map((f) => Object.assign({}, f, { visible: !!fillsVisible }));
+  }
+
   return {
     id: node.id,
     name: node.name,
     visible: node.visible,
     locked: node.locked,
-    opacity: "opacity" in node ? node.opacity : undefined
+    opacity: "opacity" in node ? node.opacity : undefined,
+    fillsVisible: ("fills" in node && Array.isArray(node.fills)) ? node.fills.every((f) => f.visible !== false) : undefined
   };
 }
 
