@@ -156,7 +156,7 @@ test('U-OVCOLOR-10 ★전수 — 오버레이 토글을 «가진» 패널이 셋
   /* ⛔블럭 이름을 여기 적지 않는다 — 소스에서 «토글 버튼을 그리는 패널»을 세어 온다.
      새 패널이 토글을 달면 이 수가 늘어 빨강이 나고, 그때 그 블럭의 손잡이 계열을 여기 더하게 된다. */
   const panels = ['js/props/prop-asset.js', 'js/props/prop-shape.js', 'js/props/prop-text-template.js']
-    .filter(p => /overlayToggleBtnHTML\(\{/.test(rd(p)));
+    .filter(p => /overlayToggleBtnHTML\(\{|positionHeadToolsHTML\(\{[^}]*ialId:/.test(rd(p))); /* 2026-11-24 기대 바뀜 — 표준 Position P3b: 부품 positionHeadToolsHTML({ ialId }) · positionSectionHTML({ prefix }) 도 같은 SSOT(안에서 overlayToggleBtnHTML·floatPositionRowHTML) */
   assert.equal(panels.length, 3,
     `★오버레이 토글을 그리는 패널 수가 3 이 아니다(${panels.length}) — 늘었으면 그 블럭의 손잡이 색도 여기 더해라`);
   // 텍스트·아이콘텍스트 = .tfo-overlay-handle (계열 한정자 판, 오버레이에서만 만들어진다)
