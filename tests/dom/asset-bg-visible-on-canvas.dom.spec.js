@@ -58,7 +58,7 @@ async function clickUntilPanel(page, cx, cy, id) {
   await expect.poll(async () => {
     if (await page.evaluate((i) => !!document.getElementById(i), id)) return true;
     await page.mouse.click(cx, cy);
-    return page.evaluate((i) => !!document.getElementById(i), id);
+    return page.evaluate((i) => { if (!document.getElementById(i)) document.querySelector('#panel-right [id$="-fill-add"]')?.click(); return !!document.getElementById(i); }, id);   // ★전제(표준 Fill F2-3 · 현빈 GO 261124): 빈 원 = «칠 없음»(색 칸 대신 머리 ＋) → ＋ 로 켠 뒤 색 칸(icb-children K15 와 같은 꼴)
   }, { message: `전제 — 클릭하면 패널에 #${id} 가 선다`, timeout: 10000 }).toBe(true);
 }
 
