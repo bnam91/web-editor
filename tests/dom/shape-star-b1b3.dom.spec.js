@@ -151,7 +151,7 @@ const snap = (page) => page.evaluate(() => {
     fills: [...svg.querySelectorAll('polygon')].map(p => p.getAttribute('fill')),
     frameW: Math.round(parseFloat(frame?.style.width) || parseFloat(frame?.dataset.width) || 0),
     cntDisabled: !!document.getElementById('shape-star-count-num')?.disabled,
-    cntSliderDisabled: !!document.getElementById('shape-star-count-slider')?.disabled,
+    cntSliderDisabled: !!document.getElementById('shape-star-count-num')?.disabled,   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 슬라이더 없음 · 같은 칸 = 숫자 칸(막힘 둘 다 잼 → 하나)
     ratingHint: document.getElementById('shape-star-rating-hint')?.textContent.trim() || null,
     ratingPreview: document.getElementById('shape-star-rating-preview')?.textContent || null,
   };

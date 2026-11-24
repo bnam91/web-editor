@@ -258,8 +258,8 @@ test('E7 막기 — 갯수 3 이면 가림막 절 0 · 이미지 탭 없음 · �
   await page.evaluate(() => window.showShapeProperties?.(document.querySelector('#canvas .shape-block')));
   await page.waitForFunction(() => !!document.getElementById('shape-ellipse-count-hint'));
   const dis = await page.evaluate(() => [document.getElementById('shape-ellipse-count-num')?.disabled,
-    document.getElementById('shape-ellipse-count-slider')?.disabled]);
-  expect(dis).toEqual([true, true]);
+    !!document.getElementById('shape-ellipse-count-slider')]);   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 갯수 = 숫자 칸 하나(막힘 = 그 칸)
+  expect(dis).toEqual([true, false]);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 

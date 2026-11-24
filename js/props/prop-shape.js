@@ -26,6 +26,9 @@ import { clampEllipseCount, ELLIPSE_COUNT_MIN, ELLIPSE_COUNT_MAX,
          ellipseFrameWidthFor, ellipseColorList, ellipseColorsAttr,
          clampEllipseShadow, ELLIPSE_SHADOW_MIN, ELLIPSE_SHADOW_MAX, ELLIPSE_SHADOW_ON_DEFAULT } from '../shape-ellipse.js';
 import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance A4(Opacity 만)
+import { layoutSizeRowHTML, layoutGapSlotHTML, layoutSlotNumberHTML, wireLayoutSection, ratioLockOn, setRatioLock } from './_layout-section.js';   // 표준 Layout L2·L3·L4
+import { wireNumberScrub } from './_helpers.js';   // 갯수·간격 칸 라벨 끌기(옛 숫자 칸 배선 그대로)
 
 // 캔버스에서 온캔버스 그라데이션 라인을 드래그하면(gradient-line-overlay.js, source==='canvas')
 // 모달이 열려 있을 때 스와치 미리보기만 동기화한다. bg 쓰기/재렌더는 이미
@@ -157,6 +160,46 @@ export function showShapeProperties(block) {
   const isFloatOverlay = floatPosEl?.dataset.overlayBlock === 'true';
 
   /* ★Effects 절 — 효과 목록 그리개(js/effects-registry.js)는 한 벌. 틀 절의 몸통(카드 목록)·머리 손잡이(추가 목록)로 받는다. */
+  /* ★A5(현빈 261124 7-4) — 옛 Appearance 절의 «가림막»(블러로 가리기·방식·강도) 마크업을 Effects 절 맨 앞으로 그대로 옮긴다(id·키·배선 무변) */
+  const SHAPE_REDACT_HTML = `
+      <div class="prop-row">
+        <!-- ★prop-label--auto: 「블러로 가리기」는 전역 .prop-label(56px)에 안 들어가 말줄임으로 잘렸다
+             (2026-09-20 실측 sw60/cw56, 실물 앱은 더 잘림). 이 줄은 «라벨 하나 + 남는 폭을 쓰는 컨트롤»
+             이라 앱 관례인 내용폭 라벨을 쓴다(css/editor-props.css:32, prop-page.js 「그리드 가이드」 선례).
+             ⛔전역 .prop-label 의 56px 은 내리지도 올리지도 마라 — 패널 세로 정렬의 출처다. -->
+        ${checkHTML({ id: 'shape-redact-toggle', label: '블러로 가리기', checked: isRedact })}
+      </div>
+      <div id="shape-redact-controls" style="${isRedact ? '' : 'display:none'}">
+        <div class="prop-row" style="margin-top:8px;">
+          <span class="prop-label">방식</span>
+          <div class="prop-align-group" id="shape-redact-mode-seg">
+            <button type="button" class="prop-align-btn${redactMode === 'blur' ? ' active' : ''}" data-mode="blur" aria-pressed="${redactMode === 'blur'}" title="블러 — 밑 콘텐츠를 실시간으로 흐림">블러</button>
+            <!-- ⚠️class 속성은 «템플릿 표현식 하나»를 유지한다 — tests/unit/redact-mode-seg-markup.test.js:38 이
+                 class="prop-align-btn" + 표현식 하나 형태를 고정한다(정적 클래스를 더하면 그 초록이 깨진다).
+                 비활성 표시는 class «밖»(disabled / aria-disabled / title)으로 낸다.
+                 ⛔버튼을 «지우지» 않는다 — 현빈 표현이 「모자이크 버튼의 기능은 막아둘 것」이고,
+                    같은 테스트 :35 가 data-mode 버튼 2개(blur·mosaic)를 요구한다.
+                 ⛔이 주석 안에 달러+중괄호를 쓰지 마라 — 템플릿 리터럴 «안»이라 JS 로 평가된다(2026-09-20 실측: SyntaxError). -->
+            <button type="button" class="prop-align-btn${redactMode === 'mosaic' ? ' active' : ''}" data-mode="mosaic" aria-pressed="${redactMode === 'mosaic'}"${mosaicOK ? '' : ' disabled aria-disabled="true"'} title="${mosaicOK ? '모자이크 — 밑 화면을 찍어 픽셀화(이동·편집이 끝날 때 다시 찍음)' : '모자이크는 일시적으로 꺼져 있습니다(블러만 사용) — 캡처가 사진을 못 실어 회색/단색으로 나오는 문제 수정 중'}">모자이크</button>
+          </div>
+        </div>
+        ${legacyMosaic ? `
+        <div class="prop-hint" id="shape-redact-legacy-note" style="margin-top:6px;">이 도형은 <b>모자이크</b>로 저장돼 있습니다. 모자이크가 일시 중지돼 지금은 <b>블러로 보여 주는 중</b>이고, 모자이크가 되살아나면 다시 모자이크로 돌아갑니다.</div>
+        <button type="button" class="prop-btn" id="shape-redact-to-blur" style="margin-top:6px;width:100%;">블러로 바꾸기 (저장값도 블러로)</button>
+        ` : ''}
+        <div class="prop-row" style="margin-top:8px;">
+          <span class="prop-label">강도</span>
+          <input type="range" class="prop-slider" id="shape-redact-blur-slider" min="2" max="20" step="1" value="${redactBlur}">
+          <input type="number" class="prop-number" id="shape-redact-blur-num" min="2" max="20" value="${redactBlur}">
+        </div>
+        <!-- 힌트 ≤2: 레거시 모자이크 고지가 뜨면 블러 설명 줄은 뺀다(고지가 같은 말을 한다) -->
+        ${redactMode === 'mosaic' ? `
+        <button type="button" class="prop-btn" id="shape-redact-mosaic-refresh" style="margin-top:8px;width:100%;">${window.isMosaicPending?.(block) ? '캡처 중…' : '지금 스냅샷 새로고침'}</button>
+        <div class="prop-hint" style="margin-top:4px;">도형을 얼굴·주민번호 등 위에 올리면 그 순간 밑 콘텐츠를 캡처해 픽셀 모자이크로 가립니다. 실시간 추적이 아니라 도형을 옮기거나(이동/리사이즈 종료) 편집을 마칠 때(mouseup) 자동으로 다시 찍습니다 — 안 맞으면 위 버튼으로 즉시 새로고침하세요. 채우기 색상은 무시됩니다.</div>
+        ` : `
+        ${legacyMosaic ? '' : `<div class="prop-hint" style="margin-top:4px;">도형을 얼굴·주민번호 등 위에 올리면 밑에 깔린 콘텐츠가 실시간으로 흐려집니다. 채우기 색상은 무시됩니다.</div>`}
+        `}
+      </div>`;
   const _fx = window.fxSectionParts?.(block, 'shape');
   renderPanel(block, {
     header: blockHeaderHTML({
@@ -206,89 +249,27 @@ export function showShapeProperties(block) {
       // 플로팅 토글 = Position 절 머리 손잡이(§2-1) · X/Y · 회전
       sec('position', `
       ${positionSectionHTML({ prefix: 'shape', posEl: floatPosEl, rot: { p: 'shape', numberId: 'shape-rot-num', value: parseInt(block.dataset.shapeRotation || '0'), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' } })}`, { headTools: positionHeadToolsHTML({ prefix: 'shape', ialId: 'shape-overlay-toggle', ialOn: isFloatOverlay }) }),
-      sec('size', `
-      <div class="prop-row">
-        <span class="prop-label">W</span>
-        <input type="range" class="prop-slider" id="shape-w-slider" min="10" max="860" step="1" value="${w}">
-        <input type="number" class="prop-number" id="shape-w-num" min="10" max="860" value="${w}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">H</span>
-        <input type="range" class="prop-slider" id="shape-h-slider" min="10" max="860" step="1" value="${h}">
-        <input type="number" class="prop-number" id="shape-h-num" min="10" max="860" value="${h}">
-      </div>`),
+      /* ★표준 Layout L2(현빈 261124 L-4 · 시안 #mkp-layoutstd) — 슬라이더 걷음 · 숫자 칸 id·범위(10~860)·래퍼 프레임 크기 무변 · 비율 사슬 기본 끔 */
+      sec('size', layoutSizeRowHTML({ prefix: 'shape', chain: { on: ratioLockOn(block, false) },
+        w: { id: 'shape-w-num', value: w, min: 10, max: 860 }, h: { id: 'shape-h-num', value: h, min: 10, max: 860 } })),
       // 원·별 «갯수»·«간격» = Layout
       sec('layout', `
       ${isEllipse ? `<!-- 1013t2A1 원 «갯수»·«간격» — 별의 「갯수」·「간격」과 같은 slider+number 쌍·같은 범위(1~10).
            갯수를 늘리면 블록이 옆으로 넓어진다(원 크기 유지). 간격 줄은 갯수>1 일 때만. -->
-      <div class="prop-row">
-        <span class="prop-label">갯수</span>
-        <input type="range" class="prop-slider" id="shape-ellipse-count-slider" min="${ELLIPSE_COUNT_MIN}" max="${ELLIPSE_COUNT_MAX}" step="1" value="${ellCount}"${isRedact ? ' disabled' : ''}>
-        <input type="number" class="prop-number" id="shape-ellipse-count-num" min="${ELLIPSE_COUNT_MIN}" max="${ELLIPSE_COUNT_MAX}" value="${ellCount}"${isRedact ? ' disabled' : ''}>
-      </div>
+      ${layoutSlotNumberHTML({ id: 'shape-ellipse-count-num', label: '갯수', value: ellCount, min: ELLIPSE_COUNT_MIN, max: ELLIPSE_COUNT_MAX })}
       ${isRedact ? `<div class="prop-hint" id="shape-ellipse-count-hint" style="margin-top:4px;">가림막이 켜져 있으면 원은 1개만 쓸 수 있습니다.</div>` : ''}
-      ${ellCount > 1 ? `<div class="prop-row">
-        <span class="prop-label">간격</span>
-        <input type="range" class="prop-slider" id="shape-ellipse-gap-slider" min="${ELLIPSE_GAP_MIN}" max="${ELLIPSE_GAP_MAX}" step="1" value="${ellGap}">
-        <input type="number" class="prop-number" id="shape-ellipse-gap-num" min="${ELLIPSE_GAP_MIN}" max="${ELLIPSE_GAP_MAX}" value="${ellGap}">
-      </div>` : ''}` : ''}
+      ${ellCount > 1 ? layoutGapSlotHTML({ id: 'shape-ellipse-gap-num', value: ellGap, min: ELLIPSE_GAP_MIN, max: ELLIPSE_GAP_MAX }) : ''}` : ''}
       ${shapeType === 'star' ? `
       <!-- ★별 «갯수»(현빈 2026-10-06 「우측패널에 갯수추가하기하면 별 갯수가 여러개 추가되게」).
            ★꼴은 새로 짓지 않았다 — 바로 위 「꼭짓점」·「W/H」·「두께」와 «같은» slider+number 쌍이다.
            ★갯수를 늘리면 블록이 «옆으로» 넓어진다(별 크기 유지 — 현빈 판정). -->
-      <div class="prop-row">
-        <span class="prop-label">갯수</span>
-        <input type="range" class="prop-slider" id="shape-star-count-slider" min="${STAR_COUNT_MIN}" max="${STAR_COUNT_MAX}" step="1" value="${starCount}"${ratingOn ? ' disabled' : ''}>
-        <input type="number" class="prop-number" id="shape-star-count-num" min="${STAR_COUNT_MIN}" max="${STAR_COUNT_MAX}" value="${starCount}"${ratingOn ? ' disabled' : ''}>
-      </div>
+      ${layoutSlotNumberHTML({ id: 'shape-star-count-num', label: '갯수', value: starCount, min: STAR_COUNT_MIN, max: STAR_COUNT_MAX })}
       ${starCount > 1 ? `<!-- 별 «간격»(현빈 2026-10-07 「별 간격 조절되면 좋겠고」).
            ★갯수가 1 이면 이 줄을 안 그린다 — dx=0 이라 ★조용히 아무 일도 안 일어난다
              (「조용히 아무 일 없음」을 만들지 않는다). 갯수를 2 이상으로 올리면 나타난다. -->
-      <div class="prop-row">
-        <span class="prop-label">간격</span>
-        <input type="range" class="prop-slider" id="shape-star-gap-slider" min="${STAR_GAP_MIN}" max="${STAR_GAP_MAX}" step="1" value="${starGap}">
-        <input type="number" class="prop-number" id="shape-star-gap-num" min="${STAR_GAP_MIN}" max="${STAR_GAP_MAX}" value="${starGap}">
-      </div>` : ''}` : ''}`),
-      // 옛 「가림막 (Redact)」 → Appearance(§2-1 — 가림막은 모양 절)
-      sec('appearance', canRedact ? `
-      <div class="prop-row">
-        <!-- ★prop-label--auto: 「블러로 가리기」는 전역 .prop-label(56px)에 안 들어가 말줄임으로 잘렸다
-             (2026-09-20 실측 sw60/cw56, 실물 앱은 더 잘림). 이 줄은 «라벨 하나 + 남는 폭을 쓰는 컨트롤»
-             이라 앱 관례인 내용폭 라벨을 쓴다(css/editor-props.css:32, prop-page.js 「그리드 가이드」 선례).
-             ⛔전역 .prop-label 의 56px 은 내리지도 올리지도 마라 — 패널 세로 정렬의 출처다. -->
-        ${checkHTML({ id: 'shape-redact-toggle', label: '블러로 가리기', checked: isRedact })}
-      </div>
-      <div id="shape-redact-controls" style="${isRedact ? '' : 'display:none'}">
-        <div class="prop-row" style="margin-top:8px;">
-          <span class="prop-label">방식</span>
-          <div class="prop-align-group" id="shape-redact-mode-seg">
-            <button type="button" class="prop-align-btn${redactMode === 'blur' ? ' active' : ''}" data-mode="blur" aria-pressed="${redactMode === 'blur'}" title="블러 — 밑 콘텐츠를 실시간으로 흐림">블러</button>
-            <!-- ⚠️class 속성은 «템플릿 표현식 하나»를 유지한다 — tests/unit/redact-mode-seg-markup.test.js:38 이
-                 class="prop-align-btn" + 표현식 하나 형태를 고정한다(정적 클래스를 더하면 그 초록이 깨진다).
-                 비활성 표시는 class «밖»(disabled / aria-disabled / title)으로 낸다.
-                 ⛔버튼을 «지우지» 않는다 — 현빈 표현이 「모자이크 버튼의 기능은 막아둘 것」이고,
-                    같은 테스트 :35 가 data-mode 버튼 2개(blur·mosaic)를 요구한다.
-                 ⛔이 주석 안에 달러+중괄호를 쓰지 마라 — 템플릿 리터럴 «안»이라 JS 로 평가된다(2026-09-20 실측: SyntaxError). -->
-            <button type="button" class="prop-align-btn${redactMode === 'mosaic' ? ' active' : ''}" data-mode="mosaic" aria-pressed="${redactMode === 'mosaic'}"${mosaicOK ? '' : ' disabled aria-disabled="true"'} title="${mosaicOK ? '모자이크 — 밑 화면을 찍어 픽셀화(이동·편집이 끝날 때 다시 찍음)' : '모자이크는 일시적으로 꺼져 있습니다(블러만 사용) — 캡처가 사진을 못 실어 회색/단색으로 나오는 문제 수정 중'}">모자이크</button>
-          </div>
-        </div>
-        ${legacyMosaic ? `
-        <div class="prop-hint" id="shape-redact-legacy-note" style="margin-top:6px;">이 도형은 <b>모자이크</b>로 저장돼 있습니다. 모자이크가 일시 중지돼 지금은 <b>블러로 보여 주는 중</b>이고, 모자이크가 되살아나면 다시 모자이크로 돌아갑니다.</div>
-        <button type="button" class="prop-btn" id="shape-redact-to-blur" style="margin-top:6px;width:100%;">블러로 바꾸기 (저장값도 블러로)</button>
-        ` : ''}
-        <div class="prop-row" style="margin-top:8px;">
-          <span class="prop-label">강도</span>
-          <input type="range" class="prop-slider" id="shape-redact-blur-slider" min="2" max="20" step="1" value="${redactBlur}">
-          <input type="number" class="prop-number" id="shape-redact-blur-num" min="2" max="20" value="${redactBlur}">
-        </div>
-        <!-- 힌트 ≤2: 레거시 모자이크 고지가 뜨면 블러 설명 줄은 뺀다(고지가 같은 말을 한다) -->
-        ${redactMode === 'mosaic' ? `
-        <button type="button" class="prop-btn" id="shape-redact-mosaic-refresh" style="margin-top:8px;width:100%;">${window.isMosaicPending?.(block) ? '캡처 중…' : '지금 스냅샷 새로고침'}</button>
-        <div class="prop-hint" style="margin-top:4px;">도형을 얼굴·주민번호 등 위에 올리면 그 순간 밑 콘텐츠를 캡처해 픽셀 모자이크로 가립니다. 실시간 추적이 아니라 도형을 옮기거나(이동/리사이즈 종료) 편집을 마칠 때(mouseup) 자동으로 다시 찍습니다 — 안 맞으면 위 버튼으로 즉시 새로고침하세요. 채우기 색상은 무시됩니다.</div>
-        ` : `
-        ${legacyMosaic ? '' : `<div class="prop-hint" style="margin-top:4px;">도형을 얼굴·주민번호 등 위에 올리면 밑에 깔린 콘텐츠가 실시간으로 흐려집니다. 채우기 색상은 무시됩니다.</div>`}
-        `}
-      </div>` : ''),
+      ${layoutGapSlotHTML({ id: 'shape-star-gap-num', value: starGap, min: STAR_GAP_MIN, max: STAR_GAP_MAX })}` : ''}` : ''}`),   // ★표준 Layout L3·L4 — 갯수 = 블럭 슬롯 숫자 · 간격 = 간격 슬롯(슬라이더 걷음 · id·키·범위 무변 · 막힘(가림막·별점)은 배선에서 disabled)
+      /* ★표준 Appearance A4 — Opacity 만 · 옛 «가림막» 줄은 Effects 로(A5 · 현빈 261124 7-4 · id·키·배선 무변) */
+      sec('appearance', appearanceSectionHTML({ prefix: 'shape', op: { value: window.readBlockOpacity?.(block) ?? 100 } }), { headTools: appearanceHeadToolsHTML({ prefix: 'shape' }) }),
       // 가림막이 켜지면 채우기 색은 무시된다 ⇒ 절을 «안 그린다»(숨긴 줄만 든 빈 머리 금지 · 토글은 패널을 다시 그린다)
       sec('fill', isRedact ? '' : `
       <div id="shape-fill-row">${fillSectionHTML({ prefix: 'shape-fill', on: fillOn, kind: fillKind, colorHtml: colorFieldHTML({ idPrefix: 'shape-color', hex: color, alpha: colorAlpha, gradientCss }) })}</div>
@@ -335,7 +316,7 @@ export function showShapeProperties(block) {
         align: /^(rectangle|ellipse)$/.test(block.dataset.shapeType || 'rectangle') ? 'inside' : 'center', canAlign: false, alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 도형 모양대로 그려집니다', on: strokeWidth > 0 }),
         { headTools: strokeHeadToolsHTML({ prefix: 'shape-stroke', on: strokeWidth > 0 }) }),   // 머리 ＋/− — 없음 = 굵기 0(§4c 없음 열 실측)
       // 원 이너 그림자 + 효과 목록(Effects)
-      sec('effects', `${isEllipse && !isRedact ? `
+      sec('effects', `${canRedact ? SHAPE_REDACT_HTML : ''}${isEllipse && !isRedact ? `
         <div id="shape-ellipse-shadow-wrap">
         <div class="prop-row" style="margin-top:8px;">
         ${checkHTML({ id: 'shape-ellipse-shadow-toggle', label: 'Inner shadow', checked: ellShadow !== null })}
@@ -723,26 +704,20 @@ export function showShapeProperties(block) {
   window.bindGradientLinePicker?.(block, shapeColorInput);
 
   // ── 크기 W ──
-  const wSlider = document.getElementById('shape-w-slider');
-  const wNum    = document.getElementById('shape-w-num');
-  wSlider.addEventListener('input',  () => { wNum.value = wSlider.value; applySize(parseInt(wSlider.value), null); });
-  wSlider.addEventListener('change', () => window.pushHistory?.());
-  wNum.addEventListener('input', () => {
-    const v = Math.min(860, Math.max(10, parseInt(wNum.value) || 10));
-    wSlider.value = v; wNum.value = v; applySize(v, null);
+  /* ★표준 Layout L2 — 옛 슬라이더+숫자 쌍 자리 · 부품 배선(input = 범위 안이면 바로 applySize · change = 잘라 + 이력 한 칸 · 빈 칸 = 되돌림 · 라벨 끌기 · 비율 사슬) */
+  wireLayoutSection({ commit: () => window.pushHistory?.(),
+    w: { numberId: 'shape-w-num', min: 10, max: 860, apply: (v) => applySize(v, null), read: () => _shapeFrameSize(ss || block, 'w') },
+    h: { numberId: 'shape-h-num', min: 10, max: 860, apply: (v) => applySize(null, v), read: () => _shapeFrameSize(ss || block, 'h') },
+    chain: { id: 'shape-ratio', on: ratioLockOn(block, false), set: (on) => setRatioLock(block, on, false) } });
+  wireAppearanceSection({ op: { numberId: 'shape-opacity', apply: (v) => window.setBlockOpacity?.(block, v) } });   // A4 Opacity — 계약(갈래 E) 없으면 그리기 0
+  /* 갯수·간격 칸 — 옛 숫자 칸 배선 그대로(아래) + 라벨 끌기(input/change 를 그대로 쏜다) · 막힘(가림막 원 1개 · 별점 5개) = disabled(옛 마크업 자리) */
+  [['shape-star-count-num', STAR_COUNT_MIN, STAR_COUNT_MAX, ratingOn], ['shape-star-gap-num', STAR_GAP_MIN, STAR_GAP_MAX, false],
+   ['shape-ellipse-count-num', ELLIPSE_COUNT_MIN, ELLIPSE_COUNT_MAX, isRedact], ['shape-ellipse-gap-num', ELLIPSE_GAP_MIN, ELLIPSE_GAP_MAX, false]].forEach(([id, min, max, off]) => {
+    const n = document.getElementById(id);
+    if (!n) return;
+    if (off) n.disabled = true;
+    wireNumberScrub(document.getElementById(`${id}-scrub`), n, { min, max });
   });
-  wNum.addEventListener('change', () => window.pushHistory?.());
-
-  // ── 크기 H ──
-  const hSlider = document.getElementById('shape-h-slider');
-  const hNum    = document.getElementById('shape-h-num');
-  hSlider.addEventListener('input',  () => { hNum.value = hSlider.value; applySize(null, parseInt(hSlider.value)); });
-  hSlider.addEventListener('change', () => window.pushHistory?.());
-  hNum.addEventListener('input', () => {
-    const v = Math.min(860, Math.max(10, parseInt(hNum.value) || 10));
-    hSlider.value = v; hNum.value = v; applySize(null, v);
-  });
-  hNum.addEventListener('change', () => window.pushHistory?.());
 
   /* ── 별 꼭짓점 수(B2) ＋ 별 갯수(현빈 2026-10-06) ──
    * ★두 값을 ★한 함수(_applyStarGeom)로 쓴다 — 명부를 둘로 만들지 않는다. 꼭짓점만 바꿔도 갯수를
@@ -750,7 +725,6 @@ export function showShapeProperties(block) {
    * ★값이 «다를 때만» DOM 에 쓴다 — 같은 값을 다시 쓰면 복원 뒤 직렬화가 갈려 ⌘Z 깊이가 깎인다(B2 규율). */
   const starSlider = document.getElementById('shape-star-slider');
   const starNum    = document.getElementById('shape-star-num');
-  const starCSlider = document.getElementById('shape-star-count-slider');
   const starCNum    = document.getElementById('shape-star-count-num');
 
   /** ★지금 dataset 에서 ★«네 값»(꼭짓점·갯수·간격·통통함)을 ★스스로 읽어 SVG 기하를 맞춘다. 멱등.
@@ -859,11 +833,11 @@ export function showShapeProperties(block) {
   /* ★★밖으로 뺐다(1010t1b3) — ★평점을 켜면 ★갯수를 ★5 로 맞춰야 하고, ★그 «갯수→폭» 규칙의
      ★임자는 ★이 함수 ★하나여야 한다. ⛔평점 쪽에 ★폭 계산을 ★다시 쓰면 ★명부가 ★둘이 된다. */
   let applyStarCount = null;
-  if (starCSlider && starCNum) {
+  if (starCNum) {
     applyStarCount = (raw) => {
       const prev = clampStarCount(block.dataset.starCount);
       const c = clampStarCount(raw);
-      starCSlider.value = c; starCNum.value = c;
+      starCNum.value = c;
       if (c === prev) return;
       /* ★갯수를 늘리면 블록이 «옆으로» 넓어진다 — 별 크기 유지(현빈 판정 2026-10-06).
          ⛔W 를 그대로 두면 viewBox 만 N배라 preserveAspectRatio="none" 때문에 별이 1/N 로 납작해진다.
@@ -887,8 +861,6 @@ export function showShapeProperties(block) {
       window.scheduleAutoSave?.();
       showShapeProperties(block);   // 갯수에 따라 안내문구·이미지 탭 가능 여부가 바뀐다 → 패널 다시
     };
-    starCSlider.addEventListener('input',  () => applyStarCount(starCSlider.value));
-    starCSlider.addEventListener('change', () => window.pushHistory?.());
     starCNum.addEventListener('input',  () => { if (starCNum.value !== '') applyStarCount(starCNum.value); });
     starCNum.addEventListener('change', () => { applyStarCount(starCNum.value); window.pushHistory?.(); });
   }
@@ -933,13 +905,12 @@ export function showShapeProperties(block) {
     starRNum.addEventListener('change', () => { applyStarRound(starRNum.value); window.pushHistory?.(); });
   }
 
-  const starGSlider = document.getElementById('shape-star-gap-slider');
   const starGNum    = document.getElementById('shape-star-gap-num');
-  if (starGSlider && starGNum) {
+  if (starGNum) {
     const applyStarGap = (raw) => {
       const g = clampStarGap(raw);
       const prevG = clampStarGap(block.dataset.starGap);
-      starGSlider.value = g; starGNum.value = g;
+      starGNum.value = g;
       if (g === prevG) return;
       /* ★★★b1 (현빈 2026-10-10) — ★간격도 ★폭을 ★키운다.
          ★고치기 전: ★여기가 ★폭을 ★안 건드려 ★viewBox 만 넓어졌다 ⇒ ★`preserveAspectRatio="none"`
@@ -954,8 +925,6 @@ export function showShapeProperties(block) {
       if (_w && _w.wantW !== _w.curW) applySize(_w.wantW, null);
       window.scheduleAutoSave?.();
     };
-    starGSlider.addEventListener('input',  () => applyStarGap(starGSlider.value));
-    starGSlider.addEventListener('change', () => window.pushHistory?.());
     starGNum.addEventListener('input',  () => { if (starGNum.value !== '') applyStarGap(starGNum.value); });
     starGNum.addEventListener('change', () => { applyStarGap(starGNum.value); window.pushHistory?.(); });
   }
@@ -1069,14 +1038,13 @@ export function showShapeProperties(block) {
       if (raw === null) return null;
       return { curW, wantW: Math.max(10, Math.min(860, Math.round(raw))) };
     };
-    const ellCSlider = document.getElementById('shape-ellipse-count-slider');
     const ellCNum    = document.getElementById('shape-ellipse-count-num');
-    if (ellCSlider && ellCNum) {
+    if (ellCNum) {
       const applyEllCount = (raw) => {
-        if (ellCSlider.disabled) return;
+        if (ellCNum.disabled) return;
         const prev = clampEllipseCount(block.dataset.ellipseCount);
         const c = clampEllipseCount(raw);
-        ellCSlider.value = c; ellCNum.value = c;
+        ellCNum.value = c;
         if (c === prev) return;
         const _w = _ellWantW(c, block.dataset.ellipseGap);
         if (c === 1) { if (block.dataset.ellipseCount !== undefined) delete block.dataset.ellipseCount; }
@@ -1092,18 +1060,15 @@ export function showShapeProperties(block) {
         window.scheduleAutoSave?.();
         showShapeProperties(block);   // 색 칸 수·간격 줄·가림막 절이 바뀐다 → 패널 다시
       };
-      ellCSlider.addEventListener('input',  () => applyEllCount(ellCSlider.value));
-      ellCSlider.addEventListener('change', () => window.pushHistory?.());
       ellCNum.addEventListener('input',  () => { if (ellCNum.value !== '') applyEllCount(ellCNum.value); });
       ellCNum.addEventListener('change', () => { applyEllCount(ellCNum.value); window.pushHistory?.(); });
     }
-    const ellGSlider = document.getElementById('shape-ellipse-gap-slider');
     const ellGNum    = document.getElementById('shape-ellipse-gap-num');
-    if (ellGSlider && ellGNum) {
+    if (ellGNum) {
       const applyEllGap = (raw) => {
         const g = clampEllipseGap(raw);
         const prevG = clampEllipseGap(block.dataset.ellipseGap);
-        ellGSlider.value = g; ellGNum.value = g;
+        ellGNum.value = g;
         if (g === prevG) return;
         const _w = _ellWantW(block.dataset.ellipseCount, g);
         if (g === ELLIPSE_GAP_DEFAULT) { if (block.dataset.ellipseGap !== undefined) delete block.dataset.ellipseGap; }
@@ -1112,8 +1077,6 @@ export function showShapeProperties(block) {
         if (_w && _w.wantW !== _w.curW) applySize(_w.wantW, null);
         window.scheduleAutoSave?.();
       };
-      ellGSlider.addEventListener('input',  () => applyEllGap(ellGSlider.value));
-      ellGSlider.addEventListener('change', () => window.pushHistory?.());
       ellGNum.addEventListener('input',  () => { if (ellGNum.value !== '') applyEllGap(ellGNum.value); });
       ellGNum.addEventListener('change', () => { applyEllGap(ellGNum.value); window.pushHistory?.(); });
     }
