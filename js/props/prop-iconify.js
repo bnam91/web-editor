@@ -7,6 +7,9 @@ import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from 
 import { sanitizeSvgString } from '../util/sanitize-svg.js';
 import { normIconStroke, isStrokeIcon, iconStrokeOf, applyIconStroke, msFillState, msNameFor, ICON_STROKE_MIN, ICON_STROKE_MAX, ICON_STROKE_STEP } from '../blocks/icon-variant.js';   /* ICON-FEATHER-MATERIAL(261121) 선 두께·채움 */
 
+import { layoutSizeRowHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(C2)
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance A4(C2)
+
 /* ICON-FEATHER-MATERIAL — Iconify 에서 SVG 한 장(iconify-panel _doInsert 와 같은 검사: HTTP 오류·SVG 아님 = 실패) · 세척본만 돌려준다. */
 async function _fetchIconSvg(name) {
   const [prefix, icon] = String(name).split(':');
@@ -62,12 +65,8 @@ export function showIconifyProperties(block) {
       sec('position', `
       ${window.floatPositionRowHTML?.({ prefix: 'icn', posEl: block }) || ''}
       ${/* 0/90/180/270 단추 4 걷음(현빈 GO 261124 14:25 · 키 rotation 무변 · 90° 돌리기 = 회전 줄 ↻) */ ''}${positionSectionHTML({ prefix: 'icn', posEl: block, xy: false, rot: { p: 'icn', numberId: 'icn-rot-number', value: (rotation > 180 ? rotation - 360 : rotation), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' } })}`, { headTools: positionHeadToolsHTML({ prefix: 'icn', ialId: 'icn-float-toggle', ialOn: floating }) }),   // 표준 Position P3(슬라이드 모드 씀 · 90° 단추 4 걷음 = 현빈 GO 261124 14:25)
-      sec('size', `
-      <div class="prop-row">
-        <span class="prop-label">크기</span>
-        <input type="range"  class="prop-slider" id="icn-size-slider" min="16" max="512" step="8"  value="${size}">
-        <input type="number" class="prop-number" id="icn-size-number" min="16" max="512" value="${size}">
-      </div>`),
+      sec('size', layoutSizeRowHTML({ prefix: 'icn', one: { id: 'icn-size-number', label: 'Size', min: 16, max: 512, value: size } })),   // ★표준 Layout(C2) — 옛 슬라이더 icn-size-slider 걷음 · 숫자 칸 id·범위 무변
+      sec('appearance', appearanceSectionHTML({ prefix: 'icn', op: { value: window.readBlockOpacity?.(block) ?? 100 } }), { headTools: appearanceHeadToolsHTML({ prefix: 'icn' }) }),   // ★표준 Appearance A4(C2) — Opacity 만(모서리 없음)
       // 플로팅이면 정렬이 뜻이 없다 ⇒ 절째 안 그린다(숨긴 줄만 든 빈 머리 금지)
       sec('layout', floating ? '' : `
       <div class="prop-row">
@@ -334,8 +333,6 @@ export function showIconifyProperties(block) {
   saveCancel?.addEventListener('click', hideSaveInput);
 
   // 크기
-  const sSlider = propPanel.querySelector('#icn-size-slider');
-  const sNumber = propPanel.querySelector('#icn-size-number');
   const applySize = v => {
     v = Math.min(512, Math.max(16, v));
     block.dataset.size = v;
@@ -345,14 +342,10 @@ export function showIconifyProperties(block) {
     if (svg) { svg.setAttribute('width', v); svg.setAttribute('height', v); }
     const img = block.querySelector('img');
     if (img) { img.width = v; img.height = v; }
-    sSlider.value = v; sNumber.value = v;
   };
-  sSlider.addEventListener('mousedown', () => window.pushHistory?.());
-  sSlider.addEventListener('input',  () => applySize(parseInt(sSlider.value)));
-  /* ★[2026-09-21] 순서를 뒤집었다 — prop-mockup.js 의 폭 숫자칸과 «같은 결함»이었다(실측 A).
-     이웃(:311 mousedown · :312 input · :314 change)은 맞다 — 숫자칸 하나만 뒤집혀 있었다. */
-  sNumber.addEventListener('change', () => { applySize(parseInt(sNumber.value)); window.pushHistory?.(); });
-  sSlider.addEventListener('change', () => window.pushHistory?.());
+  /* ★표준 Layout(C2) — 옛 슬라이더 걷음 · 칸 배선은 부품(input = 범위 안이면 바로 · change = 잘라 그린 «뒤» 이력 한 번 — 2026-09-21 순서 그대로 · 빈 칸 = 옛 값) */
+  wireLayoutSection({ commit: () => window.pushHistory?.(), w: { numberId: 'icn-size-number', min: 16, max: 512, apply: applySize } });
+  wireAppearanceSection({ op: { numberId: 'icn-opacity', apply: (v) => window.setBlockOpacity?.(block, v) } });   // ★표준 Appearance A4(C2)
 
   // ICON-FEATHER-MATERIAL — 선 두께(라이브 input · 끝 표본 change · 크기 칸과 같은 이력 규약)
   /* 표준 Stroke 2-5 — 부품 배선(어댑터 = 옛 applyStroke 그대로: normIconStroke → dataset.iconStroke → applyIconStroke · change = 이력 한 칸 + 자동저장) */
