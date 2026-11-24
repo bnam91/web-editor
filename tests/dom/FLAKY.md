@@ -451,6 +451,10 @@ ft-restore-remeasures-at-other-width.dom.spec.js:112 X0   빨강 1/1 (u6m 전수
 - `t13d-02-grid-handles-on-create.dom.spec.js:17` A1 — srv 표적 1 워커 flaky 1/1 · 머리 ×5 0/5 · 제품 파일 c04fbfb8b 판 ×5 0/5 빨강.
 - `u3-purple-outline-geometry.dom.spec.js:131` U2 — srv 표적 1 워커 flaky 1/1 · 머리 ×5 0/5 · 제품 파일 c04fbfb8b 판 ×5 0/5 빨강.
 - `slide-frame-cells.dom.spec.js:408` R3 — srv 공유 DOM 10 파일 1 워커(94) 빨강 1/1(놓기 = insert, 기대 slidecell) · 단독 ×3 0/3(통합 9b7820839+)
+- `iconify-bundle-preview.dom.spec.js:59 B2` — 수지 합친 판 표적 651abaee6(5443 · 1 워커) 빨강 1/1 · 단독 ×3 0/3(651abaee6)
+- `itb-photo-upload-door.dom.spec.js:121 U1` — 수지 합친 판 표적 651abaee6(5443 · 1 워커) 빨강 1/1 · 단독 ×3 0/3(651abaee6)
+- `sec-asset-url-card-noop.dom.spec.js:89 U3` — 수지 합친 판 표적 651abaee6(5443 · 1 워커) 빨강 1/1 · 단독 ×3 0/3(651abaee6)
+- `slide-fb.dom.spec.js:57 F1b` — 수지 합친 판 표적 651abaee6(5443 · 1 워커) 빨강 1/1 · 단독 ×3 0/3(651abaee6)
 ## 2026-11-23 · 통일판 2맥(아이맥·수지) 전수 — 이름 ＋ 수 (⛔원인 라벨 없이)
 - `t13d-02-grid-handles-on-create.dom.spec.js:17` A1 — 2맥(아이맥·수지) 전수(f7bda8bd8) 1/1 빨강 · 앞 판 7b69bcbd5 전수(수지 샤드) 1/1 빨강 · f7bda8bd8 수지 단독 workers 1 ×3 0/3.
 
