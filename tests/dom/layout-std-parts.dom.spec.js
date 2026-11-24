@@ -125,3 +125,26 @@ test('AL4 부품 조각 — 한 칸(one) · 높이 자동(칸 막힘 + 사슬 �
   });
   expect(errs).toEqual([]);
 });
+
+/* 탑 261125 — 소비자 C1·C2 꼴(마크업은 tests/unit/layout-section-shapes) · 여기선 배선: 축마다 제 범위로 자름 · 블럭 슬롯 숫자(소수 눈금) · 끌기 */
+test('AL5 배선 — 패딩 x/y 가 제 범위(xMax 160 · yMax 80)로 잘림 · 이력 축마다 1 · 블럭 슬롯 숫자 step 0.1 = 소수 그대로 · 라벨 끌기 +3', async ({ page }) => {
+  const errs = await bootApp(page);
+  const o = await page.evaluate(async () => {
+    const m = await import('/js/props/_layout-section.js');
+    const box = document.createElement('div'); document.body.appendChild(box);
+    box.innerHTML = m.layoutPadSlotHTML({ xId: 'z-px', yId: 'z-py', x: 10, y: 5, max: 999, xMax: 160, yMax: 80 })
+      + m.layoutSlotNumberHTML({ id: 'z-dim', label: '치수', value: 1, min: 0, max: 10, step: 0.1 });
+    const got = { x: null, y: null, d: null }; let commits = 0;
+    m.wireLayoutSection({ commit: () => commits++, w: { numberId: 'z-px', max: 160, apply: (v) => { got.x = v; } }, h: { numberId: 'z-py', max: 80, apply: (v) => { got.y = v; } } });
+    m.wireLayoutSection({ commit: () => commits++, w: { numberId: 'z-dim', max: 10, step: 0.1, apply: (v) => { got.d = v; } } });
+    const set = (id, v) => { const n = document.getElementById(id); n.value = String(v); n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); };
+    set('z-px', 500); set('z-py', 500); set('z-dim', 1.55);
+    return { got: { ...got }, vals: ['z-px', 'z-py', 'z-dim'].map((id) => document.getElementById(id).value), commits };
+  });
+  expect(o).toEqual({ got: { x: 160, y: 80, d: 1.55 }, vals: ['160', '80', '1.55'], commits: 3 });
+  const h = page.locator('#z-px-scrub'); await h.scrollIntoViewIfNeeded(); const b = await h.boundingBox();
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down();
+  await page.mouse.move(b.x + b.width / 2 - 3, b.y + b.height / 2, { steps: 3 }); await page.mouse.up();
+  await expect.poll(() => page.inputValue('#z-px')).toBe('157');
+  expect(errs).toEqual([]);
+});

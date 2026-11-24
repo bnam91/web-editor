@@ -16,6 +16,10 @@ const LAY_CHAIN_ICON = _layIcon('<path d="M5 7 7 5M4.2 5.6 3 6.8a1.7 1.7 0 0 0 2
 const LAY_PX_ICON = _layIcon('<path d="M1.5 2v8M10.5 2v8M4 6h4"/>');
 const LAY_PY_ICON = _layIcon('<path d="M2 1.5h8M2 10.5h8M6 4v4"/>');
 const LAY_GAP_ICON = _layIcon('<path d="M1.5 2h3v8h-3M10.5 2h-3v8h3"/>');
+const LAY_ALL_ICON = _layIcon('<path d="M1.5 1.5h9v9h-9z"/><path d="M4 4h4v4H4z"/>');   // 네 면 한 값
+const LAY_GAPY_ICON = _layIcon('<path d="M2 1.5v3h8v-3M2 10.5v-3h8v3"/>');   // 줄 사이(세로) 간격
+const LAY_NUM_ICON = _layIcon('<path d="M2 4.5h8M2 7.5h8M4.5 2 3.5 10M8.5 2l-1 8"/>');   // 중립(블럭 슬롯 숫자)
+const _LAY_ONE_ICON = { w: LAY_W_ICON, h: LAY_H_ICON, px: LAY_NUM_ICON };
 const LAY_MODE_ICON = _layIcon('<path d="M1.5 6h9M1.5 3.5v5M10.5 3.5v5"/>');
 export const LAY_CHAIN_WHY = '비율 사슬 — 켜면 W 를 바꿀 때 H 가 비율대로(H 도 같다)';
 export const LAY_AUTO_WHY = '높이는 내용이 정해요(자동) — 비율 사슬 막힘';
@@ -35,7 +39,7 @@ export function setRatioLock(block, on, dflt) {
 const _layCell = (label, field, icon, c) => {
   const blank = c.mixed || c.auto;
   const ph = c.mixed ? ' placeholder="Mixed" data-empty="invalid"' : c.auto ? ` placeholder="자동" data-empty="invalid" disabled title="${LAY_AUTO_WHY}"` : '';
-  return `<div class="ui-s2-cell"><span>${label}</span><div class="prop-icon-input" data-part="number" data-field="${field}"><span class="prop-xy-label ui-app-scrub" id="${c.id}-scrub" title="${label || field} — 좌우로 끌면 바뀐다">${icon}</span><input type="number" class="prop-number" id="${c.id}" min="${c.min ?? 0}" max="${c.max}" step="1" value="${blank ? '' : c.value}"${ph} aria-label="${label || field}"></div></div>`;
+  return `<div class="ui-s2-cell"><span>${label}</span><div class="prop-icon-input" data-part="number" data-field="${field}"><span class="prop-xy-label ui-app-scrub" id="${c.id}-scrub" title="${label || field} — 좌우로 끌면 바뀐다">${icon}</span><input type="number" class="prop-number" id="${c.id}" min="${c.min ?? 0}" max="${c.max}" step="${c.step ?? 1}" value="${blank ? '' : c.value}"${ph} aria-label="${label || field}"></div></div>`;
 };
 /* 끝 칸 자리 맞춤(사슬 없는 줄도 숫자 칸 끝이 같은 자리) */
 const _LAY_SPACER = '<span class="ui-lay-spacer" aria-hidden="true"></span>';
@@ -48,7 +52,7 @@ const _layModeCell = (label, m) => (m ? `<div class="ui-s2-cell"><div class="pro
  * @param {object} o
  * @param {{id:string, value:number, min?:number, max:number, mixed?:boolean}} [o.w]
  * @param {{id:string, value:number, min?:number, max:number, mixed?:boolean, auto?:boolean}} [o.h]
- * @param {{id:string, label:string, value:number, min?:number, max:number, mixed?:boolean}} [o.one]  크기 한 칸(정비율 블럭) — 사슬 없음
+ * @param {{id:string, label:string, value:number, min?:number, max:number, mixed?:boolean, icon?:'w'|'h'|'px'}} [o.one]  한 칸(정비율 크기 · 높이만 · 중립) — 사슬 없음 · 아이콘 기본 'w'(↔) · 'h'(↕) · 'px'(중립)
  * @param {{on:boolean, blocked?:string|null}} [o.chain]  blocked = 막힘 까닭(예 LAY_FULLW_WHY) — 있으면 aria-disabled + 툴팁 · H 를 바꿔도 W 안 따라감
  * @param {{w?:{id,value,options:[string,string][]}, h?:{…}}} [o.mode]
  */
@@ -56,7 +60,7 @@ export function layoutSizeRowHTML({ prefix, w, h, one, chain, mode }) {
   if (one) {
     return `
       <div class="ui-layout" data-part="layout">
-        <div class="ui-s2-main prop-row">${_layCell(one.label, 'layout-one', LAY_W_ICON, one)}${_layEmpty}${_LAY_SPACER}</div>
+        <div class="ui-s2-main prop-row">${_layCell(one.label, 'layout-one', _LAY_ONE_ICON[one.icon] || LAY_W_ICON, one)}${_layEmpty}${_LAY_SPACER}</div>
       </div>`;
   }
   const st = _layChainState(chain?.on, h?.auto ? LAY_AUTO_WHY : chain?.blocked || null);
@@ -70,24 +74,52 @@ export function layoutSizeRowHTML({ prefix, w, h, one, chain, mode }) {
       </div>`;
 }
 
-/** 패딩 슬롯 — 좌우 ↔ · 상하 ↕ 두 칸(지금 앱 padx/pady 꼴 그대로) · 작은 라벨 «Padding» */
-export function layoutPadSlotHTML({ xId, yId, x, y, min = 0, max, mixed = false }) {
+/* 끝 사슬 — 블럭이 이미 가진 사슬 단추(id 그대로 · 배선도 블럭 쪽) */
+const _layOwnChain = (id, on, title) => (id ? `<button type="button" class="prop-chain-btn${on ? ' active' : ''}" id="${id}" data-part="end-slot" aria-pressed="${!!on}" aria-label="${title}" title="${title}">${LAY_CHAIN_ICON}</button>` : _LAY_SPACER);
+
+/**
+ * 패딩 슬롯 — 작은 라벨 «Padding». 꼴 넷(id 는 다 부르는 쪽이 준다 · 새 저장 키 0):
+ *   · 좌우 ↔ + 상하 ↕ 두 칸({ xId, yId }) · 좌우만({ xId } — y 칸 없음)
+ *   · 네 면 한 값 한 칸({ allId, all })
+ *   · 왼·오 두 칸({ lId, rId, l, r } · 라벨 L/R) + 블럭의 옛 사슬({ chainId, chainOn, chainWhy }) 그대로
+ *   축마다 범위 = xMin/xMax · yMin/yMax(없으면 min/max) — 배선(wireLayoutSection)에도 축마다 그 수를 넘긴다.
+ */
+export function layoutPadSlotHTML({ xId, yId, allId, lId, rId, x, y, all, l, r, min = 0, max, xMin, xMax, yMin, yMax, mixed = false, chainId, chainOn = false, chainWhy = '좌우 같이' }) {
+  const X = { min: xMin ?? min, max: xMax ?? max, mixed }, Y = { min: yMin ?? min, max: yMax ?? max, mixed };
+  let cells, kind;
+  if (allId) { kind = 'pad-all'; cells = _layCell('Padding', 'layout-pad-all', LAY_ALL_ICON, { id: allId, value: all, min, max, mixed }) + _layEmpty + _LAY_SPACER; }
+  else if (lId || rId) { kind = 'pad-lr'; cells = _layCell('L', 'layout-pad-l', LAY_PX_ICON, { id: lId, value: l, ...X }) + _layCell('R', 'layout-pad-r', LAY_PX_ICON, { id: rId, value: r, ...X }) + _layOwnChain(chainId, chainOn, chainWhy); }
+  else { kind = 'pad'; cells = _layCell('Padding', 'layout-pad-x', LAY_PX_ICON, { id: xId, value: x, ...X }) + (yId ? _layCell('', 'layout-pad-y', LAY_PY_ICON, { id: yId, value: y, ...Y }) : _layEmpty) + _LAY_SPACER; }
   return `
-      <div class="ui-layout ui-lay-slot" data-part="layout" data-slot="pad">
-        <div class="ui-s2-main prop-row">${_layCell('Padding', 'layout-pad-x', LAY_PX_ICON, { id: xId, value: x, min, max, mixed })}${_layCell('', 'layout-pad-y', LAY_PY_ICON, { id: yId, value: y, min, max, mixed })}${_LAY_SPACER}</div>
+      <div class="ui-layout ui-lay-slot" data-part="layout" data-slot="${kind}">
+        <div class="ui-s2-main prop-row">${cells}</div>
       </div>`;
 }
 
-/** 간격 슬롯 — 블럭 안 항목 사이 한 칸 · 작은 라벨 «Gap» */
-export function layoutGapSlotHTML({ id, value, min = 0, max, mixed = false }) {
+/** 간격 슬롯 — 한 칸({ id, value }) 또는 가로 ↔ / 세로 ↕ 두 칸({ xId, yId, x, y } — 열·줄 간격) · 작은 라벨 = label(기본 «Gap») */
+export function layoutGapSlotHTML({ id, value, xId, yId, x, y, label = 'Gap', min = 0, max, xMin, xMax, yMin, yMax, mixed = false }) {
+  const two = !!(xId || yId);
+  const cells = two
+    ? (xId ? _layCell(label, 'layout-gap-x', LAY_GAP_ICON, { id: xId, value: x, min: xMin ?? min, max: xMax ?? max, mixed }) : _layEmpty)
+      + (yId ? _layCell(xId ? '' : label, 'layout-gap-y', LAY_GAPY_ICON, { id: yId, value: y, min: yMin ?? min, max: yMax ?? max, mixed }) : _layEmpty)
+    : _layCell(label, 'layout-gap', LAY_GAP_ICON, { id, value, min, max, mixed }) + _layEmpty;
   return `
-      <div class="ui-layout ui-lay-slot" data-part="layout" data-slot="gap">
-        <div class="ui-s2-main prop-row">${_layCell('Gap', 'layout-gap', LAY_GAP_ICON, { id, value, min, max, mixed })}${_layEmpty}${_LAY_SPACER}</div>
+      <div class="ui-layout ui-lay-slot" data-part="layout" data-slot="${two ? 'gap-xy' : 'gap'}">
+        <div class="ui-s2-main prop-row">${cells}${_LAY_SPACER}</div>
+      </div>`;
+}
+
+/** 블럭 슬롯 숫자 한 줄(Layout 안 · 격자 간격·치수 등) — 이름 + [중립 아이콘(끌기) 숫자] · 끝 단추 없음 · 배선 = wireLayoutSection({ w: { numberId: id, … } }) */
+export function layoutSlotNumberHTML({ id, label, value, min = 0, max, step = 1, mixed = false }) {
+  return `
+      <div class="prop-row ui-lay-slot-num" data-part="layout" data-slot="number">
+        <span class="prop-label">${label}</span>
+        <div class="prop-icon-input" data-part="number" data-field="layout-slot"><span class="prop-xy-label ui-app-scrub" id="${id}-scrub" title="${label} — 좌우로 끌면 바뀐다">${LAY_NUM_ICON}</span><input type="number" class="prop-number" id="${id}" min="${min}" max="${max}" step="${step}" value="${mixed ? '' : value}"${mixed ? ' placeholder="Mixed" data-empty="invalid"' : ''} aria-label="${label}"></div>
       </div>`;
 }
 
 /**
- * 배선 — 축마다 { numberId, min?, max, apply(v), read?() } · chain { id, on, set(on), blocked?() → 까닭|null } · commit?()
+ * 배선 — 축마다 { numberId, min?, max, step?, apply(v), read?() } · chain { id, on, set(on), blocked?() → 까닭|null } · commit?()
  *   chain.blocked = 지금 막혔나(예: 너비 = 줄 폭) — 편집 «시작» 때 재서 막혔으면 짝 축이 안 따라간다 · 저장 키는 안 쓴다.
  *   돌려주는 refresh() = 단추 상태를 다시 잰다(블럭 모양이 패널 밖에서 바뀐 뒤 — 핸들·프리셋).
  *   input = 범위 안이면 바로 그림(사슬 켬 → 짝 축도 비율대로) · change = 잘라 그림 + commit 한 번(짝 축 포함 = ⌘Z 한 칸)
@@ -100,7 +132,8 @@ export function wireLayoutSection({ w, h, chain = null, commit } = {}) {
   const axes = [w, h].filter(Boolean).map((a) => ({ ...a, min: a.min ?? 0, n: document.getElementById(a.numberId) })).filter((a) => a.n);
   let on = !!chain?.on, start = null, stopped = false;
   const val = (a) => (a.read ? a.read() : parseFloat(a.n.value));
-  const lim = (a, v) => Math.min(a.max, Math.max(a.min, v));
+  const lim = (a, v) => Math.min(a.max, Math.max(a.min, v));   // 축마다 제 범위(패딩 x/y 가 다를 수 있다)
+  const num = (a, raw) => (a.step % 1 ? parseFloat(raw) : parseInt(raw, 10));   // 소수 눈금(step 0.1 등) 칸만 소수
   const blockedWhy = () => chain?.blocked?.() || null;
   const begin = () => { if (!start) { start = axes.map(val); stopped = !!blockedWhy(); } };
   const follow = (a, v) => {
@@ -112,13 +145,13 @@ export function wireLayoutSection({ w, h, chain = null, commit } = {}) {
   for (const a of axes) {
     a.n.addEventListener('input', () => {
       begin();
-      const v = parseInt(a.n.value, 10);
+      const v = num(a, a.n.value);
       if (!Number.isFinite(v) || v < a.min || v > a.max) return;   // 치는 중(범위 밖·빈 칸)은 안 그림 — change 가 자른다
       a.apply(v); follow(a, v);
     });
     a.n.addEventListener('change', () => {
       begin();
-      const raw = parseInt(a.n.value, 10), s = start; start = null;
+      const raw = num(a, a.n.value), s = start; start = null;
       if (!Number.isFinite(raw)) {   // 값 없음 = 아무 일도 없었다(되돌림 · 이력 0)
         axes.forEach((x, i) => { if (val(x) !== s[i]) x.apply(s[i]); x.n.value = s[i]; });
         return;
