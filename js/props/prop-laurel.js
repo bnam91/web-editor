@@ -4,7 +4,7 @@ import { renderPanel, sec, expandSection } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { gridNumOr } from '../blocks/grid-block.js';   /* ★C 181 — 0 을 살려 읽는 문 하나(렌더러 laurel-block.js 와 같은 함수 · 두 벌 금지) */
 
-import { layoutSizeRowHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(C2)
+import { layoutSizeRowHTML, layoutGapSlotHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(C2)
 import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance A4(C2)
 
 function _readCells(block) {
@@ -129,30 +129,16 @@ export function showLaurelProperties(block) {
       <div id="lrl-cells-container">${cellsHtml}</div>
 `),
       /* ★표준 Layout(C2) — 옛 슬라이더 lrl-all-height 걷음 · 숫자 칸 id·범위 무변(잎 크기 · 모든 칸 일괄) */
-      sec('size', `<div data-scope="all" title="잎 크기 · 모든 칸(일괄)">${layoutSizeRowHTML({ prefix: 'lrl', one: { id: 'lrl-all-height-num', label: 'Size', min: 20, max: 600, value: parseInt(cells[0]?.height) > 0 ? parseInt(cells[0].height) : 140 } })}</div>`),
+      sec('size', `<div data-scope="all" title="잎 크기 · 모든 칸(일괄)">${layoutSizeRowHTML({ prefix: 'lrl', one: { id: 'lrl-all-height-num', label: 'Size', icon: 'h', min: 20, max: 600, value: parseInt(cells[0]?.height) > 0 ? parseInt(cells[0].height) : 140 } })}</div>`),
       sec('appearance', appearanceSectionHTML({ prefix: 'lrl', op: { value: window.readBlockOpacity?.(block) ?? 100 } }), { headTools: appearanceHeadToolsHTML({ prefix: 'lrl' }) }),   // ★표준 Appearance A4(C2) — Opacity 만
       sec('layout', `
       <div class="grid-picker" id="lrl-grid-picker"></div>
       <div class="grid-picker-label" id="lrl-grid-picker-label">${cols} × ${rows}</div>
-      <div class="prop-row" data-scope="all">
-        <span class="prop-label" title="잎 간격 · 모든 칸(일괄)">일괄 간격</span>
-        <input type="range" class="prop-slider" id="lrl-all-gap" min="0" max="800" step="4" value="${cells[0]?.gap ?? 24}">
-        <input type="number" class="prop-number" id="lrl-all-gap-num" min="0" max="2000" value="${cells[0]?.gap ?? 24}">
-      </div>
-      ${cols > 1 ? `
-      <div class="prop-row">
-        <span class="prop-label">셀 가로 간격</span>
-        <input type="range" class="prop-slider" id="lrl-grid-col-gap" min="0" max="200" step="2" value="${gridNumOr(parseInt(block.dataset.gridColGap), 32)}">
-        <input type="number" class="prop-number" id="lrl-grid-col-gap-num" min="0" max="400" value="${gridNumOr(parseInt(block.dataset.gridColGap), 32)}">
-      </div>
-      ` : ''}
-      ${rows > 1 ? `
-      <div class="prop-row">
-        <span class="prop-label">셀 세로 간격</span>
-        <input type="range" class="prop-slider" id="lrl-grid-row-gap" min="0" max="200" step="2" value="${gridNumOr(parseInt(block.dataset.gridRowGap), 24)}">
-        <input type="number" class="prop-number" id="lrl-grid-row-gap-num" min="0" max="400" value="${gridNumOr(parseInt(block.dataset.gridRowGap), 24)}">
-      </div>
-      ` : ''}
+      <!-- ★표준 Layout(C2) — 옛 슬라이더 lrl-all-gap · lrl-grid-col-gap · lrl-grid-row-gap 걷음 · 숫자 칸 id·범위 무변 · 셀 간격 칸은 열/줄이 둘 이상일 때만(옛과 같음) -->
+      <div data-scope="all" title="잎 간격 · 모든 칸(일괄)">${layoutGapSlotHTML({ id: 'lrl-all-gap-num', label: 'Leaf gap', value: cells[0]?.gap ?? 24, max: 2000 })}</div>
+      ${cols > 1 || rows > 1 ? layoutGapSlotHTML({ label: 'Cell gap', max: 400,
+        xId: cols > 1 ? 'lrl-grid-col-gap-num' : null, x: gridNumOr(parseInt(block.dataset.gridColGap), 32),
+        yId: rows > 1 ? 'lrl-grid-row-gap-num' : null, y: gridNumOr(parseInt(block.dataset.gridRowGap), 24) }) : ''}
 `),
       sec('padding', _lrlCanFB ? `
       <div class="prop-row">
@@ -289,43 +275,14 @@ export function showLaurelProperties(block) {
     propPanel.querySelectorAll(`.lrl-cell-${key}`).forEach(el => { el.value = Math.min(parseInt(el.max), v); });
     propPanel.querySelectorAll(`.lrl-cell-${key}-num`).forEach(el => { el.value = v; });
   };
-  const bindAllNumPair = (sliderId, numberId, key, min, max) => {
-    const s = propPanel.querySelector('#' + sliderId);
-    const n = propPanel.querySelector('#' + numberId);
-    if (!s) return;
-    const apply = v => {
-      v = Math.min(max, Math.max(min, v));
-      applyAll(key, v);
-      s.value = Math.min(parseInt(s.max), v);
-      if (n) n.value = v;
-    };
-    s.addEventListener('input',  () => apply(parseInt(s.value)));
-    s.addEventListener('change', () => window.pushHistory?.('일괄 ' + key));
-    if (n) n.addEventListener('change', () => { apply(parseInt(n.value)); window.pushHistory?.('일괄 ' + key); });
-  };
-  bindAllNumPair('lrl-all-gap',    'lrl-all-gap-num',    'gap',     0, 2000);
+  wireLayoutSection({ commit: () => window.pushHistory?.('일괄 gap'), w: { numberId: 'lrl-all-gap-num', max: 2000, apply: (v) => applyAll('gap', v) } });   // ★표준 Layout(C2) — 옛 bindAllNumPair(lrl-all-gap) 자리
   /* ★표준 Layout(C2) — 일괄 크기 칸 = 부품(input = 범위 안이면 바로 · change = 잘라 그린 «뒤» 이력 한 번 · 빈 칸 = 옛 값) · 이력 이름 그대로 */
   wireLayoutSection({ commit: () => window.pushHistory?.('일괄 height'), w: { numberId: 'lrl-all-height-num', min: 20, max: 600, apply: (v) => applyAll('height', v) } });
   wireAppearanceSection({ op: { numberId: 'lrl-opacity', apply: (v) => window.setBlockOpacity?.(block, v) } });   // ★표준 Appearance A4(C2)
 
-  // Grid 셀 간격 (col/row) — block.dataset에 저장 (cells 배열과 별개)
-  const bindGridGap = (sliderId, numberId, datasetKey, min, max) => {
-    const s = propPanel.querySelector('#' + sliderId);
-    const n = propPanel.querySelector('#' + numberId);
-    if (!s) return;
-    const apply = v => {
-      v = Math.min(max, Math.max(min, v));
-      block.dataset[datasetKey] = String(v);
-      rerender();
-      s.value = Math.min(parseInt(s.max), v);
-      if (n) n.value = v;
-    };
-    s.addEventListener('input',  () => apply(parseInt(s.value)));
-    s.addEventListener('change', () => window.pushHistory?.('셀 간격'));
-    if (n) n.addEventListener('change', () => { apply(parseInt(n.value)); window.pushHistory?.('셀 간격'); });
-  };
-  bindGridGap('lrl-grid-col-gap', 'lrl-grid-col-gap-num', 'gridColGap', 0, 400);
-  bindGridGap('lrl-grid-row-gap', 'lrl-grid-row-gap-num', 'gridRowGap', 0, 400);
+  // Grid 셀 간격 (col/row) — block.dataset에 저장 (cells 배열과 별개) · ★표준 Layout(C2) — 칸 배선은 부품(옛 bindGridGap 자리 · 이력 이름 그대로)
+  for (const [numberId, key] of [['lrl-grid-col-gap-num', 'gridColGap'], ['lrl-grid-row-gap-num', 'gridRowGap']])
+    wireLayoutSection({ commit: () => window.pushHistory?.('셀 간격'), w: { numberId, max: 400, apply: (v) => { block.dataset[key] = String(v); rerender(); } } });
 
   // 일괄 잎 채움 (모든 cells.leafFill 동시 변경)
   const allFillSel = propPanel.querySelector('#lrl-all-fill');

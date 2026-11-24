@@ -75,14 +75,16 @@ test('P27 패널 칸 gap 칸 = 0', async ({ page }) => {
   const r = await look(page, ZERO);
   expect(r.pCellGap, 'P27').toBe('0');
 });
-test('P157 패널 칸 사이(열) 슬라이더 = 0', async ({ page }) => {
-  expect((await look(page, ZERO)).pColS, 'P157').toBe('0');
+/* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 셀 간격 슬라이더 없음 ⇒ null · 0 은 숫자 칸(옆 칸)이 잰다 */
+test('P157 패널 칸 사이(열) 슬라이더 = 없음(걷음)', async ({ page }) => {
+  expect((await look(page, ZERO)).pColS, 'P157').toBe(null);
 });
 test('P158 패널 칸 사이(열) 숫자 = 0', async ({ page }) => {
   expect((await look(page, ZERO)).pColN, 'P158').toBe('0');
 });
-test('P164 패널 칸 사이(행) 슬라이더 = 0', async ({ page }) => {
-  expect((await look(page, ZERO)).pRowS, 'P164').toBe('0');
+/* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 셀 간격 슬라이더 없음 ⇒ null · 0 은 숫자 칸(옆 칸)이 잰다 */
+test('P164 패널 칸 사이(행) 슬라이더 = 없음(걷음)', async ({ page }) => {
+  expect((await look(page, ZERO)).pRowS, 'P164').toBe(null);
 });
 test('P165 패널 칸 사이(행) 숫자 = 0', async ({ page }) => {
   expect((await look(page, ZERO)).pRowN, 'P165').toBe('0');
