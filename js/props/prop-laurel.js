@@ -4,7 +4,7 @@ import { renderPanel, sec, expandSection } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { gridNumOr } from '../blocks/grid-block.js';   /* ★C 181 — 0 을 살려 읽는 문 하나(렌더러 laurel-block.js 와 같은 함수 · 두 벌 금지) */
 
-import { layoutSizeRowHTML, layoutGapSlotHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(C2)
+import { layoutSlotNumberHTML, layoutGapSlotHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(C2)
 import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance A4(C2)
 
 function _readCells(block) {
@@ -129,13 +129,14 @@ export function showLaurelProperties(block) {
       <div id="lrl-cells-container">${cellsHtml}</div>
 `),
       /* ★표준 Layout(C2) — 옛 슬라이더 lrl-all-height 걷음 · 숫자 칸 id·범위 무변(잎 크기 · 모든 칸 일괄) */
-      sec('size', `<div data-scope="all" title="잎 크기 · 모든 칸(일괄)">${layoutSizeRowHTML({ prefix: 'lrl', one: { id: 'lrl-all-height-num', label: 'Size', icon: 'h', min: 20, max: 600, value: parseInt(cells[0]?.height) > 0 ? parseInt(cells[0].height) : 140 } })}</div>`),
+      /*   이름표 = «일괄 크기·일괄 간격»(현빈 ⓑ 261117 RP-LAUREL-SCOPE-LABEL-TRUNCATED-01 · 56px 안 잘림) · 전문 = 줄 title */
+      sec('size', `<div data-scope="all" title="잎 크기 · 모든 칸(일괄)">${layoutSlotNumberHTML({ id: 'lrl-all-height-num', label: '일괄 크기', min: 20, max: 600, value: parseInt(cells[0]?.height) > 0 ? parseInt(cells[0].height) : 140 })}</div>`),
       sec('appearance', appearanceSectionHTML({ prefix: 'lrl', op: { value: window.readBlockOpacity?.(block) ?? 100 } }), { headTools: appearanceHeadToolsHTML({ prefix: 'lrl' }) }),   // ★표준 Appearance A4(C2) — Opacity 만
       sec('layout', `
       <div class="grid-picker" id="lrl-grid-picker"></div>
       <div class="grid-picker-label" id="lrl-grid-picker-label">${cols} × ${rows}</div>
       <!-- ★표준 Layout(C2) — 옛 슬라이더 lrl-all-gap · lrl-grid-col-gap · lrl-grid-row-gap 걷음 · 숫자 칸 id·범위 무변 · 셀 간격 칸은 열/줄이 둘 이상일 때만(옛과 같음) -->
-      <div data-scope="all" title="잎 간격 · 모든 칸(일괄)">${layoutGapSlotHTML({ id: 'lrl-all-gap-num', label: 'Leaf gap', value: cells[0]?.gap ?? 24, max: 2000 })}</div>
+      <div data-scope="all" title="잎 간격 · 모든 칸(일괄)">${layoutSlotNumberHTML({ id: 'lrl-all-gap-num', label: '일괄 간격', value: cells[0]?.gap ?? 24, max: 2000 })}</div>
       ${cols > 1 || rows > 1 ? layoutGapSlotHTML({ label: 'Cell gap', max: 400,
         xId: cols > 1 ? 'lrl-grid-col-gap-num' : null, x: gridNumOr(parseInt(block.dataset.gridColGap), 32),
         yId: rows > 1 ? 'lrl-grid-row-gap-num' : null, y: gridNumOr(parseInt(block.dataset.gridRowGap), 24) }) : ''}

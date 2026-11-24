@@ -183,7 +183,7 @@ ${openKey ? _slotPanelHTML(block, openKey) : ''}`),
       sec('size', `${layoutSizeRowHTML({ prefix: 'cpn',
         w: { id: 'cpn-width-number', min: L.width.min, max: L.width.max, value: width },
         h: { id: 'cpn-height-auto', max: 0, value: 0, auto: true } })}
-      <div class="prop-hint" title="비율 16:9 를 블럭이 스스로 지킵니다 (비율 고르기는 2단계)">높이 ${boxH}px · 16:9</div>`),
+      <div class="prop-row" title="비율 16:9 를 블럭이 스스로 지킵니다 (비율 고르기는 2단계)"><span class="prop-label">비율</span><span class="prop-value-text">16:9 · 높이 ${boxH}px</span></div>`),   // 옛 «높이» 값 줄 꼴 그대로(⛔prop-hint 로 두면 칸 열림 때 패널 안내가 3개 → 게이트 «prop-hint > 2»)
       sec('appearance', appearanceSectionHTML({ prefix: 'cpn', op: { value: window.readBlockOpacity?.(block) ?? 100 }, radius: { numberId: 'cpn-radius-number', value: radius, min: L.radius.min, max: L.radius.max } }), { headTools: appearanceHeadToolsHTML({ prefix: 'cpn' }) }),   // ★표준 Appearance A2 — 옛 _pairRow 슬라이더 걷음 · 숫자 칸 id·dataset.radius·L.radius 무변
       sec('fill', `
       <div class="prop-row">
