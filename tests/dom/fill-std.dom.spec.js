@@ -346,3 +346,20 @@ test('D17 iconify — 아이콘 색 = 표준 줄 · − 막힘 · 채움/선 = �
   expect(r, '★아이콘 색 = 겹 줄 · − 막힘 까닭 · 채움/선 = 슬롯').toEqual({ inLayer: true, rm: 'true', why: '아이콘이 안 보이게 되는 길이라 지금은 못 지워요', msOk: true });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* F5-2a — 그리드 블럭 배경: 켬/끔 정본 = 옛 토글(지디 (가) · Stroke 그리드와 같게 · 키 무변) · 배경색 = 표준 줄(옛 id grd-bbg-*) · − 막힘(까닭 = 토글로 끄기)
+ * D18 토글 켬 → 블럭 배경 절 안 표준 겹 줄 · 옛 id 셋 · − 막힘 까닭 · 머리 ＋ 없음(토글이 정본)
+ * 양성대조: _patches/fill-f5-2a-CTL.patch(옛 판 prop-grid.js) ⇒ D18 빨강 */
+test('D18 그리드 블럭 배경 — 토글 정본 · 배경색 = 표준 줄 · − 막힘(토글로 끄기)', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); const sec = await window.addSection(); window.deselectAll(); window.selectSection(sec); window.addGridBlock(); const g = [...sec.querySelectorAll('.grid-block')].pop(); window.selectBlock?.(g.id); window.showGridProperties?.(g); });
+  await page.waitForSelector('#grd-bbg-section .prop-toggle', { state: 'attached' });
+  await page.locator('#grd-bbg-section .prop-toggle').scrollIntoViewIfNeeded(); await page.click('#grd-bbg-section .prop-toggle');
+  await page.waitForSelector('#grd-bbg-color', { state: 'attached' });
+  const r = await page.evaluate(() => { const s = document.getElementById('grd-bbg-section');
+    return { inLayer: ['grd-bbg-color', 'grd-bbg-hex', 'grd-bbg-alpha'].every((i) => !!s.querySelector('.ui-fill-layer #' + i)), rm: document.getElementById('grd-bbg-fill-remove')?.getAttribute('aria-disabled'),
+      why: document.getElementById('grd-bbg-fill-remove')?.title, add: !!document.getElementById('grd-bbg-fill-add'), toggle: !!document.getElementById('grd-bbg-toggle')?.checked }; });
+  expect(r, '★표준 줄 · 옛 id · − 막힘(토글로 끄기) · 머리 ＋ 없음 · 토글 켜짐').toEqual({ inLayer: true, rm: 'true', why: '블럭 배경 끄기 = 제목 옆 토글', add: false, toggle: true });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

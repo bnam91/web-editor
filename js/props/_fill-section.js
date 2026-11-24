@@ -27,8 +27,8 @@ export function setFillKindName(hexEl, kind) {
   else if (hexEl.dataset.fillKind) { if (hexEl.value === FILL_KIND_NAME[hexEl.dataset.fillKind]) hexEl.value = hexEl.dataset.fillHex || hexEl.value; delete hexEl.dataset.fillKind; delete hexEl.dataset.fillHex; }
 }
 /* 이름칸 포커스 = HEX(쳐서 단색으로 가는 옛 길) · 안 바꾸고 나가면 이름 — 패널마다 배선 없이 한 벌(document 위임) */
-if (typeof document !== 'undefined') document.addEventListener('focusin', (e) => { const h = e.target; if (h?.classList?.contains('prop-color-hex') && h.dataset.fillKind) { h.value = h.dataset.fillHex || ''; h.select?.(); } });
-if (typeof document !== 'undefined') document.addEventListener('focusout', (e) => { const h = e.target; if (h?.classList?.contains('prop-color-hex') && h.dataset.fillKind && FILL_KIND_NAME[h.dataset.fillKind]) h.value = FILL_KIND_NAME[h.dataset.fillKind]; });
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('focusin', (e) => { const h = e.target; if (h?.classList?.contains('prop-color-hex') && h.dataset.fillKind) { h.value = h.dataset.fillHex || ''; h.select?.(); } });
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('focusout', (e) => { const h = e.target; if (h?.classList?.contains('prop-color-hex') && h.dataset.fillKind && FILL_KIND_NAME[h.dataset.fillKind]) h.value = FILL_KIND_NAME[h.dataset.fillKind]; });
 
 /**
  * @param {object} o
