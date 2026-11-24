@@ -19,6 +19,7 @@ import {
   radialSanitizeSvg, radialCenterKeys, radialCenterSvg, radialCenterLabel, RADIAL_ICON_SVG_MAX, radialSetCenterSel, radialNoteOpen,
 } from '../blocks/radial-block.js';
 import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A3)
+import { layoutPadSlotHTML, layoutSlotNumberHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout L3·L4
 
 const L = RADIAL_LIMITS;
 
@@ -84,19 +85,8 @@ function _pairRow(id, label, val, lim, step = 1) {
         <input type="number" class="prop-number" id="${id}-number" min="${lim.min}" max="${lim.max}" step="${step}" value="${val}">
       </div>`;
 }
-/* ★t4-09 — 범위가 넓은 한 칸(원 중심 X)은 슬라이더를 «다음 줄 전폭»으로 — 같은 범위를 두 배 남짓 긴 자로 잰다(한 px 당 단위가 준다).
-   id 짝(-slider · -number)은 _pairRow 와 같다 ⇒ wireNum 이 그대로 묶는다. */
-function _pairRowWide(id, label, val, lim, step = 1) {
-  return `
-      <div class="prop-row">
-        <span class="prop-label">${_esc(label)}</span>
-        <span style="flex:1"></span>
-        <input type="number" class="prop-number" id="${id}-number" min="${lim.min}" max="${lim.max}" step="${step}" value="${val}">
-      </div>
-      <div class="prop-row">
-        <input type="range" class="prop-slider" id="${id}-slider" min="${lim.min}" max="${lim.max}" step="${step}" value="${val}">
-      </div>`;
-}
+/* 표준 Layout 블럭 슬롯 숫자(L4) — 옛 _pairRow 의 숫자 칸 id(${id}-number)·범위·step 그대로 · 슬라이더 없음 · 라벨 끌기(-number-scrub) */
+const _slotNum = (id, label, val, lim) => layoutSlotNumberHTML({ id: `${id}-number`, label: _esc(label), value: val, min: lim.min, max: lim.max, step: lim.step || 1 });
 function _numRow(id, label, val, lim, step = 1) {
   return `
       <div class="prop-row">
@@ -232,16 +222,17 @@ export function showRadialProperties(block, idx) {
       <button class="prop-btn-full" id="rdl-item-svg-apply">SVG 적용</button>
       <div id="rdl-item-svg-msg" role="status"></div>
     </div>` : ''),
+      /* ★표준 Layout L4(현빈 261124 L-4 · 시안 #mkp-layoutstd «블럭 슬롯(점·칸·반지름)») — 슬라이더 걷음 → 블럭 슬롯 숫자 + 라벨 끌기 · 숫자 칸 id(${id}-number)·키·범위·step 무변 */
       sec('size', isDot ? `
-      ${_pairRow('rdl-dot', '점 크기', st.dotSize, L.dotSize)}
-      ${_pairRow('rdl-icon', '아이콘', st.iconSize, L.iconSize).replace('<div class="prop-row">', '<div class="prop-row" title="점 마커에서는 항목의 샘플 그림이 라벨 위 아이콘으로 섭니다.">')}` : `
-      ${_pairRow('rdl-cell', '칸 크기', st.cellSize, L.cellSize)}`),
+      ${_slotNum('rdl-dot', '점 크기', st.dotSize, L.dotSize)}
+      ${_slotNum('rdl-icon', '아이콘', st.iconSize, L.iconSize).replace('data-slot="number"', 'data-slot="number" title="점 마커에서는 항목의 샘플 그림이 라벨 위 아이콘으로 섭니다."')}` : `
+      ${_slotNum('rdl-cell', '칸 크기', st.cellSize, L.cellSize)}`),
       sec('layout', `
-      ${/* data-own: 원 배치의 반지름(항목이 도는 원) — 모서리 radius 가 아니라 Layout */ _pairRow('rdl-radius', '반지름', st.radius, L.radius).replace('<div class="prop-row">', '<div class="prop-row" data-own="layout">')}
-      ${_pairRow('rdl-start', '시작 각도', st.startDeg, L.startDeg)}
+      ${/* data-own: 원 배치의 반지름(항목이 도는 원) — 모서리 radius 가 아니라 Layout */ _slotNum('rdl-radius', '반지름', st.radius, L.radius).replace('data-slot="number"', 'data-slot="number" data-own="layout"')}
+      ${_slotNum('rdl-start', '시작 각도', st.startDeg, L.startDeg)}
       ${isArc ? `
-      ${_pairRow('rdl-end', '끝 각도', st.endDeg, L.endDeg)}
-      ${_pairRowWide('rdl-cx', '원 중심 X', st.centerX, L.centerX, L.centerX.step)}
+      ${_slotNum('rdl-end', '끝 각도', st.endDeg, L.endDeg)}
+      ${_slotNum('rdl-cx', '원 중심 X', st.centerX, L.centerX)}
       <button class="prop-btn-full" id="rdl-angle-reset" style="margin-top:4px">각도 처음으로 되돌리기</button>
 ` : ''}`),
       sec('padding', `
@@ -249,12 +240,12 @@ export function showRadialProperties(block, idx) {
       <div class="prop-row">
         ${checkHTML({ id: 'rdl-fullbleed-toggle', label: '패딩 제외', checked: block.dataset.fullBleed === 'true' })}
       </div>` : ''}
-      ${_pairRow('rdl-padx', '좌우패딩', st.padX, L.padX, L.padX.step)}`),
-      sec('appearance', isDot ? '' : `
-      ${st.cellShape === 'round' ? appearanceSectionHTML({ prefix: 'rdl', radius: { numberId: 'rdl-cellradius-number', value: st.cellRadius, min: L.cellRadius.min, max: L.cellRadius.max } }) : ''}   <!-- ★표준 Appearance A3(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·키·범위 무변 -->
-      <div class="prop-row">
+      ${layoutPadSlotHTML({ xId: 'rdl-padx-number', x: st.padX, min: L.padX.min, max: L.padX.max })}`),   // 표준 Layout L3 패딩 슬롯(좌우만 · 슬라이더 걷음 · id·키·범위 무변 · step = 배선 snap)
+      sec('appearance', `
+      ${appearanceSectionHTML({ prefix: 'rdl', op: { value: window.readBlockOpacity?.(block) ?? 100 }, radius: !isDot && st.cellShape === 'round' ? { numberId: 'rdl-cellradius-number', value: st.cellRadius, min: L.cellRadius.min, max: L.cellRadius.max } : null })}   <!-- ★표준 Appearance A3(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·키·범위 무변 -->
+      ${isDot ? '' : `<div class="prop-row">
         ${checkHTML({ id: 'rdl-clip-toggle', label: '내용 자르기', checked: window.clipsContent?.(block) !== false })}
-      </div>`, isDot ? {} : { headTools: appearanceHeadToolsHTML({ prefix: 'rdl' }) }),
+      </div>`}`, { headTools: appearanceHeadToolsHTML({ prefix: 'rdl' }) }),   // A4 — 점 마커도 Opacity(절이 늘 선다 · 모서리·자르기는 칸 마커만 · 옛 그대로)
       sec('typography', st.labelPos === 'none' ? '' : `
       ${_pairRow('rdl-labelsize', '라벨 크기', st.labelSize, L.labelSize)}
       ${_typeRow('라벨 굵기', 'rdl-labelweight', [['bold', '굵게'], ['normal', '보통']], st.labelWeight)}`),
@@ -340,6 +331,14 @@ export function showRadialProperties(block, idx) {
     s.addEventListener('change', commit);
     n.addEventListener('change', () => { apply(parseFloat(n.value)); commit(); });
   };
+  /* 표준 Layout — 옛 wireNum(슬라이더 쌍) 자리 · 같은 쓰기(snap → clamp → dataset → rerender) · 부품 배선(input = 범위 안이면 바로 · change = 잘라 + commit 한 번 · 빈 칸 = 되돌림 · 라벨 끌기) */
+  const wireLay = (numberId, key) => {
+    const lim = L[key], stp = lim.step || 1;
+    const snap = (v) => Math.round(Math.round(v / stp) * stp * 100) / 100;
+    wireLayoutSection({ commit, w: { numberId, min: lim.min, max: lim.max, step: stp,
+      apply: (v) => { const x = G.clamp(snap(v), lim.min, lim.max, RADIAL_DEFAULTS[key]); block.dataset[key] = String(x); rerender(); },
+      read: () => Number(radialStateOf(block)[key]) } });
+  };
   const wireOnlyNum = (id, key) => {
     const n = $(id);
     if (!n) return;
@@ -417,11 +416,11 @@ export function showRadialProperties(block, idx) {
   $('rdl-count-plus')?.addEventListener('click', () => stepCount(1));
 
   // ── Layout ──
-  wireNum('rdl-radius', 'radius');
-  wireNum('rdl-padx', 'padX');   /* ★t4-07 좌우 패딩 — 다른 슬라이더와 같은 쌍 · push-after */
-  wireNum('rdl-start', 'startDeg');
-  wireNum('rdl-end', 'endDeg');
-  wireNum('rdl-cx', 'centerX');
+  wireLay('rdl-radius-number', 'radius');
+  wireLay('rdl-padx-number', 'padX');   /* ★t4-07 좌우 패딩 — 다른 슬라이더와 같은 쌍 · push-after */
+  wireLay('rdl-start-number', 'startDeg');
+  wireLay('rdl-end-number', 'endDeg');
+  wireLay('rdl-cx-number', 'centerX');
   wireOnlyNum('rdl-lineext-number', 'lineExtend');
   $('rdl-line-select')?.addEventListener('change', (e) => {
     block.dataset.line = e.target.value;
@@ -448,12 +447,13 @@ export function showRadialProperties(block, idx) {
 
   // ── Asset ──
   wireType('rdl-marker', [['cell'], ['dot']], 'marker');
-  wireNum('rdl-dot', 'dotSize');
+  wireLay('rdl-dot-number', 'dotSize');
   wireColor('rdl-dotcolor', 'dotColor');
-  wireNum('rdl-icon', 'iconSize');
-  wireNum('rdl-cell', 'cellSize');
+  wireLay('rdl-icon-number', 'iconSize');
+  wireLay('rdl-cell-number', 'cellSize');
   wireType('rdl-cellshape', [['circle'], ['round']], 'cellShape');
-  wireAppearanceSection({ radius: { numberId: 'rdl-cellradius-number', min: L.cellRadius.min, max: L.cellRadius.max, apply: (v) => { block.dataset.cellRadius = String(v); rerender(); }, commit } });   // 표준 Appearance A3(옛 wireOnlyNum · 둥근 칸일 때만 칸)
+  wireAppearanceSection({ radius: { numberId: 'rdl-cellradius-number', min: L.cellRadius.min, max: L.cellRadius.max, apply: (v) => { block.dataset.cellRadius = String(v); rerender(); }, commit },
+    op: { numberId: 'rdl-opacity', apply: (v) => window.setBlockOpacity?.(block, v), commit } });   // A4 Opacity — 계약(갈래 E) 없으면 그리기 0   // 표준 Appearance A3(옛 wireOnlyNum · 둥근 칸일 때만 칸)
   wireColor('rdl-cellfill', 'cellFill');
 
   // ── Center ──
