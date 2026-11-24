@@ -1169,20 +1169,23 @@ test('Q16 ★★간격 슬라이더가 ★그림을 바꾼다 — ★inline ＋ 
     window.__qt.dataset.gap = '0'; window.renderQuoteBlock(window.__qt); window.showQuoteProperties(window.__qt);
     return eval(code);
   }, QT_GEO);
+  /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 슬라이더 대신 간격 칸의 라벨 끌기(#qt-gap-number-scrub · 1px = 1) · 두 번 끌어 상한 너머 → 상한 */
   const sld = await page.evaluate(() => {
-    const s = document.getElementById('qt-gap-slider');
-    if (!s) return null;
+    const s = document.getElementById('qt-gap-number-scrub'), n = document.getElementById('qt-gap-number');
+    if (!s || !n) return null;
     const r = s.getBoundingClientRect();
-    return { x: r.left + 6, y: r.top + r.height / 2, right: r.right - 4, min: s.min, max: s.max, value: s.value, gmax: window.QUOTE_LIMITS.gap.max };   /* 1012t1H3: 한도는 표에서 읽는다(리터럴 금지) */
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2, value: n.value, gmax: window.QUOTE_LIMITS.gap.max };   /* 1012t1H3: 한도는 표에서 읽는다(리터럴 금지) */
   });
-  expect(sld, '★전제 — `#qt-gap-slider` 가 패널에 ★있다').not.toBe(null);
-  expect(sld.value, '★전제 — 끌기 ★전 슬라이더 값 = 0').toBe('0');
-  await page.mouse.move(sld.x, sld.y);
-  await page.mouse.down();
-  await page.mouse.move(sld.right, sld.y, { steps: 12 });
-  await page.mouse.up();
-  await page.waitForFunction((mx) => document.getElementById('qt-gap-slider')?.value === String(mx), sld.gmax, { timeout: 3000 })
-    .catch(() => { throw new Error('★끌었는데 ★슬라이더 값이 ★최대(QUOTE_LIMITS.gap.max)로 ★안 갔다 — ★① 닿는가 갈래가 ★깨졌다'); });
+  expect(sld, '★전제 — `#qt-gap-number-scrub` 가 패널에 ★있다').not.toBe(null);
+  expect(sld.value, '★전제 — 끌기 ★전 간격 값 = 0').toBe('0');
+  for (let k = 0; k < 2; k++) {
+    await page.mouse.move(sld.x, sld.y);
+    await page.mouse.down();
+    await page.mouse.move(sld.x + Math.ceil(sld.gmax * 0.6), sld.y, { steps: 12 });
+    await page.mouse.up();
+  }
+  await page.waitForFunction((mx) => document.getElementById('qt-gap-number')?.value === String(mx), sld.gmax, { timeout: 3000 })
+    .catch(() => { throw new Error('★끌었는데 ★간격 값이 ★최대(QUOTE_LIMITS.gap.max)로 ★안 갔다 — ★① 닿는가 갈래가 ★깨졌다'); });
   const s1 = await page.evaluate((code) => eval(code), QT_GEO);
   const sd = s1.dPre - s0.dPre;
   expect(Math.abs(sd - sld.gmax) <= 3,
@@ -1833,7 +1836,7 @@ test('Q21 ★1012t1H 패널 꼴 — 인용구 패널 (H6: 블럭 넣기 select 0
         }));
         return { h: g('qt-align-group'), v: g('qt-valign-group') };
       })(),
-      gap: { sMax: document.getElementById('qt-gap-slider')?.max, nMax: document.getElementById('qt-gap-number')?.max },
+      gap: { nMax: document.getElementById('qt-gap-number')?.max },   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음)
       hints: [...p.querySelectorAll('.prop-hint')].map(e => e.textContent),
       linesHint: p.querySelectorAll('#qt-lines-hint').length,
     };
@@ -1907,7 +1910,7 @@ test('Q21 ★1012t1H 패널 꼴 — 인용구 패널 (H6: 블럭 넣기 select 0
     && pn.al.v.every(a => a.lines === 0 && a.fill >= 1),
     `★H4 — 정렬 아이콘이 세로 정렬과 같은 viewBox/크기이고 선(line) 0 · 칠 path 가 있다. 잰 값 ${JSON.stringify(pn.al)}`).toBe(true);
   /* ⑷ H3 — 간격 한도 200: 슬라이더·숫자 칸 max 와 렌더 클램프(dataset.gap=200 이 80 일 때보다 ≈120 더 벌린다) */
-  expect(pn.gap, `★H3 — 간격 슬라이더·숫자 max 가 200. 잰 값 ${JSON.stringify(pn.gap)}`).toEqual({ sMax: '200', nMax: '200' });
+  expect(pn.gap, `★H3 — 간격 슬라이더·숫자 max 가 200. 잰 값 ${JSON.stringify(pn.gap)}`).toEqual({ nMax: '200' });
   const dist = (g) => page.evaluate((g) => {
     const b = window.__qt; b.dataset.gap = String(g); window.renderQuoteBlock(b);
     const pre = b.querySelector('[data-qt-mark="pre"]').getBoundingClientRect();
