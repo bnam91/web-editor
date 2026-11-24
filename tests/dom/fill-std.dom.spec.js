@@ -744,3 +744,27 @@ for (const [name, make, sel, key, prep] of F7X) {
     expect(errs, errs.join(' | ')).toEqual([]);
   });
 }
+
+/* F8 ④(시트 81행 FIGMA-FILL-NOT-EXPORTED-6-BLOCKS-01 · 지디 261125) — D31 글 스티커 배경이 Figma JSON 으로 간다
+ *   generic(kind sticker) 항목 bg = 글 스티커 bgColor(예전 = ds.bg = 늘 빈 값 → Figma 칠 0) · 숨기면 fillHidden:true · 색 그대로 · [지킴] 모양 스티커(원 등)는 bg 옛 그대로
+ * 양성대조 = 고치기 전 판(70f325a69)에서 D31 빨강(bg 빈 값) */
+test('D31 글 스티커 배경 — Figma JSON bg = bgColor · 숨김 키 · [지킴] 모양 스티커 무변', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const ids = await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    const sec = await window.addSection(); const out = [];
+    for (const o of [{ shape: 'text' }, { shape: 'circle' }]) { window.deselectAll(); window.selectSection(sec); const before = new Set(sec.querySelectorAll('.sticker-block')); window.addStickerBlock(o);
+      out.push([...sec.querySelectorAll('.sticker-block')].find((x) => !before.has(x)).id); }
+    const t = document.getElementById(out[0]); t.dataset.bgColor = '#12ab34'; window.renderStickerBlock(t); return out; });
+  const entry = (id) => page.evaluate((id) => { const j = window.buildFigmaExportJSON(null); let hit = null;
+    (function walk(o) { if (!o || typeof o !== 'object' || hit) return; if (o.id === id && o.type) { hit = o; return; } Object.values(o).forEach(walk); })(j); return hit ? JSON.parse(JSON.stringify(hit)) : null; }, id);
+  const t0 = await entry(ids[0]), c0 = await entry(ids[1]);
+  expect([t0?.type, t0?.kind], '[전제] 글 스티커 = generic sticker 항목').toEqual(['generic', 'sticker']);
+  expect(String(t0.bg).toLowerCase(), '★글 스티커 배경 = bgColor 가 Figma JSON bg 로').toBe('#12ab34');
+  expect('fillHidden' in t0, '[지킴] 안 숨기면 키 0').toBe(false);
+  expect(c0 ? (c0.bg ?? '') : 'no-entry', '[지킴] 모양 스티커는 bg 옛 그대로(ds.bg · 항목이 없으면 no-entry 로 갈림)').toBe('');
+  await page.evaluate(async (id) => { const m = await import('/js/props/_fill-section.js'); const it = m.fillKindOf(document.getElementById(id)); m.fillSetHidden(it.block, it.k, true); }, ids[0]);
+  const t1 = await entry(ids[0]);
+  expect([t1.fillHidden, String(t1.bg).toLowerCase()], '★숨기면 fillHidden · 색 그대로').toEqual([true, '#12ab34']);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

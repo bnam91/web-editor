@@ -1224,7 +1224,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       const ds = el.dataset || {};
       const out = {
         type: 'generic', id: el.id || '', kind: ds.type || '', ..._fh(el),
-        width: w, height: h || 0, bg: ds.bg || '', radius: parseInt(ds.radius) || 0,
+        width: w, height: h || 0, bg: (ds.type === 'sticker' && ds.shape === 'text' ? ds.bgColor : ds.bg) || '', radius: parseInt(ds.radius) || 0,   // F8 ④ 글 스티커 배경 = bgColor(ds.bg 아님 · 예전엔 늘 빈 값 → Figma 칠 0) · 'transparent' 면 렌더러가 투명
         svg: [...el.querySelectorAll('svg')].find(s => _notKid(s) && !s.closest('.itb-icon'))?.outerHTML || '', texts,   /* ICONTEXT-EMPTY-ICON-PLACEHOLDER-IN-EXPORT-01 — .itb-icon 안 svg 는 편집 자리표시뿐(고른 아이콘·사진은 img) */
       };
       /* FIGMA-EXPORT-GRID-IMAGES-MISSING-01 — 그리드 칸 그림(<img class="grd-img">)은 위 svg·texts 어디에도 안 실려 Figma 엔 빈 프레임이었다.
