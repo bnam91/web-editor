@@ -3238,11 +3238,14 @@ function _grdWireWidth(block) {
   const clamp = (v) => Math.min(_grdWidthMax(block), Math.max(GRID_WIDTH_MIN, Math.round(v)));   // ★K1 ⒝ — 패널 입력 상한 = 그릇 폭(위 _grdWidthMax 한 자리)
   if (number) {
     if (!floating) number.placeholder = '자동';   // ★빈 칸 = 자동(가드 셋째 축 · 비지 않은 placeholder) — 떠 있으면 안 단다(자동이 없다)
-    number.title = `그리드 블럭 자체의 너비(px, ${GRID_WIDTH_MIN}~${_grdWidthMax(block)} — 담는 그릇 폭까지). 비우면 자동(100%)`;
+    /* ★상한은 마크업이 이미 잰 값(number.max = _grdWidthMax)을 읽는다 — 배선 때 다시 재면(getComputedStyle·clientWidth) 막 그린 패널의 스타일·레이아웃을 강제로 굳혀
+       바로 뒤 접이식 쉐브론 클릭이 0.12s 회전 전이를 탄다(grid-panel-icon-spec A3 · 탑 DOM ×3 실측 · 옛 판은 배선 때 안 쟀다) */
+    const wMax = Number(number.max) || GRID_WIDTH_MAX;
+    number.title = `그리드 블럭 자체의 너비(px, ${GRID_WIDTH_MIN}~${wMax} — 담는 그릇 폭까지). 비우면 자동(100%)`;
     /* 라벨 끌기(옛 슬라이더 자리) — 놓을 때 change 한 번 = 아래 확정 길 한 번(이력 한 칸) · 자동(빈 칸)에서 잡으면 지금 그려진 폭에서 시작 */
     const scrub = document.getElementById('grd-width-number-scrub');
     scrub?.addEventListener('pointerdown', () => { if (String(number.value).trim() === '') number.value = String(clamp(block.offsetWidth || GRID_WIDTH_MIN)); });
-    wireNumberScrub(scrub, number, { min: GRID_WIDTH_MIN, max: _grdWidthMax(block) });
+    wireNumberScrub(scrub, number, { min: GRID_WIDTH_MIN, max: wMax });
     /* ⛔입력 «도중»(input)엔 안 쓴다 — 「500」을 치는 길에 「5」가 40 으로 죄여 그려진다. 확정(change = Enter·포커스 이탈) 때 한 번. */
     number.addEventListener('change', () => {
       const raw = String(number.value).trim();
