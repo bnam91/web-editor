@@ -523,23 +523,8 @@ function _renderAutoPanel(ss) {
         <input type="number" class="prop-number" id="ss-banner-inner-x-num" min="0" max="${bannerInnerXMax}" value="${bannerInnerX}">
       </div>
 ` : '') + `
-      <!-- 병합(탑 261122): 값 = 떠 있으면 offset(4d4e9a438) · 아니면 translate · 1120b P4(현빈 261120 「x,y 로우는 텍스트블럭 것 재사용」) — 텍스트 Position 절과 같은 두 칸 마크업(prop-lhls-row · 칸 안 X/Y) · id·배선 그대로 · .prop-number = 포커스 때 전체선택 유지(텍스트 너비 칸과 같은 짝) -->
-      <div class="prop-lhls-row">
-        <div class="prop-lhls-col">
-          <div class="prop-icon-input">
-            <span class="prop-xy-label">X</span>
-            <input type="number" class="prop-number" id="ss-pos-x" value="${_groupFloat ? (parseInt(ss.dataset.offsetX) || 0) : (parseInt(ss.dataset.translateX) || 0)}" aria-label="X position">
-          </div>
-        </div>
-        <div class="prop-lhls-col">
-          <div class="prop-icon-input">
-            <span class="prop-xy-label">Y</span>
-            <input type="number" class="prop-number" id="ss-pos-y" value="${_groupFloat ? (parseInt(ss.dataset.offsetY) || 0) : (parseInt(ss.dataset.translateY) || 0)}" aria-label="Y position">
-          </div>
-        </div>
-      </div>
-      ${/* Q17 · Q20(시안 v10) — 각도 칸 + 90° · 반전 한 줄(옛 id · 옛 배선 그대로) · 표준 Position P3 부품(슬라이드 모드) */
-      positionSectionHTML({ prefix: 'ss', posEl: null, xy: false, rot: { numberId: 'ss-rotate-deg', value: parseInt(ss.dataset.rotateDeg) || 0, min: -360, max: 360, flipH: ss.dataset.flipH === '1', flipV: ss.dataset.flipV === '1', ids: { r90: 'ss-rotate-90', fh: 'ss-flip-h', fv: 'ss-flip-v' } } })}
+      ${/* 병합(탑 261122) · 1120b P4 X/Y = 부품 liveXY 예외(값 = 떠 있으면 offset · 아니면 translate · 현빈 261121 · 261124 14:13 (나)) · Q17 · Q20(시안 v10) — 각도 칸 + 90° · 반전 한 줄(옛 id · 옛 배선 그대로) · 표준 Position P3 부품(슬라이드 모드) */
+      positionSectionHTML({ prefix: 'ss', posEl: null, xy: false, liveXY: { xId: 'ss-pos-x', yId: 'ss-pos-y', x: _groupFloat ? (parseInt(ss.dataset.offsetX) || 0) : (parseInt(ss.dataset.translateX) || 0), y: _groupFloat ? (parseInt(ss.dataset.offsetY) || 0) : (parseInt(ss.dataset.translateY) || 0) }, rot: { numberId: 'ss-rotate-deg', value: parseInt(ss.dataset.rotateDeg) || 0, min: -360, max: 360, flipH: ss.dataset.flipH === '1', flipV: ss.dataset.flipV === '1', ids: { r90: 'ss-rotate-90', fh: 'ss-flip-h', fv: 'ss-flip-v' } } })}
 `, {
         /* 플로팅 토글 = Position 머리 손잡이(§2-1) */
         headTools: positionHeadToolsHTML({ prefix: 'ss' }) + (_canFloat ? overlayToggleBtnHTML({ id: 'ss-float-toggle', active: _groupFloat, title: 'Ignore Auto Layout — ' + (_isGroupFrame ? '그룹' : '프레임') + '을 자동배치에서 빼서 그 자리에 둔다(옛 «오버레이»). 다시 누르면 원래 자리로 돌아간다.' }) : ''),

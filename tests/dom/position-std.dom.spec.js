@@ -174,3 +174,12 @@ test('PS9 iconify — 90° 단추 4 그대로 · 단추 누르면 슬라이드 �
   expect(errs).toEqual([]);
 });
 
+
+/* ── 프레임 예외(현빈 261121 · 261124 14:13 (나)): 흐름 안에서도 X/Y «씀» = translate 덧 이동 · 6-2 disabled 는 다른 블럭만 ── */
+test('PS10 흐름 안 프레임 — X/Y 씀(disabled 아님) · X 15 → dataset.translateX 15 · 옛 id ss-pos-x/y', async ({ page }) => {
+  const errs = await flowScene(page, 'window.addFrameBlock()');
+  await expect.poll(() => page.evaluate(() => ['ss-pos-x', 'ss-pos-y'].map((id) => document.getElementById(id)?.disabled))).toEqual([false, false]);
+  await page.evaluate(() => { const x = document.getElementById('ss-pos-x'); x.value = '15'; x.dispatchEvent(new Event('input', { bubbles: true })); x.dispatchEvent(new Event('change', { bubbles: true })); });
+  await expect.poll(() => page.evaluate(() => [...document.querySelectorAll('#canvas *')].some((e) => e.dataset && e.dataset.translateX === '15')), '★흐름 프레임 X = translate 덧 이동').toBe(true);
+  expect(errs).toEqual([]);
+});
