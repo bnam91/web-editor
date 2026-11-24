@@ -985,7 +985,7 @@ function renderCanvas(block) {
     const imgShape   = block.dataset.imgShape || 'rect'; // 'rect' | 'circle'
     const labelPos   = block.dataset.labelPos || 'bottom'; // 'top' | 'bottom' | 'both'
     const textHide   = block.dataset.textHide === 'true';
-    const textBg     = block.dataset.textBg    || '#f5f5f5';
+    const textBg     = block.dataset?.fillHidden === '1' ? 'transparent' : (block.dataset.textBg    || '#f5f5f5');   // F6-2b 숨김(키 = props/_fill-section setFillHiddenKey · import 0) — 칠만 안 함 · 색 키 그대로 · 글자 자동 색(_textBg 휘도)은 숨김과 무관하게 원래 색으로 잼
     const titleSize  = parseInt(block.dataset.titleSize) || 20;
     const descSize   = parseInt(block.dataset.descSize)  || 14;
     const textAlign  = block.dataset.textAlign || 'left';

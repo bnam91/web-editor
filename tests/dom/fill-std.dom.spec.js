@@ -530,3 +530,46 @@ for (const [name, make, sel, show, render, key, px, prep] of F62) {
     expect(errs, errs.join(' | ')).toEqual([]);
   });
 }
+
+/* F6-2b 패널 직접칠 5(지디 261124) — 칠 style 을 쓰는 자리가 여럿 ⇒ 그리기 = 프레임·에셋·아이콘원은 css/editor-blocks.css 규칙 한 벌(!important) · 브리지·심플카드 글 배경은 렌더러 한 줄
+ * D26 블럭마다: 유일 색 칠 → [전제] «계산된» 그림에 보임 → 눈 → 안 보임·키 1 → ⑴ 선택 풀고 다시 고름 → 유지·눈 눌림 → ⑵ 색을 다른 유일 색으로 다시 씀(그 블럭의 style 쓰는 자리를 다시 탐) → 유지 → ⑶ 저장·다시 열기(D24 꼴) → 유지
+ *   ★계산값은 expect.poll 로 잰다 — 에셋은 배경 transition 이 있어 한 번 읽으면 칠하는 도중(투명)을 읽는다(첫 판 [전제] 빨강의 까닭)
+ *   «보임» = 계산된 background-color/-image 에 그 색 · 또는 SVG 계산 fill 에 그 색이고 계산 fill-opacity ≠ 0 — ★인라인 문자열은 안 본다(숨김은 색·인라인을 «그대로 두는» 꼴이라 문자열엔 늘 있다)
+ * 양성대조: _patches/fill-f6-2b-CTL-<블럭>.patch(그 블럭의 CSS 규칙 / 렌더러 한 줄만 뺌) ⇒ 그 블럭 칸만 빨강 */
+const F62B = [
+  ['frame', 'window.addFrameBlock()', '.frame-block:not([data-text-frame])', 'showFrameProperties', 'ss-fill', 'ss-bg-hex'],
+  ['asset', 'window.addAssetBlock()', '.asset-block', 'showAssetProperties', 'asset-fill', 'asset-bg-hex'],
+  ['icon-circle', 'window.addIconCircleBlock()', '.icon-circle-block', 'showIconCircleProperties', 'icb-fill', 'icb-bg-hex'],
+  ['bridge', 'window.addBridgeBlock()', '.bridge-block', 'showBridgeProperties', 'brg-fill', 'brg-hex'],
+  ['simple-card', 'window.addCanvasBlock()', '.canvas-block', 'showCanvasProperties', 'cvb-textbg-fill', 'cvb-textbg-hex'],
+];
+for (const [name, make, sel, show, px, hex] of F62B) {
+  test(`D26 ${name} — 숨김 유지: ⑴ 다시 고름 ⑵ 색 다시 씀 ⑶ 저장·다시 열기`, async ({ page }) => {
+    await page.setViewportSize({ width: 1500, height: 1100 });
+    const errs = await bootApp(page);
+    const id = await page.evaluate(async ([make, sel, show]) => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+      const sec = await window.addSection(); window.deselectAll(); window.selectSection(sec); await eval(make); const b = sec.querySelector(sel); window.selectBlock(b.id); window[show](b); return b.id; }, [make, sel, show]);
+    const reopenPanel = () => page.evaluate(([id, show]) => { window.deselectAll(); const b = document.getElementById(id); window.selectBlock(id); window[show](b); }, [id, show]);
+    const setHex = async (v) => { if (!(await page.$(`#${hex}`)) && (await page.$(`#${px}-add`))) { await page.click(`#${px}-add`); await raf(page); }
+      await page.fill(`#${hex}`, v); await page.press(`#${hex}`, 'Enter'); await raf(page); await reopenPanel(); };
+    const vis = () => page.evaluate(async (id) => { await Promise.all(document.getAnimations().map((an) => an.finished.catch(() => {})));   // transition 끝난 값만(«안 보임»이 칠하는 도중의 투명으로 공짜로 참이 되지 않게)
+      const b = document.getElementById(id); const re = /rgb\(18, 171, 5[23]\)/;
+      return [b, ...b.querySelectorAll('*')].some((e) => { const cs = getComputedStyle(e);
+        if (re.test(cs.backgroundColor) || re.test(cs.backgroundImage)) return true;
+        return e instanceof SVGElement && re.test(cs.fill) && parseFloat(cs.fillOpacity) !== 0; }); }, id);
+    const k = () => page.evaluate(([id, px]) => [document.getElementById(id)?.getAttribute('data-fill-hidden') ?? null, document.getElementById(`${px}-eye`)?.getAttribute('aria-pressed') ?? null], [id, px]);
+    await setHex('#12ab34');
+    await expect.poll(vis, { message: '[전제] 유일 색이 계산된 그림에 보인다(배경 transition 이 있는 블럭 = 다 칠할 때까지 기다림)' }).toBe(true);
+    await page.click(`#${px}-eye`); await raf(page);
+    await expect.poll(async () => [await vis(), ...(await k())], { message: '★눈 = 안 보임 · 키 1 · 눈 눌림' }).toEqual([false, '1', 'true']);
+    await reopenPanel(); await raf(page);
+    await expect.poll(async () => [await vis(), ...(await k())], { message: '★⑴ 선택 풀고 다시 고름 → 유지 · 눈 눌림' }).toEqual([false, '1', 'true']);
+    await setHex('#12ab35');
+    await expect.poll(async () => [await vis(), ...(await k())], { message: '★⑵ 색을 다시 씀(그 블럭의 style 쓰는 자리) → 유지' }).toEqual([false, '1', 'true']);
+    await reopenFile(page); await raf(page); await reopenPanel(); await raf(page);
+    await expect.poll(async () => [await vis(), ...(await k())], { message: '★⑶ 저장·다시 열기 → 유지 · 눈 눌림' }).toEqual([false, '1', 'true']);
+    await page.click(`#${px}-eye`); await raf(page);
+    await expect.poll(async () => [await vis(), (await k())[0]], { message: '★눈 다시 = 다시 보임(⑵ 색) · 키 없음' }).toEqual([true, null]);
+    expect(errs, errs.join(' | ')).toEqual([]);
+  });
+}

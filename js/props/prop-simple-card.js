@@ -7,7 +7,7 @@ import { renderPanel, sec, expandSection } from './_panel-frame.js';
    (input/blur 가 아예 없어 무효값이 영원히 남던 사본 포함). 2026-09-20 유닛 colorhex. */
 import { wireHexText, parseHex6, formatHex6, parseHex6OrTransparent, formatHex6OrTransparent, isCssBackgroundValue } from './color-picker.js';
 import { panelRenderedColor } from './_panel-rendered.js';
-import { fillSectionHTML, fillHeadToolsHTML, wireFillSection } from './_fill-section.js';   // 표준 Fill F5-2c
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillHiddenOf, setFillHiddenKey } from './_fill-section.js';   // 표준 Fill F5-2c
 import { CVB_H_MIN, CVB_H_MAX } from '../blocks/card-limits.js';   // #cvb-h min/max = updateCanvasBlock 의 자
 
 // ② 카드 텍스트 입력칸 펼침 상태 — 블록별 «펼친 카드 인덱스» 집합.
@@ -482,7 +482,7 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
       </div>
       <div id="cvb-text-area-controls" style="${_taDim}">
       <span class="prop-label" title="모든 카드의 글 영역 배경">배경색 (일괄)</span>
-      ${fillSectionHTML({ prefix: 'cvb-textbg-fill', on: !isTextBgTransparent, colorHtml: `<div class="prop-color-field"><div class="prop-color-swatch" style="background:${textBg}"><input type="color" id="cvb-textbg-pick" value="${textBg}"></div><input type="text" class="prop-color-hex" id="cvb-textbg-hex" value="${_hexBox(textBg)}" maxlength="11" aria-label="Color"></div>` })}   <!-- 표준 Fill F5-2c — 글 영역 배경(일괄) = 표준 줄 · 옛 «투명» 단추 = −/＋(같은 몸 setTextBgNone · 밝은 글자 자동 어둡게 그대로) · 이름표 «(일괄)» 지킴(카드별 색과 범위 가름) -->
+      ${fillSectionHTML({ prefix: 'cvb-textbg-fill', hiddenWhy: '', hidden: fillHiddenOf(block), on: !isTextBgTransparent, colorHtml: `<div class="prop-color-field"><div class="prop-color-swatch" style="background:${textBg}"><input type="color" id="cvb-textbg-pick" value="${textBg}"></div><input type="text" class="prop-color-hex" id="cvb-textbg-hex" value="${_hexBox(textBg)}" maxlength="11" aria-label="Color"></div>` })}   <!-- 표준 Fill F5-2c — 글 영역 배경(일괄) = 표준 줄 · 옛 «투명» 단추 = −/＋(같은 몸 setTextBgNone · 밝은 글자 자동 어둡게 그대로) · 이름표 «(일괄)» 지킴(카드별 색과 범위 가름) -->
       <div class="prop-color-row">
         <span class="prop-label">제목 색</span>
         <div class="prop-color-swatch" style="background:${titleColor}">
@@ -1077,7 +1077,9 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
     if (block.classList.contains('selected')) window.showSimpleCardProperties?.(block);
   };
   textBgTransBtn?.addEventListener('click', () => setTextBgNone(!textBgTransBtn.classList.contains('active')));
-  wireFillSection({ prefix: 'cvb-textbg-fill', adapter: { none: () => setTextBgNone(true), add: () => setTextBgNone(false), commit: () => {} } });   // 이력 = 몸 안 pushHistory 한 칸
+  wireFillSection({ prefix: 'cvb-textbg-fill', adapter: { none: () => setTextBgNone(true), add: () => setTextBgNone(false),
+    hide: (on) => { setFillHiddenKey(block, on); window.renderCanvas(block); window.scheduleAutoSave?.(); window.pushHistory?.(); },   // F6-2b 숨김 — 키 + 다시 그림(렌더러 textBg 한 줄) · commit 이 빈 함수라 이력은 여기서 한 칸 · ⛔setTextBgNone 의 글자 자동 어둡게는 안 탐(숨김은 지우기가 아님)
+    commit: () => {} } });   // 이력 = 몸 안 pushHistory 한 칸
 
   textBgPick?.addEventListener('input',  () => applyTextBg(textBgPick.value));
   textBgPick?.addEventListener('change', () => window.pushHistory?.());

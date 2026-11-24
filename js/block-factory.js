@@ -1398,7 +1398,7 @@ function _buildBridgeWavePath({ shape = 'round', amp, count, phase = 'crest' } =
 function renderBridgeBlock(block) {
   if (!block) return;
   if ('bridgeSharp' in block.dataset) delete block.dataset.bridgeSharp;  // 폐지된 레거시 키 정리(재직렬화 방지, 코덱스 Q5)
-  const color = block.dataset.bridgeColor || BRIDGE_DEFAULTS.color;
+  const color = block.dataset.bridgeColor || BRIDGE_DEFAULTS.color;   // F6-2b 숨김 = 아래 svg style fill-opacity:0(색 키·path fill 그대로 · 패널이 path fill 을 바로 써도 숨김 유지)
   const width = parseFloat(block.dataset.bridgeWidth) || BRIDGE_DEFAULTS.width;
   const depth = parseFloat(block.dataset.bridgeDepth) || BRIDGE_DEFAULTS.depth;
   const _ar = parseFloat(block.dataset.bridgeArc);
@@ -1410,7 +1410,7 @@ function renderBridgeBlock(block) {
   const shape = block.dataset.bridgeShape === 'round' || block.dataset.bridgeShape === 'sharp' ? block.dataset.bridgeShape : 'v';   // 모르는 값 = V(옛 꼴)
   const path = shape === 'v' ? _buildBridgePath({ width, depth, arc })
     : _buildBridgeWavePath({ shape, amp: parseFloat(block.dataset.bridgeWaveAmp), count: parseFloat(block.dataset.bridgeWaveCount), phase: block.dataset.bridgeWavePhase });
-  block.innerHTML = `<svg viewBox="0 0 860 90" width="100%" height="100%" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%;height:100%"><path d="${path}" fill="${color}"/></svg>`;
+  block.innerHTML = `<svg viewBox="0 0 860 90" width="100%" height="100%" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%;height:100%${block.dataset?.fillHidden === '1' ? ';fill-opacity:0' : ''}"><path d="${path}" fill="${color}"/></svg>`;
 }
 
 // 브릿지는 토글 없이 '항상' full-bleed: 섹션 좌우패딩만큼 음수마진 + calc 확장 (gradient-block 정책과 동일).

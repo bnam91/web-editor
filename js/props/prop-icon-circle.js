@@ -4,7 +4,7 @@ import { renderPanel, sec } from './_panel-frame.js';
 import { gridCircleIconSvg } from '../blocks/grid-circle-icon.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_STYLES_SVG, STROKE_POP_WHY } from './_stroke-section.js';
-import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast } from './_fill-section.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast, fillHiddenOf, setFillHiddenKey } from './_fill-section.js';
 
 /* G14 「＋ 블럭 넣기 ▾」 종류·이름표 — 정본은 js/icb-children.js(ICB_CHILD_KIND_LABELS · t5-12ⓑ 그리드 원 줄 패널과 한 벌). */
 import { ICB_CHILD_KIND_LABELS as _ICB_KID_KINDS } from '../icb-children.js';
@@ -98,7 +98,7 @@ export function showIconCircleProperties(block) {
         </select>
       </div>
       </div>`),
-      sec('fill', fillSectionHTML({ prefix: 'icb-fill', on: _fillOn, colorHtml: colorFieldHTML({ idPrefix: 'icb-bg', hex: _lastFill, alpha: bgAlpha }) }),
+      sec('fill', fillSectionHTML({ prefix: 'icb-fill', hiddenWhy: '', hidden: fillHiddenOf(block), on: _fillOn, colorHtml: colorFieldHTML({ idPrefix: 'icb-bg', hex: _lastFill, alpha: bgAlpha }) }),
         { headTools: fillHeadToolsHTML({ prefix: 'icb-fill', on: _fillOn }) }),   // 표준 Fill F2-3 — 옛 «채움» 토글(icb-fill-toggle) → 머리 ＋ / 줄 −(없음 = 'transparent' = 옛 끔 값 · 편집 = 체커 · Figma 투명)
       /* ★표준 Stroke 부품(현빈 261123 · 8910 strokestd2 4) — 없음 = data-border none(옛 키 · 옛 «없음» 고르기 그대로) · 머리 ＋ = 실선
          ★새 키 2(지디 261123 (가)): borderW·borderColor — 기본(3px · 편집기 토큰 --ui-border 가 지금 그리는 색)과 다를 때만 저장 → 옛 저장본 바이트 무변
@@ -178,6 +178,7 @@ export function showIconCircleProperties(block) {
   /* G14 채움 켬/끔 — 끔 = 'transparent'(기존 값) · 켬 = 마지막 색(없으면 #e8e8e8). 히스토리는 «양쪽 끝»(js/CLAUDE.md). */
   /* 표준 Fill F2-3 — 옛 토글 자리: − = 'transparent' · ＋ = 지난 색(fillLast · 없으면 옛 _lastFill = 칠했던 색 또는 #e8e8e8) · 이력 «양쪽 끝» 그대로(앞 = 여기 · 뒤 = 부품 commit) */
   wireFillSection({ prefix: 'icb-fill', adapter: {
+    hide: (on) => { setFillHiddenKey(block, on); window.scheduleAutoSave?.(); },   // F6-2b 숨김 — 키만(그리기 = css/editor-blocks.css 규칙 한 벌)
     none: () => { window.pushHistory(); fillLast.set(block.id, _lastFill); _paint('transparent'); showIconCircleProperties(block); },
     add: () => { window.pushHistory(); _paint(fillLast.get(block.id, _lastFill)); showIconCircleProperties(block); },
     commit: () => window.pushHistory() } });

@@ -6,7 +6,7 @@ import { syncFrameBgVars, frameBgSize, applyFrameBgImageInline, setFrameBgOpacit
 import { clipsContent } from '../clip-content.js';   /* ★★켬 판정의 ★단 한 자리(2026-10-10 c2 · 지디 ㉠) */   /* ★프레임 배경 ★먹이는 한 자리(2026-10-10 ③) */
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_STYLES_CSS, STROKE_POP_WHY } from './_stroke-section.js';
-import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, setFillKindName, fillLast, fillKindOfCss } from './_fill-section.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, setFillKindName, fillLast, fillKindOfCss, fillHiddenOf, setFillHiddenKey } from './_fill-section.js';
 import { hasSides, readSides, writeSides, cssSideWidths, sidesMixed } from '../stroke-look.js';
 import { bindSlider, alignBtn, blockHeaderHTML, sliderRowHTML, overlayToggleBtnHTML, rotRowHTML, wireRotRow } from './_helpers.js';
 import { applyFrameTransform, frameAlignOffset, framePadding, applyFrameHAlignToChild } from '../frame-geometry.js';
@@ -609,7 +609,7 @@ function _renderAutoPanel(ss) {
       </div>`}
 `),
       sec('fill', `
-      ${fillSectionHTML({ prefix: 'ss-fill', on: fillOn, kind: fillKindOfCss(bgGradCss), colorHtml: colorFieldHTML({ idPrefix: 'ss-bg', hex: hexBg, alpha: bgAlpha, gradientCss: bgGradCss }) })}
+      ${fillSectionHTML({ prefix: 'ss-fill', hiddenWhy: '', hidden: fillHiddenOf(ss), on: fillOn, kind: fillKindOfCss(bgGradCss), colorHtml: colorFieldHTML({ idPrefix: 'ss-bg', hex: hexBg, alpha: bgAlpha, gradientCss: bgGradCss }) })}
       <div class="prop-row">
         <span class="prop-label">배경 투명도</span>
         <input type="range" class="prop-slider" id="ss-bgopa-slider" min="0" max="100" step="1" value="${bgOpacity}">
@@ -985,6 +985,7 @@ function _renderAutoPanel(ss) {
 
   /* 표준 Fill F2 — − = 'transparent'(옛 단색 쓰기 길 그대로 = 그라데이션도 걷힘 · 이미지 = 슬롯이라 그대로) · ＋ = 지난 색 · 없으면 #FFFFFF(Figma 프레임 기본) */
   wireFillSection({ prefix: 'ss-fill', adapter: {
+    hide: (on) => { setFillHiddenKey(ss, on); window.scheduleAutoSave?.(); },   // F6-2b 숨김 — 키만(그리기 = css/editor-blocks.css 규칙 한 벌)
     none: () => { fillLast.set(ss.id, bgGradCss || hexBg); applyBgSolid('transparent'); if (ss.dataset.bgImg) applyFrameBgImageInline?.(ss); showFrameProperties(ss); },
     add: () => { const c = fillLast.get(ss.id, '#ffffff'); if (/gradient\s*\(/i.test(c)) { ss.style.backgroundColor = ''; ss.style.background = c; ss.dataset.bg = c; _syncFrameBgVars(); window.scheduleAutoSave?.(); } else applyBgSolid(c); showFrameProperties(ss); },
     commit: () => window.pushHistory?.() } });

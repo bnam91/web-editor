@@ -1,7 +1,7 @@
 import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor, swatchHex } from './color-picker.js';
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_POP_WHY } from './_stroke-section.js';
-import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, setFillKindName, fillLast, fillKindOfCss } from './_fill-section.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, setFillKindName, fillLast, fillKindOfCss, fillHiddenOf, setFillHiddenKey } from './_fill-section.js';
 import { hasSides, readSides, writeSides, cssSideWidths, sidesMixed } from '../stroke-look.js';
 import { alignBtn, overlayToggleBtnHTML, blockHeaderHTML, animGifBtnHTML, wireAnimGifBtn } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
@@ -103,7 +103,7 @@ export function showAssetProperties(ab) {
      살아서 계속 칠해지는데 «닿는 문»만 없는 막다른 골목). ⇒ hasImage 분기 «밖»에 둔다.
      선례: prop-icon-circle.js 의 Color/배경 절도 hasImage 삼항 밖에 있다. */
   const bgSection = `
-      ${fillSectionHTML({ prefix: 'asset-fill', on: fillOn, kind: fillKindOfCss(assetBgGrad), colorHtml: colorFieldHTML({ idPrefix: 'asset-bg', hex: assetBgGrad ? '#a0a0a0' : currentBgColor, alpha: currentBgAlpha, gradientCss: assetBgGrad }) })}
+      ${fillSectionHTML({ prefix: 'asset-fill', hiddenWhy: '', hidden: fillHiddenOf(ab), on: fillOn, kind: fillKindOfCss(assetBgGrad), colorHtml: colorFieldHTML({ idPrefix: 'asset-bg', hex: assetBgGrad ? '#a0a0a0' : currentBgColor, alpha: currentBgAlpha, gradientCss: assetBgGrad }) })}
       <!-- 1120b A6(현빈 261120) — 「초기화」(#asset-bg-clear) 단추 걷음 -->
       ${hasImage ? '' : `<!-- ★t4-15 체커 톤(현빈 ④) — 꼴·어휘는 섹션 라디오 그대로(새 클래스 0).
            ★입구 조건 없음 — 현빈 「에셋블럭은 최초 추가시에 체크배경으로 두기를 켤 필요가 없지 않아?」(빈 에셋은 늘 체커다).
@@ -662,6 +662,7 @@ export function showAssetProperties(ab) {
   });
   /* 표준 Fill F2-2 — − = bgColor 'transparent'(지디 (ㄴ) · 그라데이션 걷음) · ＋ = 지난 색 · 없으면 #A0A0A0(옛 패널 기본) */
   wireFillSection({ prefix: 'asset-fill', adapter: {
+    hide: (on) => { setFillHiddenKey(ab, on); window.scheduleAutoSave?.(); },   // F6-2b 숨김 — 키만(그리기 = css/editor-blocks.css 규칙 한 벌)
     none: () => { fillLast.set(ab.id, assetBgGrad || currentBgColor); ab.dataset.bgColor = 'transparent'; ab.style.background = ''; ab.style.backgroundColor = 'transparent'; window.scheduleAutoSave?.(); showAssetProperties(ab); },
     add: () => { const c = fillLast.get(ab.id, '#a0a0a0'); ab.style.background = ''; ab.dataset.bgColor = c; if (/gradient\s*\(/i.test(c)) ab.style.background = c; else ab.style.backgroundColor = c; window.scheduleAutoSave?.(); showAssetProperties(ab); },
     commit: () => window.pushHistory?.() } });
