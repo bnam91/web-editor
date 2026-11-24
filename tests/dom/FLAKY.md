@@ -480,3 +480,7 @@ ft-restore-remeasures-at-other-width.dom.spec.js:112 X0   빨강 1/1 (u6m 전수
 
 ## 2026-11-24 · train/0913-d 표적 438(e301ce57f) — 이름 ＋ 수 (⛔원인 라벨 없이)
 - `text-dot-anchor-clip.dom.spec.js:118` S2 — srv 표적 1 워커 flaky 1/1 · 머리 ×6 0/6 · dev bb85e952f 제품 판 ×6 0/6 빨강.
+
+## 2026-11-24 · tp/0914-applayout-std 표적 621(A2 e106672c7) — 이름 ＋ 수 (⛔원인 라벨 없이)
+- `grid-bg-radius-handle.dom.spec.js:123` H4 — srv 표적 1 워커 빨강 1/1 · 단독 ×3 0/3.
+- `slide-frame-cells.dom.spec.js:571` U1 — srv 표적 1 워커 빨강 1/1 · 단독 ×3 0/3.
