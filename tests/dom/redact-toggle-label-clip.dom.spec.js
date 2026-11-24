@@ -93,7 +93,11 @@ const clipped = (page) => page.evaluate(() => {
   return {
     panelW: body.clientWidth,
     scanned: all.length,
+    /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 표준 Layout 줄(도형 W/H)의 끝 24px 단추(data-part="end-slot" · 비율 사슬)는
+       «설계대로» 옵션 칼럼(--ui-opt-col-w)에 선다 = 줄 상자 밖 · 패널 안(overflow visible · 잘림 아님). 그 넘침만 뺀다: 끝 단추가 «전부» 패널 안에 보이면 잘린 게 아니다. */
     list: all.filter((e) => e.scrollWidth > e.clientWidth && e.clientWidth > 0)
+             .filter((e) => { const es = [...e.querySelectorAll('[data-part="end-slot"]')]; const br = body.getBoundingClientRect();
+               return !(es.length && e.scrollWidth - e.clientWidth <= 32 && es.every((b) => b.getBoundingClientRect().right <= br.right + 0.5)); })
              .map((e) => ({ cls: String(e.className).slice(0, 40), sw: e.scrollWidth, cw: e.clientWidth,
                             txt: (e.textContent || '').trim().slice(0, 34) })),
   };
