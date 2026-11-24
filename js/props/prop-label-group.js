@@ -8,6 +8,7 @@ import {
   resolveLabelPreset, readLabelStyle, applyLabelStyleToItem, applyLabelStyleToBlock,
 } from '../label-presets.js';
 import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A3)
+import { layoutSizeRowHTML, layoutGapSlotHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(L2~L4 · C3)
 
 /** 단일 label-item에 스타일 프리셋 적용 — 기본 4종 또는 'user:<id>'(t3-01 내 프리셋) */
 function _applyPresetToItem(item, presetName) {
@@ -104,22 +105,10 @@ function showLabelGroupProperties(block, selectedItem) {
           </div>
         </div>
       </div>`),
-      sec('size', (!isAbsolute ? '' : `
-      <div class="prop-row">
-        <span class="prop-label">Width</span>
-        <input type="range"  class="prop-slider" id="lg-width-slider" min="40" max="860" step="4" value="${currentW}">
-        <input type="number" class="prop-number"  id="lg-width-number" min="40" max="860" value="${currentW}">
-      </div>`) + `
-      <div class="prop-row">
-        <span class="prop-label">전체 높이</span>
-        <input type="range"  class="prop-slider" id="lg-all-height-slider" min="0" max="120" step="2" value="${allItemH}">
-        <input type="number" class="prop-number"  id="lg-all-height-number" min="0" max="120" value="${allItemH}">
-      </div>` + (!selectedItem ? '' : `
-      <div class="prop-row">
-        <span class="prop-label">태그 높이</span>
-        <input type="range"  class="prop-slider" id="lg-item-height-slider" min="0" max="120" step="2" value="${itemH}">
-        <input type="number" class="prop-number"  id="lg-item-height-number" min="0" max="120" value="${itemH}">
-      </div>`)),
+      /* ★표준 Layout(현빈 261124 L-4/7 · C3) — 옛 슬라이더 걷음 · 숫자 칸 id·범위 무변 · 높이 = 태그 상하 패딩이라 W/H 짝 아님 → 한 칸씩(사슬 없음) */
+      sec('size', (!isAbsolute ? '' : layoutSizeRowHTML({ prefix: 'lg-w', one: { id: 'lg-width-number', label: 'Width', min: 40, max: 860, value: currentW } }))
+        + layoutSizeRowHTML({ prefix: 'lg-all-h', one: { id: 'lg-all-height-number', label: '전체 높이', min: 0, max: 120, value: allItemH } })
+        + (!selectedItem ? '' : layoutSizeRowHTML({ prefix: 'lg-item-h', one: { id: 'lg-item-height-number', label: '태그 높이', min: 0, max: 120, value: itemH } }))),
       sec('layout', `
       <div class="prop-align-group">
         <button class="prop-align-btn ${align==='left'?'active':''}" data-align="left">
@@ -141,20 +130,17 @@ function showLabelGroupProperties(block, selectedItem) {
           </svg>
         </button>
       </div>
-      <div class="prop-row">
-        <span class="prop-label">Gap</span>
-        <input type="range"  class="prop-slider" id="lg-gap-slider" min="0" max="60" step="2" value="${gap}">
-        <input type="number" class="prop-number"  id="lg-gap-number" min="0" max="60" value="${gap}">
-      </div>`),
+      ${layoutGapSlotHTML({ id: 'lg-gap-number', value: gap, max: 60 })}`),
       /* B1(dev) — 고른 태그가 «모양 변수»를 쓰면 모서리·색 대신 «변수 사용 중 · 끊기 · 바꾸기»(모양 = Appearance) · 색 칸은 끊어야 생긴다 */
-      sec('appearance', !selectedItem ? '' : boundName ? `
+      /* A4 Opacity(블럭 · 계약 window.readBlockOpacity) — 태그 모서리·모양 변수는 고른 태그가 있을 때만 */
+      sec('appearance', appearanceSectionHTML({ prefix: 'lg', op: { value: window.readBlockOpacity?.(block) ?? 100 } }) + (!selectedItem ? '' : boundName ? `
       <div class="prop-row" id="lg-shape-bound" data-shape="${escHtml(boundName)}">
         <span class="prop-hint" style="flex:1;padding:0">모양: 변수 <b>${escHtml(boundName)}</b> 사용 중</span>
         <button class="prop-btn" id="lg-shape-unlink" style="width:auto;padding:0 8px" title="지금 모양 그대로 이 칸에 박고 변수 연결을 끊는다(끊어야 색·모서리를 따로 고칠 수 있다)">끊기</button>
       </div>
       ${_shapeNames.length > 1 ? `<div class="prop-row"><span class="prop-label">바꾸기</span><select class="prop-select" id="lg-shape-switch">${_shapeOpts(boundName)}</select></div>` : ''}` : `
       ${appearanceSectionHTML({ prefix: 'lg-item', radius: { numberId: 'lg-item-radius-number', value: itemRadius, max: 50 } })}   <!-- ★표준 Appearance A3(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·키·범위 무변 -->
-      ${_shapeNames.length ? `<div class="prop-row"><span class="prop-label">모양 변수</span><select class="prop-select" id="lg-shape-link"><option value="">연결 안 함</option>${_shapeOpts('')}</select></div>` : ''}`, selectedItem ? { headTools: appearanceHeadToolsHTML({ prefix: 'lg-item' }) } : {}),
+      ${_shapeNames.length ? `<div class="prop-row"><span class="prop-label">모양 변수</span><select class="prop-select" id="lg-shape-link"><option value="">연결 안 함</option>${_shapeOpts('')}</select></div>` : ''}`), selectedItem ? { headTools: appearanceHeadToolsHTML({ prefix: 'lg-item' }) } : {}),
       sec('fill', (!selectedItem || boundName) ? '' : `
       <div class="prop-color-row">
         <span class="prop-label">태그 배경</span>
@@ -180,23 +166,9 @@ function showLabelGroupProperties(block, selectedItem) {
   });
 
   // 간격
-  const gapSlider = document.getElementById('lg-gap-slider');
-  const gapNumber = document.getElementById('lg-gap-number');
-  gapSlider?.addEventListener('input', () => {
-    block.style.gap = gapSlider.value + 'px';
-    gapNumber.value = gapSlider.value;
-  });
-  gapSlider?.addEventListener('change', () => window.pushHistory?.());
-  gapNumber?.addEventListener('input', () => {
-    const v = Math.min(60, Math.max(0, parseInt(gapNumber.value) || 0));
-    block.style.gap = v + 'px';
-    gapSlider.value = v;
-  });
-  gapNumber?.addEventListener('change', () => window.pushHistory?.());
+  wireLayoutSection({ w: { numberId: 'lg-gap-number', max: 60, apply: (v) => { block.style.gap = v + 'px'; } } });
 
   // 전체 태그 높이 일괄 조절
-  const allHSlider = document.getElementById('lg-all-height-slider');
-  const allHNumber = document.getElementById('lg-all-height-number');
   const setAllItemH = v => {
     const half = Math.round(v / 2);
     block.querySelectorAll('.label-item').forEach(item => {
@@ -204,13 +176,7 @@ function showLabelGroupProperties(block, selectedItem) {
       item.style.paddingBottom = half + 'px';
     });
   };
-  allHSlider?.addEventListener('input', () => { setAllItemH(parseInt(allHSlider.value)); allHNumber.value = allHSlider.value; });
-  allHSlider?.addEventListener('change', () => window.pushHistory?.());
-  allHNumber?.addEventListener('input', () => {
-    const v = Math.min(120, Math.max(0, parseInt(allHNumber.value) || 0));
-    setAllItemH(v); allHSlider.value = v;
-  });
-  allHNumber?.addEventListener('change', () => window.pushHistory?.());
+  wireLayoutSection({ w: { numberId: 'lg-all-height-number', max: 120, apply: setAllItemH } });
 
   // ── 스타일 프리셋 드롭다운 (C17) ───────────────────────────────────
   const styleSelect = document.getElementById('lg-style-select');
@@ -279,7 +245,8 @@ function showLabelGroupProperties(block, selectedItem) {
   });
 
   // 모서리
-  wireAppearanceSection({ radius: { numberId: 'lg-item-radius-number', max: 50, apply: (v) => { selectedItem.style.borderRadius = v + 'px'; selectedItem.dataset.radius = v; }, commit: () => window.pushHistory?.() } });   // 표준 Appearance A3(슬라이더 걷음 · 모양 변수에 묶이면 칸 없음 = 무동작)
+  wireAppearanceSection({ op: { numberId: 'lg-opacity', apply: (v) => window.setBlockOpacity?.(block, v), commit: () => { window.pushHistory?.(); window.scheduleAutoSave?.(); } } });   // A4
+  if (selectedItem) wireAppearanceSection({ radius: { numberId: 'lg-item-radius-number', max: 50, apply: (v) => { selectedItem.style.borderRadius = v + 'px'; selectedItem.dataset.radius = v; }, commit: () => window.pushHistory?.() } });   // 표준 Appearance A3(슬라이더 걷음 · 모양 변수에 묶이면 칸 없음 = 무동작)
 
   // B1 — 모양 변수 끊기·바꾸기·연결 (변수 값은 좌측 Design System 에서 고친다)
   const _rebind = (name) => {
@@ -294,33 +261,16 @@ function showLabelGroupProperties(block, selectedItem) {
   document.getElementById('lg-shape-link')?.addEventListener('change', (e) => { if (e.target.value) _rebind(e.target.value); });
 
   // 태그 높이 (상하 패딩으로 조절)
-  const iHSlider = document.getElementById('lg-item-height-slider');
-  const iHNumber = document.getElementById('lg-item-height-number');
   const setItemH = v => {
     const half = Math.round(v / 2);
     selectedItem.style.paddingTop    = half + 'px';
     selectedItem.style.paddingBottom = half + 'px';
   };
-  iHSlider?.addEventListener('input', () => { setItemH(parseInt(iHSlider.value)); iHNumber.value = iHSlider.value; });
-  iHSlider?.addEventListener('change', () => window.pushHistory?.());
-  iHNumber?.addEventListener('input', () => {
-    const v = Math.min(120, Math.max(0, parseInt(iHNumber.value) || 0));
-    setItemH(v); iHSlider.value = v;
-  });
-  iHNumber?.addEventListener('change', () => window.pushHistory?.());
+  if (selectedItem) wireLayoutSection({ w: { numberId: 'lg-item-height-number', max: 120, apply: setItemH } });
 
   // 너비 / 위치 (서브섹션 내 absolute 전용)
   if (isAbsolute) {
-    const wSlider = document.getElementById('lg-width-slider');
-    const wNumber = document.getElementById('lg-width-number');
-    const setW = v => { block.style.width = v + 'px'; };
-    wSlider?.addEventListener('input', () => { setW(+wSlider.value); wNumber.value = wSlider.value; });
-    wSlider?.addEventListener('change', () => window.pushHistory?.());
-    wNumber?.addEventListener('input', () => {
-      const v = Math.min(860, Math.max(40, parseInt(wNumber.value) || 40));
-      setW(v); wSlider.value = v;
-    });
-    wNumber?.addEventListener('change', () => window.pushHistory?.());
+    wireLayoutSection({ w: { numberId: 'lg-width-number', min: 40, max: 860, apply: (v) => { block.style.width = v + 'px'; } } });
 
     const xNum = document.getElementById('lg-x-number');
     const yNum = document.getElementById('lg-y-number');
