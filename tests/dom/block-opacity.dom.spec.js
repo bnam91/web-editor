@@ -10,7 +10,8 @@
  *   B5 Figma 진짜 길 — buildFigmaExportJSON(캔버스) → 진짜 렌더러(가짜 figma_cmd) → set_node_properties 프레임 .5 · 글 .4(곱한 .2 없음) · 키 없으면 0
  *   B6 옛 저장(키 없음) — 불러오기·저장 뒤 data-opacity 0 · «opacity» 글자 수 무변
  *   B7 Fill 눈(data-fill-hidden)과 독립 — 하나를 바꿔도 다른 하나 그대로(키 수준 · F6 CSS 는 이 base 에 없음)
- * 양성대조: base b03691dfa 판(js/block-opacity.js 없음 · export/renderer 손 안 댐) → B1·B2·B3·B4·B5 빨강 · B6·B7 은 setBlockOpacity 가 없어 빨강.
+ *   B8 PNG 네이티브(CDP) 길 — 앱이 실제로 쓰는 길(isNativeCapture) · B4 와 같은 판정(100 양성대조 먼저)
+ * 양성대조: base b03691dfa 판(js/block-opacity.js 없음 · export/renderer 손 안 댐) → B1·B2·B3·B4·B5·B8 빨강 · B6·B7 은 setBlockOpacity 가 없어 빨강.
  */
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
@@ -195,5 +196,46 @@ test('B7 Fill 눈(data-fill-hidden)과 독립', async ({ page }) => {
   expect(r.a).toEqual(['1', '30']);
   expect(r.b).toEqual([null, '30', '0.3']);
   expect(r.c).toEqual(['1', null]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* B8 ★네이티브(CDP) 길 — 앱(Electron)이 실제로 쓰는 PNG 길(isNativeCapture = electronAPI.captureSection 있음 · captureSectionCdp 로 찍음).
+   하네스 = text-highlight-bar.dom.spec.js H8 의 installCdpCapture 꼴(진짜 Page.captureScreenshot) — 같은 꼴을 여기 둔다. */
+async function installCdpCapture(page) {
+  const cdp = await page.context().newCDPSession(page);
+  await page.exposeFunction('__cdpShot', async ({ x = 0, y = 0, width, height }) => {
+    const r = await cdp.send('Page.captureScreenshot', { format: 'png', clip: { x: Math.round(x), y: Math.round(y), width: Math.ceil(width), height: Math.ceil(height), scale: 1 }, captureBeyondViewport: true, fromSurface: true });
+    return r.data;
+  });
+  await page.evaluate(() => {
+    const old = window.electronAPI;
+    window.electronAPI = new Proxy({}, { get: (t, k) => (k === 'captureSectionCdp' ? (o) => window.__cdpShot(o) : k === 'captureSection' ? (() => Promise.resolve(null)) : old[k]) });
+  });
+}
+
+test('B8 PNG(네이티브 CDP 길) — 빨강 50% ≈ (255,128,128) · 100 = (255,0,0)', async ({ page }) => {
+  await page.setViewportSize({ width: 1200, height: 900 });
+  const errs = await setup(page);
+  await installCdpCapture(page);
+  await page.evaluate(() => window.deselectAll?.());
+  const shoot = () => page.evaluate(async () => {
+    const ex = await import('/js/io/export-image.js');
+    if (!ex.isNativeCapture()) throw new Error('전제: 네이티브 길이 아니다');
+    const sec = document.querySelector('.section-block'), F = document.getElementById('opF');
+    const sr = sec.getBoundingClientRect(), fr = F.getBoundingClientRect(), z = sr.width / 860;   // 화면 배율 → 860 기준
+    const gx = (fr.right - sr.left) / z - 10, gy = (fr.bottom - sr.top) / z - 10;
+    const clone = await ex.prepareCloneForCapture(sec, 860, true); ex.renderComponentsInClone(clone);
+    const { canvas, native } = await ex.captureCloneToCanvas(clone, 860, '#ffffff', true, sec); clone.remove();
+    if (!native) throw new Error('전제: native 갈래를 안 탔다');
+    const s = canvas.width / 860;
+    return [...canvas.getContext('2d').getImageData(Math.round(gx * s), Math.round(gy * s), 1, 1).data].slice(0, 3);
+  });
+  const full = await shoot();
+  expect(full, '양성대조: 100 에서 빨강이 아니다(자리를 잘못 잼)').toEqual([255, 0, 0]);
+  await page.evaluate(() => window.setBlockOpacity(document.getElementById('opF'), 50));
+  const half = await shoot();
+  console.log('[B8]', JSON.stringify({ full, half }));
+  expect(half[0]).toBeGreaterThanOrEqual(250);
+  for (const c of [half[1], half[2]]) { expect(c).toBeGreaterThanOrEqual(118); expect(c).toBeLessThanOrEqual(138); }
   expect(errs, errs.join(' | ')).toEqual([]);
 });
