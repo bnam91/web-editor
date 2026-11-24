@@ -234,7 +234,7 @@ test('F9 파일럿 — prop-gap.js · prop-bridge.js 는 renderPanel 을 쓰고 
 });
 
 test('N1 ★양성대조 — SECTION_ORDER 를 뒤집은 판이면 F1 의 기대가 깨진다', () => {
-  const ANCHOR = "'kind', 'content', 'position', 'size', 'layout', 'padding', 'appearance',\n  'typography', 'fill', 'stroke', 'effects', 'selection', 'template', 'export', 'special',";   // ★닻 바뀜 — selection(현빈 261123 섹션 보강)
+  const ANCHOR = "'kind', 'content', 'position', 'size', 'layout', 'padding', 'fill',\n  'stroke', 'appearance', 'typography', 'selection', 'effects', 'template', 'export', 'special',";   // ★기대 바뀜(P-2 SECTION_ORDER v1 · 지디 승인)   // ★닻 바뀜 — selection(현빈 261123 섹션 보강)
   const src = readSrc(ROOT, 'js/props/_section-spec.js');
   assert.ok(src.includes(ANCHOR), '★변이 닻을 못 찾았다 — 이 양성대조는 «안 재고» 있다');
   const rev = ANCHOR.replace(/\n/, ' ').split(',').map((s) => s.trim()).filter(Boolean).reverse().join(', ') + ',';

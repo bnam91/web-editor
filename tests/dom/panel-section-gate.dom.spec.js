@@ -97,19 +97,20 @@ test('G2 ★내장 양성대조 — 뒤집은 순서·틀린 제목 표로 재�
   const panel = await readPanel(page);
   /* ★기대 바뀜(RP-PRD-PREEXIST-FAIL-01 · 261121) — ⑴ '__group' = 읽개(readPanel)가 Layout 묶음 머리에 붙이는 표식(750b9fae6 · 판정기도 절에서 뺀다) ⇒ 여기서도 뺀다
      ⑵ 블록 «Template» 절(c5686f5a7 · Q37 · 현빈 GO 261120)이 모든 블럭 패널 끝에 붙는다 */
-  expect(panel.secs.filter((s) => s.sec && s.sec !== '__group').map((s) => s.sec), '[전제] 브릿지 = Size·Appearance·Fill·Tail·Template').toEqual(['size', 'appearance', 'fill', 'template', 'special']);   // ★기대 바뀜(표준 Appearance A4 C1 · 현빈 261124) — 브릿지 Opacity 새 절 = 정본 순서 자리(appearance 는 Fill 앞)   // ★기대 바뀜(지디 261123 ⑶ⓑ · 정본 v1 꼬리 Templates → [Special])
+  expect(panel.secs.filter((s) => s.sec && s.sec !== '__group').map((s) => s.sec), '[전제] 브릿지 = Size·Fill·Appearance·Template·Tail').toEqual(['size', 'fill', 'appearance', 'template', 'special']);   // ★기대 바뀜(P-2 SECTION_ORDER v1 · 지디 승인)   // ★기대 바뀜(표준 Appearance A4 C1 · 현빈 261124) — 브릿지 Opacity 새 절 = 정본 순서 자리(appearance 는 Fill 앞)   // ★기대 바뀜(지디 261123 ⑶ⓑ · 정본 v1 꼬리 Templates → [Special])
   expect(judgePanel(panel, SPEC), '[전제] 정본으론 통과').toEqual([]);
   expect(judgePanel(panel, SPEC, [...SPEC.SECTION_ORDER].reverse()).join(' | '), '★뒤집은 순서를 못 잡는다').toContain('순서 위반');
   const wrongTitles = { ...SPEC, SECTION_TITLE: { ...SPEC.SECTION_TITLE, size: 'Dimensions' } };
   expect(judgePanel(panel, wrongTitles).join(' | '), '★틀린 제목을 못 잡는다').toContain('제목 불일치');
   const dup = { ...panel, secs: [...panel.secs, panel.secs.find((s) => s.sec === 'size')] };
   expect(judgePanel(dup, SPEC).join(' | '), '★중복을 못 잡는다').toContain('중복 절');
-  // ★소유 — 진짜 DOM 에서 색 필드 절을 effects 로 바꾼 가짜 렌더(순서·제목은 정본 그대로 맞춰 «소유»만 틀리게)
-  await page.evaluate(() => { const s = document.getElementById('psec-fill'); s.dataset.sec = 'effects'; s.querySelector(':scope > .prop-sec-head .prop-sec-title-text').textContent = 'Effects'; });
+  // ★소유 — 진짜 DOM 에서 색 필드 절을 stroke 로 바꾼 가짜 렌더(순서·제목은 정본 그대로 맞춰 «소유»만 틀리게)
+  // ★기대 바뀜(P-2 v1) — 옛 가짜 = effects 였으나 v1 에선 effects 가 appearance 뒤라 «순서 위반»도 났다 ⇒ fill 자리에서 순서가 맞는 stroke(Fill → Stroke → Appearance)
+  await page.evaluate(() => { const s = document.getElementById('psec-fill'); s.dataset.sec = 'stroke'; s.querySelector(':scope > .prop-sec-head .prop-sec-title-text').textContent = 'Stroke'; });
   const moved = await readPanel(page);
-  expect(moved.secs.find((s) => s.sec === 'effects')?.controls.length, '[전제] 색 컨트롤이 effects 절로 갔다').toBeGreaterThan(0);
+  expect(moved.secs.find((s) => s.sec === 'stroke')?.controls.length, '[전제] 색 컨트롤이 stroke 절로 갔다').toBeGreaterThan(0);
   const v = judgePanel(moved, SPEC);
-  expect(v.join(' | '), '★색 필드가 effects 절에 있는데 못 잡는다').toContain('소유 위반: brg-color');
+  expect(v.join(' | '), '★색 필드가 stroke 절에 있는데 못 잡는다').toContain('소유 위반: brg-color');
   expect(v.filter((x) => !x.startsWith('소유 위반')), '[전제] 소유 «만» 틀린 가짜다').toEqual([]);
 });
 

@@ -82,7 +82,7 @@ test('P8 사슬 막힘(꽉참) — aria-disabled + 까닭 · 켬 표시 끔', ()
 });
 
 /* ── 배선(C1 261125 버그): read() 없는 축 — 편집 전 값은 «마지막으로 먹은 값» · 빈 칸 되돌림에 NaN 0 · 지우고 치면 사슬 비율은 옛 값 ── */
-function wireRig(axes, chain) {
+function wireRig(axes, chain, reads = {}) {   // reads = { id: () => 블럭 값 } — 있으면 그 축은 read() 를 갖는다(블럭이 진실)
   class El { get value() { return this._v; } set value(v) { this._v = String(v); }   // input.value 처럼 늘 문자열
     constructor(v) { this.value = v; this.l = {}; this.disabled = false; this.attrs = {}; this.classList = { toggle() {} }; }
     addEventListener(t, f) { (this.l[t] ||= []).push(f); } fire(t) { (this.l[t] || []).forEach((f) => f({})); }
@@ -92,7 +92,7 @@ function wireRig(axes, chain) {
   let commits = 0;
   const ctx = { document: { getElementById: (id) => els[id] ?? null }, window: {} };
   const W = vm.runInNewContext(`${src}\nwireLayoutSection`, ctx);
-  const ax = (id, max) => ({ numberId: id, max, apply: (v) => calls[id].push(v) });
+  const ax = (id, max) => ({ numberId: id, max, apply: (v) => calls[id].push(v), ...(reads[id] ? { read: reads[id] } : {}) });
   W({ commit: () => commits++, w: ax(axes[0][0], 1000), h: axes[1] ? ax(axes[1][0], 1000) : undefined, chain });
   const type = (id, v) => { els[id].value = String(v); els[id].fire('input'); };
   const change = (id) => els[id].fire('change');
@@ -120,4 +120,49 @@ test('P10 read 없는 축 + 사슬 — 지우고 치면 비율 = 옛 값(200:100
   assert.ok([...r.calls.w, ...r.calls.h].every(Number.isFinite));
   r.type('w', 301); r.type('w', 302); r.change('w');   // 다음 편집 = 먹은 값(300:150) 기준
   assert.equal(r.els.h.value, '151');
+});
+
+/* P-2(C4 07f3f4d63 의 뿌리) — 손잡이가 블럭을 바꾸고 칸을 맞춘 뒤 늦게 온 change = 칸 값 == 블럭 값 ⇒ apply·이력 0(사슬 짝도 안 건드림) */
+test('P11 전 값과 같은 change — apply 0 · 이력 0 · 짝 축 무변 · 치고 Enter 는 여전히 이력 1', () => {
+  const B = { w: 400, h: 300 };
+  const r = wireRig([['w', 400], ['h', 300]], { id: 'none', on: true, set() {} }, { w: () => B.w, h: () => B.h });
+  B.w = 523; B.h = 391; r.els.w.value = 523; r.els.h.value = 391;   // 손잡이 끌기 = 블럭 + 칸(07f3f4d63 맞춤)
+  r.change('w'); r.change('h');
+  assert.deepEqual([r.calls.w, r.calls.h, r.commits()], [[], [], 0], '★늦은 change 가 같은 값을 다시 먹였다(사슬 반올림으로 짝이 튈 수 있다)');
+  /* 대조: 치고 Enter — input 이 이미 그려 read() 가 새 값이어도 이력은 남는다 */
+  const put = r.calls.w.push.bind(r.calls.w); r.calls.w.push = (v) => { B.w = v; return put(v); };
+  r.type('w', 600); r.change('w');
+  assert.deepEqual([B.w, r.commits()], [600, 1]);
+  /* 쳤다가 원래 값으로 돌아와 Enter = 순변화 0 ⇒ 이력 0 */
+  r.type('w', 650); r.type('w', 600); r.change('w');
+  assert.equal(r.commits(), 1);
+});
+
+/* ── P-2 표준 Appearance(_appearance-section.js) 빈 칸 — Mixed 칸을 비우고 change 해도 0 을 먹이지 않는다 ── */
+const appSrc = fs.readFileSync(path.join(ROOT, 'js', 'props', '_appearance-section.js'), 'utf8')
+  .replace(/^import .*$/m, 'const wireNumberScrub = () => {};')
+  .replace(/^export (const|function) /gm, '$1 ');
+function appRig(v0) {
+  class El { get value() { return this._v; } set value(v) { this._v = String(v); }
+    constructor(v) { this.value = v; this.l = {}; } addEventListener(t, f) { (this.l[t] ||= []).push(f); } fire(t) { (this.l[t] || []).forEach((f) => f({})); } }
+  const n = new El(v0), calls = [];
+  let commits = 0;
+  const A = vm.runInNewContext(`${appSrc}\nwireAppearanceSection`, { document: { getElementById: (id) => (id === 'op' ? n : null) }, window: {} });
+  A({ op: { numberId: 'op', apply: (v) => calls.push(v), commit: () => commits++ } });
+  return { n, calls, commits: () => commits, type: (v) => { n.value = v; n.fire('input'); }, change: () => n.fire('change') };
+}
+
+test('A1 Opacity 빈 칸 change — 보이던 값으로 되돌림 · Mixed 는 빈 칸 그대로 · apply 0 · 이력 0 · 숫자는 여전히 잘라 먹음', () => {
+  const m = appRig('');   // Mixed(빈 값 + placeholder)
+  m.type(''); m.change();
+  assert.deepEqual([m.n.value, m.calls, m.commits()], ['', [], 0], '★Mixed 칸을 비운 change 가 값을 먹였다(옛 꼴 = 전부 0)');
+  const r = appRig('70');
+  r.type(''); r.change();
+  assert.deepEqual([r.n.value, r.calls, r.commits()], ['70', [], 0]);
+  r.type('40'); r.type(''); r.change();   // 그렸다가 비움 = 보이던 값으로 되그림 · 이력 0
+  assert.deepEqual([r.n.value, r.calls.at(-1), r.commits()], ['70', 70, 0]);
+  r.type('250'); r.change();   // 대조: 숫자 = 잘라 먹음 + 이력 한 칸
+  assert.deepEqual([r.n.value, r.calls.at(-1), r.commits()], ['100', 100, 1]);
+  r.type(''); r.change();   // 먹은 값이 다음 «보이던 값»
+  assert.deepEqual([r.n.value, r.commits()], ['100', 1]);
 });

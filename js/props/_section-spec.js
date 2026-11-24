@@ -12,8 +12,8 @@
  * ⛔이 파일에는 색·px 리터럴 0 (scripts/check-design-tokens.sh 신규 층 하드게이트).
  */
 export const SECTION_ORDER = Object.freeze([
-  'kind', 'content', 'position', 'size', 'layout', 'padding', 'appearance',
-  'typography', 'fill', 'stroke', 'effects', 'selection', 'template', 'export', 'special',   // selection = 섹션 «Selection Colors»(현빈 261123 섹션 보강 · Figma 꼴 · 지디 261123 Title Case)   // ★꼬리 = 정본 v1(지디 261123 ⑶ⓑ) Templates → Export → [Special] · 다른 절 재배열은 PR-ORDER-V1 몫
+  'kind', 'content', 'position', 'size', 'layout', 'padding', 'fill',
+  'stroke', 'appearance', 'typography', 'selection', 'effects', 'template', 'export', 'special',   // selection = 섹션 «Selection Colors»(현빈 261123 섹션 보강 · Figma 꼴 · 지디 261123 Title Case)   // ★정본 v1 전체(지디 승인 · P-2): Kind → Content → Position → Layout(size·layout·padding) → Fill → Stroke → Appearance → Typography → Selection Colors → Effects → GIF → Templates → Export → [Special]
 ]);
 /** 절 정렬 수 — 블록 고유 «GIF»(special · 제목 GIF)만 Effects 바로 뒤(정본 v1 «Effects → GIF → Templates» · 지디 261123 ⑶ⓑ). 틀 정렬·게이트 판정이 이 한 자리를 쓴다.
  *  shortcut: GIF 가 special 로 사는 동안의 예외 한 줄 — PR-ORDER-V1 에서 GIF 를 제 key 로 가르면 걷는다. */

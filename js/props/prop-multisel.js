@@ -1,6 +1,8 @@
 import { propPanel } from '../globals.js';
 import { alignBtn } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
+import { layoutSizeRowHTML, layoutGapSlotHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(P-2 · 지디 판정)
+import { appearanceSectionHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance A4 Opacity(P-2)
 /* ★★말풍선의 ★«발신자 이름»을 ★데려가는 ★유일한 자 — ⛔여기서 ★`.tb-sender-name` 을 ★직접 ★만지지 ★마라.
    ★선례: ★`prop-text-wireup-align.js:50`(★단일선택) · ★`prop-page.js:683`(★페이지 일괄) ★둘이 ★이미 ★이렇게 ★쓴다. */
 import { applyBubbleSenderAlign } from './prop-text-wireup-align.js';
@@ -180,9 +182,9 @@ function _applyAlign(wrappers, type) {
 }
 
 /**
- * X/Y/W/H 값 변경 — 선택된 모든 블록에 적용
+ * X/Y/W/H 값 변경 — 선택된 모든 블록에 적용 · commit=false = 그리기만(표준 Layout 배선이 input 마다 부른다 · 이력은 change 한 번)
  */
-function _applyDimension(wrappers, field, value) {
+function _applyDimension(wrappers, field, value, commit = true) {
   const num = parseInt(value);
   if (isNaN(num)) return;
 
@@ -204,6 +206,7 @@ function _applyDimension(wrappers, field, value) {
       else wrapper.dataset.height = String(num);
     }
   });
+  if (!commit) return;
 
   window.pushHistory?.('멀티셀렉 크기/위치 변경');
   showFreeLayoutMultiSelPanel();
@@ -225,6 +228,9 @@ export function showFreeLayoutMultiSelPanel() {
   const wVal = _mixedOrValue(geoms.map(g => g.w));
   const hVal = _mixedOrValue(geoms.map(g => g.h));
   const spacing = _calcSpacingDisplay(wrappers);
+  /* 불투명 = 고른 블럭 자신(글 = text-frame 안 .selected · 떠 있는 블럭 = 래퍼 자신 — 단일 패널과 같은 대상) */
+  const opBlocks = wrappers.map((w) => (w.classList.contains('selected') ? w : w.querySelector('.selected')) || w);
+  const opVal = _mixedOrValue(opBlocks.map((b) => window.readBlockOpacity?.(b) ?? 100));
 
   const mkInput = (id, val, field, label) => `
     <div class="prop-icon-input" style="flex:1;min-width:0;" title="${label}">
@@ -257,26 +263,16 @@ export function showFreeLayoutMultiSelPanel() {
       </div>
 `,
     sections: [
+      sec('appearance', appearanceSectionHTML({ prefix: 'msp', op: { value: opVal, mixed: opVal === 'mixed' } })),   // A4 Opacity — 다르면 Mixed(빈 값 · data-empty="invalid")
       sec('position', `
       <div class="prop-row">
         ${mkInput('x', xVal, 'x', 'X')}
         ${mkInput('y', yVal, 'y', 'Y')}
       </div>
 `),
-      sec('size', `
-      <div class="prop-row">
-        ${mkInput('w', wVal, 'w', 'W')}
-        ${mkInput('h', hVal, 'h', 'H')}
-      </div>
-`),
-      sec('layout', `
-      <div class="prop-row">
-        <div class="prop-icon-input" style="flex:1;">
-          <span style="font-size:9px;color:#666;padding:0 3px;flex-shrink:0;">gap</span>
-          <input type="text" value="${spacing}" readonly
-                 style="color:${spacing === 'mixed' ? '#888' : 'var(--ui-text)'};cursor:default;">
-        </div>
-      </div>
+      sec('size', layoutSizeRowHTML({ prefix: 'msp', chain: { on: false, blocked: '여러 블럭 — 비율 사슬 없음' },   // 표준 Layout — 숫자 칸 id 무변(msp-w·msp-h) · 다르면 Mixed
+        w: { id: 'msp-w', value: wVal, min: 1, max: 4000, mixed: wVal === 'mixed' }, h: { id: 'msp-h', value: hVal, min: 1, max: 4000, mixed: hVal === 'mixed' } })),
+      sec('layout', `${layoutGapSlotHTML({ id: 'msp-gap', value: spacing, max: 9999, mixed: spacing === 'mixed' })}
       <div class="prop-row" style="gap:3px;justify-content:space-between;">
         ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', attrs: { 'data-align': 'left' }, base: 'msp-align-btn' })}
         ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', attrs: { 'data-align': 'hcenter' }, base: 'msp-align-btn' })}
@@ -291,7 +287,7 @@ export function showFreeLayoutMultiSelPanel() {
   });
 
   // X/Y/W/H 입력 이벤트
-  ['x', 'y', 'w', 'h'].forEach(field => {
+  ['x', 'y'].forEach(field => {
     const input = propPanel.querySelector(`#msp-${field}`);
     if (!input) return;
 
@@ -320,6 +316,17 @@ export function showFreeLayoutMultiSelPanel() {
       }
     });
   });
+
+  /* 표준 Layout W/H — input = 전부 그림 · change = 이력 한 칸 + 다시 그림(옛 Enter/blur 꼴) · 다르면(Mixed) read = NaN(되돌릴 값 없음) */
+  const _dimRead = (f) => () => { const m = _mixedOrValue(wrappers.map((w) => _getGeometry(w)[f])); return m === 'mixed' ? NaN : +m; };
+  const _dimAxis = (f) => ({ numberId: `msp-${f}`, min: 1, max: 4000, read: _dimRead(f), apply: (v) => _applyDimension(wrappers, f, v, false) });
+  wireLayoutSection({ w: _dimAxis('w'), h: _dimAxis('h'), commit: () => { window.pushHistory?.('멀티셀렉 크기/위치 변경'); window.scheduleAutoSave?.(); showFreeLayoutMultiSelPanel(); } });
+  /* 간격 = 읽기 전용 판독(블럭 사이 거리 — 정렬·이동이 바꾼다) · 배선 없음(끌기 손잡이도 안 붙인다) */
+  const _gapN = propPanel.querySelector('#msp-gap');
+  if (_gapN) { _gapN.readOnly = true; _gapN.title = '블럭 사이 간격(읽기 전용)'; }
+  /* A4 Opacity — 고른 블럭 전부 · 이력 한 칸(change) */
+  wireAppearanceSection({ op: { numberId: 'msp-opacity', apply: (v) => opBlocks.forEach((b) => window.setBlockOpacity?.(b, v)),
+    commit: () => { window.pushHistory?.('멀티셀렉 불투명도'); window.scheduleAutoSave?.(); } } });
 
   // 정렬 버튼 이벤트
   propPanel.querySelectorAll('.msp-align-btn').forEach(btn => {
