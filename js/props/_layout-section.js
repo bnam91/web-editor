@@ -30,7 +30,7 @@ export function setRatioLock(block, on, dflt) {
 /* 칸 하나 — 작은 라벨 + [아이콘(끌기) 숫자] · Mixed = 빈 값 + placeholder + data-empty="invalid"(N9) · auto = 막힘 «자동» */
 const _layCell = (label, field, icon, c) => {
   const blank = c.mixed || c.auto;
-  const ph = c.mixed ? ' placeholder="Mixed" data-empty="invalid"' : c.auto ? ` placeholder="자동" data-empty="auto" disabled title="${LAY_AUTO_WHY}"` : '';
+  const ph = c.mixed ? ' placeholder="Mixed" data-empty="invalid"' : c.auto ? ` placeholder="자동" data-empty="invalid" disabled title="${LAY_AUTO_WHY}"` : '';
   return `<div class="ui-s2-cell"><span>${label}</span><div class="prop-icon-input" data-part="number" data-field="${field}"><span class="prop-xy-label ui-app-scrub" id="${c.id}-scrub" title="${label || field} — 좌우로 끌면 바뀐다">${icon}</span><input type="number" class="prop-number" id="${c.id}" min="${c.min ?? 0}" max="${c.max}" step="1" value="${blank ? '' : c.value}"${ph} aria-label="${label || field}"></div></div>`;
 };
 /* 끝 칸 자리 맞춤(사슬 없는 줄도 숫자 칸 끝이 같은 자리) */
