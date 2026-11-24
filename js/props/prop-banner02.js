@@ -1,4 +1,5 @@
 // prop-banner02.js — banner02 블록 우측 프로퍼티 패널 (prop-canvas 패턴 미러링)
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A2)
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML, disclosureSectionHtml, discSecOpen, discSecToggle, checkHTML } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
@@ -306,11 +307,7 @@ export function showBanner02Properties(block, activeIdxArg) {
       </div>
 ` : ''),
       sec('appearance', `
-      <div class="prop-row">
-        <span class="prop-label">반경</span>
-        <input type="range" class="prop-slider" id="bn2-radius" min="0" max="60" step="1" value="${parseInt(d.radius) || 0}">
-        <input type="number" class="prop-number" id="bn2-radius-num" min="0" max="60" value="${parseInt(d.radius) || 0}">
-      </div>`),
+      ${appearanceSectionHTML({ prefix: 'bn2', radius: { numberId: 'bn2-radius-num', value: parseInt(d.radius) || 0, max: 60 } })}   <!-- ★표준 Appearance A2(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·dataset.radius·범위 무변 -->`, { headTools: appearanceHeadToolsHTML({ prefix: 'bn2' }) }),
       sec('fill', fillSectionHTML({ prefix: 'bn2-fill', on: d.bg !== 'transparent', kind: fillKindOfCss(bgIsGrad ? d.bg : ''), colorHtml: colorFieldHTML({ idPrefix: 'bn2-bg', hex: bgIsGrad ? '#f3f4f6' : (d.bg || '#f3f4f6'), gradientCss: bgIsGrad ? d.bg : '' }) }),
         { headTools: fillHeadToolsHTML({ prefix: 'bn2-fill', on: d.bg !== 'transparent' }) }),   // 표준 Fill F2-2 — 없음 = bg 'transparent'
     ],
@@ -422,12 +419,8 @@ export function showBanner02Properties(block, activeIdxArg) {
     add: () => { block.dataset.bg = fillLast.get(block.id, '#f3f4f6'); rerender(); window.scheduleAutoSave?.(); showBanner02Properties(block, activeIdx); },
     commit } });
 
-  // Radius (slider+num 동기)
-  const rs = propPanel.querySelector('#bn2-radius'), rn = propPanel.querySelector('#bn2-radius-num');
-  const setR = v => { v = Math.max(0, Math.min(60, parseInt(v) || 0)); block.dataset.radius = v; rs.value = v; rn.value = v; rerender(); };
-  rs?.addEventListener('input', () => setR(rs.value));
-  rn?.addEventListener('input', () => setR(rn.value));
-  rs?.addEventListener('change', commit); rn?.addEventListener('change', commit);
+  // Radius — 표준 Appearance A2(슬라이더 걷음 · 숫자 칸 + 라벨 끌기)
+  wireAppearanceSection({ radius: { numberId: 'bn2-radius-num', max: 60, apply: (v) => { block.dataset.radius = v; rerender(); }, commit } });
 
   // 가변 lines — 각 줄 핸들러 바인딩
   const mutLines = (mutator) => {

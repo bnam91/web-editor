@@ -22,13 +22,13 @@ export function appearanceHeadToolsHTML({ prefix }) {
 /**
  * @param {object} o
  * @param {string} o.prefix  블럭의 옛 접두(예: 'ss') — 모서리 따로 단추 = `${prefix}-corners`
- * @param {{numberId:string, value:number, min?:number, max:number, mixed?:boolean}} o.radius  옛 숫자 칸 id 그대로 · 끌기 손잡이 = `${numberId}-scrub`
+ * @param {{numberId:string, value:number, min?:number, max:number, mixed?:boolean}} o.radius  (배선 쪽 = + apply(v) · commit?())  옛 숫자 칸 id 그대로 · 끌기 손잡이 = `${numberId}-scrub`
  */
 export function appearanceSectionHTML({ prefix, radius: r }) {
   return `
       <div class="ui-appearance" data-part="appearance">
         <div class="ui-s2-main prop-row">
-          <div class="ui-s2-cell"><span>Corner radius</span><div class="prop-icon-input" data-part="number" data-field="appearance-radius"><span class="prop-xy-label ui-app-scrub" id="${r.numberId}-scrub" title="Corner radius — 좌우로 끌면 바뀐다">${RADIUS}</span><input type="number" class="prop-number" id="${r.numberId}" min="${r.min ?? 0}" max="${r.max}" step="1" value="${r.mixed ? '' : r.value}"${r.mixed ? ' placeholder="Mixed"' : ''} aria-label="Corner radius"></div></div>
+          <div class="ui-s2-cell"><span>Corner radius</span><div class="prop-icon-input" data-part="number" data-field="appearance-radius"><span class="prop-xy-label ui-app-scrub" id="${r.numberId}-scrub" title="Corner radius — 좌우로 끌면 바뀐다">${RADIUS}</span><input type="number" class="prop-number" id="${r.numberId}" min="${r.min ?? 0}" max="${r.max}" step="1" value="${r.mixed ? '' : r.value}"${r.mixed ? ' placeholder="Mixed" data-empty="invalid"' : ''} aria-label="Corner radius"></div></div>
           <button type="button" class="prop-chain-btn" id="${prefix}-corners" data-part="end-slot" aria-pressed="false" aria-disabled="true" aria-label="${APP_CORNERS_WHY}" title="${APP_CORNERS_WHY}">${CORNERS}</button>
         </div>
       </div>`;
@@ -41,6 +41,7 @@ export function wireAppearanceSection({ radius: r }) {
   const min = r.min ?? 0, max = r.max;
   const clamp = (raw) => { const v = parseInt(raw); return Number.isNaN(v) ? min : Math.min(max, Math.max(min, v)); };
   n.addEventListener('input', () => r.apply(clamp(n.value)));
-  n.addEventListener('change', () => { n.value = clamp(n.value); window.pushHistory?.(); window.scheduleAutoSave?.(); });
+  const commit = r.commit || (() => { window.pushHistory?.(); window.scheduleAutoSave?.(); });   // 블럭이 제 commit 을 넘기면 그것(모달 등)
+  n.addEventListener('change', () => { n.value = clamp(n.value); r.apply(clamp(n.value)); commit(); });
   wireNumberScrub(document.getElementById(`${r.numberId}-scrub`), n, { min, max });
 }

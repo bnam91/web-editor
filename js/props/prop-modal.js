@@ -2,6 +2,7 @@
    ★prop-innercard.js 의 관례를 그대로 쓴다: colorFieldHTML/wireColorField, 슬라이더+숫자 «쌍»,
      prop-block-label 풀 구조, setRpIdBadge, pushHistory()+scheduleAutoSave().
    글자 편집은 캔버스에서 더블클릭(block-drag) — 여기선 구조/스타일만 만진다. */
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A2)
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor,
          wireHexText, parseHex6, formatHex6 } from './color-picker.js';
@@ -265,12 +266,8 @@ export function showModalProperties(block) {
       </div>
 `),
       sec('appearance', `
-      <div class="prop-row">
-        <span class="prop-label">모서리</span>
-        <input type="range" class="prop-slider" id="mdl-radius-slider" min="${L.radius.min}" max="${L.radius.max}" step="1" value="${radius}">
-        <input type="number" class="prop-number" id="mdl-radius-number" min="${L.radius.min}" max="${L.radius.max}" value="${radius}">
-      </div>
-`),
+      ${appearanceSectionHTML({ prefix: 'mdl', radius: { numberId: 'mdl-radius-number', value: radius, min: L.radius.min, max: L.radius.max } })}   <!-- ★표준 Appearance A2(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·dataset.radius·범위 무변 -->
+`, { headTools: appearanceHeadToolsHTML({ prefix: 'mdl' }) }),
       sec('typography', _typo.body),
       sec('fill', `
       ${fillSectionHTML({ prefix: 'mdl-fill', on: bg !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'mdl-bg', hex: bg, alpha: parseAlphaFromColor(bg) }) })}
@@ -425,7 +422,7 @@ export function showModalProperties(block) {
     s.addEventListener('change', commit);
     n.addEventListener('change', () => { apply(parseInt(n.value)); commit(); });
   };
-  wireNum('radius', 'radius', L.radius.min, L.radius.max);
+  wireAppearanceSection({ radius: { numberId: 'mdl-radius-number', min: L.radius.min, max: L.radius.max, apply: (v) => { block.dataset.radius = String(v); rerender(); }, commit } });   // 표준 Appearance A2 — 옛 wireNum('radius') 자리(슬라이더 걷음)
   wireNum('padx', 'padX', 0, 80);
   wireNum('pady', 'padY', 0, 80);
   if (isGrid) wireNum('gap', 'gap', 0, 40);

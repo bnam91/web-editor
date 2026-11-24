@@ -63,3 +63,44 @@ test('AS3 frame 모서리 라벨 끌기 — 아이콘을 오른쪽으로 15px �
   expect([await page.inputValue('#ss-radius-num'), await page.evaluate(() => window.__ph)]).toEqual(['25', 1]);
   expect(errs).toEqual([]);
 });
+
+/* ── A2 — dataset.radius 무리(겹침 없는 넷 먼저 · 지디 261124): modal · banner02 · canvas(card) · innercard ── */
+async function blockScene(page, add, numId) {
+  await page.setViewportSize({ width: 1700, height: 1100 });
+  const errs = await bootApp(page);
+  await page.evaluate(async (add) => {
+    const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    const sec = await window.addSection(); window.deselectAll?.(); window.selectSection?.(sec);
+    (0, eval)(add);
+  }, add);
+  await expect(page.locator('#' + numId)).toHaveCount(1);
+  return errs;
+}
+for (const [name, add, cls, pfx, numId, max] of [
+  ['modal', 'window.addModalBlock({})', 'modal-block', 'mdl', 'mdl-radius-number', 60],
+  ['banner02', 'window.addBanner02Block()', 'banner02-block', 'bn2', 'bn2-radius-num', 60],
+  ['canvas', "window.addCanvasBlock(); { const b = [...document.querySelectorAll('#canvas .canvas-block')].pop(); delete b.dataset.cardMode; window.showCanvasProperties(b); }", 'canvas-block', 'cvb', 'cvb-radius-number', 60],   // 새 카드 = simple 꼴(심플카드 패널 · ⑵) → 옛 카드 패널(prop-canvas)은 cardMode 없을 때
+  ['innercard', 'window.addInnerCardBlock()', 'innercard-block', 'icd', 'icd-radius-number', 60],
+]) {
+  test(`AS4 ${name} Appearance = 표준 꼴 + 숫자 칸 → dataset.radius · 라벨 끌기 · 이력(change 1 · 끌기 1)`, async ({ page }) => {
+    const errs = await blockScene(page, add, numId);
+    const part = await page.evaluate(([numId, pfx]) => {
+      const sec = document.querySelector('#panel-right .prop-section[data-sec="appearance"]');
+      return { slider: !!sec?.querySelector('input[type=range]'), inPart: !!document.getElementById(numId)?.closest('[data-part="appearance"] [data-field="appearance-radius"]'),
+        eye: document.querySelector(`#panel-right .prop-sec-head #${pfx}-app-eye`)?.getAttribute('aria-disabled'), corners: document.getElementById(`${pfx}-corners`)?.getAttribute('aria-disabled') };
+    }, [numId, pfx]);
+    expect(part).toEqual({ slider: false, inPart: true, eye: 'true', corners: 'true' });
+    const blockR = () => page.evaluate((cls) => [...document.querySelectorAll('#canvas .' + cls)].pop()?.dataset.radius ?? null, cls);
+    await page.evaluate(() => { window.__ph = 0; const o = window.pushHistory; window.pushHistory = (...a) => { window.__ph++; return o?.(...a); }; });
+    await page.evaluate((id) => { const n = document.getElementById(id); n.value = '20'; n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); }, numId);
+    await expect.poll(blockR).toBe('20');
+    const h = page.locator(`#${numId}-scrub`); const b = await h.boundingBox();
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down();
+    await page.mouse.move(b.x + b.width / 2 + 7, b.y + b.height / 2, { steps: 4 }); await page.mouse.up();
+    await expect.poll(blockR).toBe('27');
+    expect([await page.inputValue('#' + numId), await page.evaluate(() => window.__ph)]).toEqual(['27', 2]);
+    await page.evaluate((id) => { const n = document.getElementById(id); n.value = '999'; n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); }, numId);
+    await expect.poll(blockR).toBe(String(max));
+    expect(errs).toEqual([]);
+  });
+}

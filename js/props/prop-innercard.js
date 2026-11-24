@@ -1,5 +1,6 @@
 /* ── InnerCard 블록 프로퍼티 패널 — 카드 컨테이너(bg/radius/padding/그림자) + 라인 텍스트 ──
    라인 구조 변경(추가/삭제/이미지)은 updateInnerCardBlock API 영역. */
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A2)
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
@@ -40,11 +41,7 @@ export function showInnerCardProperties(block) {
         <input type="number" class="prop-number" id="icd-pad-number" min="0" max="120" value="${padding}">
       </div>`),
       sec('appearance', `
-      <div class="prop-row">
-        <span class="prop-label">모서리</span>
-        <input type="range" class="prop-slider" id="icd-radius-slider" min="0" max="60" step="2" value="${radius}">
-        <input type="number" class="prop-number" id="icd-radius-number" min="0" max="60" value="${radius}">
-      </div>`),
+      ${appearanceSectionHTML({ prefix: 'icd', radius: { numberId: 'icd-radius-number', value: radius, max: 60 } })}   <!-- ★표준 Appearance A2(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·dataset.radius·범위 무변 -->`, { headTools: appearanceHeadToolsHTML({ prefix: 'icd' }) }),
       sec('fill', fillSectionHTML({ prefix: 'icd-fill', on: bg !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'icd-bg', hex: bg, alpha: parseAlphaFromColor(bg) }) }),
         { headTools: fillHeadToolsHTML({ prefix: 'icd-fill', on: bg !== 'transparent' }) }),   // 표준 Fill F2 — 없음 = bg 'transparent'(블럭 색 검사가 이미 받는 값)
       sec('effects', `
@@ -87,7 +84,7 @@ export function showInnerCardProperties(block) {
     s.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
     n.addEventListener('change', () => { apply(parseInt(n.value)); window.pushHistory?.(); window.scheduleAutoSave?.(); });
   };
-  wireNum('radius', 'radius', 0, 60);
+  wireAppearanceSection({ radius: { numberId: 'icd-radius-number', max: 60, apply: (v) => { block.dataset.radius = String(v); window.renderInnerCardBlock?.(block); } } });   // 표준 Appearance A2 — 옛 wireNum('radius') 자리(슬라이더 걷음)
   wireNum('pad', 'padding', 0, 120);
 
   propPanel.querySelectorAll('[data-sh]').forEach(btn => btn.addEventListener('click', () => {

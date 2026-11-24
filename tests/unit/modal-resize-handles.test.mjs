@@ -242,7 +242,8 @@ test('U6 ★라디우스 mousedown 실행 — dataset.radius 와 «패널 두 �
   const b = mkBlock({ radius: '10' });
   const r = drive('radius', 'se', b, [[-20, -20]]);
   assert.equal(b.dataset.radius, '30', 'se 를 안쪽으로 20 끌면 반경이 20 늘어야 한다');
-  assert.equal(r.els['mdl-radius-slider'].value, '30', '슬라이더가 안 따라온다');
+  /* ★기대 바뀜(표준 Appearance A2 · 현빈 261124 L-4/7 슬라이더 걷음) — 패널 = 숫자 칸 하나 · 슬라이더 자리는 손대지 않음을 잰다(스텁 값 그대로) */
+  assert.equal(r.els['mdl-radius-slider'].value, '', '걷은 슬라이더를 아직 쓴다');
   assert.equal(r.els['mdl-radius-number'].value, '30', '숫자가 안 따라온다');
   // 클램프 — 표(0~60) 밖으로 못 나간다
   const hi = mkBlock({ radius: '10' }); drive('radius', 'se', hi, [[-9999, -9999]]);
@@ -258,7 +259,11 @@ test('U7 ★SSOT — 패널의 min/max 와 핸들의 클램프가 «같은 표»
   // ⇐ 되돌리기: 어느 한쪽에 숫자 리터럴을 다시 넣으면 빨강
   assert.match(CODE.prop, /import \{[^}]*MODAL_LIMITS[^}]*\} from '\.\.\/blocks\/modal-block\.js'/,
     '패널이 표를 «안 읽고» 자기 숫자를 갖는다');
-  for (const [id, key] of [['mdl-w-number', 'width'], ['mdl-h-number', 'height'], ['mdl-radius-number', 'radius']]) {
+  /* ★기대 바뀜(표준 Appearance A2) — 반경 칸은 부품이 그린다 ⇒ 같은 SSOT 를 «부품 호출 인자»에서 잰다(두 군데: 그리기 · 배선) */
+  const rCalls = CODE.prop.match(/numberId: 'mdl-radius-number'[^}]*\}/g) || [];
+  assert.equal(rCalls.length, 2, `반경 부품 호출(그리기·배선)을 못 찾았다 — ${rCalls.length}`);
+  for (const c of rCalls) assert.match(c, /min: L\.radius\.min, max: L\.radius\.max/, `반경 칸 min/max 가 표(L.radius)가 아니다: ${c}`);
+  for (const [id, key] of [['mdl-w-number', 'width'], ['mdl-h-number', 'height']]) {
     const row = CODE.prop.match(new RegExp(`id="${id}"[^>]*`));
     assert.ok(row, `${id} 행을 못 찾았다 — 검사가 대상을 놓쳤다`);
     assert.match(row[0], new RegExp(`min="\\$\\{L\\.${key}\\.min\\}"`), `${id} 의 min 이 리터럴이다`);

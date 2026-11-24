@@ -1,4 +1,5 @@
 import { propPanel } from '../globals.js';
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A2)
 import { CVB_H_MIN, CVB_H_MAX } from '../blocks/card-limits.js';   // #cvb-h min/max = updateCanvasBlock 의 자
 import { blockHeaderHTML, escHtml } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
@@ -112,12 +113,8 @@ export function showCanvasProperties(block) {
       </div>
 `),
       sec('appearance', `
-      <div class="prop-row">
-        <span class="prop-label">반경</span>
-        <input type="range" class="prop-slider" id="cvb-radius-slider" min="0" max="60" step="1" value="${radius}">
-        <input type="number" class="prop-number" id="cvb-radius-number" min="0" max="60" value="${radius}">
-      </div>
-`),
+      ${appearanceSectionHTML({ prefix: 'cvb', radius: { numberId: 'cvb-radius-number', value: radius, max: 60 } })}   <!-- ★표준 Appearance A2(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·dataset.radius·범위 무변 -->
+`, { headTools: appearanceHeadToolsHTML({ prefix: 'cvb' }) }),
       sec('fill', fillSectionHTML({ prefix: 'cvb-fill', on: bg !== 'transparent', colorHtml: `<div class="prop-color-field">
         <div class="prop-color-swatch" style="background:${bg === 'transparent' ? '#fff' : bg}">
           <input type="color" id="cvb-bg-pick" value="${bg === 'transparent' ? '#ffffff' : bg}">
@@ -241,17 +238,7 @@ export function showCanvasProperties(block) {
   });
 
   // ── 반경 ──────────────────────────────────────────────────────────────────
-  const rSlider = document.getElementById('cvb-radius-slider');
-  const rNumber = document.getElementById('cvb-radius-number');
-  const applyRadius = v => {
-    v = Math.min(60, Math.max(0, v));
-    block.dataset.radius = v;
-    window.renderCanvas(block);
-    rSlider.value = v; rNumber.value = v;
-  };
-  rSlider.addEventListener('input',  () => applyRadius(parseInt(rSlider.value)));
-  rNumber.addEventListener('change', () => { applyRadius(parseInt(rNumber.value)); window.pushHistory?.(); });
-  rSlider.addEventListener('change', () => window.pushHistory?.());
+  wireAppearanceSection({ radius: { numberId: 'cvb-radius-number', max: 60, apply: (v) => { block.dataset.radius = v; window.renderCanvas(block); } } });   // 표준 Appearance A2(슬라이더 걷음)
 
   // ── 카드 간격 ─────────────────────────────────────────────────────────────
   const gapSlider = document.getElementById('cvb-gap-slider');

@@ -1234,11 +1234,8 @@ function _onModalRadiusHandleMouseDown(e, block, dir) {
     const newR = clampModal(startR + delta, MODAL_LIMITS.radius);
     block.dataset.radius = String(newR);              // ★진실
     block.style.borderRadius = newR + 'px';           // 미리보기(끝나면 재렌더가 같은 값으로 굳힌다)
-    /* 패널의 «두 필드»를 다 맞춘다 — 하나만 맞추면 슬라이더와 숫자가 갈라진다.
-       슬라이더 step 은 1 이어야 홀수를 담는다(prop-modal.js 의 별도 줄). */
-    const slider = document.getElementById('mdl-radius-slider');
+    /* 패널 숫자 칸을 맞춘다(표준 Appearance A2 — 슬라이더 걷음 · 칸 하나). */
     const num    = document.getElementById('mdl-radius-number');
-    if (slider) slider.value = String(newR);
     if (num)    num.value    = String(newR);
     window.scheduleAutoSave?.();
   }
