@@ -88,6 +88,7 @@ test('R1 ★Body → Tag → Body — 태그 칸이 제 절(Appearance·Fill·Si
   expect(await page.evaluate(() => document.activeElement?.matches?.('#type-section [data-cls="tb-label"]') ?? false), '포커스가 Tag 단추로 돌아왔다').toBe(true);
   await page.click('#type-section [data-cls="tb-body"]');
   await expect(page.locator('#label-radius-number')).toHaveCount(0);
-  await expect(page.locator('#panel-right .prop-section[data-sec="appearance"]'), 'Body 로 돌아가면 Appearance 절이 걷힌다').toHaveCount(0);
+  /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C3): A4 — Body 글에도 Appearance(Opacity 칸만)가 선다 ⇒ «절이 걷힌다» 가 아니라 «태그 모서리 칸이 걷힌다»(위 줄) + Opacity 칸만 남는다 */
+  await expect(page.locator('#panel-right .prop-section[data-sec="appearance"] #txt-opacity')).toHaveCount(1);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

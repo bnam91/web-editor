@@ -390,7 +390,7 @@ test('P15 Type 띠 — 이름표 아래 · 머리 없음 · 12칸 · 게이트 �
 
 /* Q1 Layout 묶음(시안 v10 · 현빈 GO 261120) — 텍스트 · 프레임 · 갭: 머리 «Layout» 하나 · 작은 제목은 둘 이상일 때 Size/Padding · 게이트 0.
  *   CTL prd1-q1-group.patch(LAYOUT_GROUP 비움) → 빨강 */
-for (const [cls, entry, subs] of [['text-block', 'addTextBlock', ['Padding']] /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C3) — Size 몸 = 부품(data-part="layout" · 작은 라벨을 부품이 낸다) ⇒ «Size» 작은 제목 안 붙음(_panel-frame P 규칙) */, ['gap-block', 'addGapBlock', []]]) test(`P16 Layout 묶음 — ${cls}`, async ({ page }) => {
+for (const [cls, entry, subs] of [['text-block', 'addTextBlock', []] /* Padding 몸에도 부품 칸(태그 좌우 · 숨김이어도 DOM 에 있음) ⇒ «Padding» 작은 제목도 안 붙음 · ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C3) — Size 몸 = 부품(data-part="layout" · 작은 라벨을 부품이 낸다) ⇒ «Size» 작은 제목 안 붙음(_panel-frame P 규칙) */, ['gap-block', 'addGapBlock', []]]) test(`P16 Layout 묶음 — ${cls}`, async ({ page }) => {
   const { loadSectionSpec, readPanel, judgePanel } = require('./_panel-sections.js');
   const errs = await scene(page);
   await open(page, cls, entry);

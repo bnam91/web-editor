@@ -186,6 +186,7 @@ export function buildTextPanelSpec(state) {
       </div>
       <div class="prop-row">
         <span class="prop-label">상하패딩</span>
+        <span class="prop-row-fill" style="flex:1" aria-hidden="true"></span>   <!-- C3 — 걷은 슬라이더 자리(숫자 끝 = 옵션 칼럼 앞 · 사슬 = 칼럼 끝 · P8 꼴 그대로) -->
         <input type="number" class="prop-number" id="txt-pv-number" min="0" max="120" value="${currentPadT}"${isSpeechBubble ? ' disabled style="opacity:var(--ui-disabled-opacity);cursor:not-allowed"' : ''}>
       </div>${/* ★⑷㉣ 현빈 sb_ts0he_4lus8he — 말풍선 꼬리는 블럭 기준 absolute 라 상하 여백을 주면 몸통에서 떨어진다 ⇒ 칸은 «숨기지 않고» 막는다.
          1120b B1(현빈 261120) — 까닭 힌트 줄(#txt-pv-bubble-hint)은 걷음(막힌 칸 그대로). */ ''}
@@ -193,6 +194,7 @@ export function buildTextPanelSpec(state) {
       <!-- 재설계 1차 ⑤ — 잠금 = «좌우패딩» 한 줄(둘을 같이) · 풂 = 그 줄(라벨·사슬만 · 슬라이더 자리 비움) + 좌측패딩 + 우측패딩. 사슬은 늘 같은 자리(줄 끝) -->
       <div class="prop-row" id="txt-ph-row">
         <span class="prop-label">좌우패딩</span>
+        <span class="prop-row-fill" style="flex:1" aria-hidden="true"></span>
         <input type="number" class="prop-number" id="txt-ph-number" min="0" max="120" value="${currentPadL}"${phLinked ? '' : ' style="visibility:hidden"'}>
         <button class="prop-chain-btn${phLinked ? ' active' : ''}" id="txt-ph-chain" title="좌우 잠금/풂" aria-pressed="${phLinked ? 'true' : 'false'}">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
@@ -204,10 +206,12 @@ export function buildTextPanelSpec(state) {
       </div>
       <div class="prop-row" id="txt-pl-row"${phLinked ? ' hidden' : ''}>
         <span class="prop-label">좌측패딩</span>
+        <span class="prop-row-fill" style="flex:1" aria-hidden="true"></span>
         <input type="number" class="prop-number" id="txt-pl-number" min="0" max="120" value="${currentPadL}">
       </div>
       <div class="prop-row" id="txt-pr-row"${phLinked ? ' hidden' : ''}>
         <span class="prop-label">우측패딩</span>
+        <span class="prop-row-fill" style="flex:1" aria-hidden="true"></span>
         <input type="number" class="prop-number" id="txt-pr-number" min="0" max="120" value="${currentPadR}">
       </div>`;
 
