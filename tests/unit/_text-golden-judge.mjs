@@ -46,7 +46,7 @@ function load(files, { mutate } = {}) {
   return ctx.__T.buildTextPropsHtml;
 }
 const SHARED = ['js/props/text-type-class.js', 'js/effects-registry.js'];
-const NOW = ['js/props/prop-text-utils.js', 'js/props/_helpers.js', 'js/props/_section-spec.js', 'js/props/_panel-frame.js', 'js/props/_fill-section.js', 'js/props/_typo-section.js', 'js/props/_stroke-section.js', ...SHARED, 'js/props/prop-text-template.js'];   // 표준 Stroke(태양 261123~) — 텍스트 Stroke 절 = 부품 strokeSectionHTML(탑 261124 P2 실측 «not defined»)
+const NOW = ['js/props/prop-text-utils.js', 'js/props/_helpers.js', 'js/props/_section-spec.js', 'js/props/_panel-frame.js', 'js/props/_fill-section.js', 'js/props/_typo-section.js', 'js/props/_stroke-section.js', 'js/props/_appearance-section.js', 'js/props/_layout-section.js', ...SHARED, 'js/props/prop-text-template.js'];   // 표준 Stroke(태양 261123~) — 텍스트 Stroke 절 = 부품 strokeSectionHTML(탑 261124 P2 실측 «not defined»)
 const OLD = ['js/props/prop-text-utils.js', 'js/props/_helpers.js', 'js/props/_typo-section.js', ...SHARED, 'js/props/prop-text-template.js'];
 const OLD_FROM_BASE = new Set(['js/props/prop-text-utils.js', 'js/props/_helpers.js', 'js/props/_typo-section.js', 'js/props/prop-text-template.js']);
 const nowFiles = () => NOW.map((r) => [r, readNow(r)]);
@@ -264,6 +264,44 @@ function fillStdAllow(n) {
   return { ...none, cAdd: ctl(sc).filter((t) => FILL_STD.ctlAdded.some((r) => r.test(t))), iAdd: ids(sc).filter((i) => FILL_STD.idAdded.some((r) => r.test(i))) };
 }
 
+/* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C3) — LAYAPP_STD:
+ *   ① 옛 슬라이더 «X-slider» 잃음 = 새 판에 «X-number» 숫자 칸이 «같은 min/max» 로 있을 때만(범위 바뀌면 빨강 · 내장 양성대조 ①f).
+ *   ② 부품(data-part=layout|appearance) «안» 숫자 칸 = 옛 같은 id 숫자 칸의 바꿈(같은 min/max 일 때만 · step·aria-label 덧붙음 허용) — 그 옛 줄 라벨은 부품 칸 이름으로 옮겨가 잃음 허용.
+ *      옛 짝 없는 새 칸은 둘만: Appearance 부품 안 «*-opacity»(0~100) · 꺼진 텍스트 높이 칸(⑥ · 옛 CTL_ADDED «auto» 꼴의 부품판).
+ *   ③ 그렇게 받아준 칸의 끌기 손잡이 «{id}-scrub» · 부품 안 끝 칸 단추(data-part=end-slot · 사슬/눈/모서리 막힘) 생김 허용.
+ *   부품 «밖»에 같은 꼴(손잡이·끝 칸 단추)이 생기면 그대로 빨강 — 내장 양성대조 ①e. */
+const ctlStr = (k) => RENAME.reduce((x, [a, b]) => x.replace(a, b), tagNorm(k.raw));
+const rangeOf = (k) => `${k.attrs.min}|${k.attrs.max}`;
+function layAppStdAllow(o, n) {
+  const out = { cLost: [], cAdd: [], lLost: [], iLost: [], iAdd: [] };
+  const inputs = (root, type) => all(root).filter((k) => k.tag === 'input' && k.attrs.type === type && k.attrs.id);
+  const nNum = new Map(inputs(n, 'number').map((k) => [k.attrs.id, k])), oNum = new Map(inputs(o, 'number').map((k) => [k.attrs.id, k]));
+  const nIds = new Set(ids(n));
+  for (const sl of inputs(o, 'range')) {   // ①
+    const num = /-slider$/.test(sl.attrs.id) && nNum.get(sl.attrs.id.replace(/-slider$/, '-number'));
+    if (!nIds.has(sl.attrs.id) && num && rangeOf(num) === rangeOf(sl)) { out.cLost.push(ctlStr(sl)); out.iLost.push(sl.attrs.id); }
+  }
+  for (const p of all(n).filter((k) => ['layout', 'appearance'].includes(k.attrs['data-part']))) {
+    for (const k of all(p)) {
+      if (k.tag === 'input' && k.attrs.type === 'number') {   // ②
+        const was = oNum.get(k.attrs.id);
+        const ok = was ? rangeOf(was) === rangeOf(k)
+          : (p.attrs['data-part'] === 'appearance' && /-opacity$/.test(k.attrs.id) && rangeOf(k) === '0|100') || (k.attrs.id === 'txt-height-number' && 'disabled' in k.attrs);
+        if (!ok) continue;
+        out.cAdd.push(ctlStr(k)); if (nIds.has(`${k.attrs.id}-scrub`)) out.iAdd.push(`${k.attrs.id}-scrub`);   // ③ 손잡이
+        if (!was) out.iAdd.push(k.attrs.id);
+        if (was) { out.cLost.push(ctlStr(was)); const row = closest(was, (x) => has(x, 'prop-row')); if (row) out.lLost.push(...labels(row).map((t) => LABEL_RENAME[t] ?? t)); }
+      } else if (k.tag === 'button' && k.attrs['data-part'] === 'end-slot') { out.cAdd.push(ctlStr(k)); if (k.attrs.id) out.iAdd.push(k.attrs.id); }   // ③ 끝 칸
+    }
+  }
+  /* ③b Appearance 절 머리 눈(ui-app-eye · 보류 막힘) — 그 절 몸에 Appearance 부품이 있을 때만 */
+  for (const sec of all(n).filter((k) => has(k, 'prop-section') && all(k).some((x) => x.attrs['data-part'] === 'appearance'))) {
+    for (const head of els(sec).filter((k) => has(k, 'prop-sec-head'))) for (const b of all(head).filter((k) => k.tag === 'button' && has(k, 'ui-app-eye') && k.attrs['data-part'] === 'end-slot')) { out.cAdd.push(ctlStr(b)); out.iAdd.push(b.attrs.id); }
+  }
+  return out;
+}
+function withLayAppStd(sx, lx) { return { ...sx, cLost: sx.cLost.concat(lx.cLost), cAdd: sx.cAdd.concat(lx.cAdd), lLost: sx.lLost.concat(lx.lLost), iLost: sx.iLost.concat(lx.iLost), iAdd: sx.iAdd.concat(lx.iAdd) }; }
+
 function judge(name, st, oldHtml, newHtml) {
   const bad = [];
   const flowNow = /data-float-align-row="flow"/.test(newHtml);
@@ -278,7 +316,7 @@ function judge(name, st, oldHtml, newHtml) {
     if (hit.length === f.n) { nc = nc.filter((t) => !f.isCtl(t)); featHit.push(f); if (f.label) featLabels.push(...[].concat(f.label)); }
   }
   const drift = DRIFT_PRE.states.includes(name);
-  const sx = withCheckStd(strokeStdAllow(o, n), checkStdAllow(o, n));   // ★+ 온/오프 → 체크 부품(CHECK_STD · 탑 261124)
+  const sx = withLayAppStd(withCheckStd(strokeStdAllow(o, n), checkStdAllow(o, n)), layAppStdAllow(o, n));   // ★+ 온/오프 → 체크 부품(CHECK_STD · 탑 261124) · ★+ 표준 Layout/Appearance(LAYAPP_STD)
   nc = minus(nc, sx.cAdd);
   const l1 = minus(minus(oc, sx.cLost), nc), e1 = minus(nc, minus(oc, sx.cLost)).filter((t) => !CTL_ADDED.some((r) => r.test(t)) && !(drift && DRIFT_PRE.ctl.test(t)));
   if (l1.length || e1.length) bad.push(`J1 컨트롤: 잃음 ${JSON.stringify(l1)} · 생김 ${JSON.stringify(e1)}`);
@@ -357,6 +395,19 @@ function withCheckStd(sx, cx) { return { ...sx, cLost: (sx.cLost || []).concat(c
   const caught = ['J1', 'J4'].every((j) => planted.some((f) => f.startsWith(`plain ${j}`) && /txt-fill-eye/.test(f)));
   if (!caught) { console.error('★양성대조 실패(FILL_STD) — Fill 부품 밖에 심은 것을 못 잡는다:\n  ' + planted.join('\n  ')); process.exit(1); }
   console.log(`양성대조 OK(FILL_STD) — 부품 밖에 심은 눈 단추를 잡았다 (${planted.length}건)`); }
+
+/* ①e 내장 양성대조(LAYAPP_STD) — 부품 «밖»(Position 절 X 칸 뒤)에 끌기 손잡이 + 끝 칸 단추를 심으면 J1·J4 가 잡아야 한다(부품 안만 허용) */
+{ const PLANT = '<span class="prop-xy-label ui-app-scrub" id="txt-x-number-scrub"></span><button type="button" class="prop-chain-btn" id="txt-fake-end" data-part="end-slot"></button>';
+  const nowE = load(nowFiles());
+  const planted = runAll((st) => nowE(st).replace(/(<input[^>]*id="txt-x-number"[^>]*>)/, `$1${PLANT}`)).filter((f) => f.startsWith('plain '));
+  const caught = planted.some((f) => f.startsWith('plain J1') && /txt-fake-end/.test(f)) && planted.some((f) => f.startsWith('plain J4') && /txt-x-number-scrub/.test(f));
+  if (!caught) { console.error('★양성대조 실패(LAYAPP_STD ①e) — 부품 밖에 심은 손잡이·끝 칸을 못 잡는다:\n  ' + planted.join('\n  ')); process.exit(1); }
+  console.log(`양성대조 OK(LAYAPP_STD ①e) — 부품 밖 손잡이·끝 칸을 잡았다 (${planted.length}건)`); }
+/* ①f 내장 양성대조(LAYAPP_STD) — 부품 안 칸의 범위를 한 칸 바꾸면(태그 모서리 max 40 → 41) J1 이 잡아야 한다(같은 범위일 때만 허용) */
+{ const nowF = load(nowFiles());
+  const bent = runAll((st) => nowF(st).replace('id="label-radius-number" min="0" max="40"', 'id="label-radius-number" min="0" max="41"')).filter((f) => f.startsWith('label '));
+  if (!bent.some((f) => f.startsWith('label J1') && f.includes('id=\\"label-radius-number\\" min=\\"0\\" max=\\"41\\"'))) { console.error('★양성대조 실패(LAYAPP_STD ①f) — 범위 바뀐 칸을 못 잡는다:\n  ' + bent.join('\n  ')); process.exit(1); }
+  console.log(`양성대조 OK(LAYAPP_STD ①f) — 범위 바뀐 칸을 잡았다 (${bent.length}건)`); }
 
 /* ② 본 판정 */
 const buildNew = load(nowFiles());

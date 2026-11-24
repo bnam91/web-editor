@@ -74,10 +74,12 @@ test('R6 텍스트 Size — 너비 슬라이더 없음 · 너비/높이 칸 한 
   const size = /data-sec="size"[^>]*>[\s\S]*?<div class="prop-sec-body" id="psec-size-body">([\s\S]*?)\n {6}<\/div>/.exec(html)?.[1] || '';   // ★기대 바뀜(Q1) — Size 는 Layout 묶음 안 몸
   assert.ok(size, '[전제] Size 절 몸을 찾았다');
   assert.doesNotMatch(size, /txt-width-slider|type="range"/, '★너비 슬라이더가 남았다');
-  assert.match(size, /<div class="prop-lhls-row">[\s\S]*id="txt-width-scrub"[^>]*>너비<\/span>\s*<input type="number" class="prop-number" id="txt-width-number"[\s\S]*<span class="prop-xy-label">높이<\/span>\s*<input type="number" id="txt-height-number" disabled placeholder="auto"/);
+  /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C3): 너비/높이 = 표준 Layout 부품 한 줄(칸 안 끌기 손잡이 #txt-width-number-scrub) · 높이 꺼짐 placeholder «자동» · 끌기 배선 = 부품 wireLayoutSection → _helpers wireNumberScrub */
+  assert.match(size, /<div class="ui-layout" data-part="layout">[\s\S]*id="txt-width-number-scrub"[\s\S]*?<input type="number" class="prop-number" id="txt-width-number"[\s\S]*<span>Height<\/span>[\s\S]*?<input type="number" class="prop-number" id="txt-height-number"[^>]*placeholder="자동"[^>]* disabled /);
   const wire = stripComments(readSrc(ROOT, 'js/props/prop-text-wireup-position.js'));
-  assert.match(wire, /getElementById\('txt-width-scrub'\)[\s\S]*pointermove[\s\S]*lostpointercapture[\s\S]*pushHistory/, '★라벨 끌기 배선이 없다');
-  assert.match(wire, /addEventListener\('pointerdown', \(e\) => \{\s*if \(e\.button\) return;/, '★오른쪽 클릭으로도 끌린다(QA 경2)');
+  assert.match(wire, /wireLayoutSection\(\{ commit: \(\) => window\.pushHistory\?\.\(\), w: \{ numberId: 'txt-width-number', min: 80, max: 860,/, '★라벨 끌기 배선이 없다(부품 + 이력)');
+  const helpers = stripComments(readSrc(ROOT, 'js/props/_helpers.js'));
+  assert.match(helpers, /export function wireNumberScrub[\s\S]*?addEventListener\('pointerdown', \(e\) => \{\s*if \(e\.button \|\| input\.disabled\) return;[\s\S]*?pointermove[\s\S]*?lostpointercapture/, '★오른쪽 클릭으로도 끌린다(QA 경2)');
   assert.doesNotMatch(wire, /txt-width-slider/);
   /* QA 경1 — 너비 칸은 .prop-number 를 지녀 포커스 때 값 전체선택(editor.js _AUTO_SELECT_SEL)이 그대로 걸린다 */
   assert.match(stripComments(readSrc(ROOT, 'js/editor.js')), /const _AUTO_SELECT_SEL = '\.prop-number/);
@@ -125,9 +127,10 @@ test('R5a 패딩 새 이름 — 블럭 줄 «상하패딩·좌우패딩·좌측�
     assert.doesNotMatch(src, /(?:sliderRowHTML|_pairRow)\([^,]+, '(?:상하 패딩|좌우 패딩)'/, `★${f}: 옛 패딩 이름(줄 부품)`);
   }
   const src = Object.fromEntries(files);
-  assert.match(src['prop-step'], />좌측패딩<[\s\S]*id="stb-padl-slider"/);
+  assert.match(src['prop-step'], /layoutPadSlotHTML\(\{ lId: 'stb-padl-number', rId: 'stb-padr-number'/, '★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C2): 좌측·우측 패딩 = 표준 패딩 슬롯 L/R(stb-padl-number · stb-padr-number)');
   assert.match(src['prop-table'], />좌우패딩</, '★표 «좌우 여백» → «좌우패딩»(v6)');
-  assert.match(src['prop-text-template'], /sliderRowHTML\('태그 좌우', 'txt-label-padx-slider'[^\n]*title="태그 좌우패딩"/, '★태그 알약 여백 = 짧은 라벨 «태그 좌우» + title(시안 v9 · Q24)');
+  /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C3): 태그 알약 여백 = 표준 Layout 한 칸(짧은 라벨 «태그 좌우» 그대로 · 옛 줄 title «태그 좌우패딩» 은 부품 손잡이 title 로 갈음되어 뺌) */
+  assert.match(src['prop-text-template'], /layoutSizeRowHTML\(\{ prefix: 'txt-label-padx', one: \{ id: 'txt-label-padx-number', label: '태그 좌우'/, '★태그 알약 여백 = 짧은 라벨 «태그 좌우»(시안 v9 · Q24)');
   /* Q27 — 뜻이 다른 줄은 그대로 */
   assert.match(stripComments(readSrc(ROOT, 'js/props/prop-section.js')), /아래 패딩/);
   assert.match(stripComments(readSrc(ROOT, 'js/props/prop-grid.js')), /위아래 여백/);
@@ -137,10 +140,11 @@ test('R5b 텍스트 좌우패딩 — 잠금 = 한 줄(#txt-ph-*) · 풂 = 그 �
   const { loadTextTemplate, GOLDEN_STATE } = _req('./_text-template-harness.js');
   const T = loadTextTemplate();
   const on = T.buildTextPropsHtml({ ...GOLDEN_STATE, currentPadL: 8, currentPadR: 8, phLinked: true });
-  assert.match(on, /<div class="prop-row" id="txt-ph-row">\s*<span class="prop-label">좌우패딩<\/span>\s*<input type="range"[^>]*id="txt-ph-slider"[^>]*value="8">\s*<input type="number"[^>]*id="txt-ph-number"[^>]*value="8">\s*<button class="prop-chain-btn active" id="txt-ph-chain"[^>]*aria-pressed="true"/);
+  /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C3): 잠금 한 줄 = 라벨 + 빈 채움 + 숫자 칸(#txt-ph-number) + 사슬 · 풂 때 가리는 것 = 그 숫자 칸 */
+  assert.match(on, /<div class="prop-row" id="txt-ph-row">\s*<span class="prop-label">좌우패딩<\/span>\s*<span class="prop-row-fill"[^>]*><\/span>\s*<input type="number"[^>]*id="txt-ph-number"[^>]*value="8">\s*<button class="prop-chain-btn active" id="txt-ph-chain"[^>]*aria-pressed="true"/);
   assert.match(on, /id="txt-pl-row" hidden>/); assert.match(on, /id="txt-pr-row" hidden>/);
   const off = T.buildTextPropsHtml({ ...GOLDEN_STATE, phLinked: false });
-  assert.match(off, /id="txt-ph-slider"[^>]*style="visibility:hidden"/, '★풀었는데 한 줄 슬라이더가 보인다');
+  assert.match(off, /id="txt-ph-number"[^>]*style="visibility:hidden"/, '★풀었는데 한 줄 칸이 보인다');
   assert.match(off, /id="txt-pl-row">\s*<span class="prop-label">좌측패딩/);
   /* QA 경3 — 그림이 저장된 상태를 따른다(풂 = 끊긴 사슬 · 잠금 = 이어진 사슬 · aria-pressed 와 같은 뜻) */
   assert.match(off, /id="txt-ph-chain"[\s\S]*?<line x1="5\.2" y1="4\.8" x2="6\.8" y2="7\.2"/, '★풂인데 이어진 사슬 그림');
@@ -149,7 +153,7 @@ test('R5b 텍스트 좌우패딩 — 잠금 = 한 줄(#txt-ph-*) · 풂 = 그 �
   assert.match(read, /phLinked\s*=\s*tb\.dataset\.padXLinked != null \? tb\.dataset\.padXLinked === '1' : currentPadL === currentPadR/, '★잠금을 저장값에서 안 읽는다(Q26)');
   const wire = stripComments(readSrc(ROOT, 'js/props/prop-text-wireup-padding.js'));
   assert.match(wire, /tb\.dataset\.padXLinked = phLinked \? '1' : '0';[\s\S]*showLinked\(\);\s*window\.pushHistory\?\.\(/, '★사슬이 블럭에 쓰고 이력을 남기지 않는다');
-  assert.match(wire, /phSlider\?\.addEventListener\('input', \(\) => setL\(/);
+  assert.match(wire, /phNumber\?\.addEventListener\('input', \(\) => setL\(/);
   assert.match(wire, /if \(phLinked\) \{[\s\S]*?tb\.dataset\.customPadR = '1';[\s\S]*?_syncBubbleTail\(\);\s*\}\s*showLinked\(\);/, '★다시 잠글 때 손댐 표시·꼬리 맞춤이 빠졌다(QA 경3)');
 });
 

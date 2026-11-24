@@ -236,7 +236,7 @@ test('K10 ★「블럭 간격」 — 자식 0개면 안 보이고 ≥1 이면 La
   const num = page.locator('#grd-child-gap-number');
   expect(await num.count()).toBe(1);
   expect(await num.inputValue()).toBe('24');
-  expect(await page.locator('#grd-child-gap-slider').getAttribute('max')).toBe('80');
+  expect(await num.getAttribute('max')).toBe('80');   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C4): 범위는 숫자 칸 min/max 로(슬라이더 없음)
   await num.fill('40'); await num.press('Enter'); await page.waitForTimeout(200);
   const st = await page.evaluate(() => { const b = document.querySelector('#gG > .grd-children'); return { gap: b.style.gap, mt: b.style.marginTop, ds: document.getElementById('gG').dataset.childGap, blockStyleHasGap: /gap/.test(document.getElementById('gG').getAttribute('style') || '') }; });
   expect(st).toEqual({ gap: '40px', mt: '40px', ds: '40', blockStyleHasGap: false });

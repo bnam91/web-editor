@@ -52,13 +52,14 @@ test('I1 패널 — 아이콘 크기·세로 줄 · 기존 클래스·폭 · 옛
   await selectItb(page, id);
   const p = await page.evaluate(() => {
     const w = (sel) => Math.round(document.querySelector(sel)?.getBoundingClientRect().width ?? -1);
-    return { sCls: document.getElementById('itb-icon-size-slider').className, nCls: document.getElementById('itb-icon-size-number').className,
-      sameW: w('#itb-icon-size-slider') === w('#itb-gap-slider') && w('#itb-icon-size-number') === w('#itb-gap-number'),
+    /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C3): 아이콘 크기·간격 = 표준 Layout 칸(슬라이더 없음) — 크기 칸이 부품 안 · 폭 = 숫자 칸끼리(세로 dy 는 0.1 단위라 슬라이더 남음) */
+    return { sPart: !!document.getElementById('itb-icon-size-number').closest('[data-part="layout"]'), nCls: document.getElementById('itb-icon-size-number').className,
+      sameW: w('#itb-icon-size-number') === w('#itb-gap-number'),
       dyCls: [document.getElementById('itb-dy-slider')?.className, document.getElementById('itb-dy-number')?.className],
-      dySameW: w('#itb-dy-slider') === w('#itb-gap-slider') && w('#itb-dy-number') === w('#itb-gap-number'),
+      dySameW: w('#itb-dy-number') === w('#itb-gap-number'),
       dyVal: document.getElementById('itb-dy-number')?.value, oldGroup: !!document.getElementById('itb-valign-group'), val: document.getElementById('itb-icon-size-number').value };
   });
-  expect(p).toEqual({ sCls: 'prop-slider', nCls: 'prop-number', sameW: true, dyCls: ['prop-slider', 'prop-number'], dySameW: true, dyVal: '0', oldGroup: false, val: '40' });
+  expect(p).toEqual({ sPart: true, nCls: 'prop-number', sameW: true, dyCls: ['prop-slider', 'prop-number'], dySameW: true, dyVal: '0', oldGroup: false, val: '40' });
 });
 
 test('I2 크기 80 → 80×80 · ⌘Z 한 번 = 40', async ({ page }) => {

@@ -85,7 +85,7 @@ test('E38-T1 [새 것] Icon Text 를 고르면 Type 절이 안 보인다', async
   expect(id, '[전제] Icon Text').toBeTruthy();
   await clickCenter(page, `#${id} .itb-text`);
   /* ★U2(right-panel-unify) 의도 갱신 — 틀은 해당 없는 절을 «숨기지» 않고 «안 그린다»(null = 없음). 패널은 떠 있어야 한다. */
-  await expect(page.locator('#itb-gap-slider'), '[전제] Icon Text 패널이 떴다').toBeAttached();
+  await expect(page.locator('#itb-gap-number'), '[전제] Icon Text 패널이 떴다').toBeAttached();   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C3): 간격 = 표준 Gap 칸
   expect(await typeShown(page), 'Icon Text 패널의 Type 절 — 없다(null)').toBeNull();
   expect(errs).toEqual([]);
 });

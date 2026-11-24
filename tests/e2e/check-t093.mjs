@@ -49,11 +49,12 @@ const gap = (await s.eval(`return [...document.querySelectorAll('.gap-block')].m
 if (!gap) { console.log(JSON.stringify({ ...R, fatal: '갭 블럭이 없다' }, null, 2)); s.close(); process.exit(1); }
 await clickBlock(s, gap);
 
+/* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C1): #gap-slider 없음 — 칸(#gap-number)과 실제 높이만 잰다 */
 const field = () => s.eval(`
-  const n = document.getElementById('gap-number'), sl = document.getElementById('gap-slider');
+  const n = document.getElementById('gap-number');
   const gb = document.getElementById(${JSON.stringify(gap)});
   return { value: n ? n.value : null, min: n ? n.min : null, max: n ? n.max : null,
-           slider: sl ? sl.value : null, styleH: gb.style.height,
+           styleH: gb.style.height,
            computedH: getComputedStyle(gb).height, rectH: Math.round(gb.getBoundingClientRect().height),
            invalidClass: n ? n.className : null, ariaInvalid: n ? n.getAttribute('aria-invalid') : null };`);
 
@@ -72,7 +73,7 @@ const px = (v) => Math.round(parseFloat(v || '0'));
 const clamped = String(postEnter.value) === String(base.max) && px(postEnter.computedH) === Number(base.max);
 add('T-093/clamped', '전제 — 9999 가 상한(1000)으로 깎였나 · 칸과 실제가 같은가',
   { preEnter, postEnter }, clamped,
-  `Enter 전 칸=${preEnter.value}/실제 ${px(preEnter.computedH)}px → Enter 후 칸=${postEnter.value}/슬라이더=${postEnter.slider}/실제 ${px(postEnter.computedH)}px (rect 는 줌 40% 라 0.4배)`);
+  `Enter 전 칸=${preEnter.value}/실제 ${px(preEnter.computedH)}px → Enter 후 칸=${postEnter.value}/실제 ${px(postEnter.computedH)}px (rect 는 줌 40% 라 0.4배)`);
 
 add('T-093/overflow-notice', '상한을 넘겨 값이 깎였을 때 새로 뜬 «보이는 안내» 수 (≥1 이어야 한다)',
   { count: w.floatingNotices.length, floating: w.floatingNotices, editorToast: w.editorToast, fullDiff: w.fullDiff },

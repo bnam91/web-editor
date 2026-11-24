@@ -69,7 +69,7 @@ test('G 그래프 — 유형마다 패널이 열리고 그 유형 칸 하나가 
   expect(await click(page, '#grb-type-v')).toBe(true);
   expect(await put(page, '#grb-shape-select', 'person'), '[전제] 모양 고르기').toBe(true);
   await expect.poll(() => ds(page, id, 'barShape')).toBe('person');
-  expect(await page.locator('#grb-bar-thickness-slider').count(), '실루엣: 두께 줄 없음(절 분기)').toBe(0);
+  expect(await page.locator('#grb-bar-thickness-number').count(), '실루엣: 두께 줄 없음(절 분기)').toBe(0);   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C1): 두께 = 숫자 칸(-slider 는 늘 0 이라 눈멂)
   expect(await put(page, '#grb-fillmax-number', 80), '실루엣: 최대값 칸').toBe(true);
   expect(await ds(page, id, 'fillMax')).toBe('80');
   expect(errs).toEqual([]);

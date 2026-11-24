@@ -58,7 +58,7 @@ test('P0 전제 — 행 간격 min −50 · 열 사이 = 양수 colGap 24', asyn
 });
 test('M 열 간격 슬라이더·숫자칸 min = −50', async ({ page }) => {
   const errs = await setup(page); await openPanel(page);
-  expect(await page.evaluate(() => [document.getElementById('grd-col-gap-slider')?.min, document.getElementById('grd-col-gap-number')?.min])).toEqual(['-50', '-50']);
+  expect(await page.evaluate(() => [document.getElementById('grd-col-gap-slider'), document.getElementById('grd-col-gap-number')?.min])).toEqual([null, '-50']);   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C4): 하한 -50 = 숫자 칸 min · 슬라이더는 없어야(null)
   expect(errs).toEqual([]);
 });
 test('C −30 → 30 겹침 · −80 → −50 에서 멈춤', async ({ page }) => {

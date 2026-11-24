@@ -40,7 +40,7 @@ test('N0 지키는 시험 — 양수 행 간격(20)은 그대로 20', async ({ p
 });
 test('N1 ★패널 «행 간격» 슬라이더·숫자칸이 -50 까지 내려간다', async ({ page }) => {
   await setup(page); await openPanel(page);
-  expect(await page.evaluate(() => [document.getElementById('grd-row-gap-slider')?.min, document.getElementById('grd-row-gap-number')?.min])).toEqual(['-50', '-50']);
+  expect(await page.evaluate(() => [document.getElementById('grd-row-gap-slider'), document.getElementById('grd-row-gap-number')?.min])).toEqual([null, '-50']);   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C4): 하한 -50 = 숫자 칸 min · 슬라이더는 없어야(null)
 });
 test('N2 ★행 간격 -30 → 둘째 줄이 첫째 줄에 30px 겹친다 · ⌘Z 로 20 으로', async ({ page }) => {
   await setup(page); await openPanel(page);

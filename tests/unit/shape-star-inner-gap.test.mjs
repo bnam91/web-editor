@@ -185,11 +185,12 @@ test('⒞ ★통통함은 ★«미설정 = 옛 별»이다 · 범위 15~95', () 
 test('⒟ ★패널에 두 슬라이더 · ★간격은 ★갯수>1 일 때만 (⛔조용히 아무 일 없음을 안 만든다)', () => {
   assert.match(PANEL, /id="shape-star-inner-slider"[^>]*min="\$\{STAR_INNER_MIN\}" max="\$\{STAR_INNER_MAX\}"/,
     '★통통함 슬라이더가 없거나 min/max 가 정본에서 안 온다');
-  assert.match(PANEL, /id="shape-star-gap-slider"[^>]*min="\$\{STAR_GAP_MIN\}" max="\$\{STAR_GAP_MAX\}"/,
-    '★간격 슬라이더가 없거나 min/max 가 정본에서 안 온다');
+  /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C4): 간격 = layoutGapSlotHTML 숫자 칸(shape-star-gap-num) · min/max 는 여전히 정본 상수 */
+  assert.match(PANEL, /layoutGapSlotHTML\(\{ id: 'shape-star-gap-num',[^}]*min: STAR_GAP_MIN, max: STAR_GAP_MAX \}\)/,
+    '★간격 칸이 없거나 min/max 가 정본에서 안 온다');
 
   /* ★★간격 줄이 ★starCount > 1 조건 ★안에 있나 — ★갯수 1 이면 dx=0 이라 ★조용히 아무 일도 안 난다 */
-  const gi = PANEL.indexOf('id="shape-star-gap-slider"');
+  const gi = PANEL.indexOf("layoutGapSlotHTML({ id: 'shape-star-gap-num'");
   const cond = PANEL.lastIndexOf('${starCount > 1 ?', gi);
   assert.ok(cond > 0 && gi - cond < 700,
     '★간격 줄이 starCount > 1 조건 안에 없다 — 갯수 1 에서 ★조용히 아무 일 없음이 된다');

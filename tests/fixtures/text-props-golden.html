@@ -116,43 +116,32 @@
       </div>
       </div>
       <div class="prop-section prop-sec-part" data-sec="size" data-sec-state="size" data-title="Size" data-order="text" id="psec-size">
-      <div class="prop-sec-sub-row"><span class="prop-field-label prop-sec-sub">Size</span></div>
       <div class="prop-sec-body" id="psec-size-body">
-      <div class="prop-lhls-row">
-        <div class="prop-lhls-col">
-          <div class="prop-icon-input">
-            <span class="prop-xy-label prop-xy-label--scrub" id="txt-width-scrub" title="좌우로 끌면 값이 바뀐다">너비</span>
-            <input type="number" class="prop-number" id="txt-width-number" min="80" max="860" value="300" aria-label="너비">
-          </div>
-        </div>
-        <div class="prop-lhls-col">
-          <div class="prop-icon-input" title="텍스트 블럭은 높이를 정하지 않는다(내용에 맞춤)">
-            <span class="prop-xy-label">높이</span>
-            <input type="number" id="txt-height-number" disabled placeholder="auto" data-empty="invalid" aria-label="높이(텍스트 블럭은 없음)">
-          </div>
+      <div class="ui-layout" data-part="layout">
+        <div class="ui-s2-main prop-row"><div class="ui-s2-cell"><span>Width</span><div class="prop-icon-input" data-part="number" data-field="layout-w"><span class="prop-xy-label ui-app-scrub" id="txt-width-number-scrub" title="Width — 좌우로 끌면 바뀐다"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 6h9M3 4 1.5 6 3 8M9 4l1.5 2L9 8"/></svg></span><input type="number" class="prop-number" id="txt-width-number" min="80" max="860" step="1" value="300" aria-label="Width"></div></div><div class="ui-s2-cell"><span>Height</span><div class="prop-icon-input" data-part="number" data-field="layout-h"><span class="prop-xy-label ui-app-scrub" id="txt-height-number-scrub" title="Height — 좌우로 끌면 바뀐다"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 1.5v9M4 3 6 1.5 8 3M4 9l2 1.5L8 9"/></svg></span><input type="number" class="prop-number" id="txt-height-number" min="0" max="undefined" step="1" value="" placeholder="자동" data-empty="invalid" disabled title="높이는 내용이 정해요(자동) — 비율 사슬 막힘" aria-label="Height"></div></div>
+          <button type="button" class="prop-chain-btn" id="txt-ratio" data-part="end-slot" aria-pressed="false" aria-disabled="true" aria-label="높이는 내용이 정해요(자동) — 비율 사슬 막힘" title="높이는 내용이 정해요(자동) — 비율 사슬 막힘"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7 7 5M4.2 5.6 3 6.8a1.7 1.7 0 0 0 2.4 2.4L6.6 8M7.8 6.4 9 5.2A1.7 1.7 0 0 0 6.6 2.8L5.4 4"/></svg></button>
         </div>
       </div>
       </div>
       </div>
       <div class="prop-section prop-sec-part" data-sec="padding" data-sec-state="padding" data-title="Padding" data-order="text" id="psec-padding">
-      <div class="prop-sec-sub-row"><span class="prop-field-label prop-sec-sub">Padding</span></div>
       <div class="prop-sec-body" id="psec-padding-body">
       <div id="txt-label-padx-wrap" style="display:none">
-      <div class="prop-row">
-        <span class="prop-label" title="태그 좌우패딩">태그 좌우</span>
-        <input type="range" class="prop-slider" id="txt-label-padx-slider" min="0" max="100" step="2" value="0">
-        <input type="number" class="prop-number" id="txt-label-padx-number" min="0" max="100" value="0">
+      
+      <div class="ui-layout" data-part="layout">
+        <div class="ui-s2-main prop-row"><div class="ui-s2-cell"><span>태그 좌우</span><div class="prop-icon-input" data-part="number" data-field="layout-one"><span class="prop-xy-label ui-app-scrub" id="txt-label-padx-number-scrub" title="태그 좌우 — 좌우로 끌면 바뀐다"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 6h9M3 4 1.5 6 3 8M9 4l1.5 2L9 8"/></svg></span><input type="number" class="prop-number" id="txt-label-padx-number" min="0" max="100" step="1" value="0" aria-label="태그 좌우"></div></div><div class="ui-s2-cell" aria-hidden="true"></div><span class="ui-lay-spacer" aria-hidden="true"></span></div>
       </div>
       </div>
       <div class="prop-row">
         <span class="prop-label">상하패딩</span>
-        <input type="range" class="prop-slider" id="txt-pv-slider" min="0" max="120" step="4" value="4">
+        <span class="prop-row-fill" style="flex:1" aria-hidden="true"></span>   <!-- C3 — 걷은 슬라이더 자리(숫자 끝 = 옵션 칼럼 앞 · 사슬 = 칼럼 끝 · P8 꼴 그대로) -->
         <input type="number" class="prop-number" id="txt-pv-number" min="0" max="120" value="4">
       </div>
+      <!-- ★표준 Layout(C3) — 패딩 슬라이더 넷 걷음(숫자 칸 · 잠금 사슬 · 줄 id 그대로 — 좌·우 따로 칸은 부품 슬롯(두 칸 고정)에 없어 옛 줄 꼴 유지) -->
       <!-- 재설계 1차 ⑤ — 잠금 = «좌우패딩» 한 줄(둘을 같이) · 풂 = 그 줄(라벨·사슬만 · 슬라이더 자리 비움) + 좌측패딩 + 우측패딩. 사슬은 늘 같은 자리(줄 끝) -->
       <div class="prop-row" id="txt-ph-row">
         <span class="prop-label">좌우패딩</span>
-        <input type="range" class="prop-slider" id="txt-ph-slider" min="0" max="120" step="4" value="6" style="visibility:hidden">
+        <span class="prop-row-fill" style="flex:1" aria-hidden="true"></span>
         <input type="number" class="prop-number" id="txt-ph-number" min="0" max="120" value="6" style="visibility:hidden">
         <button class="prop-chain-btn" id="txt-ph-chain" title="좌우 잠금/풂" aria-pressed="false">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
@@ -164,14 +153,26 @@
       </div>
       <div class="prop-row" id="txt-pl-row">
         <span class="prop-label">좌측패딩</span>
-        <input type="range" class="prop-slider" id="txt-pl-slider" min="0" max="120" step="4" value="6">
+        <span class="prop-row-fill" style="flex:1" aria-hidden="true"></span>
         <input type="number" class="prop-number" id="txt-pl-number" min="0" max="120" value="6">
       </div>
       <div class="prop-row" id="txt-pr-row">
         <span class="prop-label">우측패딩</span>
-        <input type="range" class="prop-slider" id="txt-pr-slider" min="0" max="120" step="4" value="8">
+        <span class="prop-row-fill" style="flex:1" aria-hidden="true"></span>
         <input type="number" class="prop-number" id="txt-pr-number" min="0" max="120" value="8">
       </div>
+      </div>
+      </div>
+    </div>
+    <div class="prop-section" data-sec="appearance" data-sec-state="appearance" data-order="text" id="psec-appearance">
+      <div class="prop-section-title-row prop-sec-head">
+      <div class="prop-section-title" id="psec-appearance-head" role="heading" aria-level="3"><span class="prop-sec-title-text">Appearance</span></div>
+      </div>
+      <div class="prop-sec-body" id="psec-appearance-body">
+      <div class="ui-appearance" data-part="appearance">
+        <div class="ui-s2-main prop-row">
+          <div class="ui-s2-cell"><span>Opacity</span><div class="prop-icon-input" data-part="number" data-field="appearance-opacity"><span class="prop-xy-label ui-app-scrub" id="txt-opacity-scrub" title="Opacity — 좌우로 끌면 바뀐다"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" aria-hidden="true"><rect x="1.5" y="1.5" width="9" height="9" rx="1"/><path d="M1.5 10.5 10.5 1.5"/></svg></span><input type="number" class="prop-number" id="txt-opacity" min="0" max="100" step="1" value="100" aria-label="Opacity"><span class="ui-app-unit">%</span></div></div>
+        </div>
       </div>
       </div>
     </div>

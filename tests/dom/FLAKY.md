@@ -484,3 +484,6 @@ ft-restore-remeasures-at-other-width.dom.spec.js:112 X0   빨강 1/1 (u6m 전수
 ## 2026-11-24 · tp/0914-applayout-std 표적 621(A2 e106672c7) — 이름 ＋ 수 (⛔원인 라벨 없이)
 - `grid-bg-radius-handle.dom.spec.js:123` H4 — srv 표적 1 워커 빨강 1/1 · 단독 ×3 0/3.
 - `slide-frame-cells.dom.spec.js:571` U1 — srv 표적 1 워커 빨강 1/1 · 단독 ×3 0/3.
+
+## 2026-11-25 · tp/0914-applayout-std 통합 표적(C3 a5d39dac4) — 이름 ＋ 수
+- `u3-purple-outline-geometry.dom.spec.js:131` U2 — 수지 표적 1 워커 빨강 1/1 · 단독 ×3 0/3(C3 머리) · P 머리 ×3 0/3.
