@@ -1403,6 +1403,9 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
 .ui-app-unit { flex: 0 0 auto; padding-right: var(--ui-space-1_5); font-size: var(--ui-fs-10); color: var(--ui-text-dim); }   /* A4 Opacity «%» */
 /* 표준 Layout(js/props/_layout-section.js · L1) — 줄 꼴 = 위 Stroke·Appearance 줄 · 빈칸(ui-lay-spacer) = 끝 사슬 자리 맞춤(숫자 칸 끝이 W/H 줄과 같은 자리) */
 .ui-layout + .ui-layout { margin-top: var(--ui-space-1_5); }
+/* S6(panel-frame-states · 탑 통합 261125) — 표준 부품의 마지막 줄 아래 margin 을 부품 «겉»으로 옮긴다: 겹침으로 겉모습 같음 · ⑯ 첫 줄(몸 직속 · 인라인 display:none 꼬리도 건너뜀)이 끌 수 있게(옛 꼴 = 줄이 몸 직속이라 첫 줄이 껐다 · 부품이 한 겹 감싸 ⑯ 둘째 줄(꼬리 [hidden] 만 봄)로 밀려 꼬리 있으면 6px 남았다) */
+.ui-layout > .ui-s2-main.prop-row:last-child, .ui-appearance > .ui-s2-main.prop-row:last-child { margin-bottom: 0; }
+.ui-layout, .ui-appearance { margin-bottom: var(--ui-space-1_5); }
 .ui-layout .ui-s2-main > .ui-lay-spacer { flex: 0 0 auto; width: calc(var(--ui-opt-col-w) - var(--ui-space-1_5)); margin-left: calc(var(--ui-space-1_5) - var(--ui-space-1)); }
 .prop-section[data-sec] .prop-row:has(> .ui-lay-spacer:last-child) { margin-right: calc(-1 * var(--ui-opt-col-w)); }
 .ui-layout .ui-s2-cell > .prop-icon-input > select { flex: 1 1 auto; min-width: 0; border: 0; background: transparent; }

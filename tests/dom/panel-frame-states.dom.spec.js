@@ -100,7 +100,7 @@ test('S4 겹침 0 — 절 머리끼리 안 겹치고 패널 안 · 제목 글자
     const outside = heads.filter((h) => h.left < P.left - 0.5 || h.right > P.right + 0.5).length;
     return { n: heads.length, overlap, outside, small: fs.filter((v) => v < minFs).length };
   });
-  expect(r.n, '[전제] 브릿지 절 셋').toBe(3);
+  expect(r.n, '[전제] 브릿지 절 넷(★기대 바뀜 · 표준 A4 · C1 — Appearance 새 절)').toBe(4);
   expect(r.overlap, '★절 머리 겹침').toEqual([]);
   expect(r.outside, '★패널 밖 절 머리').toBe(0);
   expect(r.small, '★--ui-fs-10 보다 작은 제목').toBe(0);
@@ -150,7 +150,8 @@ test('S6 몸 아래 여백 = --ui-sec-body-pb 하나 — 숨은 꼬리는 건너
   /* ★보이는 몸이 없는 절(gap null — 예 접힌 Template 폼)은 S7 의 몫(아래 여백 0 · 9391 실측 blk-tpl-section pb 0). ⑶ 꼬리(지디 261123)로 Template 이 «끝 절»이 아니게 되어 여기 들어왔다 */
   for (const x of g.filter((y) => y.gap !== null)) expect(Math.abs(x.gap - pb), `★${x.id} 몸 아래 틈 ${x.gap} ≠ pb ${pb}`).toBeLessThanOrEqual(0.5);
   /* 양성대조 — 꼬리 줄의 margin 을 되살리면(=고치기 전) 틈이 pb 보다 커진다: 이 칸이 무엇을 잰다 */
-  await page.addStyleTag({ content: '.prop-sec-body > .prop-row { margin-bottom: var(--ui-space-2) !important; }' });
+  /* ★기대 바뀜(표준 부품 · 탑 통합 261125): 끝 줄 margin 이 부품(.ui-layout · .ui-appearance) 겉에 있다 → 되살릴 자리에 부품도 */
+  await page.addStyleTag({ content: '.prop-sec-body > .prop-row, .prop-sec-body > .ui-layout, .prop-sec-body > .ui-appearance { margin-bottom: var(--ui-space-2) !important; }' });
   /* ★기대 그대로 · 잴 자리만(261123): Size 는 Layout 묶음(f3c48611a · Q1) 안 조각 — bottomGaps 가 재는 줄은 묶음(psec-size-group) */
   const bad = (await bottomGaps(page)).find((x) => x.id === 'psec-size-group');
   expect(bad.gap - pb, '[양성대조] margin 을 되살렸는데 틈이 그대로다').toBeGreaterThan(0.5);
