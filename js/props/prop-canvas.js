@@ -2,7 +2,8 @@ import { propPanel } from '../globals.js';
 import { CVB_H_MIN, CVB_H_MAX } from '../blocks/card-limits.js';   // #cvb-h min/max = updateCanvasBlock 의 자
 import { blockHeaderHTML, escHtml } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
-import { wireHexText, parseHex6OrTransparent, formatHex6OrTransparent } from './color-picker.js';   /* 색 코드 칸 배선은 «한 자리»(유닛 colorhex) */
+import { wireHexText, parseHex6OrTransparent, formatHex6OrTransparent } from './color-picker.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast } from './_fill-section.js';   /* 색 코드 칸 배선은 «한 자리»(유닛 colorhex) */
 
 export function showCanvasProperties(block) {
   if (block.dataset.cardMode === 'simple') {
@@ -117,15 +118,12 @@ export function showCanvasProperties(block) {
         <input type="number" class="prop-number" id="cvb-radius-number" min="0" max="60" value="${radius}">
       </div>
 `),
-      sec('fill', `
-      <div class="prop-row">
-        <span class="prop-label">색상</span>
+      sec('fill', fillSectionHTML({ prefix: 'cvb-fill', on: bg !== 'transparent', colorHtml: `<div class="prop-color-field">
         <div class="prop-color-swatch" style="background:${bg === 'transparent' ? '#fff' : bg}">
           <input type="color" id="cvb-bg-pick" value="${bg === 'transparent' ? '#ffffff' : bg}">
         </div>
         <input type="text" class="prop-color-hex" id="cvb-bg-hex" value="${formatHex6OrTransparent(bg)}" maxlength="11" aria-label="Color">
-      </div>
-`),
+      </div>` }), { headTools: fillHeadToolsHTML({ prefix: 'cvb-fill', on: bg !== 'transparent' }) }),   // 표준 Fill F2-2 — 옛 칸(cvb-bg-pick·hex · % 없음 = 옛 그대로) · 없음 = 'transparent'(옛 기본값 = 새 카드는 «칠 없음»)
     ],
   });
 
@@ -214,7 +212,7 @@ export function showCanvasProperties(block) {
   // ── 배경 ──────────────────────────────────────────────────────────────────
   const bgPick = document.getElementById('cvb-bg-pick');
   const bgHex  = document.getElementById('cvb-bg-hex');
-  const bgSwatch = bgPick.closest('.prop-color-swatch');
+  const bgSwatch = bgPick?.closest('.prop-color-swatch');   // 표준 Fill F2-2 — 칠 없음이면 색 칸이 없다(머리 ＋ 만)
   const applyBg = (v, { keepHexText = false } = {}) => {
     block.dataset.bg = v;
     window.renderCanvas(block);
@@ -222,14 +220,19 @@ export function showCanvasProperties(block) {
     if (!keepHexText) bgHex.value = formatHex6OrTransparent(v);
     if (bgSwatch) bgSwatch.style.background = (v === 'transparent' ? '#fff' : v);
   };
-  bgPick.addEventListener('input',  () => applyBg(bgPick.value));
-  bgPick.addEventListener('change', () => window.pushHistory?.());
+  bgPick?.addEventListener('input',  () => applyBg(bgPick.value));
+  bgPick?.addEventListener('change', () => window.pushHistory?.());
+  /* 표준 Fill F2-2 — − = 'transparent'(옛 hex 칸에 transparent 쓰던 길과 같은 값) · ＋ = 지난 색 · 없으면 #FFFFFF */
+  wireFillSection({ prefix: 'cvb-fill', adapter: {
+    none: () => { fillLast.set(block.id, bg); block.dataset.bg = 'transparent'; window.renderCanvas(block); window.scheduleAutoSave?.(); showCanvasProperties(block); },
+    add: () => { block.dataset.bg = fillLast.get(block.id, '#ffffff'); window.renderCanvas(block); window.scheduleAutoSave?.(); showCanvasProperties(block); },
+    commit: () => window.pushHistory?.() } });
   /* 배경색 hex — 배선은 color-picker.js 의 wireHexText 한 자리(2026-09-21 픽스 라운드).
      ★손사본이던 때는 `change` «하나뿐»이었다 — 타이핑 중 미리보기도, blur 복원도, 무효 표시도 없었다.
        표기도 이 칸만 `#00FF00`(maxlength 20)이라 옆 칸들(`00FF00`)과 규칙이 달랐다 —
        「자리마다 # 규칙이 다르다」는 신고 원문 그대로. 이제 심플카드 배경칸과 «같은 문법»이다
        (6자리 hex 또는 `transparent`, 표기는 # 없는 대문자). */
-  wireHexText(bgHex, {
+  if (bgHex) wireHexText(bgHex, {
     parse: parseHex6OrTransparent,
     format: formatHex6OrTransparent,
     getCurrent: () => block.dataset.bg || bgPick.value || '#ffffff',

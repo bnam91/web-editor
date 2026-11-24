@@ -9,6 +9,7 @@
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { strokeSectionHTML, wireStrokeSection, STROKE_STYLES_SVG, STROKE_POP_WHY } from './_stroke-section.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast } from './_fill-section.js';
 import { readLook, writeLook } from '../stroke-look.js';
 import { blockHeaderHTML, escHtml as _esc } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
@@ -265,15 +266,12 @@ export function showRadialProperties(block, idx) {
       ${_pairRow('rdl-labelsize', '라벨 크기', st.labelSize, L.labelSize)}
       ${_typeRow('라벨 굵기', 'rdl-labelweight', [['bold', '굵게'], ['normal', '보통']], st.labelWeight)}`),
       sec('fill', `
-      ${_colorRow('rdl-bg', '블럭 배경', st.bg || '#ffffff', '#ffffff')}
-      ${st.bg
-    ? `<button class="prop-btn-full" id="rdl-bg-clear">배경 지우기 (투명)</button>`
-    : `<div class="prop-hint" style="padding:2px 8px;line-height:1.5">지금은 배경이 <b>투명</b>입니다 — 색을 고르면 블럭 배경이 칠해집니다.</div>`}
+      ${fillSectionHTML({ prefix: 'rdl-fill', on: !!st.bg && st.bg !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'rdl-bg', hex: _swatchHex(st.bg || '#ffffff', '#ffffff'), alpha: parseAlphaFromColor(st.bg || '#ffffff') }) })}
       ${isDot ? _colorRow('rdl-dotcolor', '점 색', st.dotColor, RADIAL_DEFAULTS.dotColor) : _colorRow('rdl-cellfill', '칸 채움', st.cellFill, RADIAL_DEFAULTS.cellFill)}
       ${st.centerMode === 'text' ? `
       ${/* 블럭 배경 꼴 — 가운데 기본값만 'transparent' 라 먼저 '' 로 바꿔 같은 빈 값 표시(#ffffff)에 닿게 한다 */ _colorRow('rdl-center-bg', '가운데 배경', (st.centerBg === 'transparent' ? '' : st.centerBg) || '#ffffff', '#ffffff')}
       ${_colorRow('rdl-center-color', '가운데 글자', st.centerColor, RADIAL_DEFAULTS.centerColor)}` : ''}
-      ${st.labelPos === 'none' ? '' : _colorRow('rdl-labelcolor', '라벨 색', st.labelColor, RADIAL_DEFAULTS.labelColor)}`),
+      ${st.labelPos === 'none' ? '' : _colorRow('rdl-labelcolor', '라벨 색', st.labelColor, RADIAL_DEFAULTS.labelColor)}`, { headTools: fillHeadToolsHTML({ prefix: 'rdl-fill', on: !!st.bg && st.bg !== 'transparent' }) }),   // 표준 Fill F2-3 — 블럭 배경 = 표준 줄(없음 = bg '' = 옛 «배경 지우기 (투명)» 단추 값 · 옛 기본) · 점 색·칸 채움·가운데·라벨 = 부위 색 그대로
       /* ★표준 Stroke 부품(현빈 261123 · 8910 strokestd2 15) — 연결선 select = 표준 «위» 슬롯 · ★켬/끔 정본(지디 261123: none = 표준 몸 숨김 · 머리 ＋/− 안 그림 = 두 손잡이 금지)
          굵기 = 0.5 걸음 · 하한 0.5 유지(radial-block.js:79) · 위치 = 가운데 막힘(SVG path stroke = 경계 가운데 · radial-block.js:883 실측) · 옛 «선 모양»·«선 연장°» = 아래 슬롯 · 옛 id 지킴 */
       sec('stroke', `
@@ -446,10 +444,14 @@ export function showRadialProperties(block, idx) {
     wireColorField('rdl-bg', {
       initialAlpha: block.dataset.bg ? parseAlphaFromColor(block.dataset.bg) : 100,
       onApply: (c) => { block.dataset.bg = c; rerender(); },
-      onCommit: () => { commit(); if (!$('rdl-bg-clear')) reopen(); },
+      onCommit: () => { commit(); },
     });
   }
-  $('rdl-bg-clear')?.addEventListener('click', () => { block.dataset.bg = ''; rerender(); reopen(); commit(); });
+  /* 표준 Fill F2-3 — − = bg ''(옛 «배경 지우기 (투명)» 단추가 쓰던 값 그대로 · 단추·힌트는 표준 «칠 없음» 줄로) · ＋ = 지난 색 · 없으면 #FFFFFF(옛 빈 값 표시) */
+  wireFillSection({ prefix: 'rdl-fill', adapter: {
+    none: () => { fillLast.set(block.id, block.dataset.bg); block.dataset.bg = ''; rerender(); reopen(); },
+    add: () => { block.dataset.bg = fillLast.get(block.id, '#ffffff'); rerender(); reopen(); },
+    commit } });
 
   // ── Asset ──
   wireType('rdl-marker', [['cell'], ['dot']], 'marker');

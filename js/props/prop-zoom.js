@@ -6,6 +6,7 @@ import { blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { strokeSectionHTML, wireStrokeSection, STROKE_POP_WHY } from './_stroke-section.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast } from './_fill-section.js';
 
 const D = () => (window.ZOOM_DEFAULTS || {});
 
@@ -201,23 +202,13 @@ export function showZoomProperties(block) {
         ${_pairRow('zm-txs', '크기', st.txs, 8, 200, 1)}
       </div>`),
       sec('fill', `
-      <div class="prop-row">
-        <span class="prop-label">배경</span>
-        <div class="prop-radio-group" id="zm-bg-group">
-          <label class="prop-radio"><input type="radio" name="zm-bg" value="checker"${isChecker ? ' checked' : ''}> 체크패턴</label>
-          <label class="prop-radio"><input type="radio" name="zm-bg" value="color"${isChecker ? '' : ' checked'}> 색</label>
-        </div>
-      </div>
-      <div class="prop-color-row" style="${dim(!isChecker || hasImg)}">
-        <span class="prop-label">색</span>
-        ${colorFieldHTML({ idPrefix: 'zm-fill', hex: fillHex, alpha: fillAlpha })}
-      </div>
+      ${fillSectionHTML({ prefix: 'zm-fillstd', on: !isChecker, colorHtml: colorFieldHTML({ idPrefix: 'zm-fill', hex: fillHex, alpha: fillAlpha }) })}
       <div style="${dim(txOn)}">
         <div class="prop-color-row">
           <span class="prop-label">글자 색</span>
           ${colorFieldHTML({ idPrefix: 'zm-txc', hex: st.txc, alpha: txcAlpha })}
         </div>
-      </div>`),
+      </div>`, { headTools: fillHeadToolsHTML({ prefix: 'zm-fillstd', on: !isChecker }) }),   // 표준 Fill F2-3 — 옛 «배경» 체크패턴/색 라디오 → 표준 줄(없음 = fill 'checker' = 옛 기본 · 캔버스 무늬) · 글자 색 = 부위 색 그대로
       // 옛 「Border」 절. 테두리 색(zm-bdc)은 Stroke — 소유 별칭 bdc→stroke(U0c)
       /* ★표준 Stroke 부품(현빈 261123 · 8910 strokestd2 18) — ★켬/끔 정본 = 옛 «테두리» 라디오(dataset.bd · 현빈 261123 ⓐ «일단 그대로» · 지디: 머리 ＋/− 안 그림 = 두 손잡이 금지)
          없음 = bd off(두께 값 보존) · 꺼지면 표준 몸 흐림(옛 dim 그대로) · 위치 = 바깥 막힘(zoom-geometry.js:598 «한 겹 큰 판»을 도형 뒤에 깖 = 바깥 · 실측) · 옛 id(zm-bdw-num · zm-bdc) 지킴 */
@@ -401,20 +392,11 @@ ${narrowRow}
     });
   };
   bindRadio('zm-shadow', 'shadow', '줌 이펙트');
-  /* 배경 라디오 — 'checker' 는 «색이 아니라 무늬»라 dataset.fill 에 그 낱말을 넣는다.
-     색으로 되돌릴 땐 피커가 들고 있던 색을 그대로 쓴다(따로 기억해 두지 않는다). */
-  propPanel.querySelectorAll('input[type="radio"][name="zm-bg"]').forEach(r => {
-    r.addEventListener('change', () => {
-      if (!r.checked) return;
-      window.pushHistory?.('확대블럭 배경');
-      block.dataset.fill = (r.value === 'checker')
-        ? 'checker'
-        : (propPanel.querySelector('#zm-fill-color')?.value || '#cfd6e0');
-      rerender();
-      showZoomProperties(block);
-      window.triggerAutoSave?.();
-    });
-  });
+  /* 표준 Fill F2-3 — − = fill 'checker'(옛 «체크패턴» 라디오 값) · ＋ = 지난 색 · 없으면 #CFD6E0(옛 «색» 라디오가 피커에서 집던 기본) */
+  wireFillSection({ prefix: 'zm-fillstd', adapter: {
+    none: () => { fillLast.set(block.id, block.dataset.fill); block.dataset.fill = 'checker'; rerender(); window.triggerAutoSave?.(); showZoomProperties(block); },
+    add: () => { block.dataset.fill = fillLast.get(block.id, '#cfd6e0'); rerender(); window.triggerAutoSave?.(); showZoomProperties(block); },
+    commit: () => window.pushHistory?.('확대블럭 배경') } });
   bindRadio('zm-bd',     'bd',     '확대블럭 테두리');
   /* ★글자 켬/끔 — ★줌 이펙트·테두리와 ★같은 bindRadio 한 벌이다(⛔값은 안 지운다 ⇒ 껐다 켜도 글이 돌아온다).
      ★켜면 ★글이 비어 있어도 ★안내문구 층이 서서 ★더블클릭할 과녁이 생긴다

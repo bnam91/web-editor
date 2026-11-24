@@ -1,6 +1,7 @@
 import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor, swatchHex } from './color-picker.js';
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_POP_WHY } from './_stroke-section.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, setFillKindName, fillLast, fillKindOfCss } from './_fill-section.js';
 import { hasSides, readSides, writeSides, cssSideWidths, sidesMixed } from '../stroke-look.js';
 import { alignBtn, overlayToggleBtnHTML, blockHeaderHTML, animGifBtnHTML, wireAnimGifBtn } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
@@ -90,6 +91,7 @@ export function showAssetProperties(ab) {
   // T-059 2라운드: 그라데이션이면 _hex6 가 #000000 으로 떨어져 Solid 복귀 = 검정이었다 → wireColorField(gradientValue)가 첫 스탑으로 채운다
   const assetBgGrad = /gradient\s*\(/i.test(currentBgColor) ? currentBgColor : '';
   const currentBgAlpha = assetBgGrad ? 100 : parseAlphaFromColor(currentBgColor);
+  const fillOn = ab.dataset.bgColor !== 'transparent';   // 표준 Fill F2-2 — «없음» = bgColor 'transparent'(지디 (ㄴ) 261124) · 키 없음 = 옛 그대로 «켬·A0A0A0»(바이트·시험 무변 · 거짓 표시는 시트 ASSET-BG-NOKEY-FALSE-ON-DISPLAY-01)
   const currentFit = ab.dataset.fit || 'cover';
   // B23: 에셋 외곽선(stroke)
   const currentStrokeWidth = parseInt(ab.dataset.strokeWidth || '0');
@@ -101,23 +103,20 @@ export function showAssetProperties(ab) {
      살아서 계속 칠해지는데 «닿는 문»만 없는 막다른 골목). ⇒ hasImage 분기 «밖»에 둔다.
      선례: prop-icon-circle.js 의 Color/배경 절도 hasImage 삼항 밖에 있다. */
   const bgSection = `
-      <div class="prop-color-row">
-        <span class="prop-label">배경색</span>
-        ${colorFieldHTML({ idPrefix: 'asset-bg', hex: assetBgGrad ? '#a0a0a0' : currentBgColor, alpha: currentBgAlpha, gradientCss: assetBgGrad })}
-      </div>
+      ${fillSectionHTML({ prefix: 'asset-fill', on: fillOn, kind: fillKindOfCss(assetBgGrad), colorHtml: colorFieldHTML({ idPrefix: 'asset-bg', hex: assetBgGrad ? '#a0a0a0' : currentBgColor, alpha: currentBgAlpha, gradientCss: assetBgGrad }) })}
       <!-- 1120b A6(현빈 261120) — 「초기화」(#asset-bg-clear) 단추 걷음 -->
       ${hasImage ? '' : `<!-- ★t4-15 체커 톤(현빈 ④) — 꼴·어휘는 섹션 라디오 그대로(새 클래스 0).
            ★입구 조건 없음 — 현빈 「에셋블럭은 최초 추가시에 체크배경으로 두기를 켤 필요가 없지 않아?」(빈 에셋은 늘 체커다).
            ★이미지가 있으면 숨긴다 — 체커가 안 보이니 정할 것이 없다(현빈 QA 자 「불필요한 프롭힌트는 없는지」).
            (옛 라디오 name 함정은 체크박스가 되며 사라졌다 — 1120b A5) -->
-      <div class="prop-row" title="이 에셋블럭의 체크무늬만 어둡게 합니다 — 흰 그림이 체커 위에서 보이게. 내보내기에는 체커가 나가지 않습니다.">
+      <div class="ui-fill-slot" data-slot="below" data-slot-kind="checker"><div class="prop-row" title="이 에셋블럭의 체크무늬만 어둡게 합니다 — 흰 그림이 체커 위에서 보이게. 내보내기에는 체커가 나가지 않습니다.">
         <span class="prop-label">체커 어둡게</span>
         <!-- 1120b A5(현빈 261120) — 켬/끔 라디오 → 「내용 자르기」와 같은 토글(.prop-toggle) · 켬 = dataset.checkerTone 'dark' · 끔 = 키 지움(저장 꼴 그대로) -->
         <label class="prop-toggle">
           <input type="checkbox" id="asset-checker-tone-on" ${_ckTone === 'dark' ? 'checked' : ''}>
           <span class="prop-toggle-track"></span>
         </label>
-      </div>`}
+      </div></div>`}
       ${hasImage && currentFit === 'cover' ? '<div class="prop-hint" style="margin-top:6px;">꽉 채우기에서는 배경이 이미지 뒤에 가려집니다 — 원본 비율에서 보입니다.</div>' : ''}
   `;
   const imageSection = hasImage ? `
@@ -261,7 +260,7 @@ export function showAssetProperties(ab) {
         </label>
       </div>`),   /* 옛 «그레인» 줄 → Effects «Noise» 카드(js/effects-noise.js · 현빈 261123) */
       // 옛 「Background」
-      sec('fill', bgSection),
+      sec('fill', bgSection, { headTools: fillHeadToolsHTML({ prefix: 'asset-fill', on: fillOn }) }),   // 표준 Fill F2-2 — 칠 없음(키 없음 = 체커)이면 머리 ＋
       // 옛 「Border」
       /* 1120b A2(현빈 261120 「Stroke 절도 text-h1 처럼 [+]」) — 머리 «＋»(켜면 «−») · 몸 줄 = 텍스트 Stroke 와 같은 마크업(strokeSection: 두께 → 색상).
          켬 = strokeWidth > 0(저장 꼴 그대로 · 새 키 0). 위치(내부/외부)는 에셋 테두리에 없어 줄이 없다. */
@@ -650,15 +649,22 @@ export function showAssetProperties(ab) {
       ab.style.background = '';
       ab.dataset.bgColor = c;
       ab.style.backgroundColor = c;
+      setFillKindName(document.getElementById('asset-bg-hex'), 'solid');
     },
     onGradient: (css, commit) => {
       ab.style.backgroundColor = '';
       ab.style.background = css;
       ab.dataset.bgColor = css;
+      setFillKindName(document.getElementById('asset-bg-hex'), fillKindOfCss(css));
       if (commit) window.pushHistory?.();
     },
     onCommit: () => window.pushHistory?.(),
   });
+  /* 표준 Fill F2-2 — − = bgColor 'transparent'(지디 (ㄴ) · 그라데이션 걷음) · ＋ = 지난 색 · 없으면 #A0A0A0(옛 패널 기본) */
+  wireFillSection({ prefix: 'asset-fill', adapter: {
+    none: () => { fillLast.set(ab.id, assetBgGrad || currentBgColor); ab.dataset.bgColor = 'transparent'; ab.style.background = ''; ab.style.backgroundColor = 'transparent'; window.scheduleAutoSave?.(); showAssetProperties(ab); },
+    add: () => { const c = fillLast.get(ab.id, '#a0a0a0'); ab.style.background = ''; ab.dataset.bgColor = c; if (/gradient\s*\(/i.test(c)) ab.style.background = c; else ab.style.backgroundColor = c; window.scheduleAutoSave?.(); showAssetProperties(ab); },
+    commit: () => window.pushHistory?.() } });
   /* ★t4-15 체커 톤 라디오 — 쓰는 문은 여기 하나(ab.dataset.checkerTone). CSS 가 속성을 보고 전용 쌍만 바꾼다.
      ★패널을 다시 안 그린다(섹션 선례 · js/props/prop-section.js) — 바뀐 것은 화면 색뿐이다. */
   const ckOn  = document.getElementById('asset-checker-tone-on');

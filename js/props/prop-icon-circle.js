@@ -5,6 +5,7 @@ import { renderPanel, sec } from './_panel-frame.js';
 import { gridCircleIconSvg } from '../blocks/grid-circle-icon.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_STYLES_SVG, STROKE_POP_WHY } from './_stroke-section.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast } from './_fill-section.js';
 
 /* G14 「＋ 블럭 넣기 ▾」 종류·이름표 — 정본은 js/icb-children.js(ICB_CHILD_KIND_LABELS · t5-12ⓑ 그리드 원 줄 패널과 한 벌). */
 import { ICB_CHILD_KIND_LABELS as _ICB_KID_KINDS } from '../icb-children.js';
@@ -98,18 +99,8 @@ export function showIconCircleProperties(block) {
         </select>
       </div>
       </div>`),
-      sec('fill', `
-      <div class="prop-row">
-        <span class="prop-label">채움</span>
-        <label class="prop-toggle" title="끄면 원 바탕이 비어 있다(편집 화면에선 체크무늬 · 내보내기에선 투명)">
-          <input type="checkbox" id="icb-fill-toggle" ${_fillOn ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
-      </div>
-      <div class="prop-color-row" id="icb-bg-row" style="${_fillOn ? '' : 'opacity:0.4;'}">
-        <span class="prop-label">배경</span>
-        ${colorFieldHTML({ idPrefix: 'icb-bg', hex: _lastFill, alpha: bgAlpha })}
-      </div>`),
+      sec('fill', fillSectionHTML({ prefix: 'icb-fill', on: _fillOn, colorHtml: colorFieldHTML({ idPrefix: 'icb-bg', hex: _lastFill, alpha: bgAlpha }) }),
+        { headTools: fillHeadToolsHTML({ prefix: 'icb-fill', on: _fillOn }) }),   // 표준 Fill F2-3 — 옛 «채움» 토글(icb-fill-toggle) → 머리 ＋ / 줄 −(없음 = 'transparent' = 옛 끔 값 · 편집 = 체커 · Figma 투명)
       /* ★표준 Stroke 부품(현빈 261123 · 8910 strokestd2 4) — 없음 = data-border none(옛 키 · 옛 «없음» 고르기 그대로) · 머리 ＋ = 실선
          ★새 키 2(지디 261123 (가)): borderW·borderColor — 기본(3px · 편집기 토큰 --ui-border 가 지금 그리는 색)과 다를 때만 저장 → 옛 저장본 바이트 무변
          위치 = 안쪽 막힘(CSS border + 전역 box-sizing:border-box) · 옛 «스타일» select = line-style 슬롯(실선·점선 · 단계 3 팝오버로) */
@@ -187,12 +178,11 @@ export function showIconCircleProperties(block) {
     onCommit: () => window.pushHistory(),
   });
   /* G14 채움 켬/끔 — 끔 = 'transparent'(기존 값) · 켬 = 마지막 색(없으면 #e8e8e8). 히스토리는 «양쪽 끝»(js/CLAUDE.md). */
-  _fillToggle?.addEventListener('change', () => {
-    window.pushHistory();
-    if (_fillToggle.checked) { _paint(_lastFill); if (_bgRow) _bgRow.style.opacity = ''; }
-    else { _paint('transparent'); if (_bgRow) _bgRow.style.opacity = '0.4'; }
-    window.pushHistory();
-  });
+  /* 표준 Fill F2-3 — 옛 토글 자리: − = 'transparent' · ＋ = 지난 색(fillLast · 없으면 옛 _lastFill = 칠했던 색 또는 #e8e8e8) · 이력 «양쪽 끝» 그대로(앞 = 여기 · 뒤 = 부품 commit) */
+  wireFillSection({ prefix: 'icb-fill', adapter: {
+    none: () => { window.pushHistory(); fillLast.set(block.id, _lastFill); _paint('transparent'); showIconCircleProperties(block); },
+    add: () => { window.pushHistory(); _paint(fillLast.get(block.id, _lastFill)); showIconCircleProperties(block); },
+    commit: () => window.pushHistory() } });
   /* Q11(현빈 261112) «내용 자르기» — 에셋(prop-asset.js asset-clip-toggle)과 같은 꼴: 기본값과 같으면 키를 지운다(옛 바이트) · 그리기는 applyIcbClip 한 자리. */
   propPanel.querySelector('#icb-clip-toggle')?.addEventListener('change', e => {
     window.pushHistory?.('서클 내용 자르기');

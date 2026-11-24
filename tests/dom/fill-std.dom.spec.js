@@ -110,3 +110,91 @@ test('D6 새 프레임 = 칠 켬 · 저장 bg transparent = 칠 없음 · 알파
   expect([s1.layers, s1.add, a1, s1.v], '★알파 0 = 켬·0% · 키 바이트 그대로').toEqual([1, false, '0', 'rgba(255, 0, 0, 0)']);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* F2-2 — 에셋(없음 = bgColor 'transparent' · 지디 (ㄴ) 261124 · 키 없음 = 옛 그대로 «켬·A0A0A0») · 레이어 캔버스 canvas(prop-canvas · 없음 = 'transparent' = 옛 기본 · ★심플카드는 prop-simple-card = F5) · banner02(없음 = 'transparent') · 옛 id 그대로
+ * D7 − = 그 «없음» · 패널 «칠 없음» + 머리 ＋ · ⌘Z 한 칸 = 옛 색 · ＋ = 지난 색 · D8 새 에셋(키 없음) = 옛 그대로 «켬·A0A0A0»((ㄴ) · 바이트 무변) · 체커 줄 = 슬롯 ·  새 레이어 캔버스 = «칠 없음»
+ * 양성대조: _patches/fill-f2-2-CTL.patch(에셋 어댑터 none 이 키를 안 지움) ⇒ D7 asset 빨강 */
+const F22 = {
+  asset:    { make: 'window.addAssetBlock()', sel: '.asset-block', show: 'showAssetProperties', p: 'asset-fill', hex: 'asset-bg-hex', key: 'bgColor', none: 'transparent' },
+  canvas:   { make: "window.addCanvasBlock({ layers: [{ type: 'image', src: '', x: 0, y: 0, w: 300, h: 200 }] })", sel: '.canvas-block', show: 'showCanvasProperties', p: 'cvb-fill', hex: 'cvb-bg-hex', key: 'bg', none: 'transparent' },
+  banner02: { make: 'window.addBanner02Block()', sel: '.banner02-block', show: 'showBanner02Properties', p: 'bn2-fill', hex: 'bn2-bg-hex', key: 'bg', none: 'transparent' },
+};
+for (const [kind, K] of Object.entries(F22)) {
+  test(`D7 ${kind} — − = ${K.none === null ? `${K.key} 키 지움` : `${K.key} transparent`} · ⌘Z 한 칸 · ＋ = 지난 색 · 옛 id`, async ({ page }) => {
+    await page.setViewportSize({ width: 1500, height: 1100 });
+    const errs = await bootApp(page);
+    const id = await page.evaluate(async ([make, sel, show, key]) => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); const sec = await window.addSection(); window.deselectAll(); window.selectSection(sec); await eval(make); const b = [...sec.querySelectorAll(sel)].pop(); b.id = b.id || 'f22B'; b.dataset[key] = '#ff0000'; if (key === 'bgColor') b.style.backgroundColor = '#ff0000'; if (b.classList.contains('canvas-block')) window.renderCanvas(b); if (b.classList.contains('banner02-block')) window.renderBanner02(b); window.selectBlock?.(b.id);   window[show](b); window.clearHistory?.(); return b.id; }, [K.make, K.sel, K.show, K.key]);
+    await page.waitForSelector('#panel-right .prop-section[data-sec="fill"] [data-part="fill"]', { state: 'attached' });
+    const s0 = await st2(page, id, K);
+    expect([s0.layers, s0.add, s0.hex], '[전제] 칠 있음 · 옛 색 칸 id(HEX) 그대로').toEqual([1, false, 'FF0000']);
+    await page.click(`#${K.p}-remove`); await raf(page);
+    const s1 = await st2(page, id, K);
+    expect([s1.v, s1.layers, s1.add], '★− = 그 블럭 «없음» · «칠 없음» · 머리 ＋').toEqual([K.none, 0, true]);
+    await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z'); await raf(page);
+    await expect.poll(() => page.evaluate(([id, key]) => document.getElementById(id)?.dataset[key] ?? null, [id, K.key]), { message: '★⌘Z 한 칸 = 지우기 전 색(캔버스 되돌리기는 두 프레임보다 늦게 옴 · 실측 = 300ms 안)' }).toBe('#ff0000');
+    await page.keyboard.press('Meta+Shift+z'); await expect.poll(() => page.evaluate(([id, key]) => document.getElementById(id)?.dataset[key] ?? null, [id, K.key])).toBe(K.none);
+    await page.evaluate(([id, show]) => { const b = document.getElementById(id); window.selectBlock?.(id); window[show](b); }, [id, K.show]);
+    await page.click(`#${K.p}-add`); await raf(page);
+    const s3 = await st2(page, id, K);
+    expect([s3.v, s3.layers, s3.add], '★＋ = 지난 색 · 겹 줄 돌아옴').toEqual(['#ff0000', 1, false]);
+    expect(errs, errs.join(' | ')).toEqual([]);
+  });
+}
+test('D8 새 에셋(키 없음) = 옛 그대로 켬·A0A0A0 · 체커 줄 = 슬롯 · 새 레이어 캔버스 = «칠 없음»', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const out = {};
+  for (const [kind, K] of [['asset', F22.asset], ['canvas', F22.canvas]]) {
+    const id = await page.evaluate(async ([make, sel, show]) => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); const sec = await window.addSection(); window.deselectAll(); window.selectSection(sec); await eval(make); const b = [...sec.querySelectorAll(sel)].pop(); b.id = b.id || 'f22N'; window.selectBlock?.(b.id); window[show](b); return b.id; }, [K.make, K.sel, K.show]);
+    const s = await st2(page, id, K);
+    out[kind] = [s.v, s.layers, s.add];
+  }
+  expect(out.asset, '★새 에셋 = 키 없음 · 옛 그대로 «켬»(A0A0A0 · 지디 (ㄴ)) · 머리 ＋ 없음').toEqual([null, 1, false]);
+  expect(out.canvas, '★새 레이어 캔버스 = bg transparent(옛 기본) · «칠 없음» + 머리 ＋').toEqual(['transparent', 0, true]);
+  await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); const sec = await window.addSection(); window.deselectAll(); window.selectSection(sec); window.addAssetBlock(); const b = [...sec.querySelectorAll('.asset-block')].pop(); window.selectBlock?.(b.id); window.showAssetProperties(b); });
+  const slot = await page.evaluate(() => !!document.querySelector('#panel-right .prop-section[data-sec="fill"] .ui-fill-slot[data-slot="below"][data-slot-kind="checker"] #asset-checker-tone-on'));
+  expect(slot, '★체커 어둡게 = 슬롯(data-slot-kind=checker) · 옛 id 그대로').toBe(true);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* F2-3 — 방사형 radial(없음 = bg '' = 옛 «배경 지우기 (투명)» 값 · 옛 기본) · 확대 zoom(없음 = fill 'checker' = 옛 «체크패턴» 라디오 값 · 옛 기본) · 부위 색(점·칸·가운데·라벨 / 글자) 그대로
+ * D9 − = 그 «없음» · «칠 없음» + 머리 ＋ · ⌘Z 한 칸 = 옛 색 · ＋ = 지난 색 · D10 새 radial·zoom = «칠 없음»(옛 기본값 그대로) · 옛 «배경 지우기» 단추·체크패턴 라디오 없음
+ * 양성대조: _patches/fill-f2-3-CTL.patch(zoom 어댑터 none 이 fill 을 안 씀) ⇒ D9 zoom 빨강 */
+const F23 = {
+  radial: { make: 'window.addRadialBlock()', sel: '.radial-block', show: 'showRadialProperties', p: 'rdl-fill', hex: 'rdl-bg-hex', key: 'bg', none: '', fresh: '' },
+  zoom:   { make: 'window.addZoomBlock()', sel: '.zoom-block', show: 'showZoomProperties', p: 'zm-fillstd', hex: 'zm-fill-hex', key: 'fill', none: 'checker', fresh: 'checker' },
+};
+const mk23 = (page, K, seed) => page.evaluate(async ([make, sel, show, key, seed]) => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); const sec = await window.addSection(); window.deselectAll(); window.selectSection(sec); await eval(make); const b = [...sec.querySelectorAll(sel)].pop(); b.id = b.id || 'f23B'; if (seed) { b.dataset[key] = seed; if (b.classList.contains('radial-block')) window.renderRadialBlock(b); else window.renderZoomBlock(b); } window.selectBlock?.(b.id); window[show](b); window.clearHistory?.(); return b.id; }, [K.make, K.sel, K.show, K.key, seed]);
+for (const [kind, K] of Object.entries(F23)) {
+  test(`D9 ${kind} — − = ${K.key} ${JSON.stringify(K.none)} · ⌘Z 한 칸 · ＋ = 지난 색 · 옛 id`, async ({ page }) => {
+    await page.setViewportSize({ width: 1500, height: 1100 });
+    const errs = await bootApp(page);
+    const id = await mk23(page, K, '#ff0000');
+    await page.waitForSelector('#panel-right .prop-section[data-sec="fill"] [data-part="fill"]', { state: 'attached' });
+    const s0 = await st2(page, id, K);
+    expect([s0.layers, s0.add, s0.hex], '[전제] 칠 있음 · 옛 색 칸 id(HEX) 그대로').toEqual([1, false, 'FF0000']);
+    await page.click(`#${K.p}-remove`); await raf(page);
+    const s1 = await st2(page, id, K);
+    expect([s1.v, s1.layers, s1.add], '★− = 그 블럭 «없음» · «칠 없음» · 머리 ＋').toEqual([K.none, 0, true]);
+    await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z');
+    await expect.poll(() => page.evaluate(([id, key]) => document.getElementById(id)?.dataset[key] ?? null, [id, K.key]), { message: '★⌘Z 한 칸 = 지우기 전 색' }).toBe('#ff0000');
+    await page.keyboard.press('Meta+Shift+z'); await expect.poll(() => page.evaluate(([id, key]) => document.getElementById(id)?.dataset[key] ?? null, [id, K.key])).toBe(K.none);
+    await page.evaluate(([id, show]) => { const b = document.getElementById(id); window.selectBlock?.(id); window[show](b); }, [id, K.show]);
+    await page.click(`#${K.p}-add`); await raf(page);
+    const s3 = await st2(page, id, K);
+    expect([s3.v, s3.layers, s3.add], '★＋ = 지난 색 · 겹 줄 돌아옴').toEqual(['#ff0000', 1, false]);
+    expect(errs, errs.join(' | ')).toEqual([]);
+  });
+}
+test('D10 새 radial·zoom = «칠 없음»(옛 기본값) · 옛 «배경 지우기» 단추·체크패턴 라디오 없음', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const out = {};
+  for (const [kind, K] of Object.entries(F23)) {
+    const id = await mk23(page, K, null);
+    const s = await st2(page, id, K);
+    out[kind] = [s.v ?? '', s.layers, s.add, await page.evaluate(() => !!document.querySelector('#rdl-bg-clear, input[name="zm-bg"]'))];
+  }
+  expect(out, '★새 블럭 = 옛 기본(radial bg 없음 · zoom checker) = «칠 없음» + 머리 ＋ · 옛 단추·라디오 0').toEqual({ radial: ['', 0, true, false], zoom: ['checker', 0, true, false] });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
