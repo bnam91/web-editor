@@ -23,6 +23,7 @@ import { showGridGutters, hideGridGutters } from '../overlay-handles.js';
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
 /* ★right-panel-unify U1 — 패널 껍데기는 틀(renderPanel·sec)이 그린다 · 스코프칩(⑥)도 틀 부품. */
 import { renderPanel, sec, scopeChipsHTML, expandSection } from './_panel-frame.js';
+import { positionHeadToolsHTML } from './_position-section.js';   // 표준 Position 머리 엔드슬롯(그리드 «흐름 안에 있음» 줄 걷음 · 현빈 19:22)
 import { wireFontPicker } from './_font-picker.js';
 /* ★⑵ — 새 글자 줄의 글꼴을 «모달 ㉠ 과 같은 출처»에서 받는다(아래 grdNewLineFontFamily). */
 import { fontChain } from './prop-text-utils.js';
@@ -3145,7 +3146,7 @@ function _grdPadExcludeSectionHtml(block) {
      (실측 2026-09-28) 그 조건을 걸면 스위치가 거의 늘 사라진다.
      ★뺄 값은 공용 부품(drag-utils.effectiveSectionPadX)이 정한다 — row 의 패딩 키가 두 가지인
        함정도 거기서 한 번에 다룬다. */
-  if (!block.closest('.section-block')) return { size: '', padding: '', position: '' };   // 섹션 밖(미리보기 등)에서는 뺄 패딩이 없다
+  if (!block.closest('.section-block')) return { size: '', padding: '', position: '', positionHead: '' };   // 섹션 밖(미리보기 등)에서는 뺄 패딩이 없다
   const on = block.dataset.fullBleed === 'true';
   /* ★오버레이(플로팅) — 현빈 2026-10-01 「그리드 블럭도 오버레이되는 기능이 필요하다」.
    *   텍스트·도형·에셋과 «같은 함수»(js/overlay-float.js — 그리드는 posElOf 가 «자기 자신»을 돌려준다).
@@ -3171,12 +3172,9 @@ function _grdPadExcludeSectionHtml(block) {
         ${checkHTML({ id: 'grd-use-padx', label: '좌우 패딩 제외 (전폭)', checked: on })}
       </div>
     </div>`,
+    /* ★«흐름 안에 있음»/«섹션 위에 떠 있음» 상태 줄 걷음(현빈 261124 19:22 «없어도 될 듯» · 6-2 disabled + 툴팁과 같은 말) — IAL 단추 = 표준 Position 머리 엔드슬롯(회전 없음 → 슬라이드 막힘) · id grd-float-toggle 무변 */
+    positionHead: positionHeadToolsHTML({ prefix: 'grd', ialId: 'grd-float-toggle', ialOn: floating, rotCan: false }),
     position: `<div data-scope="block">
-      <div class="prop-row" style="align-items:center;gap:6px;">
-        <span class="prop-label prop-label--auto">${floating ? '섹션 위에 떠 있음' : '흐름 안에 있음'}</span>
-        <span style="margin-left:auto;"></span>
-        ${window.overlayToggleBtnHTML?.({ id: 'grd-float-toggle', active: floating, title: '오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다(Figma의 Ignore Auto Layout과 같은 개념). 다시 누르면 원래 있던 자리로 돌아갑니다.' }) || ''}
-      </div>
       ${window.floatPositionRowHTML?.({ prefix: 'grd', posEl: block }) || ''}
     </div>`,
   };
@@ -4113,7 +4111,7 @@ export function showGridProperties(block, addrArg) {
     ${_grdCellSectionHtml(_anyHit, block)}
     ${_grdLineSectionHtml(_anyHit || _nestD1, block)}
     ${_grdImageSectionHtml(_anyHit || _nestD1, block, null, true)}`),
-      sec('position', _pad3.position),
+      sec('position', _pad3.position, { headTools: _pad3.positionHead }),
       sec('size', _pad3.size),
       sec('layout', `
     <div class="prop-section" data-scope="block"${_sizeOpen ? '' : ' style="padding-bottom:0;"'}>

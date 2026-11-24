@@ -373,8 +373,8 @@ export function showPageProperties() {
       <div class="prop-hint" style="font-size:11px;color:#888;">에셋 블록은 좌우 패딩 일괄 적용에서 제외됩니다.</div>
 `),
       sec('special', `
-      <!-- data-own=special:Grid: 그리드 가이드 «보기 보조» 켬/끔·색 — 칠하는 색(Fill)이 아니다(현빈 ② Grid 한 절) -->
-      <div class="prop-row" data-own="special:Grid">
+      <!-- data-own=special:Layout Guide: 그리드 가이드 «보기 보조» 켬/끔·색 — 칠하는 색(Fill)이 아니다(현빈 ② Grid 한 절) -->
+      <div class="prop-row" data-own="special:Layout Guide">
         ${checkHTML({ id: 'page-grid-on', label: '그리드 가이드' })}   <!-- 현빈 261123 «온/오프 = 체크»(옛 켬/끔 라디오 · 처음 값은 배선이 저장 값으로) -->
         <!-- ★색 피커 — 현빈 ②「그리드 가이드 켬 라디오 같은 로우에 컬러피커 넣어줘도 될것 같고」.
              ★폭 실측(2026-10-07): 가용 211px · 라벨 60 + gap 4 + 라디오쌍 자연폭 65 + gap 4 + 스와치 24 = 157
@@ -389,8 +389,8 @@ export function showPageProperties() {
            ⚠️어휘를 «섞지» 않는다: 이 절은 이미 체크박스를 쓴다. 옆에 라디오를 놓으면 한 절에 두 어휘가 된다.
              (줌 패널은 라디오가 강제된 자리지만 — zoom-block.test.js ⓑ-14 — 그건 prop-zoom.js 전용이고
               이 패널엔 그런 제약이 없다. 실제로 바로 위 줄이 체크박스다.) -->
-      <!-- data-own=special:Grid: 패딩 «보기 보조» 켬/끔·색 — 패딩 값(Padding)이 아니다(현빈 ② Grid 한 절) -->
-      <div class="prop-row" data-own="special:Grid">
+      <!-- data-own=special:Layout Guide: 패딩 «보기 보조» 켬/끔·색 — 패딩 값(Padding)이 아니다(현빈 ② Grid 한 절) -->
+      <div class="prop-row" data-own="special:Layout Guide">
         ${checkHTML({ id: 'page-pad-hint-on', label: '패딩 비주얼' })}   <!-- 현빈 261123 «온/오프 = 체크» -->
         <!-- ★색 피커 — 현빈 ②「혹은 … 패딩비쥬얼 로우에도 넣어도 될듯?」. 여유 64px(위와 같은 자로 실측).
              ★스와치는 «새 어휘»가 아니다 — 그 라디오가 켜는 ★그것의 색이라, 위 :어휘 주석과 부딪치지 않는다
@@ -417,7 +417,7 @@ export function showPageProperties() {
         <span class="prop-label prop-label--narrow">거터</span>
         <input type="number" class="prop-number" id="page-grid-gut" min="0" max="80" value="10" title="칼럼 사이 간격(px)">
       </div>
-`, { title: 'Grid' }),
+`, { title: 'Layout Guide' }),   /* ★옛 «Grid» → «Layout Guide»(현빈 9510 · 0.9.13 214행 · 시안 «[Special] Layout guide» 등록 누락 · 표기 = 낱말 대문자 규칙(지디 261124 (가)) · id·키 무변) */
       sec('export', `
       <span class="prop-field-label">참고 이미지</span>
       <div class="prop-type-group">

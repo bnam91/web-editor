@@ -169,6 +169,7 @@ before(async () => {
   fs.writeFileSync(path.join(TMP, 'props', '_typo-section.js'),
     'export const buildTypographySectionHtml = () => "";\nexport const buildFillSectionHtml = () => "";\n');
   fs.writeFileSync(path.join(TMP, 'props', '_font-picker.js'), 'export const wireFontPicker = () => {};\n');
+  fs.writeFileSync(path.join(TMP, 'props', '_position-section.js'), "export const positionHeadToolsHTML = () => '';\n");   // ★전제(하네스 · 261124 applayout 첫 묶음): prop-grid.js 가 표준 Position 머리 부품을 import · 그 부품은 overlay-float 를 끌어와 무겁다 → grdAddLine 이 안 쓰니 스텁
   fs.writeFileSync(path.join(TMP, 'props', 'color-var-chips.js'),
     'export const wireColorVarChips = () => {};\nexport const parseColorVarName = () => "";\n');
   /* ★2026-09-21 유닛 colorhex — prop-grid.js 의 색칸 배선이 color-picker.js 의 공용
