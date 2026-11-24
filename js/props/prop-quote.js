@@ -50,6 +50,8 @@ import { blockHeaderHTML, escHtml as _esc, alignBtn, checkHTML } from './_helper
 import { buildTypographySectionHtml } from './_typo-section.js';
 import { strokeSection } from './prop-text-template.js';   /* ★1012t1H5 Stroke 절 — 텍스트 패널과 한 벌 */
 import { renderPanel, sec, hintHTML } from './_panel-frame.js';
+import { layoutGapSlotHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(L3 간격 슬롯 · C1)
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A4 Opacity)
 import { wireFontPicker } from './_font-picker.js';
 /* ★1012t1H5 — Fill VAR·최근 줄 / Stroke 절은 텍스트·모달 패널과 «같은 벌»을 부른다(⛔제 사본 0). */
 import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
@@ -213,8 +215,7 @@ export function showQuoteProperties(block) {
       /* ★1017t1m1ⓑ — 텍스트 블럭 Type 절의 「Quote」(#txt-to-quote)의 «되돌림». */
       sec('kind', `
       <button class="prop-type-btn" id="qt-to-text" title="텍스트 블럭으로 되돌리기 — 인용 부호·꾸밈은 사라집니다">Text</button>`, { id: 'qt-type-section' }),
-      sec('layout', `
-${_pairRow('qt-gap', '간격', gap, L.gap.min, L.gap.max)}
+      sec('layout', `${layoutGapSlotHTML({ id: 'qt-gap-number', value: gap, min: L.gap.min, max: L.gap.max })}   <!-- ★표준 Layout L3(현빈 261124 L-4) — 옛 qt-gap-slider 걷음 · 숫자 칸 id·키·범위 무변 -->
       <div class="prop-row">
         <span class="prop-label">꼴</span>
         <div class="prop-type-group" id="qt-layout-group">
@@ -241,6 +242,7 @@ ${layout === 'inline' ? `
         </div>
       </div>` : `
       ${hintHTML('<b>세로 정렬</b>은 스택에서 쓰지 않습니다 — 축이 돌아 부호가 글 <b>위·아래</b>에 차례로 서므로 밀 틈이 없습니다. 세로로 밀려면 <b>Marks</b> 의 <b>부호 y</b>를 쓰세요.')}`}`),
+      sec('appearance', appearanceSectionHTML({ prefix: 'qt', op: { value: window.readBlockOpacity?.(block) ?? 100 } }), { headTools: appearanceHeadToolsHTML({ prefix: 'qt' }) }),   // A4 Opacity 만(모서리 없음)
       sec('typography', buildTypographySectionHtml({
         p: 'qt-typo', bare: true,
         font: fontFamily, weight: String(weight), size: fontSize,
@@ -333,7 +335,9 @@ ${_pairRow('qt-markdy', '부호 y', markDy, L.markDy.min, L.markDy.max)}
   };
   wireNum('qt-marksize', 'markSize', L.markSize.min, L.markSize.max);
   wireNum('qt-markdy', 'markDy', L.markDy.min, L.markDy.max);
-  wireNum('qt-gap', 'gap', L.gap.min, L.gap.max);
+  /* 간격 = 표준 Layout 슬롯(부품 배선: input = 범위 안이면 바로 · change = 잘라 + commit 한 번 · 빈 칸 = 옛 값 · 라벨 끌기) */
+  wireLayoutSection({ commit, w: { numberId: 'qt-gap-number', min: L.gap.min, max: L.gap.max, apply: (v) => { block.dataset.gap = String(v); rerender(); } } });
+  wireAppearanceSection({ op: { numberId: 'qt-opacity', apply: (v) => window.setBlockOpacity?.(block, v), commit } });   // A4 — 계약(갈래 E) 없으면 그리기 0
 
   /* ── ★★Typography 절 ★배선 (현빈 `1010t2c1-②`) ─────────────────────────────────
      ★마크업은 ★정본(`_typo-section.js`)이 낸다 · ★«적용»은 ★여기서 준다 — ★모달과 ★같은 가름

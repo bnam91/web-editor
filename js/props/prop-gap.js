@@ -2,6 +2,8 @@ import { propPanel, state } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { GAP_MIN, GAP_MAX } from '../blocks/gap-limits.js';
+import { layoutSizeRowHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(L2 · C1)
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A4 Opacity)
 
 export function showGapProperties(gb) {
   const currentH = gb.offsetHeight;
@@ -16,42 +18,25 @@ export function showGapProperties(gb) {
       crumb: window.getBlockBreadcrumb(gb),
       id: gb.id,
     }),
-    sections: [sec('size', `
-      <div class="prop-row">
-        <span class="prop-label">높이</span>
-        <input type="range" class="prop-slider" id="gap-slider" min="${GAP_MIN}" max="${GAP_MAX}" step="4" value="${currentH}">
-        <input type="number" class="prop-number" id="gap-number" min="${GAP_MIN}" max="${GAP_MAX}" value="${currentH}">
-      </div>
+    /* ★표준 Layout L2(현빈 261124 L-4 · 시안 #mkp-layoutstd) — 옛 gap-slider 걷음 · 숫자 칸 id·범위 무변 · H 만 = 한 칸(one) · 아이콘 ↕(one.icon h) */
+    sections: [sec('size', `${layoutSizeRowHTML({ prefix: 'gap', one: { id: 'gap-number', label: 'Height', icon: 'h', min: GAP_MIN, max: GAP_MAX, value: currentH } })}
       <div class="prop-row gap-preset-row">
         ${[20,40,80,120,160,200,240,280].map(h => `<button class="gap-preset-btn${currentH===h?' active':''}" data-h="${h}">${h}</button>`).join('')}
-      </div>`)],
+      </div>`),
+      sec('appearance', appearanceSectionHTML({ prefix: 'gap', op: { value: window.readBlockOpacity?.(gb) ?? 100 } }), { headTools: appearanceHeadToolsHTML({ prefix: 'gap' }) })],   // A4 Opacity 만(모서리 없음)
   });
 
   if (window.setRpIdBadge) window.setRpIdBadge(gb.id || null);
 
-  const slider = document.getElementById('gap-slider');
   const number = document.getElementById('gap-number');
-
-  slider.addEventListener('mousedown', () => { window.pushHistory?.(); });
-  slider.addEventListener('input', () => {
-    gb.style.height = slider.value + 'px';
-    window.markGapManual?.(gb);   // ⓓ 사람이 정한 높이 — 갭 감수가 되돌리지 않는다
-    number.value = slider.value;
-    updatePresetActive(parseInt(slider.value)); // #15 슬라이더 드래그 시에도 프리셋 active 추종
-    window.scheduleAutoSave?.();
-  });
-  number.addEventListener('change', () => {
-    window.pushHistory?.();
-    number.value = String(Math.min(GAP_MAX, Math.max(GAP_MIN, parseInt(number.value) || 0)));   // 확정할 때 칸 글도 죄인 값으로(2001 → 2000 · 높이는 input 에서 이미 죄임)
-  });
-  number.addEventListener('input', () => {
-    const v = Math.min(GAP_MAX, Math.max(GAP_MIN, parseInt(number.value) || 0));
+  /* 표준 Layout 배선(부품) — input = 범위 안이면 바로 · change = 잘라 + 이력 한 번 · 빈 칸 = 옛 값 되돌림 · 라벨 끌기 */
+  wireLayoutSection({ w: { numberId: 'gap-number', min: GAP_MIN, max: GAP_MAX, read: () => gb.offsetHeight, apply: (v) => {
     gb.style.height = v + 'px';
     window.markGapManual?.(gb);   // ⓓ 사람이 정한 높이 — 갭 감수가 되돌리지 않는다
-    slider.value = v;
     updatePresetActive(v);
     window.scheduleAutoSave?.();
-  });
+  } } });
+  wireAppearanceSection({ op: { numberId: 'gap-opacity', apply: (v) => window.setBlockOpacity?.(gb, v) } });   // A4 — 계약(갈래 E) 없으면 그리기 0
 
   const presetBtns = propPanel.querySelectorAll('.gap-preset-btn');
   function updatePresetActive(v) {
@@ -63,7 +48,6 @@ export function showGapProperties(gb) {
       window.pushHistory?.();
       gb.style.height = h + 'px';
       window.markGapManual?.(gb);   // ⓓ 사람이 고른 프리셋 — 갭 감수가 되돌리지 않는다
-      slider.value = h;
       number.value = h;
       updatePresetActive(h);
       window.scheduleAutoSave?.();

@@ -332,7 +332,7 @@ test('Ⓓ-b 규격은 «한 곳»에서만 온다 — 배선 코드에 숫자가
 test('Ⓓ-c 갭 높이를 «사람이» 정하는 자리는 전부 markGapManual 을 부른다 (ⓓ)', () => {
   /* ★호출부를 «세서» 지킨다. 한 곳이라도 빠지면 그 경로로 맞춘 값이 감수에 되돌려진다. */
   const targets = [
-    ['js/props/prop-gap.js', 3, '슬라이더 · 숫자 입력 · 프리셋 버튼'],
+    ['js/props/prop-gap.js', 2, '숫자 칸(표준 Layout 배선 apply · 라벨 끌기 포함) · 프리셋 버튼'],   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 슬라이더 길 없어져 3 → 2
     ['js/props/prop-multisel.js', 1, '세로 분배'],
     ['js/block-factory.js', 1, 'updateGapBlock(=MCP update_gap_block)'],
   ];

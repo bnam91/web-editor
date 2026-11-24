@@ -21,14 +21,16 @@ const SEC = `<div class="section-block" data-section="1" id="sB"><div class="sec
   <div class="section-inner" style="padding-left: 32px; padding-right: 32px;" data-padding-x="32"></div></div>`;
 
 /** 슬라이더＋숫자칸 쌍 — ★dataset 키와 두 id 를 같이 든다. ⛔상한은 «적지 않는다»: 앱의 CHAT_NUM_BOUNDS 에서 읽는다. */
+/* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — Layout 여섯(range: null · gone = 걷힌 옛 슬라이더 id)은 슬라이더가 없다 → 숫자칸 = 모델 경계 · 라벨 끌기로 «건드려도» 안 깎인다.
+   Position 의 프로필 Y 는 슬라이더 그대로(C1 범위 밖) — 옛 쌍 규약을 계속 잰다. */
 const PAIRS = [
-  { key: 'padding',        label: '패딩',          range: 'chb-padding-range',        num: 'chb-padding-val' },
-  { key: 'bubblePadding',  label: '말풍선 패딩',    range: 'chb-bubble-padding-range', num: 'chb-bubble-padding-val' },
-  { key: 'bubbleMaxW',     label: '말풍선 최대폭',  range: 'chb-bubble-maxw-range',    num: 'chb-bubble-maxw-val' },
-  { key: 'tailScale',      label: '꼬리 크기',      range: 'chb-tail-range',           num: 'chb-tail-val' },
-  { key: 'profileSize',    label: '프로필 크기',    range: 'chb-profile-size-range',   num: 'chb-profile-size-num' },
+  { key: 'padding',        label: '패딩',          range: null, gone: 'chb-padding-range',        num: 'chb-padding-val' },
+  { key: 'bubblePadding',  label: '말풍선 패딩',    range: null, gone: 'chb-bubble-padding-range', num: 'chb-bubble-padding-val' },
+  { key: 'bubbleMaxW',     label: '말풍선 최대폭',  range: null, gone: 'chb-bubble-maxw-range',    num: 'chb-bubble-maxw-val' },
+  { key: 'tailScale',      label: '꼬리 크기',      range: null, gone: 'chb-tail-range',           num: 'chb-tail-val' },
+  { key: 'profileSize',    label: '프로필 크기',    range: null, gone: 'chb-profile-size-range',   num: 'chb-profile-size-num' },
   { key: 'profileOffsetY', label: '프로필 Y',       range: 'chb-profile-y-range',      num: 'chb-profile-y-num' },
-  { key: 'profileGap',     label: '프로필 간격',    range: 'chb-profile-gap-range',    num: 'chb-profile-gap-num' },
+  { key: 'profileGap',     label: '프로필 간격',    range: null, gone: 'chb-profile-gap-range',    num: 'chb-profile-gap-num' },
 ];
 
 async function fresh(page) {
@@ -77,14 +79,18 @@ test('S1 ★슬라이더 max 가 숫자칸 max 와 «같다» — 갈리면 rang
   const { errs, id } = await fresh(page);
   await openPanel(page, id);
   const rows = await page.evaluate((pairs) => pairs.map(p => {
-    const r = document.getElementById(p.range), n = document.getElementById(p.num);
+    const r = p.range ? document.getElementById(p.range) : null, n = document.getElementById(p.num);
     const B = window.__CHAT_NUM_BOUNDS[p.key];
-    return { key: p.key, label: p.label,
+    return { key: p.key, label: p.label, std: !p.range, goneLeft: p.gone ? !!document.getElementById(p.gone) : false, scrub: !!document.getElementById(p.num + '-scrub'),
       rMax: r ? r.max : null, nMax: n ? n.max : null,
       rMin: r ? r.min : null, nMin: n ? n.min : null,
       bMax: String(B.max), bMin: String(B.min) };
   }), PAIRS);
   for (const x of rows) {
+    if (x.std) {   // 표준 Layout 칸 — 슬라이더 없음 · 숫자칸 = 모델 · 끌기 손잡이
+      expect(`${x.label} 옛 슬라이더=${x.goneLeft} 끌기=${x.scrub} max 숫자=${x.nMax} min 숫자=${x.nMin}`).toBe(`${x.label} 옛 슬라이더=false 끌기=true max 숫자=${x.bMax} min 숫자=${x.bMin}`);
+      continue;
+    }
     expect(x.rMax, `${x.label}: 슬라이더가 없다`).not.toBeNull();
     /* ★잰 값을 단언에 찍는다 — 빨강일 때 「무엇이었나」가 보이게. */
     expect(`${x.label} max 슬라이더=${x.rMax} 숫자=${x.nMax} 모델=${x.bMax}`)
@@ -107,6 +113,15 @@ test('S2 ★행동 — 숫자칸에 «모델 최대»를 넣고 슬라이더를 
     await page.waitForTimeout(120);
     const after = await page.evaluate(({ id, k }) => document.getElementById(id).dataset[k], { id, k: p.key });
     expect(Number(after), `전제: ${p.label} 숫자칸 커밋이 모델 최대(${max})를 썼다 — 실제 ${after}`).toBe(max);
+    if (!p.range) {   // 표준 Layout 칸 — ⑵ «라벨 끌기로 건드린다»(오른쪽 +10 = 상한 너머 → 상한 그대로)
+      const h = page.locator(`#${p.num}-scrub`); await h.scrollIntoViewIfNeeded(); const b = await h.boundingBox();
+      await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down();
+      await page.mouse.move(b.x + b.width / 2 + 10, b.y + b.height / 2, { steps: 3 }); await page.mouse.up();
+      await page.waitForTimeout(120);
+      const a2 = await page.evaluate(({ id, k }) => document.getElementById(id).dataset[k], { id, k: p.key });
+      expect(`${p.label}: 끌기 뒤 모델=${a2}`).toBe(`${p.label}: 끌기 뒤 모델=${max}`);
+      continue;
+    }
     /* ⑵ 이제 «슬라이더를 건드린다». ★제 자리에서 input 을 한 번 — 사람이 집었다 놓은 꼴.
        ⛔슬라이더 max 가 더 작으면 range 가 value 를 그 max 로 깎아 두었으므로, 이 한 번이 값을 떨어뜨린다. */
     const slid = await page.evaluate((rid) => {

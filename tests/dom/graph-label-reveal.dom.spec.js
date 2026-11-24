@@ -76,6 +76,8 @@ test('R3 ★편집 중 «카테고리 색상» HEX 칸 실클릭 → 값: 칸이
   await enterEdit(page, id);
   await page.keyboard.press('Meta+a'); await page.keyboard.type('색편집');
   await page.evaluate(() => { document.getElementById('grb-xlabel-hex').__mark = 'h'; });
+  /* ★기대 바뀜(표준 Appearance/Layout C1 · 현빈 261124) — 패널 길어짐 = 새 Appearance·Layout 줄 · 동작 무변 → 좌표 클릭 전에 사람처럼 굴려 칸을 화면 안으로 */
+  await page.locator('#grb-xlabel-hex').scrollIntoViewIfNeeded();
   const h = await stableEl(page, `document.getElementById('grb-xlabel-hex')`);
   await clickAt(page, h.x, h.y, { sel: '#grb-xlabel-hex' }, { label: '카테고리 색 HEX' });
   await page.keyboard.press('Meta+a'); await page.keyboard.type('FF0000'); await page.keyboard.press('Enter');

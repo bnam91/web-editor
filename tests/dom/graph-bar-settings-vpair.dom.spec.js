@@ -85,8 +85,8 @@ for (const type of TYPES) {
     const r = await page.evaluate(() => {
       const secOf = (id) => document.getElementById(id)?.closest('.prop-section[data-sec]')?.dataset.sec ?? null;
       return {
-        secs: ['grb-bar-thickness-slider', 'grb-padx-slider', 'grb-item-gap-slider', 'grb-pct-size-slider'].map(secOf),
-        seg: ['grb-seg-gap-slider', 'grb-seg-wave-toggle'].map(secOf),
+        secs: ['grb-bar-thickness-number', 'grb-padx-number', 'grb-item-gap-number', 'grb-pct-size-slider'].map(secOf),
+        seg: ['grb-seg-gap-number', 'grb-seg-wave-toggle'].map(secOf),
         colorAll: document.querySelectorAll('#grb-bar-color').length,
         colorSec: secOf('grb-bar-color'),
         barRowLabel: document.getElementById('grb-bar-color')?.closest('.prop-row')?.querySelector('.prop-label')?.textContent.trim() ?? null,

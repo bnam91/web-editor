@@ -32,10 +32,11 @@ test('W0 지키는 시험 — 옛 디바이더(lineLength=80 박힘)는 지금�
   await setup(page);
   expect(await lineW(page)).toBe(await blockW(page));
 });
-test('W1 ★가로 디바이더 패널에 «너비» 슬라이더가 보인다(두께 아래)', async ({ page }) => {
+/* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — «너비» 슬라이더 → 표준 Layout 칸(작은 라벨 Width · 숫자 칸 id 그대로) */
+test('W1 ★가로 디바이더 패널에 «너비» 칸이 보인다(표준 Layout · Width)', async ({ page }) => {
   await setup(page); await openPanel(page);
-  expect(await page.isVisible('#dvd-width-slider')).toBe(true);
-  expect(await page.evaluate(() => document.getElementById('dvd-width-slider').closest('.prop-row').querySelector('.prop-label').textContent)).toBe('너비');
+  expect(await page.isVisible('#dvd-width-number')).toBe(true);
+  expect(await page.evaluate(() => document.getElementById('dvd-width-number').closest('.ui-s2-cell').querySelector(':scope > span').textContent)).toBe('Width');
 });
 test('W2 ★너비 300 → 선이 300px 로 가운데에 · ⌘Z 한 번에 전폭', async ({ page }) => {
   await setup(page); await openPanel(page);

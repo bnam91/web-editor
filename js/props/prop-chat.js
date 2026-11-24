@@ -1,7 +1,8 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML, checkHTML } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
-import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A2)
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A2 · A4 Opacity)
+import { layoutPadSlotHTML, layoutGapSlotHTML, layoutSlotNumberHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(L2~L4 · C1)
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { buildTypographySectionHtml } from './_typo-section.js';   // ⛔글자 크기 칸을 «손으로» 만들지 마라 — 정본은 여기 하나다(tests/unit/typo-section-ssot.test.mjs T2)
 import { CHAT_NUM_BOUNDS } from '../blocks/chat-bounds.js';
@@ -182,51 +183,17 @@ export function showChatProperties(block) {
         <input type="number" id="chb-profile-y-num" class="prop-number" value="${profileOffsetY}" min="${B.profileOffsetY.min}" max="${B.profileOffsetY.max}" style="width:54px">
       </div>
 `),
-      sec('size', `
-      <div class="prop-row">
-        <span class="prop-label">말풍선 최대폭</span>
-        <input type="range" class="prop-slider" id="chb-bubble-maxw-range" min="${B.bubbleMaxW.min}" max="${B.bubbleMaxW.max}" value="${bubbleMaxW}">
-        <input type="number" class="prop-number" id="chb-bubble-maxw-val" min="${B.bubbleMaxW.min}" max="${B.bubbleMaxW.max}" value="${bubbleMaxW}" style="width:54px">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">꼬리 크기</span>
-        <input type="range" class="prop-slider" id="chb-tail-range" min="${B.tailScale.min}" max="${B.tailScale.max}" value="${tailScale}">
-        <input type="number" class="prop-number" id="chb-tail-val" min="${B.tailScale.min}" max="${B.tailScale.max}" value="${tailScale}" style="width:54px">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">프로필</span>
-        <input type="range" class="prop-slider" id="chb-profile-size-range" min="${B.profileSize.min}" max="${B.profileSize.max}" value="${profileSize}">
-        <input type="number" id="chb-profile-size-num" class="prop-number" value="${profileSize}" min="${B.profileSize.min}" max="${B.profileSize.max}" style="width:54px">
-      </div>
-`),
-      sec('layout', `
-      <div class="prop-row">
-        <span class="prop-label">간격</span>
-        <input type="number" id="chb-gap" class="prop-color-hex" value="${gap}" min="${B.gap.min}" max="${B.gap.max}" style="width:60px">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">프로필 간격</span>
-        <input type="range" class="prop-slider" id="chb-profile-gap-range" min="${B.profileGap.min}" max="${B.profileGap.max}" value="${profileGap}">
-        <input type="number" id="chb-profile-gap-num" class="prop-number" value="${profileGap}" min="${B.profileGap.min}" max="${B.profileGap.max}" style="width:54px">
-      </div>
-`),
-      sec('padding', `
-      <div class="prop-row">
-        <span class="prop-label">패딩</span>
-        <input type="range" class="prop-slider" id="chb-padding-range" min="${B.padding.min}" max="${B.padding.max}" value="${padding}">
-        <input type="number" class="prop-number" id="chb-padding-val" min="${B.padding.min}" max="${B.padding.max}" value="${padding}" style="width:54px">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">말풍선 패딩</span>
-        <input type="range" class="prop-slider" id="chb-bubble-padding-range" min="${B.bubblePadding.min}" max="${B.bubblePadding.max}" value="${bubblePadding}">
-        <input type="number" class="prop-number" id="chb-bubble-padding-val" min="${B.bubblePadding.min}" max="${B.bubblePadding.max}" value="${bubblePadding}" style="width:54px">
-      </div>
+      /* ★표준 Layout L2~L4(현빈 261124 L-4 · 시안 #mkp-layoutstd) — 옛 *-range 슬라이더 여섯 걷음 · 숫자 칸 id·키·범위(CHAT_NUM_BOUNDS) 무변
+         최대폭·꼬리·프로필·프로필 간격·말풍선 패딩 = 블럭 슬롯 숫자(layoutSlotNumberHTML) · 패딩 = 네 면 한 값(allId) · 간격(chb-gap) = 표준 Gap 슬롯 */
+      sec('size', `${layoutSlotNumberHTML({ id: 'chb-bubble-maxw-val', label: '말풍선 최대폭', min: B.bubbleMaxW.min, max: B.bubbleMaxW.max, value: bubbleMaxW })}${layoutSlotNumberHTML({ id: 'chb-tail-val', label: '꼬리 크기', min: B.tailScale.min, max: B.tailScale.max, value: tailScale })}${layoutSlotNumberHTML({ id: 'chb-profile-size-num', label: '프로필', min: B.profileSize.min, max: B.profileSize.max, value: profileSize })}`),
+      sec('layout', `${layoutGapSlotHTML({ id: 'chb-gap', value: gap, min: B.gap.min, max: B.gap.max })}${layoutSlotNumberHTML({ id: 'chb-profile-gap-num', label: '프로필 간격', min: B.profileGap.min, max: B.profileGap.max, value: profileGap })}`),
+      sec('padding', `${layoutPadSlotHTML({ allId: 'chb-padding-val', all: padding, min: B.padding.min, max: B.padding.max })}${layoutSlotNumberHTML({ id: 'chb-bubble-padding-val', label: '말풍선 패딩', min: B.bubblePadding.min, max: B.bubblePadding.max, value: bubblePadding })}
       <div class="prop-row">
         ${checkHTML({ id: 'chb-fullbleed-toggle', label: '패딩 제외', checked: fullBleed })}
       </div>
 `),
       sec('appearance', `
-      ${appearanceSectionHTML({ prefix: 'chb', radius: { numberId: 'chb-radius', value: radius, min: B.radius.min, max: B.radius.max } })}   <!-- ★표준 Appearance A2 — 말풍선 곡률 = 표준 R(시안 #mkp-appstd ②) · id chb-radius·dataset.radius·B.radius 무변 -->
+      ${appearanceSectionHTML({ prefix: 'chb', op: { value: window.readBlockOpacity?.(block) ?? 100 }, radius: { numberId: 'chb-radius', value: radius, min: B.radius.min, max: B.radius.max } })}   <!-- ★표준 Appearance A2 — 말풍선 곡률 = 표준 R(시안 #mkp-appstd ②) · id chb-radius·dataset.radius·B.radius 무변 -->
 `, { headTools: appearanceHeadToolsHTML({ prefix: 'chb' }) }),
       /* ★⒝(2026-10-06 · 지디 GO) — 「폰트 크기」가 여기 «손으로 만든 숫자칸»이었다(min 10 · max 60).
           ⛔그게 ㉡ 복사본이었다: 절의 정본은 _typo-section.js 하나이고 텍스트·모달·그리드가 그걸 쓴다.
@@ -281,20 +248,10 @@ export function showChatProperties(block) {
     window.pushHistory?.('이름 토글');
     rerender();
   });
-  // 프로필 크기 — range/number 동기화
-  const sizeRange = propPanel.querySelector('#chb-profile-size-range');
-  const sizeNum   = propPanel.querySelector('#chb-profile-size-num');
-  const setSize = (v) => {
-    const n = chbClamp('profileSize', v, 48);
-    block.dataset.profileSize = String(n);
-    if (sizeRange) sizeRange.value = String(n);
-    if (sizeNum)   sizeNum.value   = String(n);
-    rerender();
-  };
-  sizeRange?.addEventListener('input',  e => setSize(e.target.value));
-  sizeRange?.addEventListener('change', () => window.pushHistory?.());
-  sizeNum?.addEventListener('input',    e => setSize(e.target.value));
-  sizeNum?.addEventListener('change',   () => window.pushHistory?.());
+  /* 표준 Layout 배선(부품) — input = 범위 안이면 바로 · change = 잘라 + 이력 한 번(옛 이력 이름 그대로) · 빈 칸 = 옛 값 되돌림 · 라벨 끌기 */
+  const lay = (id, k, apply, label) => wireLayoutSection({ commit: () => window.pushHistory?.(label), w: { numberId: id, min: B[k].min, max: B[k].max, apply } });
+  // 프로필 크기
+  lay('chb-profile-size-num', 'profileSize', (n) => { block.dataset.profileSize = String(n); rerender(); });
   // 프로필 Y 위치 — range/number 동기화
   const yRange = propPanel.querySelector('#chb-profile-y-range');
   const yNum   = propPanel.querySelector('#chb-profile-y-num');
@@ -310,75 +267,17 @@ export function showChatProperties(block) {
   yNum?.addEventListener('input',    e => setY(e.target.value));
   yNum?.addEventListener('change',   () => window.pushHistory?.());
   // 프로필 ↔ 말풍선 간격
-  const gapRange = propPanel.querySelector('#chb-profile-gap-range');
-  const gapNum   = propPanel.querySelector('#chb-profile-gap-num');
-  const setGap = (v) => {
-    const n = chbClamp('profileGap', v, 0);
-    block.dataset.profileGap = String(n);
-    if (gapRange) gapRange.value = String(n);
-    if (gapNum)   gapNum.value   = String(n);
-    rerender();
-  };
-  gapRange?.addEventListener('input',  e => setGap(e.target.value));
-  gapRange?.addEventListener('change', () => window.pushHistory?.());
-  gapNum?.addEventListener('input',    e => setGap(e.target.value));
-  gapNum?.addEventListener('change',   () => window.pushHistory?.());
+  lay('chb-profile-gap-num', 'profileGap', (n) => { block.dataset.profileGap = String(n); rerender(); });
 
   // ─── 스타일 이벤트 ────────────────────────────────────────────
-  const paddingRange = propPanel.querySelector('#chb-padding-range');
-  const paddingVal   = propPanel.querySelector('#chb-padding-val');
-  const applyPadding = v => {
-    v = chbClamp('padding', v, 0);
-    block.dataset.padding = v;
-    block.style.padding = v + 'px ' + v + 'px';
-    paddingRange.value = v; paddingVal.value = v;
-    window.triggerAutoSave?.();
-  };
-  paddingRange.addEventListener('input', () => applyPadding(paddingRange.value));
-  paddingVal.addEventListener('change', () => applyPadding(paddingVal.value));
-
+  // 바깥 패딩 — 인라인 padding 만(rerender 없음)
+  lay('chb-padding-val', 'padding', (v) => { block.dataset.padding = v; block.style.padding = v + 'px ' + v + 'px'; window.triggerAutoSave?.(); });
   // 말풍선 내부 패딩 — .chb-bubble 인라인이라 rerender 필수(outer 패딩과 핸들러 패턴 다름).
-  // profileGap 방식 미러: input→rerender, change(드래그 놓기)→pushHistory.
-  const bpRange = propPanel.querySelector('#chb-bubble-padding-range');
-  const bpVal   = propPanel.querySelector('#chb-bubble-padding-val');
-  const applyBubblePadding = v => {
-    const n = chbClamp('bubblePadding', v, 0);
-    block.dataset.bubblePadding = String(n);
-    if (bpRange) bpRange.value = String(n);
-    if (bpVal)   bpVal.value   = String(n);
-    rerender();
-  };
-  bpRange?.addEventListener('input',  () => applyBubblePadding(bpRange.value));
-  bpRange?.addEventListener('change', () => window.pushHistory?.('말풍선 패딩'));
-  bpVal?.addEventListener('change',   () => { applyBubblePadding(bpVal.value); window.pushHistory?.('말풍선 패딩'); });
-
-  // 말풍선 최대폭(%) — bubblePadding 패턴 미러. 기존 CSS 캡(70%)을 조절 가능하게.
-  const bmwRange = propPanel.querySelector('#chb-bubble-maxw-range');
-  const bmwVal   = propPanel.querySelector('#chb-bubble-maxw-val');
-  const applyBubbleMaxW = v => {
-    const n = chbClamp('bubbleMaxW', v, 70);
-    block.dataset.bubbleMaxW = String(n);
-    if (bmwRange) bmwRange.value = String(n);
-    if (bmwVal)   bmwVal.value   = String(n);
-    rerender();
-  };
-  bmwRange?.addEventListener('input',  () => applyBubbleMaxW(bmwRange.value));
-  bmwRange?.addEventListener('change', () => window.pushHistory?.('말풍선 최대폭'));
-  bmwVal?.addEventListener('change',   () => { applyBubbleMaxW(bmwVal.value); window.pushHistory?.('말풍선 최대폭'); });
-
-  // 말풍선 꼬리 크기 — range/number 동기화. profileGap 패턴 미러(input→rerender, change→pushHistory).
-  const tailRange = propPanel.querySelector('#chb-tail-range');
-  const tailVal   = propPanel.querySelector('#chb-tail-val');
-  const applyTail = v => {
-    const n = chbClamp('tailScale', v, 0);
-    block.dataset.tailScale = String(n);
-    if (tailRange) tailRange.value = String(n);
-    if (tailVal)   tailVal.value   = String(n);
-    rerender();
-  };
-  tailRange?.addEventListener('input',  () => applyTail(tailRange.value));
-  tailRange?.addEventListener('change', () => window.pushHistory?.('꼬리 크기'));
-  tailVal?.addEventListener('change',   () => { applyTail(tailVal.value); window.pushHistory?.('꼬리 크기'); });
+  lay('chb-bubble-padding-val', 'bubblePadding', (n) => { block.dataset.bubblePadding = String(n); rerender(); }, '말풍선 패딩');
+  // 말풍선 최대폭(%) — 기존 CSS 캡(70%)을 조절 가능하게.
+  lay('chb-bubble-maxw-val', 'bubbleMaxW', (n) => { block.dataset.bubbleMaxW = String(n); rerender(); }, '말풍선 최대폭');
+  // 말풍선 꼬리 크기
+  lay('chb-tail-val', 'tailScale', (n) => { block.dataset.tailScale = String(n); rerender(); }, '꼬리 크기');
 
   // 패딩 제외(full-bleed) 토글 — 섹션 좌우패딩 무시. 적용/해제 모두 renderChatBlock이 처리.
   propPanel.querySelector('#chb-fullbleed-toggle')?.addEventListener('change', e => {
@@ -400,14 +299,9 @@ export function showChatProperties(block) {
   _fsEl?.addEventListener('change', () => {
     window.pushHistory?.();
   });
-  wireAppearanceSection({ radius: { numberId: 'chb-radius', min: B.radius.min, max: B.radius.max, apply: (v) => { block.dataset.radius = String(v); rerender(); }, commit: () => window.pushHistory?.() } });   // 표준 Appearance A2(경계 = B.radius 그대로 · 옛 change = 이력만)
-  propPanel.querySelector('#chb-gap').addEventListener('input', e => {
-    block.dataset.gap = e.target.value;
-    rerender();
-  });
-  propPanel.querySelector('#chb-gap').addEventListener('change', () => {
-    window.pushHistory?.();
-  });
+  wireAppearanceSection({ radius: { numberId: 'chb-radius', min: B.radius.min, max: B.radius.max, apply: (v) => { block.dataset.radius = String(v); rerender(); }, commit: () => window.pushHistory?.() },   // 표준 Appearance A2(경계 = B.radius 그대로 · 옛 change = 이력만)
+    op: { numberId: 'chb-opacity', apply: (v) => window.setBlockOpacity?.(block, v) } });   // A4 — 계약(갈래 E) 없으면 그리기 0
+  lay('chb-gap', 'gap', (n) => { block.dataset.gap = String(n); rerender(); });   // 메시지 간격 = 표준 Gap 슬롯
 
   // ─── 색상 이벤트 ─────────────────────────────────────────────
   wireColorField('chb-bg-left', {

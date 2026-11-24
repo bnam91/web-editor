@@ -112,13 +112,14 @@ test('G7 상한 2000 — 패널 숫자칸 2001 = 높이·칸 2000 · 2000 = 들�
   expect(errs).toEqual([]);
 });
 
-test('G8 상한 2000 — 슬라이더 끝 = 2000 · 슬라이더·숫자칸 max = GAP_MAX', async ({ page }) => {
+/* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 슬라이더 끝 대신 숫자 칸 change 가 상한으로 자른다 */
+test('G8 상한 2000 — 숫자칸 max = GAP_MAX · 2001 change = 2000', async ({ page }) => {
   const { errs, gid } = await scene(page, true);
-  await page.waitForSelector('#gap-slider');
-  expect(await page.evaluate(() => [document.getElementById('gap-slider').max, document.getElementById('gap-number').max])).toEqual(['2000', '2000']);
-  await page.evaluate(() => { const s = document.getElementById('gap-slider'); s.value = '2001'; s.dispatchEvent(new Event('input', { bubbles: true })); });   // 브라우저가 max 로 죈다
+  await page.waitForSelector('#gap-number');
+  expect(await page.evaluate(() => document.getElementById('gap-number').max)).toBe('2000');
+  await page.evaluate(() => { const s = document.getElementById('gap-number'); s.value = '2001'; s.dispatchEvent(new Event('input', { bubbles: true })); s.dispatchEvent(new Event('change', { bubbles: true })); });
   await expect.poll(() => H(page, gid)).toBe(2000);
-  expect(await page.evaluate(() => document.getElementById('gap-slider').value)).toBe('2000');
+  expect(await page.evaluate(() => document.getElementById('gap-number').value)).toBe('2000');
   expect(errs).toEqual([]);
 });
 
@@ -139,7 +140,7 @@ test('G9 옛 저장본의 상한 넘는 갭(2500) — 다시 열어도 · 라벨
   await page.click('.gap-h-label'); await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => document.querySelector('.gap-h-label').classList.contains('is-editing'))).toBe(false);
   expect(await H(page, gid), '★값 안 바꾸고 Enter = 그대로(조용히 안 깎임)').toBe(2500);
-  expect(await page.evaluate(() => [document.getElementById('gap-number').value, document.getElementById('gap-slider').value]), '패널 = 숫자 2500 그대로 · 슬라이더는 끝(2000)에 선다').toEqual(['2500', '2000']);
+  expect(await page.evaluate(() => document.getElementById('gap-number').value), '패널 = 숫자 2500 그대로(★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 슬라이더 칸 걷힘)').toBe('2500');
   expect(errs2).toEqual([]);
 });
 

@@ -3,6 +3,8 @@ import { blockHeaderHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { panelRenderedPx } from './_panel-rendered.js';
+import { layoutSizeRowHTML, layoutPadSlotHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(L2·L3 · C1)
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A4 Opacity)
 
 export function showDividerProperties(block) {
   const lineColor  = block.dataset.lineColor  || '#cccccc';
@@ -62,28 +64,14 @@ export function showDividerProperties(block) {
         <input type="range" class="prop-slider" id="dvd-weight-slider" min="1" max="24" step="1" value="${lineWeight}">
         <input type="number" class="prop-number" id="dvd-weight-number" min="1" max="24" value="${lineWeight}">
       </div>`, { title: 'Line' }),
+      /* ★표준 Layout L2·L3(현빈 261124 L-4 · 시안 #mkp-layoutstd) — 옛 dvd-width/length/pady/padx-slider 걷음 · 숫자 칸 id·키·범위 무변
+         ★전폭 = 너비 칸 max(fullW) — 라벨 끌기·숫자로 max 에 닿으면 «전폭»(키 지움 · 탑 판정 261125 · 새 모드 0) · 전폭 사슬 막힘(부품 chain.blocked)은 사슬 없는 한 칸이라 해당 없음
+         너비·길이 = 한 칸(one · ↔/↕) · 패딩 = 축마다 제 상한(좌우 2000 · 상하 120) */
       sec('size', `
-      <div class="prop-row" id="dvd-width-row" style="display:${isVertical?'none':'flex'}">
-        <span class="prop-label" title="가로 선의 너비 — 끝까지 올리면 전폭">너비</span>
-        <input type="range" class="prop-slider" id="dvd-width-slider" min="20" max="${fullW}" step="4" value="${lineWidth}">
-        <input type="number" class="prop-number" id="dvd-width-number" min="20" max="${fullW}" value="${lineWidth}">
-      </div>
-      <div class="prop-row" id="dvd-length-row" style="display:${isVertical?'flex':'none'}">
-        <span class="prop-label">길이</span>
-        <input type="range" class="prop-slider" id="dvd-length-slider" min="20" max="400" step="4" value="${lineLength}">
-        <input type="number" class="prop-number" id="dvd-length-number" min="20" max="400" value="${lineLength}">
-      </div>`),
-      sec('padding', `
-      <div class="prop-row">
-        <span class="prop-label">상하패딩</span>
-        <input type="range" class="prop-slider" id="dvd-pady-slider" min="0" max="120" step="4" value="${padV}">
-        <input type="number" class="prop-number" id="dvd-pady-number" min="0" max="120" value="${padV}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">좌우패딩</span>
-        <input type="range" class="prop-slider" id="dvd-padx-slider" min="0" max="2000" step="4" value="${padH}">
-        <input type="number" class="prop-number" id="dvd-padx-number" min="0" max="2000" value="${padH}">
-      </div>`),
+      <div id="dvd-width-row" style="display:${isVertical?'none':'block'}">${layoutSizeRowHTML({ prefix: 'dvd-w', one: { id: 'dvd-width-number', label: 'Width', min: 20, max: fullW, value: lineWidth } })}</div>
+      <div id="dvd-length-row" style="display:${isVertical?'block':'none'}">${layoutSizeRowHTML({ prefix: 'dvd-l', one: { id: 'dvd-length-number', label: 'Length', icon: 'h', min: 20, max: 400, value: lineLength } })}</div>`),
+      sec('padding', layoutPadSlotHTML({ xId: 'dvd-padx-number', yId: 'dvd-pady-number', x: padH, y: padV, xMax: 2000, yMax: 120 })),
+      sec('appearance', appearanceSectionHTML({ prefix: 'dvd', op: { value: window.readBlockOpacity?.(block) ?? 100 } }), { headTools: appearanceHeadToolsHTML({ prefix: 'dvd' }) }),   // A4 Opacity 만(모서리 없음)
     ],
   });
 
@@ -97,37 +85,20 @@ export function showDividerProperties(block) {
     const isVert = btn.dataset.dir === 'vertical';
     propPanel.querySelectorAll('#dvd-dir-group .prop-align-btn').forEach(b =>
       b.classList.toggle('active', b.dataset.dir === btn.dataset.dir));
-    propPanel.querySelector('#dvd-length-row').style.display = isVert ? 'flex' : 'none';
-    propPanel.querySelector('#dvd-width-row').style.display = isVert ? 'none' : 'flex';
+    propPanel.querySelector('#dvd-length-row').style.display = isVert ? 'block' : 'none';
+    propPanel.querySelector('#dvd-width-row').style.display = isVert ? 'none' : 'block';
     window.applyDividerStyle(block);
     window.pushHistory();
   });
 
-  // 길이 슬라이더 (세로 전용)
-  const lenSlider = propPanel.querySelector('#dvd-length-slider');
-  const lenNumber = propPanel.querySelector('#dvd-length-number');
-  const applyLength = v => {
-    v = Math.min(400, Math.max(20, v));
-    block.dataset.lineLength = v;
-    window.applyDividerStyle(block);
-    lenSlider.value = v; lenNumber.value = v;
-  };
-  lenSlider.addEventListener('input',  () => applyLength(parseInt(lenSlider.value)));
-  lenNumber.addEventListener('change', () => { applyLength(parseInt(lenNumber.value)); window.pushHistory(); });
-  lenSlider.addEventListener('change', () => window.pushHistory());
-
-  // 너비 슬라이더 (가로 전용) — 끝(전폭)이면 값을 지운다: «전폭»은 숫자가 아니라 «없음»이다(섹션 폭이 바뀌어도 따라간다)
-  const wdSlider = propPanel.querySelector('#dvd-width-slider');
-  const wdNumber = propPanel.querySelector('#dvd-width-number');
-  const applyWidth = v => {
-    v = Math.min(fullW, Math.max(20, Number.isFinite(v) ? v : fullW));
+  /* 표준 Layout 배선(부품) — input = 범위 안이면 바로 · change = 잘라 + 이력 한 번 · 빈 칸 = 옛 값 되돌림 · 라벨 끌기 */
+  // 길이 (세로 전용)
+  wireLayoutSection({ w: { numberId: 'dvd-length-number', min: 20, max: 400, apply: (v) => { block.dataset.lineLength = v; window.applyDividerStyle(block); } } });
+  // 너비 (가로 전용) — 끝(전폭)이면 값을 지운다: «전폭»은 숫자가 아니라 «없음»이다(섹션 폭이 바뀌어도 따라간다)
+  wireLayoutSection({ w: { numberId: 'dvd-width-number', min: 20, max: fullW, apply: (v) => {
     if (v >= fullW) delete block.dataset.lineWidth; else block.dataset.lineWidth = v;
     window.applyDividerStyle(block);
-    wdSlider.value = v; wdNumber.value = v;
-  };
-  wdSlider.addEventListener('input',  () => applyWidth(parseInt(wdSlider.value)));
-  wdNumber.addEventListener('change', () => { applyWidth(parseInt(wdNumber.value)); window.pushHistory(); });
-  wdSlider.addEventListener('change', () => window.pushHistory());
+  } } });
 
   const applyAll = () => window.applyDividerStyle(block);
   wireColorField('dvd', {
@@ -153,29 +124,10 @@ export function showDividerProperties(block) {
   wNumber.addEventListener('change', () => { applyWeight(parseInt(wNumber.value)); window.pushHistory(); });
   wSlider.addEventListener('change', () => window.pushHistory());
 
-  const pySlider = document.getElementById('dvd-pady-slider');
-  const pyNumber = document.getElementById('dvd-pady-number');
-  const applyPadV = v => {
-    v = Math.min(120, Math.max(0, v));
-    block.dataset.padV = v;
-    applyAll();
-    pySlider.value = v; pyNumber.value = v;
-  };
-  pySlider.addEventListener('input',  () => applyPadV(parseInt(pySlider.value)));
-  pyNumber.addEventListener('change', () => { applyPadV(parseInt(pyNumber.value)); window.pushHistory(); });
-  pySlider.addEventListener('change', () => window.pushHistory());
-
-  const pxSlider = document.getElementById('dvd-padx-slider');
-  const pxNumber = document.getElementById('dvd-padx-number');
-  const applyPadH = v => {
-    v = Math.min(2000, Math.max(0, v));
-    block.dataset.padH = v;
-    applyAll();
-    pxSlider.value = v; pxNumber.value = v;
-  };
-  pxSlider.addEventListener('input',  () => applyPadH(parseInt(pxSlider.value)));
-  pxNumber.addEventListener('change', () => { applyPadH(parseInt(pxNumber.value)); window.pushHistory(); });
-  pxSlider.addEventListener('change', () => window.pushHistory());
+  // 패딩 슬롯 — 축마다 제 상한(상하 120 · 좌우 2000)
+  wireLayoutSection({ w: { numberId: 'dvd-pady-number', min: 0, max: 120, apply: (v) => { block.dataset.padV = v; applyAll(); } } });
+  wireLayoutSection({ w: { numberId: 'dvd-padx-number', min: 0, max: 2000, apply: (v) => { block.dataset.padH = v; applyAll(); } } });
+  wireAppearanceSection({ op: { numberId: 'dvd-opacity', apply: (v) => window.setBlockOpacity?.(block, v) } });   // A4 — 계약(갈래 E) 없으면 그리기 0
 }
 
 // Backward compat: classic scripts call these via window.*
