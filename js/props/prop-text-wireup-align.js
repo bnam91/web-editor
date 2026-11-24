@@ -2,6 +2,7 @@
  * text-align (label / icon-text / 일반)
  * + icon-text 블록 전용 gap
  */
+import { wireLayoutSection } from './_layout-section.js';   // 표준 Layout(C3 · 아이콘 크기 한 칸 · Gap 슬롯)
 
 /** ★가로 정렬 낱말 → 세로 flex 자식의 align-self — ★★이 사상표의 ★유일한 자리 (t7-03 · 2026-10-26 S3 · 지디 처방 ⒝).
  *  ★읽는 자 셋: 이 파일 정렬 단추(U10 · 커스텀 폭 박스) · js/editor.js alignSelectedToParent(⌥A/S/D) ·
@@ -122,13 +123,12 @@ export function wireAlignSection({ tb, ctx, propPanel, isIconText }) {
 
   /* ★ICONTEXT-ICON-SIZE-POSITION-01 — 아이콘 크기 · 세로(VALIGN-SLIDER-01 슬라이더). 쓰기 = block-factory.js «한 곳» · 적용 먼저 → pushHistory(위 방향 단추와 같은 순서). */
   if (isIconText) {
-    const sl = propPanel.querySelector('#itb-icon-size-slider');
+    /* ★표준 Layout(C3) — 아이콘 크기 슬라이더 걷음 · 한 칸 = 부품(범위 안 즉시 · change 한 번 이력) · 칸 값 = 블럭이 정규화한 값 */
     const num = propPanel.querySelector('#itb-icon-size-number');
-    if (sl && num) {
-      const live = (v) => { if (window.setIconTextIconSize?.(tb, v)) window.scheduleAutoSave?.(); const n = window.iconTextIconSizeOf?.(tb); sl.value = n; num.value = n; };
-      sl.addEventListener('input', () => live(sl.value));
-      sl.addEventListener('change', () => window.pushHistory?.('아이콘 크기'));   // 끄기 끝 표본 한 번
-      num.addEventListener('change', () => { live(num.value); window.pushHistory?.('아이콘 크기'); });
+    if (num) {
+      const live = (v) => { if (window.setIconTextIconSize?.(tb, v)) window.scheduleAutoSave?.(); const n = window.iconTextIconSizeOf?.(tb); if (n != null) num.value = n; };
+      wireLayoutSection({ commit: () => window.pushHistory?.('아이콘 크기'),
+        w: { numberId: 'itb-icon-size-number', min: window.ITB_ICON_SIZE?.min ?? 16, max: window.ITB_ICON_SIZE?.max ?? 200, apply: live } });
     }
     /* ★ICONTEXT-VALIGN-SLIDER-01 — 아이콘 세로 오프셋. 크기 줄과 같은 꼴(적용 먼저 → 끄기 끝 표본 한 번). 옛 valign 블럭은 첫 손에 등가 오프셋으로 옮겨진다(setIconTextDy). */
     const dsl = propPanel.querySelector('#itb-dy-slider');
@@ -148,12 +148,7 @@ export function wireAlignSection({ tb, ctx, propPanel, isIconText }) {
 
   /* 아이콘-텍스트 간격 */
   if (isIconText) {
-    const itbGapSlider = propPanel.querySelector('#itb-gap-slider');
-    const itbGapNumber = propPanel.querySelector('#itb-gap-number');
-    if (itbGapSlider && itbGapNumber) {
-      const applyItbGap = v => { tb.style.gap = v + 'px'; window.triggerAutoSave?.(); };
-      itbGapSlider.addEventListener('input', () => { itbGapNumber.value = itbGapSlider.value; applyItbGap(itbGapSlider.value); });
-      itbGapNumber.addEventListener('input', () => { itbGapSlider.value = itbGapNumber.value; applyItbGap(itbGapNumber.value); });
-    }
+    /* ★표준 Layout Gap 슬롯(C3) — 슬라이더 걷음 */
+    wireLayoutSection({ w: { numberId: 'itb-gap-number', max: 80, apply: (v) => { tb.style.gap = v + 'px'; window.triggerAutoSave?.(); } } });
   }
 }

@@ -5,6 +5,7 @@
  * - pill 높이 (상하 패딩으로 조절)
  * - 5개 shape preset (pill / box / outline / circle / text)
  */
+import { wireLayoutSection } from './_layout-section.js';   // 표준 Layout(C3)
 import { markLabelAutoColor, forgetLabelAutoColor } from './label-auto-color.js';
 import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';
 import { labelShapeFromRendered } from './_panel-rendered.js';
@@ -85,7 +86,6 @@ export function wireLabelSection({ ctx }) {
    *   양방향 동기화로 묶여 있었다(c97f4541). 값의 정체가 «태그 모양»(높이)이라 Tag Style 쪽만 남겼다.
    *   ⛔Padding 절의 «상하»(txt-pv-*)는 이번에 안 건드렸다 — U7(E101) 을 잰 뒤 처방한다.
    */
-  const pillHSlider = document.getElementById('label-pill-height-slider');
   const pillHNumber = document.getElementById('label-pill-height-number');
   // ★원형(Circle)은 «패딩으로 커지지 않는다» — CSS 가드가 padding:0 !important 로 못박고
   //   크기를 인라인 width/height 로 잡기 때문이다. 그래서 원형에선 지름을 직접 바꾼다.
@@ -103,46 +103,30 @@ export function wireLabelSection({ ctx }) {
     _stashPad('y', half);
   };
   const syncPillH = v => {
-    if (pillHSlider) pillHSlider.value = v;
     if (pillHNumber) pillHNumber.value = v;
   };
-  if (pillHSlider) {
-    pillHSlider.addEventListener('input', () => { const v=parseInt(pillHSlider.value); setPillH(v); syncPillH(v); });
-    pillHSlider.addEventListener('change', () => window.pushHistory?.());
-    pillHNumber.addEventListener('input', () => {
-      const v = Math.min(120, Math.max(0, parseInt(pillHNumber.value)||0));
-      setPillH(v); syncPillH(v);
-    });
-    pillHNumber.addEventListener('change', () => window.pushHistory?.());
-  }
+  /* ★표준 Layout(C3) — 태그 높이 슬라이더 걷음 · 한 칸 = 부품(범위 안 즉시 · change 잘라 + 이력 한 번) */
+  if (pillHNumber) wireLayoutSection({ commit: () => window.pushHistory?.(), w: { numberId: 'label-pill-height-number', max: 120, apply: setPillH } });
 
   /* 알약 «안쪽» 좌우 패딩 — 글자 양옆 여백 = 알약 폭. (바깥 «왼쪽/오른쪽 패딩» 은 알약을 통째로 안쪽으로 민다)
    * 원형은 CSS 가드가 padding:0 !important 라 줄 자체를 숨긴다. 형태 버튼이 패딩을 다시 쓰므로 누른 뒤 값을 맞춘다. */
   const pxWrap   = document.getElementById('txt-label-padx-wrap');
-  const pxSlider = document.getElementById('txt-label-padx-slider');
   const pxNumber = document.getElementById('txt-label-padx-number');
   const syncPadX = () => {
-    if (!pxSlider) return;
+    if (!pxNumber) return;
     // 원형에서 줄을 숨기는 «까닭»: css/editor-layout.css 의 `.text-block .tb-label[data-shape="circle"]`(:357 근처)가
     //   `padding: 0 !important` 라 인라인 padding 으로도 못 덮는다 — 보여 줘도 안 먹어서 숨긴다. 「원형엔 칸 없음 = 버그」가 아니다.
     if (pxWrap) pxWrap.style.display = _isCircle() ? 'none' : 'block';
     const v = Math.round(parseFloat(getComputedStyle(ctx.contentEl).paddingLeft) || 0);
-    pxSlider.value = v; pxNumber.value = v;
+    pxNumber.value = v;
   };
-  if (pxSlider) {
+  if (pxNumber) {   /* ★표준 Layout(C3) — 태그 좌우 슬라이더 걷음 · 한 칸 = 부품 */
     const setPadX = v => {
       ctx.contentEl.style.paddingLeft  = v + 'px';
       ctx.contentEl.style.paddingRight = v + 'px';
       _stashPad('x', v);
     };
-    pxSlider.addEventListener('input', () => { const v = parseInt(pxSlider.value) || 0; setPadX(v); pxNumber.value = v; });
-    pxNumber.addEventListener('input', () => {
-      const v = Math.min(100, Math.max(0, parseInt(pxNumber.value) || 0));
-      setPadX(v); pxSlider.value = v;
-    });
-    const commitPadX = () => { window.pushHistory?.(); window.scheduleAutoSave?.(); };
-    pxSlider.addEventListener('change', commitPadX);
-    pxNumber.addEventListener('change', commitPadX);
+    wireLayoutSection({ w: { numberId: 'txt-label-padx-number', max: 100, apply: setPadX } });   // commit = pushHistory + autoSave(옛 commitPadX 그대로)
   }
 
   /* 태그 형태 프리셋 */

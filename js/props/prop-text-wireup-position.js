@@ -1,4 +1,5 @@
 import { wireRotRow } from './_helpers.js';
+import { wireLayoutSection } from './_layout-section.js';   // 표준 Layout(C3)
 /* prop-text-wireup-position.js
  * width / X / Y (overlay-tb는 호출하지 않음)
  */
@@ -24,22 +25,10 @@ export function wirePositionSection({ tb }) {
         tb.style.width = v + 'px';
         tb.dataset.width = v;
       }
-      wNumber.value = v;
       window.scheduleAutoSave?.();
     };
-    wNumber.addEventListener('input', () => applyW(Math.min(860, Math.max(80, parseInt(wNumber.value) || 80))));
-    wNumber.addEventListener('change', () => window.pushHistory?.());
-    /* 라벨 «너비»를 좌우로 끌면 1px = 1 (재설계 1차 ⑥ · Figma 라벨 끌기). 놓을 때 이력 한 칸 */
-    const scrub = document.getElementById('txt-width-scrub');
-    scrub?.addEventListener('pointerdown', (e) => {
-      if (e.button) return;   // 왼쪽 단추만 끈다(오른쪽 클릭·가운데 클릭은 끌기 아님)
-      const x0 = e.clientX, v0 = parseInt(wNumber.value) || 80;
-      const move = (ev) => applyW(Math.min(860, Math.max(80, v0 + Math.round(ev.clientX - x0))));
-      scrub.setPointerCapture(e.pointerId);
-      scrub.addEventListener('pointermove', move);
-      scrub.addEventListener('lostpointercapture', () => { scrub.removeEventListener('pointermove', move); window.pushHistory?.(); }, { once: true });
-      e.preventDefault();
-    });
+    /* ★표준 Layout(C3) — 칸·라벨 끌기(#txt-width-number-scrub) = 부품 한 벌(범위 안 즉시 · change 잘라 + 이력 한 번 · 빈 칸 되돌림) · 높이 = 자동이라 사슬 없음 */
+    wireLayoutSection({ commit: () => window.pushHistory?.(), w: { numberId: 'txt-width-number', min: 80, max: 860, apply: applyW } });
   }
 
   window.OverlayFloat?.wireFloatAlign?.({ block: tb });   // 현빈 261123 S1-4② — 떠 있는 글자 정렬 6칸(떠 있지 않으면 무동작)
