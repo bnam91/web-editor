@@ -72,16 +72,17 @@ test('B1b ★내장 양성대조 — Effects 카드 꼬리에 margin 을 심으�
   expect(judgeGaps(await readGaps(page)).join(' | '), '★꼬리 margin 을 못 잡는다 — B1 은 공짜 초록이다').toContain('effects=');
 });
 
+/* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C3) — 태그 높이 = 부품 한 칸(#label-pill-height-number · Size 절 그대로) */
 test('R1 ★Body → Tag → Body — 태그 칸이 제 절(Appearance·Fill·Size)에 섰다 걷힌다(타입 바꿈 = 다시 그림)', async ({ page }) => {
   const errs = await scene(page);
   await openText(page);
   /* ★기대 바뀜(표준 Appearance A3 · 현빈 261124 L-4/7) — 태그 모서리 = 숫자 칸 label-radius-number 하나(슬라이더 걷음) */
-  const where = () => page.evaluate(() => Object.fromEntries(['label-radius-number', 'label-bg-color', 'label-pill-height-slider', 'label-shape-pill']
+  const where = () => page.evaluate(() => Object.fromEntries(['label-radius-number', 'label-bg-color', 'label-pill-height-number', 'label-shape-pill']
     .map((id) => [id, document.getElementById(id)?.closest('.prop-section[data-sec]')?.dataset.sec ?? null])));
   expect(Object.values(await where()), '[전제] Body 엔 태그 칸 0').toEqual([null, null, null, null]);
   await page.click('#type-section [data-cls="tb-label"]');
   await expect(page.locator('#label-radius-number')).toBeAttached();
-  expect(await where()).toEqual({ 'label-radius-number': 'appearance', 'label-bg-color': 'fill', 'label-pill-height-slider': 'size', 'label-shape-pill': 'typography' });
+  expect(await where()).toEqual({ 'label-radius-number': 'appearance', 'label-bg-color': 'fill', 'label-pill-height-number': 'size', 'label-shape-pill': 'typography' });
   await expect(page.locator('#type-section [data-cls="tb-label"]'), '다시 그린 패널도 Tag 가 active').toHaveClass(/active/);
   /* a11y — 다시 그린 뒤 포커스가 누른 타입 단추에 있다. 양성대조: wireTypeSection 의 `…[data-cls=…]?.focus()` 를 지우면 빨강(포커스가 body) */
   expect(await page.evaluate(() => document.activeElement?.matches?.('#type-section [data-cls="tb-label"]') ?? false), '포커스가 Tag 단추로 돌아왔다').toBe(true);

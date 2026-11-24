@@ -228,6 +228,7 @@ function showLabelGroupProperties(block, selectedItem) {
 
   _wireLabelUserPresets(block, selectedItem, styleSelect);
 
+  wireAppearanceSection({ op: { numberId: 'lg-opacity', apply: (v) => window.setBlockOpacity?.(block, v), commit: () => { window.pushHistory?.(); window.scheduleAutoSave?.(); } } });   // A4 — ★태그 안 골라도 블럭 칸(아래 «태그 없으면 return» 앞)
   if (!selectedItem) return;
 
   // 아이템 배경색
@@ -245,7 +246,6 @@ function showLabelGroupProperties(block, selectedItem) {
   });
 
   // 모서리
-  wireAppearanceSection({ op: { numberId: 'lg-opacity', apply: (v) => window.setBlockOpacity?.(block, v), commit: () => { window.pushHistory?.(); window.scheduleAutoSave?.(); } } });   // A4
   if (selectedItem) wireAppearanceSection({ radius: { numberId: 'lg-item-radius-number', max: 50, apply: (v) => { selectedItem.style.borderRadius = v + 'px'; selectedItem.dataset.radius = v; }, commit: () => window.pushHistory?.() } });   // 표준 Appearance A3(슬라이더 걷음 · 모양 변수에 묶이면 칸 없음 = 무동작)
 
   // B1 — 모양 변수 끊기·바꾸기·연결 (변수 값은 좌측 Design System 에서 고친다)

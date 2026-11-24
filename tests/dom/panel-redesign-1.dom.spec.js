@@ -116,11 +116,11 @@ test('P6 텍스트 Size — 너비 라벨을 오른쪽으로 끌면 너비가 �
   const id = await open(page, 'text-block', 'addTextBlock');
   const h = page.locator('#txt-height-number');
   await expect(h).toBeDisabled();
-  await expect(h).toHaveAttribute('placeholder', 'auto');
+  await expect(h).toHaveAttribute('placeholder', '자동');   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C3) — 높이 칸 = 부품 h.auto(placeholder «자동»)
   expect(await page.evaluate(() => getComputedStyle(document.getElementById('txt-height-number').closest('.prop-icon-input')).opacity),
     '★꺼진 높이 칸이 안 흐리다').toBe(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--ui-disabled-opacity').trim()));
   const w0 = Number(await page.locator('#txt-width-number').inputValue());
-  const box = await page.locator('#txt-width-scrub').boundingBox();
+  const box = await page.locator('#txt-width-number-scrub').boundingBox();   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C3) — 라벨 끌기 손잡이 = 부품 #<칸 id>-scrub
   /* QA 경2 — 오른쪽 단추로 끌면 안 바뀐다 */
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down({ button: 'right' });
@@ -186,7 +186,7 @@ test('P12 텍스트 타입 12칸 — 두 줄 · Quote 왼 테두리 있음 · �
 /* ⑤ 텍스트 좌우패딩 사슬 — 잠금 한 줄 ↔ 풂 세 줄 · 사슬 자리 그대로 · 잠금 저장(Q26: 풀고 좌 = 우 로 맞춰도 다시 열면 풀림).
  *   CTL prd1-05-lock.patch(prop-text.js 가 저장값을 안 읽고 «좌 = 우 이면 잠금»으로) → 빨강 */
 const padRows = (page) => page.evaluate(() => ({
-  ph: getComputedStyle(document.getElementById('txt-ph-slider')).visibility, pl: document.getElementById('txt-pl-row').hidden, pr: document.getElementById('txt-pr-row').hidden,
+  ph: getComputedStyle(document.getElementById('txt-ph-number')).visibility,   /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C3) — 잠금 한 줄 = 칸 */ pl: document.getElementById('txt-pl-row').hidden, pr: document.getElementById('txt-pr-row').hidden,
   pressed: document.getElementById('txt-ph-chain').getAttribute('aria-pressed'), x: Math.round(document.getElementById('txt-ph-chain').getBoundingClientRect().left) }));
 const linkedOf = (page, id) => page.evaluate((id) => document.getElementById(id).dataset.padXLinked ?? null, id);
 const setNum = (page, sel, v) => page.evaluate(([sel, v]) => { const n = document.querySelector(sel); n.value = String(v); n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); }, [sel, v]);
@@ -390,7 +390,7 @@ test('P15 Type 띠 — 이름표 아래 · 머리 없음 · 12칸 · 게이트 �
 
 /* Q1 Layout 묶음(시안 v10 · 현빈 GO 261120) — 텍스트 · 프레임 · 갭: 머리 «Layout» 하나 · 작은 제목은 둘 이상일 때 Size/Padding · 게이트 0.
  *   CTL prd1-q1-group.patch(LAYOUT_GROUP 비움) → 빨강 */
-for (const [cls, entry, subs] of [['text-block', 'addTextBlock', ['Size', 'Padding']], ['gap-block', 'addGapBlock', []]]) test(`P16 Layout 묶음 — ${cls}`, async ({ page }) => {
+for (const [cls, entry, subs] of [['text-block', 'addTextBlock', ['Padding']] /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C3) — Size 몸 = 부품(data-part="layout" · 작은 라벨을 부품이 낸다) ⇒ «Size» 작은 제목 안 붙음(_panel-frame P 규칙) */, ['gap-block', 'addGapBlock', []]]) test(`P16 Layout 묶음 — ${cls}`, async ({ page }) => {
   const { loadSectionSpec, readPanel, judgePanel } = require('./_panel-sections.js');
   const errs = await scene(page);
   await open(page, cls, entry);

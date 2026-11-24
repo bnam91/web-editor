@@ -150,7 +150,8 @@ async function typeEnter(page, sel, text) {
   await raf2(page);
 }
 
-for (const f of FIELDS) {
+/* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C3): B4 행 높이 칸 = 부품 — «빈 값 = auto» 선언 걷힘(빈 칸 = 옛 값 되돌림 · 자동 = 0) ⇒ 이 자(placeholder 전제)의 대상 아님 · 오타 거절은 부품이 한다(NaN 은 apply 안 함) */
+for (const f of FIELDS.filter((x) => x.key !== 'B4')) {
   test(`${f.key} [${f.mod} ${f.sel}] 오타 「1e」 Enter → 거절 · 모델·칸 = 이전 값 · pushHistory 0`, async ({ page }) => {
     const errs = await mount(page, f);
     const ph = await page.evaluate((sel) => document.querySelector(sel)?.placeholder ?? null, f.sel);

@@ -31,7 +31,7 @@ const V = [
   { name: 'mockup', make: `return add('mockup-block', () => window.addMockupBlock());`, open: 'showMockupProperties',
     gone: ['mkp-width-slider'], nums: ['mkp-width-number'], set: ['mkp-width-number', 300, `b.dataset.width`, '300'] },
   { name: 'text', make: `return add('text-block', () => window.addTextBlock('body'));`, open: 'showTextProperties',
-    gone: ['txt-pv-slider', 'txt-ph-slider', 'txt-pl-slider', 'txt-pr-slider', 'txt-width-scrub'], nums: ['txt-width-number', 'txt-height-number', 'txt-pv-number', 'txt-ph-number'],
+    gone: ['txt-pv-slider', 'txt-ph-slider', 'txt-pl-slider', 'txt-pr-slider', 'txt-width-scrub'], nums: ['txt-width-number', 'txt-height-number'],   /* 패딩 칸(txt-pv/ph/pl/pr-number)은 옛 줄 꼴(잠금 사슬·좌/우 줄) 유지 — 부품 밖이 맞다 · 슬라이더 0 은 gone 이 잰다 */
     set: ['txt-width-number', 400, `(b.closest('.row')?.dataset.width ?? b.dataset.width)`, '400'] },
   { name: 'slide', make: `return add('slide-block', () => window.addSlideBlock());`, open: 'showSlideProperties',
     gone: ['sld-cardw-slider', 'sld-h-slider', 'sld-gap-slider'], nums: ['sld-cardw-number', 'sld-h-number', 'sld-gap-number'],
