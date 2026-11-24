@@ -1057,6 +1057,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const type = block.shapeType || 'rectangle';
     // 옛 JSON 은 그라데이션 CSS 문자열이 color 에 실려 온다 — paint 로 무효(검정)라 회색 폴백.
     const color = (block.color && !/gradient\s*\(/i.test(block.color)) ? block.color : '#cccccc';
+    const paint = /^transparent$/i.test(color) ? 'none' : color;   // 표준 Fill F1 — 칠 없음('transparent') = SVG paint 'none'(Figma 가져오기가 확실히 «칠 없음»으로 읽는 꼴) · 다른 색은 그대로
     const sw = Number(block.strokeWidth) || 0;        // viewBox user-space 단위 (goditor와 동일)
     const rot = Number(block.rotation) || 0;          // deg, transform-origin center
     const half = sw / 2;
@@ -1066,7 +1067,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       rectangle: { vb: '0 0 100 100', fill: true,  inner: `<rect x="${half}" y="${half}" width="${inset}" height="${inset}"/>` },
       ellipse:   { vb: '0 0 100 100', fill: true,  inner: `<ellipse cx="50" cy="50" rx="${rr}" ry="${rr}"/>` },
       line:      { vb: '0 0 200 40',  fill: false, inner: `<line x1="10" y1="20" x2="190" y2="20" stroke-linecap="round"/>` },
-      arrow:     { vb: '0 0 200 40',  fill: false, inner: `<line x1="10" y1="20" x2="172" y2="20" stroke-linecap="round"/><polygon points="170,10 194,20 170,30" fill="${color}" stroke="none"/>` },
+      arrow:     { vb: '0 0 200 40',  fill: false, inner: `<line x1="10" y1="20" x2="172" y2="20" stroke-linecap="round"/><polygon points="170,10 194,20 170,30" fill="${paint}" stroke="none"/>` },
       polygon:   { vb: '0 0 200 180', fill: true,  inner: `<polygon points="100,8 194,172 6,172"/>` },
       star:      { vb: '0 0 200 190', fill: true,  inner: `<polygon points="100,8 122,70 188,70 135,110 155,172 100,132 45,172 65,110 12,70 78,70"/>` },
     };
@@ -1082,20 +1083,20 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     // ★0919 QA: 그라데이션 = export 가 실어 준 캔버스 SVG def(id="g")를 그대로 — CSS 문자열을 fill 에 넣으면 무효 paint → 검정.
     //   color 는 단색 폴백(선·외곽선). def 가 없거나 면 없는 도형이면 기존 단색.
     const gradDef = (def.fill && typeof block.gradientDef === 'string' && /^<(linear|radial)Gradient[\s>]/.test(block.gradientDef)) ? block.gradientDef : '';
-    const faceFill = def.fill ? (gradDef ? 'url(#g)' : color) : 'none';
+    const faceFill = def.fill ? (gradDef ? 'url(#g)' : paint) : 'none';
     /* ★표준 Stroke 단계 3-2 — 점선·끝·꼭짓점·Miter(보내는 쪽이 실어 줄 때만 · 꼴 검사 후 SVG style 로 · Figma SVG 가져오기가 dashPattern·strokeCap·strokeJoin 으로 읽는다) · 없으면 옛 문자열 그대로 */
     const _dash = /^[\d.]+( [\d.]+)*$/.test(block.strokeDasharray || '') ? block.strokeDasharray : '';
     const _cap = /^(butt|round|square)$/.test(block.strokeLinecap || '') ? block.strokeLinecap : '';
     const _join = /^(miter|bevel|round)$/.test(block.strokeLinejoin || '') ? block.strokeLinejoin : '';
     const _ml = Number.isFinite(block.strokeMiterlimit) && block.strokeMiterlimit >= 1 ? block.strokeMiterlimit : 0;
     /* ★도형 선 색(지디 261124) — 보내는 쪽 strokeColor(캔버스 shapeStrokeColor)가 있으면 선만 그 색 · 없으면 옛 그대로(면 색) · 화살촉(fill=currentColor)은 캔버스처럼 color = 면 색 그대로(실측: 캔버스 화살촉 fill = 면 색) */
-    const strokeC = (typeof block.strokeColor === 'string' && /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\))$/i.test(block.strokeColor.trim())) ? block.strokeColor.trim() : color;
+    const strokeC = (typeof block.strokeColor === 'string' && /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\))$/i.test(block.strokeColor.trim())) ? block.strokeColor.trim() : paint;
     const styleAttr = `color:${color};stroke-width:${sw};fill:${faceFill};stroke:${strokeC};`
       + (_dash ? `stroke-dasharray:${_dash};` : '') + (_cap ? `stroke-linecap:${_cap};` : '') + (_join ? `stroke-linejoin:${_join};` : '') + (_ml ? `stroke-miterlimit:${_ml};` : '');
     if (_cap) def = { ...def, inner: def.inner.replace(/stroke-linecap="round"/g, `stroke-linecap="${_cap}"`) };
     /* ★표준 Stroke 단계 5 — 선·화살표 끝점 = 보내는 쪽이 실어 준 캔버스 SVG(line/polyline/polygon/circle 만 · 숫자·알려진 낱말 속성만 — 글자를 SVG 에 꽂으므로 꼴 검사) · currentColor = 선 색 · 아니면 옛 DEFS */
     if ((type === 'line' || type === 'arrow') && typeof block.shapeInner === 'string' && /^(\s*<(line|polyline|polygon|circle)( (x1|y1|x2|y2|cx|cy|r|points|fill|stroke|stroke-width|stroke-linecap|stroke-linejoin|stroke-dasharray|data-end|data-end-main)="[-#\w., ]*")* ?(\/>|><\/(line|polyline|polygon|circle)>))+\s*$/.test(block.shapeInner)) {
-      def = { ...def, inner: block.shapeInner.replace(/currentColor/g, color) };
+      def = { ...def, inner: block.shapeInner.replace(/currentColor/g, paint) };
     }
     /* ★표준 Stroke 4-2b/4-3 — 사각형 면별(보내는 쪽 strokeSides [위,오른쪽,아래,왼쪽]) = 캔버스 _shapeInnerSVG 와 같은 SVG(면 + 변마다 선) · 꼴 틀리면 옛 rect */
     if (type === 'rectangle' && Array.isArray(block.strokeSides) && block.strokeSides.length === 4 && block.strokeSides.every((v) => Number.isFinite(v) && v >= 0)) {

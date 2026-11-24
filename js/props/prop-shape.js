@@ -1,6 +1,7 @@
 import { propPanel } from '../globals.js';
 import { checkerBgBigColors, checkerSvgFills } from '../checker-tokens.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, setFillKindName } from './_fill-section.js';
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_POP_WHY, STROKE_STYLES_SVG, endsSlotHTML, wireEnds } from './_stroke-section.js';
 import { readLook, writeLook, svgLook, derivedDash, hasSides, readSides, writeSides, sidesMixed } from '../stroke-look.js';
 import { svgStopRemap } from './gradient-model.js';
@@ -88,6 +89,8 @@ export function showShapeProperties(block) {
     ? (gradientMeta?.stops?.[0]?.color || _lastSolidOf(block) || '#cccccc')
     : rawColor;
   const colorAlpha  = parseAlphaFromColor(color);
+  const fillOn      = rawColor !== 'transparent';   // 표준 Fill «없음» = 'transparent'(옛 MCP·검사도 받는 값) · 알파 0 색은 «켬·0%»(옛 바이트 그대로)
+  const fillKind    = block.dataset.shapeFill === 'image' ? 'image' : (isGradient ? (gradientMeta?.type || 'linear') : 'solid');
   const strokeWidth = parseInt(block.dataset.shapeStrokeWidth || '3');
   const strokeColor = block.dataset.shapeStrokeColor || color;
   const strokeColorAlpha = parseAlphaFromColor(strokeColor);
@@ -295,10 +298,7 @@ export function showShapeProperties(block) {
       </div>` : ''),
       // 가림막이 켜지면 채우기 색은 무시된다 ⇒ 절을 «안 그린다»(숨긴 줄만 든 빈 머리 금지 · 토글은 패널을 다시 그린다)
       sec('fill', isRedact ? '' : `
-      <div class="prop-color-row" id="shape-fill-row">
-        <span class="prop-label">색상</span>
-        ${colorFieldHTML({ idPrefix: 'shape-color', hex: color, alpha: colorAlpha, gradientCss })}
-      </div>
+      <div id="shape-fill-row">${fillSectionHTML({ prefix: 'shape-fill', on: fillOn, kind: fillKind, colorHtml: colorFieldHTML({ idPrefix: 'shape-color', hex: color, alpha: colorAlpha, gradientCss }) })}</div>
       ${isEllipse ? `<div id="shape-ellipse-fx">
         ${ellCount > 1 ? `<!-- 1013t2A1 원마다 색 — 꼴은 바로 위 「색상」 줄(prop-color-row + colorFieldHTML)과 같다. 빈 칸 = 블록 색을 따른다. -->
         ${Array.from({ length: ellCount }, (_, i) => `<div class="prop-color-row" id="shape-ellipse-c${i}-row" style="margin-top:8px;">
@@ -335,7 +335,7 @@ export function showShapeProperties(block) {
         <button type="button" class="prop-btn" id="shape-star-one-done">개별 선택 끝내기</button>
       </div>
       <div class="prop-hint" id="shape-star-one-hint" style="margin-top:4px;">${starSel + 1}번 별만 색이 바뀝니다 — 지우면 블록 색을 따릅니다. (Esc 로 끝내기)</div>` : ''}
-      ` : ''}`),
+      ` : ''}`, { headTools: isRedact ? '' : fillHeadToolsHTML({ prefix: 'shape-fill', on: fillOn }) }),   // 표준 Fill(F1) — 칠 없음 = shapeColor 'transparent'(지디 261124 (ㄱ)) · 그땐 머리 ＋만
       /* ★표준 Stroke 절 부품(현빈 261123 GO · 8910 strokestd2 · js/props/_stroke-section.js) — 첫 소비자. 위치 = «칸만 + 막힘»(§4c ②③):
          사각형·원은 안쪽 그림(block-factory.js refreshShapeInnerSVG 가 굵기 절반 inset)이라 «안쪽» · 선·화살표·다각형·별은 가운데 — 지금 그려지는 쪽을 보여 준다. */
       sec('stroke', strokeSectionHTML({ prefix: 'shape-stroke', pop: _shapePop(block, strokeWidth), sides: _shapeSides(block, strokeWidth), slotsBelow: _shapeEndsSlot(block), color: strokeColor, alpha: strokeColorAlpha, width: strokeWidth, maxWidth: 20,
@@ -555,7 +555,7 @@ export function showShapeProperties(block) {
   }
 
   /* 칠 쓰기 = 모듈 함수 한 벌(아래 _applyShapeSolidFill · _applyShapeGradientFill) — Effects «홀로그램»(effects-holo.js)도 같은 길로 쓴다 */
-  function applyColor(hex) { _applyShapeSolidFill(block, hex); }
+  function applyColor(hex) { _applyShapeSolidFill(block, hex); setFillKindName(document.getElementById('shape-color-hex'), 'solid'); }
 
   function applyGradient(detail) { _applyShapeGradientFill(block, detail); }
 
@@ -637,6 +637,18 @@ export function showShapeProperties(block) {
     onCommit: () => window.pushHistory?.(),
   });
 
+  /* 표준 Fill(F1) — − = 칠 없음('transparent' · 선 색이 면 색을 따르던 도형은 선 색을 먼저 박아 선이 같이 사라지지 않게) · ＋ = 지난 색(이 세션) · 없으면 기본 */
+  wireFillSection({ prefix: 'shape-fill', adapter: {
+    none: () => {
+      if (!block.dataset.shapeStrokeColor) block.dataset.shapeStrokeColor = strokeColor;
+      _SHAPE_FILL_LAST.set(block.id, color);
+      if (block.dataset.shapeFill) _clearShapeImage(block);
+      if (block.dataset.shapeGradient) { _clearShapeGradient(block); window.hideGradientLine?.(block); }
+      block.dataset.shapeColor = 'transparent'; if (svg) svg.style.color = 'transparent';
+      window.scheduleAutoSave?.(); showShapeProperties(block); },
+    add: () => { _applyShapeSolidFill(block, _SHAPE_FILL_LAST.get(block.id) || '#d9d9d9'); showShapeProperties(block); },
+    commit: () => window.pushHistory?.() } });
+
   /* 단계 5 — 선·화살표 끝점(키 strokeStart/strokeEnd = 그 종류 기본과 다를 때만 · 그림 = block-factory refreshShapeInnerSVG) */
   wireEnds({ prefix: 'shape-stroke', adapter: {
     read: () => { const df = window.shapeEndsDefault?.(block.dataset.shapeType) || { start: 'round', end: 'round' }; return { start: block.dataset.strokeStart || df.start, end: block.dataset.strokeEnd || df.end }; },
@@ -679,6 +691,7 @@ export function showShapeProperties(block) {
       //   전엔 둘 다 pushHistory 해서 커밋 1번에 기록 2개(되돌리기 1번에 아무 변화 없음) — 0918 picker 에서 제거.
       // 팝업 편집 → 캔버스 핸들 각도 재배치 (banner02/comparison과 동일 패턴)
       if (!_applyingExternalShapeGrad) window.showGradientLine?.(block);
+      setFillKindName(document.getElementById('shape-color-hex'), e.detail?.type || 'linear');
     });
     shapeColorInput.addEventListener('goya-cp:gradient-commit', () => {
       window.pushHistory?.();
@@ -702,6 +715,7 @@ export function showShapeProperties(block) {
       shapeColorInput.dataset.cpFill = 'image';
       const sw = shapeColorInput.closest('.prop-color-swatch');
       if (sw) sw.style.background = d.src ? `center / cover no-repeat url("${d.src}")` : _checkerSwatchBg();
+      setFillKindName(document.getElementById('shape-color-hex'), 'image');
       window.scheduleAutoSave?.();
       if (d.commit) window.pushHistory?.();
     });
@@ -1271,6 +1285,7 @@ function _gradIdFor(block) {
   return `grad-${base}`;
 }
 
+const _SHAPE_FILL_LAST = new Map();   // 블럭 id → 지운 색(⌘Z/⇧⌘Z 가 요소를 새로 만들어 요소 열쇠는 잃는다 · 실측 D3) · shortcut: 세션 안에서만(저장 키 0) — 다시 열어서도 원하면 dataset 키로 올림
 /* 도형 칠 쓰기 — 패널(applyColor·applyGradient)과 Effects «홀로그램»이 같이 쓴다(FX-GRADIENT-GAZE-01 v3 · 현빈 261121 «별도 이펙트») */
 function _applyShapeSolidFill(block, hex) {
   const svg = block?.querySelector('svg');
