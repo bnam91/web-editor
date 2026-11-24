@@ -36,8 +36,8 @@ function _flowRowsHTML(prefix) {
   return `${align}
       <span class="prop-field-label">X / Y</span>
       <div class="prop-lhls-row" data-pos-flow="1" title="${POS_FLOW_WHY}">
-        <div class="prop-lhls-col"><div class="prop-icon-input"><span class="prop-xy-label">X</span><input type="number" id="${prefix}-x-number" value="" placeholder="0" aria-label="X position"${dis}></div></div>
-        <div class="prop-lhls-col"><div class="prop-icon-input"><span class="prop-xy-label">Y</span><input type="number" id="${prefix}-y-number" value="" placeholder="0" aria-label="Y position"${dis}></div></div>
+        <div class="prop-lhls-col"><div class="prop-icon-input"><span class="prop-xy-label">X</span><input type="number" id="${prefix}-x-number" value="" aria-label="X position"${dis}></div></div>
+        <div class="prop-lhls-col"><div class="prop-icon-input"><span class="prop-xy-label">Y</span><input type="number" id="${prefix}-y-number" value="" aria-label="Y position"${dis}></div></div>
       </div>`;
 }
 
