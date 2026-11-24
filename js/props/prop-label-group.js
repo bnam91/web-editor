@@ -107,8 +107,8 @@ function showLabelGroupProperties(block, selectedItem) {
       </div>`),
       /* ★표준 Layout(현빈 261124 L-4/7 · C3) — 옛 슬라이더 걷음 · 숫자 칸 id·범위 무변 · 높이 = 태그 상하 패딩이라 W/H 짝 아님 → 한 칸씩(사슬 없음) */
       sec('size', (!isAbsolute ? '' : layoutSizeRowHTML({ prefix: 'lg-w', one: { id: 'lg-width-number', label: 'Width', min: 40, max: 860, value: currentW } }))
-        + layoutSizeRowHTML({ prefix: 'lg-all-h', one: { id: 'lg-all-height-number', label: '전체 높이', min: 0, max: 120, value: allItemH } })
-        + (!selectedItem ? '' : layoutSizeRowHTML({ prefix: 'lg-item-h', one: { id: 'lg-item-height-number', label: '태그 높이', min: 0, max: 120, value: itemH } }))),
+        + layoutSizeRowHTML({ prefix: 'lg-all-h', one: { id: 'lg-all-height-number', label: '전체 높이', icon: 'h', min: 0, max: 120, value: allItemH } })
+        + (!selectedItem ? '' : layoutSizeRowHTML({ prefix: 'lg-item-h', one: { id: 'lg-item-height-number', label: '태그 높이', icon: 'h', min: 0, max: 120, value: itemH } }))),
       sec('layout', `
       <div class="prop-align-group">
         <button class="prop-align-btn ${align==='left'?'active':''}" data-align="left">

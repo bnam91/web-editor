@@ -6,7 +6,7 @@ import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A3)
-import { layoutSizeRowHTML, layoutGapSlotHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(L2~L4 · C3)
+import { layoutSizeRowHTML, layoutGapSlotHTML, layoutPadSlotHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(L2~L4 · C3)
 
 function showRowProperties(rowEl) {
   const layout = rowEl.dataset.layout || 'stack';
@@ -59,7 +59,7 @@ function showRowProperties(rowEl) {
 
   /* 자식 일괄 — 높이는 Layout 절(Child Blocks) · radius 는 Appearance 절(Q2 모서리 = 모양) */
   const childBatchHTML = hasChildren ? `
-      ${layoutSizeRowHTML({ prefix: 'row-child-h', one: { id: 'row-child-h-number', label: '자식 높이', min: 0, max: 600, value: childHeightVal, mixed: childHeightVal === '' } })}` : '';   /* 0 = 자동(옛 뜻 그대로) · 자식 높이가 서로 다르면 Mixed(옛 빈 칸과 같은 뜻) */
+      ${layoutSizeRowHTML({ prefix: 'row-child-h', one: { id: 'row-child-h-number', label: '자식 높이', icon: 'h', min: 0, max: 600, value: childHeightVal, mixed: childHeightVal === '' } })}` : '';   /* 0 = 자동(옛 뜻 그대로) · 자식 높이가 서로 다르면 Mixed(옛 빈 칸과 같은 뜻) */
   const childRadiusHTML = allCards ? `
       ${appearanceSectionHTML({ prefix: 'row-child', radius: { numberId: 'row-child-r-number', value: childRadiusVal, max: 40, mixed: childRadiusVal === '' } })}   <!-- ★표준 Appearance A3(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·키·범위 무변 -->` : '';   /* 자식 카드 값이 서로 다르면 Mixed(옛 빈 칸과 같은 뜻) */
 
@@ -102,11 +102,10 @@ function showRowProperties(rowEl) {
     }),
     sections: [
       /* ★표준 Layout(현빈 261124 L-4/7 · C3) — 옛 슬라이더 걷음 · 숫자 칸 id·범위 무변.
-         ★전폭 블럭(너비 = 줄 폭) — 높이 한 칸만. P 부품 «전폭 = W 막힘·사슬 막힘+까닭» 나오면 w/h 꼴로 바꿀 자리(탑 공지 261125). */
-      sec('size', layoutSizeRowHTML({ prefix: 'row', one: { id: 'row-height-number', label: 'Height', min: minRowHeight, max: 1200, value: rowHeight } })),
+         너비 = 줄 폭(전폭)인데 너비 칸 자체가 없다(옛 패널도 높이만) ⇒ 높이 한 칸(↕) · 사슬 없음 = 막힐 짝이 없다. */
+      sec('size', layoutSizeRowHTML({ prefix: 'row', one: { id: 'row-height-number', label: 'Height', icon: 'h', min: minRowHeight, max: 1200, value: rowHeight } })),
       sec('layout', (layout !== 'stack' ? colRatioHTML + layoutGapSlotHTML({ id: 'row-gap-number', value: currentGap, max: 80 }) : '') + childBatchHTML),
-      /* 패딩 = 좌우 한 축뿐(상하 없음) — 부품 패딩 슬롯은 두 칸 고정이라 한 칸 꼴로(↔ 아이콘) */
-      sec('padding', layoutSizeRowHTML({ prefix: 'row-padx', one: { id: 'row-padx-number', label: '좌우 패딩', min: 0, max: 80, value: padX } })),
+      sec('padding', layoutPadSlotHTML({ xId: 'row-padx-number', x: padX, max: 80 })),   /* 패딩 슬롯 좌우만(상하 없음 · P 1baa53b8f) */
       sec('appearance', appearanceSectionHTML({ prefix: 'row', op: { value: window.readBlockOpacity?.(rowEl) ?? 100 } }) + childRadiusHTML, childRadiusHTML ? { headTools: appearanceHeadToolsHTML({ prefix: 'row-child' }) } : {}),
     ],
   });

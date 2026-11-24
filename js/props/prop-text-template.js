@@ -177,8 +177,8 @@ export function buildTextPanelSpec(state) {
   const _sizeHtml = (isOverlayTb ? '' : layoutSizeRowHTML({ prefix: 'txt',
       w: { id: 'txt-width-number', min: 80, max: 860, value: currentW },
       h: { id: 'txt-height-number', auto: true } }))
-    + (!isLabel ? '' : layoutSizeRowHTML({ prefix: 'label-pill-h', one: { id: 'label-pill-height-number', label: '태그 높이', min: 0, max: 120, value: labelPillH } }))
-    + (!isIconText ? '' : layoutSizeRowHTML({ prefix: 'itb-icon-size', one: { id: 'itb-icon-size-number', label: '아이콘 크기', min: window.ITB_ICON_SIZE?.min ?? 16, max: window.ITB_ICON_SIZE?.max ?? 200, value: window.iconTextIconSizeOf?.(tb) ?? 40 } }));
+    + (!isLabel ? '' : layoutSizeRowHTML({ prefix: 'label-pill-h', one: { id: 'label-pill-height-number', label: '태그 높이', icon: 'h', min: 0, max: 120, value: labelPillH } }))
+    + (!isIconText ? '' : layoutSizeRowHTML({ prefix: 'itb-icon-size', one: { id: 'itb-icon-size-number', label: '아이콘 크기', icon: 'px', min: window.ITB_ICON_SIZE?.min ?? 16, max: window.ITB_ICON_SIZE?.max ?? 200, value: window.iconTextIconSizeOf?.(tb) ?? 40 } }));
 
   const _paddingHtml = isOverlayTb ? '' : `
       <div id="txt-label-padx-wrap" style="display:${isLabel && !labelIsCircle ? 'block' : 'none'}">
