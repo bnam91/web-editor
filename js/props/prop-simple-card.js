@@ -10,8 +10,6 @@ import { wireHexText, parseHex6, formatHex6, parseHex6OrTransparent, formatHex6O
 import { panelRenderedColor } from './_panel-rendered.js';
 import { CVB_H_MIN, CVB_H_MAX } from '../blocks/card-limits.js';   // #cvb-h min/max = updateCanvasBlock 의 자
 
-import { layoutSizeRowHTML, layoutPadSlotHTML, layoutGapSlotHTML, layoutSlotNumberHTML, wireLayoutSection, ratioLockOn, setRatioLock } from './_layout-section.js';   // 표준 Layout(C2)
-
 // ② 카드 텍스트 입력칸 펼침 상태 — 블록별 «펼친 카드 인덱스» 집합.
 //   ★캔버스에서 더블클릭으로 바로 고칠 수 있게 됐으니(canvas-block.js _bindCvbDblEdit) 우측
 //     입력칸은 «두 번째 입구»다 → 기본 접힘. 카드 N개면 textarea 2N개가 늘 펼쳐져 있던 것을 접는다.
@@ -284,12 +282,25 @@ ${disclosureSectionHtml(`cvb-card-text-head-${i}`, `텍스트 <span class="cvb-c
       <div class="prop-hint">캔버스에서 ＋ 로 줄 추가 · 더블클릭으로 수정</div>
       <div id="cvb-card-items">${cardItemsHtml}</div>
 `),
-      /* ★표준 Layout(C2) — W/H = 부품 한 줄(+비율 사슬 기본 끔) · 옛 슬라이더(이미지 비율·아이콘 크기·오버레이 높이/너비·세로 위치·Gap·좌우패딩) 걷음 → 블럭 슬롯·간격·패딩(좌우만) · 숫자 칸 id·범위·저장 키 무변 */
-      sec('size', `${layoutSizeRowHTML({ prefix: 'cvb', chain: { on: ratioLockOn(block, false) },
-        w: { id: 'cvb-w', min: 100, max: 1200, value: w },
-        h: { id: 'cvb-h', min: CVB_H_MIN, max: CVB_H_MAX, value: h } })}
-      ${layoutSlotNumberHTML({ id: 'cvb-img-ratio-number', label: '이미지 비율', value: imgRatio, min: 20, max: 90 })}` + (iconMode ? `
-      ${layoutSlotNumberHTML({ id: 'cvb-icon-size-number', label: '아이콘 크기', value: iconScale, min: 10, max: 90 })}` : '')),
+      sec('size', `
+      <div class="prop-row">
+        <span class="prop-label">W</span>
+        <input type="number" class="prop-number" id="cvb-w" value="${w}" min="100" max="1200">
+        <span class="prop-label" style="margin-left:8px">H</span>
+        <input type="number" class="prop-number" id="cvb-h" value="${h}" min="${CVB_H_MIN}" max="${CVB_H_MAX}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">이미지 비율</span>
+        <input type="range" class="prop-slider" id="cvb-img-ratio-slider" min="20" max="90" step="1" value="${imgRatio}">
+        <input type="number" class="prop-number" id="cvb-img-ratio-number" min="20" max="90" value="${imgRatio}">
+      </div>
+` + (iconMode ? `
+      <div class="prop-row">
+        <span class="prop-label">아이콘 크기</span>
+        <input type="range" class="prop-slider" id="cvb-icon-size-slider" min="10" max="90" step="1" value="${iconScale}">
+        <input type="number" class="prop-number" id="cvb-icon-size-number" min="10" max="90" value="${iconScale}">
+      </div>
+` : '')),
       sec('layout', `
     <!-- ★1017t1d2 — 「Card Grid」 절을 블럭머리 바로 뒤로(그리드블럭 Grid(N×M) 절과 같은 자리) +
          접이식(그리드와 같은 부품 — js/props/_helpers.js disclosureSectionHtml/wireDisclosureSection,
@@ -341,14 +352,22 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
           `}
         </div>
       </div>
-      <div id="cvb-overlay-h-row" style="display:${isOverlay ? 'block' : 'none'}">
-        ${layoutSlotNumberHTML({ id: 'cvb-overlay-h-number', label: '오버레이 높이', value: overlayHeight, min: 40, max: 400 })}
+      <div class="prop-row" id="cvb-overlay-h-row" style="display:${isOverlay ? 'flex' : 'none'}">
+        <span class="prop-label">오버레이 높이</span>
+        <input type="range" class="prop-slider" id="cvb-overlay-h-slider" min="40" max="400" step="4" value="${overlayHeight}">
+        <input type="number" class="prop-number" id="cvb-overlay-h-number" min="40" max="400" value="${overlayHeight}">
       </div>
-      <div id="cvb-overlay-w-row" style="display:${isOverlay ? 'block' : 'none'}">
-        ${layoutSlotNumberHTML({ id: 'cvb-overlay-w-number', label: '오버레이 너비', value: overlayWidth, min: 10, max: 100 })}
+      <div class="prop-row" id="cvb-overlay-w-row" style="display:${isOverlay ? 'flex' : 'none'}">
+        <span class="prop-label">오버레이 너비</span>
+        <input type="range" class="prop-slider" id="cvb-overlay-w-slider" min="10" max="100" step="1" value="${overlayWidth}">
+        <input type="number" class="prop-number" id="cvb-overlay-w-number" min="10" max="100" value="${overlayWidth}">
       </div>
       <div class="cvb-text-area-dim" style="${_taDim}">
-      ${layoutSlotNumberHTML({ id: 'cvb-tvoffset-number', label: '세로 위치', value: textVOffset, min: 0, max: 100 })}
+      <div class="prop-row">
+        <span class="prop-label">세로 위치</span>
+        <input type="range" class="prop-slider" id="cvb-tvoffset-slider" min="0" max="100" step="2" value="${textVOffset}">
+        <input type="number" class="prop-number" id="cvb-tvoffset-number" min="0" max="100" value="${textVOffset}">
+      </div>
       <span class="prop-field-label">Text Align</span>
       <div class="prop-align-group" id="cvb-align-group">
         <button class="prop-align-btn${textAlign==='left'?' active':''}"   data-align="left">
@@ -371,16 +390,24 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
         </button>
       </div>
       </div>
-      ${layoutGapSlotHTML({ id: 'cvb-gap-number', value: cardGap, max: 48 })}
+      <div class="prop-row">
+        <span class="prop-label">Gap</span>
+        <input type="range" class="prop-slider" id="cvb-gap-slider" min="0" max="48" step="2" value="${cardGap}">
+        <input type="number" class="prop-number" id="cvb-gap-number" min="0" max="48" value="${cardGap}">
+      </div>
 `),
       sec('padding', `
-      ${layoutPadSlotHTML({ xId: 'cvb-padx-number', x: padX, max: 80 })}
+      <div class="prop-row">
+        <span class="prop-label">좌우패딩</span>
+        <input type="range" class="prop-slider" id="cvb-padx-slider" min="0" max="80" step="4" value="${padX}">
+        <input type="number" class="prop-number" id="cvb-padx-number" min="0" max="80" value="${padX}">
+      </div>
       <div class="prop-row" title="켜면 카드가 섹션 좌우 패딩을 무시하고 가장자리까지 확장됩니다">
         ${checkHTML({ id: 'cvb-fullbleed-toggle', label: '패딩 제외', checked: block.dataset.fullBleed === 'true' })}
       </div>
 `),
       sec('appearance', `
-      ${appearanceSectionHTML({ prefix: 'cvb', op: { value: window.readBlockOpacity?.(block) ?? 100 }, radius: { numberId: 'cvb-radius-number', value: radius, max: 60 } })}   <!-- ★표준 Appearance A2(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·dataset.radius·범위 무변 -->
+      ${appearanceSectionHTML({ prefix: 'cvb', radius: { numberId: 'cvb-radius-number', value: radius, max: 60 } })}   <!-- ★표준 Appearance A2(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·dataset.radius·범위 무변 -->
       <div class="prop-row">
         <span class="prop-label">이미지 모양</span>
         <div class="prop-align-group" id="cvb-img-shape-group">
@@ -541,14 +568,10 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
   };
 
   // ── 카드 크기 ────────────────────────────────────────────────────────────────
-  /* ★표준 Layout(C2) — 칸 배선은 부품(input = 범위 안이면 바로 · change = 잘라 그린 «뒤» 이력 한 번 · 빈 칸 = 옛 값 · 라벨 끌기 · 사슬) · 저장 키·범위 무변
-     이력 규약은 옛 칸마다 그대로: pushHistory 만(크기·이미지 비율·아이콘 크기) / pushHistory + scheduleAutoSave(오버레이·세로 위치·Gap·좌우패딩 = 부품 기본) */
-  const cvbHist = () => window.pushHistory?.();
-  const cvbSet = (key) => (v) => { block.dataset[key] = v; window.renderCanvas(block); };
-  wireLayoutSection({ commit: cvbHist,
-    w: { numberId: 'cvb-w', min: 100, max: 1200, apply: cvbSet('canvasW'), read: () => parseInt(block.dataset.canvasW) || 360 },
-    h: { numberId: 'cvb-h', min: CVB_H_MIN, max: CVB_H_MAX, apply: cvbSet('canvasH'), read: () => parseInt(block.dataset.canvasH) || 480 },
-    chain: { id: 'cvb-ratio', on: ratioLockOn(block, false), set: (on) => setRatioLock(block, on, false) } });
+  const wInput = document.getElementById('cvb-w');
+  const hInput = document.getElementById('cvb-h');
+  wInput.addEventListener('change', () => { block.dataset.canvasW = wInput.value;  window.renderCanvas(block); window.pushHistory?.(); });
+  hInput.addEventListener('change', () => { block.dataset.canvasH = hInput.value;  window.renderCanvas(block); window.pushHistory?.(); });
 
   // ── 이미지 모양 (사각/원형) ──────────────────────────────────────────────────
   const shapeGroup = document.getElementById('cvb-img-shape-group');
@@ -586,9 +609,9 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
       posGroup.querySelectorAll('.prop-align-btn').forEach(b => b.classList.toggle('active', b === btn));
       block.dataset.labelPos = pos;
       const overlayOn = pos.startsWith('overlay-');
-      if (overlayHRow) overlayHRow.style.display = overlayOn ? 'block' : 'none';   // 슬롯(부품 prop-row)을 감싸는 줄 — block
+      if (overlayHRow) overlayHRow.style.display = overlayOn ? 'flex' : 'none';
       const owRow = document.getElementById('cvb-overlay-w-row');
-      if (owRow) owRow.style.display = overlayOn ? 'block' : 'none';
+      if (owRow) owRow.style.display = overlayOn ? 'flex' : 'none';
       window.renderCanvas(block);
       window.pushHistory?.('라벨 위치');
       window.scheduleAutoSave?.();
@@ -596,9 +619,33 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
   });
 
   // ── 오버레이 높이 ────────────────────────────────────────────────
-  wireLayoutSection({ w: { numberId: 'cvb-overlay-h-number', min: 40, max: 400, apply: cvbSet('overlayHeight') } });
+  const ohSlider = document.getElementById('cvb-overlay-h-slider');
+  const ohNumber = document.getElementById('cvb-overlay-h-number');
+  if (ohSlider) {
+    const applyOH = v => {
+      v = Math.min(400, Math.max(40, v));
+      block.dataset.overlayHeight = v;
+      window.renderCanvas(block);
+      ohSlider.value = v; ohNumber.value = v;
+    };
+    ohSlider.addEventListener('input',  () => applyOH(parseInt(ohSlider.value)));
+    ohNumber.addEventListener('change', () => { applyOH(parseInt(ohNumber.value)); window.pushHistory?.(); window.scheduleAutoSave?.(); });
+    ohSlider.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
+  }
   // ── 오버레이 너비(%) ────────────────────────────────────────────────
-  wireLayoutSection({ w: { numberId: 'cvb-overlay-w-number', min: 10, max: 100, apply: cvbSet('overlayWidth') } });
+  const owSlider = document.getElementById('cvb-overlay-w-slider');
+  const owNumber = document.getElementById('cvb-overlay-w-number');
+  if (owSlider) {
+    const applyOW = v => {
+      v = Math.min(100, Math.max(10, v));
+      block.dataset.overlayWidth = v;
+      window.renderCanvas(block);
+      owSlider.value = v; owNumber.value = v;
+    };
+    owSlider.addEventListener('input',  () => applyOW(parseInt(owSlider.value)));
+    owNumber.addEventListener('change', () => { applyOW(parseInt(owNumber.value)); window.pushHistory?.(); window.scheduleAutoSave?.(); });
+    owSlider.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
+  }
 
   // ── 라벨 배경 raw CSS (그라데이션/rgba 등 임의 입력) ────────────────────────
   // sanitize: <>"' 문자, javascript:/data:image/svg+xml inline, expression() 등 XSS 벡터 차단
@@ -830,14 +877,34 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
   }
 
   // ── 이미지 비율 ──────────────────────────────────────────────────────────────
-  wireLayoutSection({ commit: cvbHist, w: { numberId: 'cvb-img-ratio-number', min: 20, max: 90, apply: cvbSet('imgRatio') } });
+  const ratioSlider = document.getElementById('cvb-img-ratio-slider');
+  const ratioNumber = document.getElementById('cvb-img-ratio-number');
+  const applyRatio = v => {
+    v = Math.min(90, Math.max(20, v));
+    block.dataset.imgRatio = v;
+    window.renderCanvas(block);
+    ratioSlider.value = v; ratioNumber.value = v;
+  };
+  ratioSlider.addEventListener('input',  () => applyRatio(parseInt(ratioSlider.value)));
+  ratioNumber.addEventListener('change', () => { applyRatio(parseInt(ratioNumber.value)); window.pushHistory?.(); });
+  ratioSlider.addEventListener('change', () => window.pushHistory?.());
 
   // ── 모서리 ───────────────────────────────────────────────────────────────────
-  wireAppearanceSection({ op: { numberId: 'cvb-opacity', apply: (v) => window.setBlockOpacity?.(block, v) }, radius: { numberId: 'cvb-radius-number', max: 60, apply: (v) => { block.dataset.radius = v; window.renderCanvas(block); } } });   // 표준 Appearance A2(슬라이더 걷음 · 이미지 모양 줄은 위 슬롯 그대로)
+  wireAppearanceSection({ radius: { numberId: 'cvb-radius-number', max: 60, apply: (v) => { block.dataset.radius = v; window.renderCanvas(block); } } });   // 표준 Appearance A2(슬라이더 걷음 · 이미지 모양 줄은 위 슬롯 그대로)
 
   // ── 아이콘 컨트롤 (이스터에그, iconMode일 때만 존재) ──────────────────────────
-  if (document.getElementById('cvb-icon-size-number')) {
-    wireLayoutSection({ commit: cvbHist, w: { numberId: 'cvb-icon-size-number', min: 10, max: 90, apply: cvbSet('iconScale') } });
+  const iconSizeSlider = document.getElementById('cvb-icon-size-slider');
+  if (iconSizeSlider) {
+    const iconSizeNumber = document.getElementById('cvb-icon-size-number');
+    const applyIconSize = v => {
+      v = Math.min(90, Math.max(10, v));
+      block.dataset.iconScale = v;
+      window.renderCanvas(block);
+      iconSizeSlider.value = v; iconSizeNumber.value = v;
+    };
+    iconSizeSlider.addEventListener('input',  () => applyIconSize(parseInt(iconSizeSlider.value)));
+    iconSizeNumber.addEventListener('change', () => { applyIconSize(parseInt(iconSizeNumber.value)); window.pushHistory?.(); });
+    iconSizeSlider.addEventListener('change', () => window.pushHistory?.());
 
     const icPick = document.getElementById('cvb-icon-color-pick');
     const icHex  = document.getElementById('cvb-icon-color-hex');
@@ -1061,7 +1128,19 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
   descSlider.addEventListener('change', () => window.pushHistory?.());
 
   // ── 텍스트 세로위치 (px, 기존 padding 위에 가산) ─────────────────────────────
-  wireLayoutSection({ w: { numberId: 'cvb-tvoffset-number', max: 100, apply: cvbSet('textVOffset') } });
+  const tvSlider = document.getElementById('cvb-tvoffset-slider');
+  const tvNumber = document.getElementById('cvb-tvoffset-number');
+  if (tvSlider) {
+    const applyTV = v => {
+      v = Math.min(100, Math.max(0, v));
+      block.dataset.textVOffset = v;
+      window.renderCanvas(block);
+      tvSlider.value = v; tvNumber.value = v;
+    };
+    tvSlider.addEventListener('input',  () => applyTV(parseInt(tvSlider.value)));
+    tvNumber.addEventListener('change', () => { applyTV(parseInt(tvNumber.value)); window.pushHistory?.(); window.scheduleAutoSave?.(); });
+    tvSlider.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
+  }
 
   // ── 텍스트 정렬 ──────────────────────────────────────────────────────────────
   propPanel.querySelectorAll('#cvb-align-group .prop-align-btn').forEach(btn => {
@@ -1075,8 +1154,29 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
   });
 
   // ── Gap / PadX ───────────────────────────────────────────────────────────────
-  wireLayoutSection({ w: { numberId: 'cvb-gap-number', max: 48, apply: cvbSet('cardGap') } });
-  wireLayoutSection({ w: { numberId: 'cvb-padx-number', max: 80, apply: cvbSet('padX') } });
+  const gapSlider = document.getElementById('cvb-gap-slider');
+  const gapNumber = document.getElementById('cvb-gap-number');
+  const applyGap = v => {
+    v = Math.min(48, Math.max(0, v));
+    block.dataset.cardGap = v;
+    window.renderCanvas(block);
+    gapSlider.value = v; gapNumber.value = v;
+  };
+  gapSlider.addEventListener('input',  () => applyGap(parseInt(gapSlider.value)));
+  gapNumber.addEventListener('change', () => { applyGap(parseInt(gapNumber.value)); window.pushHistory?.(); window.scheduleAutoSave?.(); });
+  gapSlider.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
+
+  const padxSlider = document.getElementById('cvb-padx-slider');
+  const padxNumber = document.getElementById('cvb-padx-number');
+  const applyPadX = v => {
+    v = Math.min(80, Math.max(0, v));
+    block.dataset.padX = v;
+    window.renderCanvas(block);
+    padxSlider.value = v; padxNumber.value = v;
+  };
+  padxSlider.addEventListener('input',  () => applyPadX(parseInt(padxSlider.value)));
+  padxNumber.addEventListener('change', () => { applyPadX(parseInt(padxNumber.value)); window.pushHistory?.(); window.scheduleAutoSave?.(); });
+  padxSlider.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
 
   // full-bleed: 섹션 좌우패딩 무시 토글. 에셋 패턴과 달리 카드는 renderCanvas가 width를 통합 처리.
   const fullBleedToggle = document.getElementById('cvb-fullbleed-toggle');
