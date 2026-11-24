@@ -42,6 +42,7 @@ import { applyModalVariant, _effDefault, MODAL_DEFAULTS, MODAL_LIMITS, clampModa
      «한 표에서 벌려 연다»를 재는다(실제로 발개졌다 · 2026-10-19). ⛔다시 붙이지 마라. */
 import { MODAL_PROFILE_SIDES, MODAL_PROFILE_SIZE_LIMIT,
          modalProfileSize, modalProfileSide, modalProfileKind, setModalProfile } from '../blocks/modal-block.js';
+import { layoutSizeRowHTML, layoutPadSlotHTML, layoutGapSlotHTML, wireLayoutSection, ratioLockOn, setRatioLock, LAY_FULLW_WHY } from './_layout-section.js';   // 표준 Layout L2·L3·L4
 const L = MODAL_LIMITS;
 
 /* 스와치·hex 칸에 «보여 줄» 색.
@@ -219,31 +220,14 @@ export function showModalProperties(block) {
       /* ★표준 Position 절(0.9.14 73행 · 현빈 261124) — 머리 [슬라이드 모드][IAL] · 흐름이면 정렬 6·X/Y disabled(6-2) · 떠 있으면 S1-4 그대로 · 회전 = 옛 rotRowHTML(+ 슬라이드 모드 슬라이더) · id·키 무변 */
       sec('position', positionSectionHTML({ prefix: 'mdl', posEl: _mdlPosEl, rot: { p: 'mdl', numberId: 'mdl-rot-number', value: parseInt(block.dataset.rotation || '0'), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' } }),
         { headTools: positionHeadToolsHTML({ prefix: 'mdl', ialId: 'mdl-float-toggle', ialOn: _mdlIsFloat }) }),
-      sec('size', `
-      <div class="prop-row">
-        <span class="prop-label">너비</span>
-        <div class="prop-type-group">
-          <button class="prop-type-btn ${wMode === 'full' ? 'active' : ''}" data-wm="full">풀폭</button>
-          <button class="prop-type-btn ${wMode === 'fixed' ? 'active' : ''}" data-wm="fixed">고정</button>
-        </div>
-        <input type="number" class="prop-number" id="mdl-w-number" min="${L.width.min}" max="${L.width.max}" value="${width}"${wMode === 'fixed' ? '' : ' disabled'}>
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">높이</span>
-        <div class="prop-type-group">
-          <button class="prop-type-btn ${hMode === 'auto' ? 'active' : ''}" data-hm="auto">자동</button>
-          <button class="prop-type-btn ${hMode === 'fixed' ? 'active' : ''}" data-hm="fixed">최소</button>
-        </div>
-        <input type="number" class="prop-number" id="mdl-h-number" min="${L.height.min}" max="${L.height.max}" value="${height}"${hMode === 'fixed' ? '' : ' disabled'}>
-      </div>
-`),
+      /* ★표준 Layout L2·L4(현빈 261124 L-2 19:22 · 시안 #mkp-layoutstd ①-b) — W/H 줄 + 모드 드롭다운(옛 세그먼트 data-wm/data-hm 의 «이미 있는 모드»만: 너비 풀폭/고정 · 높이 자동/최소)
+         · 숫자 칸 id·범위·dataset.width/height/wMode/hMode 무변 · 풀폭 = 사슬 막힘(LAY_FULLW_WHY) · 높이 자동 = H 칸 막힘 «자동» · 비율 사슬 기본 끔 */
+      sec('size', layoutSizeRowHTML({ prefix: 'mdl', chain: { on: ratioLockOn(block, false), blocked: wMode === 'fixed' ? null : LAY_FULLW_WHY },
+        w: { id: 'mdl-w-number', value: width, min: L.width.min, max: L.width.max },
+        h: { id: 'mdl-h-number', value: height, min: L.height.min, max: L.height.max, auto: hMode !== 'fixed' },
+        mode: { w: { id: 'mdl-wm', value: wMode, options: [['full', '풀폭'], ['fixed', '고정']] }, h: { id: 'mdl-hm', value: hMode, options: [['auto', '자동'], ['fixed', '최소']] } } })),
       sec('layout', `
-      ${isGrid ? `
-      <div class="prop-row">
-        <span class="prop-label">칸 간격</span>
-        <input type="range" class="prop-slider" id="mdl-gap-slider" min="0" max="40" step="2" value="${gap}">
-        <input type="number" class="prop-number" id="mdl-gap-number" min="0" max="40" value="${gap}">
-      </div>` : ''}
+      ${isGrid ? layoutGapSlotHTML({ id: 'mdl-gap-number', value: gap, max: 40 }) : ''}   <!-- 표준 Layout L3 간격 슬롯(«칸 간격» · 슬라이더 걷음 · id·키·범위 무변) -->
       <div class="prop-row">
         <span class="prop-label">정렬</span>
         <div class="prop-align-group">
@@ -253,20 +237,9 @@ export function showModalProperties(block) {
         </div>
       </div>
 `),
-      sec('padding', `
-      <div class="prop-row">
-        <span class="prop-label">좌우패딩</span>
-        <input type="range" class="prop-slider" id="mdl-padx-slider" min="0" max="80" step="2" value="${padX}">
-        <input type="number" class="prop-number" id="mdl-padx-number" min="0" max="80" value="${padX}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">상하패딩</span>
-        <input type="range" class="prop-slider" id="mdl-pady-slider" min="0" max="80" step="2" value="${padY}">
-        <input type="number" class="prop-number" id="mdl-pady-number" min="0" max="80" value="${padY}">
-      </div>
-`),
+      sec('padding', layoutPadSlotHTML({ xId: 'mdl-padx-number', yId: 'mdl-pady-number', x: padX, y: padY, max: 80 })),   // 표준 Layout L3 패딩 슬롯(슬라이더 걷음 · id·dataset.padX/padY·범위 무변)
       sec('appearance', `
-      ${appearanceSectionHTML({ prefix: 'mdl', radius: { numberId: 'mdl-radius-number', value: radius, min: L.radius.min, max: L.radius.max } })}   <!-- ★표준 Appearance A2(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·dataset.radius·범위 무변 -->
+      ${appearanceSectionHTML({ prefix: 'mdl', op: { value: window.readBlockOpacity?.(block) ?? 100 }, radius: { numberId: 'mdl-radius-number', value: radius, min: L.radius.min, max: L.radius.max } })}   <!-- ★표준 Appearance A2(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·dataset.radius·범위 무변 -->
 `, { headTools: appearanceHeadToolsHTML({ prefix: 'mdl' }) }),
       sec('typography', _typo.body),
       sec('fill', `
@@ -422,10 +395,12 @@ export function showModalProperties(block) {
     s.addEventListener('change', commit);
     n.addEventListener('change', () => { apply(parseInt(n.value)); commit(); });
   };
-  wireAppearanceSection({ radius: { numberId: 'mdl-radius-number', min: L.radius.min, max: L.radius.max, apply: (v) => { block.dataset.radius = String(v); rerender(); }, commit } });   // 표준 Appearance A2 — 옛 wireNum('radius') 자리(슬라이더 걷음)
-  wireNum('padx', 'padX', 0, 80);
-  wireNum('pady', 'padY', 0, 80);
-  if (isGrid) wireNum('gap', 'gap', 0, 40);
+  wireAppearanceSection({ radius: { numberId: 'mdl-radius-number', min: L.radius.min, max: L.radius.max, apply: (v) => { block.dataset.radius = String(v); rerender(); }, commit },
+    op: { numberId: 'mdl-opacity', apply: (v) => window.setBlockOpacity?.(block, v), commit } });   // 표준 Appearance A2 — 옛 wireNum('radius') 자리(슬라이더 걷음)
+  /* 표준 Layout L3 — 옛 wireNum('padx'·'pady'·'gap') 자리(슬라이더 걷음) · 같은 쓰기(dataset → rerender · change = commit 한 번) */
+  const _mdlKey = (key) => (v) => { block.dataset[key] = String(v); rerender(); };
+  wireLayoutSection({ commit, w: { numberId: 'mdl-padx-number', max: 80, apply: _mdlKey('padX'), read: () => _i('padX', 20) }, h: { numberId: 'mdl-pady-number', max: 80, apply: _mdlKey('padY'), read: () => _i('padY', 18) } });
+  if (isGrid) wireLayoutSection({ commit, w: { numberId: 'mdl-gap-number', max: 40, apply: _mdlKey('gap'), read: () => _i('gap', gap) } });
   if (isIcon) wireNum('isize', 'iconSize', 12, 96);
 
   /* ── 타이포 배선 ──────────────────────────────────────────────────────────
@@ -586,32 +561,21 @@ export function showModalProperties(block) {
 
   // ── 크기 모드 ──
   const wNum = document.getElementById('mdl-w-number');
-  const hNum = document.getElementById('mdl-h-number');
   /* ★dataset.wMode 를 여기서 «직접» 쓰지 않는다 — setModalSizeMode 가 단 하나의 문이다.
      「늘어나는 그 순간」 판정이 패널과 핸들 두 벌로 갈라지면 한쪽만 고쳐진다.
      돌려주는 값이 true 면 자동 가운데정렬이 채워진 것 ⇒ 정렬 버튼도 다시 그려야 한다. */
-  propPanel.querySelectorAll('[data-wm]').forEach(btn => btn.addEventListener('click', () => {
-    const filled = setModalSizeMode(block, 'w', btn.dataset.wm);
-    propPanel.querySelectorAll('[data-wm]').forEach(b => b.classList.toggle('active', b === btn));
-    if (wNum) wNum.disabled = (btn.dataset.wm !== 'fixed');
+  /* ★표준 Layout L4 — 모드 = 드롭다운(옛 세그먼트 단추 자리 · 같은 문 setModalSizeMode · 같은 rerender + commit) · 바꾸면 패널을 다시 그린다(칸 막힘·자동 표시·사슬 막힘이 모드를 따른다) */
+  [['w', 'mdl-wm'], ['h', 'mdl-hm']].forEach(([axis, id]) => document.getElementById(id)?.addEventListener('change', (e) => {
+    setModalSizeMode(block, axis, e.target.value);
     rerender(); commit();
-    if (filled) showModalProperties(block);
+    showModalProperties(block);
   }));
-  propPanel.querySelectorAll('[data-hm]').forEach(btn => btn.addEventListener('click', () => {
-    const filled = setModalSizeMode(block, 'h', btn.dataset.hm);
-    propPanel.querySelectorAll('[data-hm]').forEach(b => b.classList.toggle('active', b === btn));
-    if (hNum) hNum.disabled = (btn.dataset.hm !== 'fixed');
-    rerender(); commit();
-    if (filled) showModalProperties(block);
-  }));
-  wNum?.addEventListener('change', () => {
-    const x = Math.min(L.width.max, Math.max(L.width.min, parseInt(wNum.value) || MODAL_DEFAULTS.width));
-    block.dataset.width = String(x); wNum.value = x; rerender(); commit();
-  });
-  hNum?.addEventListener('change', () => {
-    const x = Math.min(L.height.max, Math.max(L.height.min, parseInt(hNum.value) || MODAL_DEFAULTS.height));
-    block.dataset.height = String(x); hNum.value = x; rerender(); commit();
-  });
+  if (wNum) wNum.disabled = wMode !== 'fixed';   // 풀폭 = W 칸 막힘(옛 그대로 · 부품 꼴엔 W 막힘 칸이 없어 배선 쪽에서)
+  /* 표준 Layout L2 — 숫자 칸 배선 = 부품(input = 바로 · change = 잘라 + commit 한 번 · 빈 칸 = 되돌림(옛 «기본값으로» 폴백 자리) · 라벨 끌기 · 비율 사슬) */
+  wireLayoutSection({ commit,
+    w: { numberId: 'mdl-w-number', min: L.width.min, max: L.width.max, apply: _mdlKey('width'), read: () => _i('width', MODAL_DEFAULTS.width) },
+    h: { numberId: 'mdl-h-number', min: L.height.min, max: L.height.max, apply: _mdlKey('height'), read: () => _i('height', MODAL_DEFAULTS.height) },
+    chain: { id: 'mdl-ratio', on: ratioLockOn(block, false), set: (on) => setRatioLock(block, on, false), blocked: () => (block.dataset.wMode === 'fixed' ? null : LAY_FULLW_WHY) } });
 
   // ── 테두리 스타일 / 정렬 ──
   /* 테두리 스타일 — ⫶ 팝오버 «스타일» select(단계 3-1 · 옛 [data-bs] 단추 셋과 같은 쓰기: dataset.borderStyle · rerender · commit) */
