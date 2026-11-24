@@ -8,7 +8,7 @@ import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_STYLE
 /* ★1017t1h3 — 「고른 글자만」 한 벌. ⛔선택을 여기서 따로 저장하지 않는다(_text-selection.js 머리말 ⛔). */
 import { getSavedTextSelection, withTextSelection, applyStyleToRange } from './_text-selection.js';
 import { appearanceSectionHTML, appearanceHeadToolsHTML, appearanceSlotNumberHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A3 · annotation)
-import { layoutPadSlotHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout 패딩 슬롯(C3)
+import { layoutPadSlotHTML, layoutSizeRowHTML, layoutSlotNumberHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout 패딩 슬롯(C3)
 
 // ── 프리셋 ───────────────────────────────────────────────────────────────
 /* ★1013t1A2 — 프리셋은 «색·선·시작점»만 바꾼다. 글자 크기(옛 16)는 뺐다: 기본이 24 가 됐는데
@@ -414,45 +414,22 @@ export function showAnnotationProperties(block) {
           ${['auto', 'h', 'v'].map((a) => `<button class="prop-align-btn${st.dimAxis === a ? ' active' : ''}" data-axis="${a}" title="${a === 'auto' ? '두 점을 잇는 방향 그대로' : a === 'h' ? '가로로만 잰다' : '세로로만 잰다'}">${a === 'auto' ? '자동' : a === 'h' ? '가로' : '세로'}</button>`).join('')}
         </div>
       </div>
+      <!-- ★표준 Layout(C3 · 현빈 261124 L-4/7) — «자세히» 다섯 줄 슬라이더 걷음 → 숫자 + 라벨 끌기(끝 단추 없음) · id·키·범위 무변 -->
       <details class="prop-details" id="annot-dim-more">
         <summary class="prop-label" style="cursor:pointer;padding:4px 0">자세히</summary>
-        <div class="prop-row">
-          <span class="prop-label">치우침</span>
-          <input type="range" class="prop-slider" id="annot-dim-off" min="-200" max="200" step="1" value="${st.dimOffset}">
-          <input type="number" class="prop-number" id="annot-dim-off-num" min="-200" max="200" step="1" value="${st.dimOffset}">
-        </div>
-        <div class="prop-row">
-          <span class="prop-label">좌우</span>
-          <input type="range" class="prop-slider" id="annot-dim-slide" min="-200" max="200" step="1" value="${st.dimSlide}">
-          <input type="number" class="prop-number" id="annot-dim-slide-num" min="-200" max="200" step="1" value="${st.dimSlide}">
-        </div>
+        ${layoutSlotNumberHTML({ id: 'annot-dim-off-num', label: '치우침', value: st.dimOffset, min: -200, max: 200 })}
+        ${layoutSlotNumberHTML({ id: 'annot-dim-slide-num', label: '좌우', value: st.dimSlide, min: -200, max: 200 })}
         <div class="prop-row">
           ${checkHTML({ id: 'annot-dim-ext', label: '보조선', checked: st.dimShowExt })}   <!-- 현빈 261123 «온/오프 = 체크» -->
           <select class="prop-select" id="annot-dim-extstyle">
             ${[['solid', '실선'], ['dashed', '대시'], ['dotted', '점선']].map(([v, n]) => `<option value="${v}"${st.dimExtStyle === v ? ' selected' : ''}>${n}</option>`).join('')}
           </select>
         </div>
-        <div class="prop-row">
-          <span class="prop-label">간격</span>
-          <input type="range" class="prop-slider" id="annot-dim-gap" min="0" max="40" step="1" value="${st.dimGap}">
-          <input type="number" class="prop-number" id="annot-dim-gap-num" min="0" max="40" step="1" value="${st.dimGap}">
-        </div>
-        <div class="prop-row">
-          <span class="prop-label">넘침</span>
-          <input type="range" class="prop-slider" id="annot-dim-over" min="0" max="40" step="1" value="${st.dimOver}">
-          <input type="number" class="prop-number" id="annot-dim-over-num" min="0" max="40" step="1" value="${st.dimOver}">
-        </div>
-        <div class="prop-row">
-          <span class="prop-label">글 띄움</span>
-          <input type="range" class="prop-slider" id="annot-dim-lift" min="0" max="40" step="1" value="${st.dimLabelLift}">
-          <input type="number" class="prop-number" id="annot-dim-lift-num" min="0" max="40" step="1" value="${st.dimLabelLift}">
-        </div>
+        ${layoutSlotNumberHTML({ id: 'annot-dim-gap-num', label: '간격', value: st.dimGap, min: 0, max: 40 })}
+        ${layoutSlotNumberHTML({ id: 'annot-dim-over-num', label: '넘침', value: st.dimOver, min: 0, max: 40 })}
+        ${layoutSlotNumberHTML({ id: 'annot-dim-lift-num', label: '글 띄움', value: st.dimLabelLift, min: 0, max: 40 })}
       </details>` : ''}${st.labelMode === 'text' ? '' : `
-      <div class="prop-row">
-        <span class="prop-label">크기(정사각)</span>
-        <input type="range" class="prop-slider" id="annot-img-size" min="40" max="400" step="4" value="${st.labelImageSize}">
-        <input type="number" class="prop-number" id="annot-img-size-num" min="20" max="800" step="1" value="${st.labelImageSize}">
-      </div>`}
+      ${layoutSizeRowHTML({ prefix: 'annot-img-size', one: { id: 'annot-img-size-num', label: '크기(정사각)', icon: 'px', min: 20, max: 800, value: st.labelImageSize } })}`}   <!-- C3 — 슬라이더 걷음(숫자 칸 범위 20~800 그대로) -->
       ${st.labelMode !== 'image' ? `
       <div class="prop-row">
         <span class="prop-label">너비</span>
@@ -559,15 +536,8 @@ export function showAnnotationProperties(block) {
       });
     });
     /* ★슬라이더 ＋ 숫자 ★한 쌍 — 위 「선 두께」와 ★같은 관용구를 ★돌려 쓴다(⛔복붙 다섯 벌 금지) */
-    const pair = (id, prop, lo, hi, label) => {
-      const r = propPanel.querySelector('#' + id), n = propPanel.querySelector('#' + id + '-num');
-      if (!r || !n) return;
-      const put = (v) => { const c = Math.min(hi, Math.max(lo, v)); r.value = c; n.value = c; _writeProps(block, { [prop]: c }); };
-      r.addEventListener('input',  () => put(parseFloat(r.value)));
-      n.addEventListener('input',  () => put(parseFloat(n.value) || 0));
-      r.addEventListener('change', () => window.pushHistory?.(label));
-      n.addEventListener('change', () => window.pushHistory?.(label));
-    };
+    const pair = (id, prop, lo, hi, label) =>   // C3 — 슬라이더 걷음 · 숫자 칸 = 부품 배선(범위 안 즉시 · change 잘라 + 이력 한 번)
+      wireLayoutSection({ commit: () => window.pushHistory?.(label), w: { numberId: id + '-num', min: lo, max: hi, apply: (v) => _writeProps(block, { [prop]: v }) } });
     pair('annot-dim-off',   'dimOffset',    -200, 200, '치수선 치우침');
     pair('annot-dim-slide', 'dimSlide',     -200, 200, '치수선 좌우');
     pair('annot-dim-gap',   'dimGap',          0,  40, '보조선 간격');
@@ -734,18 +704,7 @@ export function showAnnotationProperties(block) {
       showAnnotationProperties(block);
     });
   }
-  const imgSz  = propPanel.querySelector('#annot-img-size');
-  const imgSzN = propPanel.querySelector('#annot-img-size-num');
-  if (imgSz && imgSzN) {
-    imgSz.addEventListener('input',  () => { imgSzN.value = imgSz.value; _writeProps(block, { labelImageSize: parseInt(imgSz.value) }); });
-    imgSz.addEventListener('change', () => window.pushHistory?.('라벨 이미지 크기'));
-    imgSzN.addEventListener('input', () => {
-      const v = Math.min(800, Math.max(20, parseInt(imgSzN.value) || 20));
-      imgSz.value = Math.min(parseInt(imgSz.max), v);
-      _writeProps(block, { labelImageSize: v });
-    });
-    imgSzN.addEventListener('change', () => window.pushHistory?.('라벨 이미지 크기'));
-  }
+  wireLayoutSection({ commit: () => window.pushHistory?.('라벨 이미지 크기'), w: { numberId: 'annot-img-size-num', min: 20, max: 800, apply: (v) => _writeProps(block, { labelImageSize: v }) } });   // C3 — 슬라이더 걷음
 
   const imgRN = propPanel.querySelector('#annot-img-radius-num');   // 부위 R 슬롯(표준 Appearance A3 · 슬라이더 걷음) — 옛 숫자 칸 배선 그대로 + 라벨 끌기
   if (imgRN) {
