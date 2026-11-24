@@ -167,9 +167,11 @@ test('T3 ★방향°·길이·좁아짐% 는 패널에 «없다» — 그러나 
   const p = SRC.prop;
   /* ★입력이 살아 있다 — 패널이 통째로 비어서 통과하는 것이 아니다.
      ⛔이 줄이 없으면 propPanel.innerHTML 을 통째로 지워도 아래가 전부 초록이다. */
-  for (const alive of ['zm-spread', 'zm-maxop', 'zm-curve', 'zm-size']) {
+  for (const alive of ['zm-spread', 'zm-maxop', 'zm-curve']) {
     assert.ok(pairRowArgs(p, alive), `전제가 깨졌다 — «남아야 할» ${alive} 가 패널에서 사라졌다`);
   }
+  /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C3): 크기 = _pairRow 가 아니라 부품 한 칸(옛 숫자 칸 id zm-size-num 지킴) */
+  assert.ok(/layoutSizeRowHTML\(\{ prefix: 'zm-size', one: \{ id: 'zm-size-num'/.test(p), '전제가 깨졌다 — «남아야 할» 크기 칸(zm-size-num)이 사라졌다');
   /* ★기대 바뀜(현빈 261123 표준 Stroke 부품 · 8910 strokestd2 18) — 테두리 두께는 _pairRow 슬라이더가 아니라 부품 굵기 칸(옛 id zm-bdw-num 지킴) */
   assert.ok(/strokeSectionHTML\(\{ prefix: 'zm-bd'[\s\S]{0,400}?widthId: 'zm-bdw-num'/.test(p), '전제가 깨졌다 — «남아야 할» 테두리 굵기 칸(zm-bdw-num)이 사라졌다');
   /* ★기대 바뀜(Q20 · 현빈 GO 261120) — 회전은 _pairRow 가 아니라 회전 줄(rotRowHTML · 각도 칸 zm-rot-num) */

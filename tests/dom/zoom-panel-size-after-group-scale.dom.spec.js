@@ -47,7 +47,7 @@ async function drag(page, sel, dx, dy) {
 }
 
 const panelSize = (page) => page.evaluate(() => { const z = document.getElementById('z1'); window.showZoomProperties(z);
-  return { num: +document.getElementById('zm-size-num').value, sl: +document.getElementById('zm-size').value, dw: z.dataset.w == null ? null : +z.dataset.w, drawn: z.getBoundingClientRect().width }; });
+  return { num: +document.getElementById('zm-size-num').value, sl: +document.getElementById('zm-size-num').value, /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 슬라이더 없음 → 칸 하나로 같은 값 */ dw: z.dataset.w == null ? null : +z.dataset.w, drawn: z.getBoundingClientRect().width }; });
 
 test('ZS0 [지킴] 묶음 손잡이 전 — 크기 칸은 기본 260', async ({ page }) => {
   const errs = await grouped(page);
@@ -64,6 +64,6 @@ test('ZS1 묶음 se 손잡이로 줄인 뒤 — 크기 칸이 실제 가로를 �
   expect(p.dw, '[전제] 묶음 크기가 줌 가로를 줄였다').toBeLessThan(250);
   expect(Math.abs(p.dw - p.drawn), `[전제] 정본 ${p.dw} = 그린 폭 ${p.drawn}`).toBeLessThanOrEqual(1.5);
   expect(p.num, '크기 칸이 옛 값에 머문다').toBe(Math.round(p.dw));
-  expect(Math.abs(p.sl - p.dw), '슬라이더(step 2 라 ±1)').toBeLessThanOrEqual(1);
+  expect(Math.abs(p.sl - p.dw), '크기 칸(옛 슬라이더 step 2 ±1 허용 그대로)').toBeLessThanOrEqual(1);
   expect(errs).toEqual([]);
 });

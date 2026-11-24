@@ -5,6 +5,8 @@ import { propPanel } from '../globals.js';
 import { blockHeaderHTML, wireRotRow, checkHTML, wireCheck } from './_helpers.js';
 import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from './_position-section.js';   // 표준 Position 절(0.9.14 73행 P3)
 import { renderPanel, sec } from './_panel-frame.js';
+import { layoutSizeRowHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(L2 · C3)
+import { appearanceSectionHTML, wireAppearanceSection } from './_appearance-section.js';   // A4 Opacity(C3)
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { strokeSectionHTML, wireStrokeSection, STROKE_POP_WHY } from './_stroke-section.js';
 import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast } from './_fill-section.js';
@@ -151,8 +153,9 @@ export function showZoomProperties(block) {
            ⛔id 규약은 zm-rot-num 이다 — -number 가 «아니다»(asset-rotate.js _syncNumSlider 와 다름 · 그래서 전용 동기).
            ⚠️템플릿 리터럴 «안»이라 이 주석에 백틱 금지. -->
       ${positionSectionHTML({ prefix: 'zm', posEl: null, xy: false, rot: { p: 'zm', numberId: 'zm-rot-num', value: st.rot, flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' } })}`, { headTools: positionHeadToolsHTML({ prefix: 'zm' }) }),
-      sec('size', `
-      ${_pairRow('zm-size', '크기', Math.round(st.w ?? st.size), 20, 600, 2)}`),
+      /* ★표준 Layout(C3 · 현빈 261124 L-4/7) — 크기 슬라이더 걷음 · 한 칸(크기 = 가로 · 모양이 정비율이라 사슬 없음) · 숫자 칸 id zm-size-num·범위 무변 */
+      sec('size', layoutSizeRowHTML({ prefix: 'zm-size', one: { id: 'zm-size-num', label: '크기', icon: 'px', min: 20, max: 600, value: Math.round(st.w ?? st.size) } })),
+      sec('appearance', appearanceSectionHTML({ prefix: 'zm', op: { value: window.readBlockOpacity?.(block) ?? 100 } })),   // A4 Opacity(블럭)
       // 옛 「Text」 절 — 켬/끔·정렬·크기. 글자 색은 Fill 절(글자 꺼짐이면 흐리게)
       sec('typography', `
     <!-- ⚠️이 주석은 템플릿 리터럴 «안»이다 — ⛔백틱을 쓰면 리터럴이 «거기서 끝나» 터진다.
@@ -337,7 +340,10 @@ ${narrowRow}
     s?.addEventListener('change', commit);
     n.addEventListener('change', commit);
   };
-  bindPair('zm-size',   'size',   '확대블럭 크기',      20, 600);
+  /* ★크기 칸은 «덧씌우개»를 지운다 — 안 지우면 핸들로 한 번 끈 뒤로 칸이 아무 반응도 안 한다(w/h 가 이기기 때문 · 옛 bindPair 규율 그대로) */
+  wireLayoutSection({ commit: () => { window.pushHistory?.('확대블럭 크기'); window.triggerAutoSave?.(); },
+    w: { numberId: 'zm-size-num', min: 20, max: 600, apply: (v) => { window.clearZoomSizeOverride?.(block); block.dataset.size = String(v); rerender(); } } });
+  wireAppearanceSection({ op: { numberId: 'zm-opacity', apply: (v) => window.setBlockOpacity?.(block, v) } });
   bindPair('zm-rot',    'rot',    '확대블럭 회전',    -180, 180);
   wireRotRow({ p: 'zm', numberId: 'zm-rot-num', host: () => block });   // Q17 · Q20(시안 v10)
   wirePositionSection({ prefix: 'zm', numberId: 'zm-rot-num', rerender: () => window.showZoomProperties?.(block) });
