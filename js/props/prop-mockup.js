@@ -2,6 +2,7 @@
 
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
+import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from './_position-section.js';   // 표준 Position P3
 import { renderPanel, sec } from './_panel-frame.js';
 import { checkerBg } from '../checker-tokens.js';
 import { captureSectionImage } from '../io/capture-safety.js';
@@ -43,8 +44,8 @@ export function showMockupProperties(block) {
         <input type="number" class="prop-number" id="mkp-width-number" min="100" max="860"
           value="${parseInt(block.style.width) || parseInt(block.dataset.width) || 360}">
       </div>`),
-      sec('position', `
-      <span class="prop-field-label">Rotation</span>${rotRowHTML({ p: 'mkp', numberId: 'mkp-rot-number', value: parseInt(block.dataset.rotation || '0'), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' })}`),
+      sec('position', positionSectionHTML({ prefix: 'mkp', posEl: null, xy: false, rot: { p: 'mkp', numberId: 'mkp-rot-number', value: parseInt(block.dataset.rotation || '0'), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' } }),
+        { headTools: positionHeadToolsHTML({ prefix: 'mkp' }) })   /* 표준 Position P3(0.9.14 73행) — 머리 [슬라이드 모드] · 회전 = 옛 줄 + 슬라이드 모드 슬라이더 · id·키 무변 */,
       // 화면 이미지(옛 「Screen Image」)
       sec('content', `
       <div class="prop-row" style="flex-direction:column;gap:4px;">
@@ -116,6 +117,7 @@ export function showMockupProperties(block) {
   mRotN.addEventListener('input',  () => _mkpRot(mRotN.value, true));   // QA2 M4 — 치는 중엔 칸을 다시 안 쓴다(«-30» 을 칠 수 있게) · 끝낼 때(change) 범위로 정규화
   mRotN.addEventListener('change', () => { _mkpRot(mRotN.value); window.pushHistory?.(); });
   wireRotRow({ p: 'mkp', numberId: 'mkp-rot-number', host: () => block });   // Q17 · Q20(시안 v10 — 슬라이더 없음)
+  wirePositionSection({ prefix: 'mkp', numberId: 'mkp-rot-number', rerender: () => window.showMockupProperties?.(block) });   // 슬라이드 모드 토글·슬라이더만
 
   // 캡처 버튼
   const secIdInput = propPanel.querySelector('#mkp-sec-id-input');

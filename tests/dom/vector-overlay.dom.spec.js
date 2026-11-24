@@ -64,7 +64,7 @@ test('V1 ★벡터 패널 토글 → 뜬다 · X/Y · 다시 누르면 원래 �
   expect(g0).toMatchObject({ float: false, inRow: true });
   await openPanel(page);
   await expect(page.locator('#vb-float-toggle'), '벡터 패널에 오버레이 버튼').toBeVisible();
-  await expect(page.locator('#vb-x-number')).toHaveCount(0);   // 안 떴을 땐 X/Y 없음
+  await expect(page.locator('#vb-x-number')).toBeDisabled();   // ★2026-11-24 기대 바뀜 — 표준 Position 6-2: 안 떴을 땐 X/Y «있음 + disabled»(옛: 없음)
   await toggle(page);
   const g1 = await geo(page);
   expect(g1.float).toBe(true);

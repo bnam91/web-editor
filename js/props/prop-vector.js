@@ -1,5 +1,6 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
+import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from './_position-section.js';   // 표준 Position P3
 import { renderPanel, sec } from './_panel-frame.js';
 import { pushHistory } from '../editor.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
@@ -87,9 +88,8 @@ export function showVectorProperties(block) {
       sec('stroke', stroke.has ? strokeSectionHTML({ prefix: 'vb-stroke', color, alpha: colorAlpha, colorId: 'vb', noColor: !hasPen, noAlign: true, width: stroke.width, minWidth: 0.5, maxWidth: 40, step: 0.5, widthId: 'vb-stroke-w-num',
         pop: { styles: [['solid', '— 실선'], ['dash', '- - 대시'], ['dot', '· · 점']], style: stroke.dash, styleId: 'vb-stroke-dash', live: { cap: true }, look: { cap: ({ butt: 'none', round: 'round', square: 'square' })[stroke.cap] || 'round' },
           capAlways: true, capLabel: '끝모양', why: STROKE_POP_WHY.soon } }) : ''),
-      sec('position', `${OF?.floatPositionRowHTML({ prefix: 'vb', posEl: floatPosEl }) || ''}
-      <span class="prop-field-label">Rotation</span>${/* Q17 · Q20(시안 v10) — 각도 칸 + 90° · 반전 한 줄(옛 id · 옛 배선 그대로) */
-      rotRowHTML({ numberId: 'vb-rotate-deg', value: rotateDeg, min: -360, max: 360, flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1', ids: { r90: 'vb-rotate-90', fh: 'vb-flip-h', fv: 'vb-flip-v' } })}`, { headTools: window.overlayToggleBtnHTML?.({ id: 'vb-float-toggle', active: floating }) || '' }),
+      sec('position', positionSectionHTML({ prefix: 'vb', posEl: floatPosEl, xy: true, rot: { numberId: 'vb-rotate-deg', value: rotateDeg, min: -360, max: 360, flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1', ids: { r90: 'vb-rotate-90', fh: 'vb-flip-h', fv: 'vb-flip-v' } } }),
+        { headTools: positionHeadToolsHTML({ prefix: 'vb', ialId: 'vb-float-toggle', ialOn: floating }) })   /* 표준 Position P3(0.9.14 73행) — 머리 [슬라이드 모드][IAL] · 회전 = 옛 줄 + 슬라이드 모드 슬라이더 · id·키 무변 */,
     ],
   });
 
@@ -210,6 +210,7 @@ export function showVectorProperties(block) {
 
   // ── 반전 ──────────────────────────────────────────────────────────────────────
   wireRotRow({ numberId: 'vb-rotate-deg', host: () => block, scrubOnly: true });   // 아이콘 끌기만(90°·반전은 옛 배선)
+  wirePositionSection({ prefix: 'vb', numberId: 'vb-rotate-deg', rerender: () => window.showVectorProperties?.(block) });   // 슬라이드 모드 토글·슬라이더만
   document.getElementById('vb-flip-h')?.addEventListener('click', () => {
     block.dataset.flipH = block.dataset.flipH === '1' ? '0' : '1';
     document.getElementById('vb-flip-h')?.classList.toggle('active', block.dataset.flipH === '1');

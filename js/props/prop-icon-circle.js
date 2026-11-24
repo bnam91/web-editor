@@ -1,5 +1,6 @@
 import { propPanel, state } from '../globals.js';
 import { blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
+import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from './_position-section.js';   // 표준 Position P3
 import { renderPanel, sec } from './_panel-frame.js';
 import { gridCircleIconSvg } from '../blocks/grid-circle-icon.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
@@ -63,8 +64,8 @@ export function showIconCircleProperties(block) {
         <input type="range" class="prop-slider" id="icb-padx-slider" min="0" max="200" step="4" value="${padX}">
         <input type="number" class="prop-number" id="icb-padx-number" min="0" max="200" value="${padX}">
       </div>`),
-      sec('position', `
-      <span class="prop-field-label">Rotation</span>${rotRowHTML({ p: 'icb', numberId: 'icb-rot-number', value: parseInt(block.dataset.rotation || '0'), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' })}`, { headTools: window.overlayToggleBtnHTML?.({ id: 'icb-float-toggle', active: block.dataset.overlayBlock === 'true' }) || '' }),   // 플로팅 = Position(§2-1)
+      sec('position', positionSectionHTML({ prefix: 'icb', posEl: null, xy: false, rot: { p: 'icb', numberId: 'icb-rot-number', value: parseInt(block.dataset.rotation || '0'), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' } }),
+        { headTools: positionHeadToolsHTML({ prefix: 'icb', ialId: 'icb-float-toggle', ialOn: block.dataset.overlayBlock === 'true' }) })   /* 표준 Position P3(0.9.14 73행) — 머리 [슬라이드 모드][IAL] · 회전 = 옛 줄 + 슬라이드 모드 슬라이더 · id·키 무변 */,   // 플로팅 = Position(§2-1)
       // 옛 「Image」 절 + 원 안 블럭 넣기 = Content
       sec('content', `${hasImage ? `
       <button class="prop-action-btn secondary" id="icb-pos-btn">이미지 위치 조절</button>
@@ -168,6 +169,7 @@ export function showIconCircleProperties(block) {
   propPanel.querySelector('#icb-rot-number').addEventListener('input',  e => _icbRot(e.target.value, true));   // QA2 M4 — 치는 중엔 칸을 다시 안 쓴다(«-30» 을 칠 수 있게) · 끝낼 때(change) 범위로 정규화
   propPanel.querySelector('#icb-rot-number').addEventListener('change', e => _icbRot(e.target.value));
   wireRotRow({ p: 'icb', numberId: 'icb-rot-number', host: () => block });   // Q17 · Q20(시안 v10 — 슬라이더 없음)
+  wirePositionSection({ prefix: 'icb', numberId: 'icb-rot-number', rerender: () => window.showIconCircleProperties?.(block) });   // 슬라이드 모드 토글·슬라이더만
   propPanel.querySelector('#icb-rot-number').addEventListener('change', () => window.pushHistory());
 
   const _fillToggle = propPanel.querySelector('#icb-fill-toggle');

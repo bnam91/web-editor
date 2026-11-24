@@ -118,3 +118,23 @@ test('PS6 흐름 안 에셋 — X/Y disabled + 툴팁 · 정렬 = 흐름용 가�
   expect(await page.evaluate(() => [...document.querySelectorAll('#asset-align-group [data-align]')].map((b) => b.disabled)), '★흐름용 3칸은 씀').toEqual([false, false, false]);
   expect(errs).toEqual([]);
 });
+
+/* ── P3 — 회전 소비자(vector · icon-circle · mockup): 머리 슬라이드 토글 · 켜면 슬라이더 줄(같은 숫자 칸) · 옛 회전 id 그대로 ── */
+const ROT_KINDS = [
+  ['vector', 'window.addVectorBlock(\'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10"/></svg>\', { w: 80, h: 80 })', 'vb', 'vb-rotate-deg'],
+  ['icon-circle', 'window.addIconCircleBlock()', 'icb', 'icb-rot-number'],
+  ['mockup', 'window.addMockupBlock()', 'mkp', 'mkp-rot-number'],
+];
+for (const [name, add, pfx, num] of ROT_KINDS) {
+  test(`PS7 ${name} — 머리 슬라이드 토글 · 켜면 슬라이더 줄 → 옛 회전 칸(${num})`, async ({ page }) => {
+    const errs = await flowScene(page, add);
+    await expect.poll(() => page.evaluate((p) => !!document.getElementById(p + '-rot-slide'), pfx), `★${name} 머리 슬라이드 토글`).toBe(true);
+    await page.evaluate(() => { try { localStorage.removeItem('goditor.rotSlideMode'); } catch (_) {} });
+    await page.click(`#${pfx}-rot-slide`);
+    await expect.poll(() => page.evaluate((n) => [!!document.getElementById(n + '-slider'), !!document.getElementById(n)], num), '★슬라이더 줄 + 옛 숫자 칸').toEqual([true, true]);
+    await page.evaluate((n) => { const s = document.getElementById(n + '-slider'); s.value = '20'; s.dispatchEvent(new Event('input', { bubbles: true })); s.dispatchEvent(new Event('change', { bubbles: true })); }, num);
+    await expect.poll(() => page.evaluate((n) => document.getElementById(n).value, num), '★슬라이더 → 숫자 칸').toBe('20');
+    await page.evaluate(() => { try { localStorage.removeItem('goditor.rotSlideMode'); } catch (_) {} });
+    expect(errs).toEqual([]);
+  });
+}
