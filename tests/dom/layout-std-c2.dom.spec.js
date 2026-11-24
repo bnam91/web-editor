@@ -28,7 +28,7 @@ const CASES = [
     ['crt-sheetw-number', 'crt-sheeth-number', 'crt-jitter-number'], { id: 'crt-jitter-number', v: 30, over: 999, cut: 100, key: 'jitter', keyV: ['0.3', '1'] }],
 ];
 
-async function scene(page, add, firstId) {
+async function scene(page, add, firstId, { endTextEdit = false } = {}) {
   await page.setViewportSize({ width: 1700, height: 1100 });
   const errs = await bootApp(page);
   await page.evaluate(async (add) => {
@@ -38,6 +38,14 @@ async function scene(page, add, firstId) {
     document.activeElement?.blur?.();   // 넣자마자 글 편집(글 스티커 등)이면 빠진다 — 재는 동안 편집 커밋 이력이 끼지 않게(수지 261125 r1 LC2 sticker(글))
   }, add);
   await expect(page.locator(`#${firstId}`), `[전제] ${firstId} 칸`).toHaveCount(1);
+  if (endTextEdit) {
+    /* 새 글 스티커 = 넣자마자 글 편집(비동기로 열림) · 첫 다시 그리기가 그 편집을 끝내며 «스티커 텍스트» 커밋을 따로 찍는다(js/sticker-select.js:885 finish)
+       — 패널 배선은 한 번(수지 261125 r2 진단: a = [스티커 텍스트 @ finish, @ _layout-section input] · b = 하나) ⇒ 재기 «전»에 편집을 끝낸다(글 칸 blur = finish 의 길) */
+    const ce = '#canvas .sticker-block [contenteditable]';
+    await expect.poll(() => page.evaluate((ce) => !!document.querySelector(ce), ce), '[전제] 새 글 스티커가 글 편집을 열었다').toBe(true);
+    await page.evaluate((ce) => document.querySelector(ce).blur(), ce);
+    await expect.poll(() => page.evaluate((ce) => !!document.querySelector(ce), ce), '[전제] 글 편집이 끝났다(finish)').toBe(false);
+  }
   return errs;
 }
 const setNum = (page, id, v) => page.evaluate(([id, v]) => {
@@ -63,7 +71,7 @@ for (const [name, add, cls, ids, one] of CASES) {
   });
 
   if (one) test(`LC2 ${name} — ${one.id} 값 → 저장 · 넘침 = 잘림(${one.cut}) · 이력 1`, async ({ page }) => {
-    const errs = await scene(page, add, ids[0]);
+    const errs = await scene(page, add, ids[0], { endTextEdit: name === 'sticker(글)' });
     const a = await setNum(page, one.id, one.v);
     const b = await setNum(page, one.id, one.over);
     const got = { a: a.ph, b: [b.ph, b.shown] };
