@@ -117,9 +117,8 @@ test('S2 ★행동 — 숫자칸에 «모델 최대»를 넣고 슬라이더를 
       const h = page.locator(`#${p.num}-scrub`); await h.scrollIntoViewIfNeeded(); const b = await h.boundingBox();
       await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down();
       await page.mouse.move(b.x + b.width / 2 + 10, b.y + b.height / 2, { steps: 3 }); await page.mouse.up();
-      await page.waitForTimeout(120);
-      const a2 = await page.evaluate(({ id, k }) => document.getElementById(id).dataset[k], { id, k: p.key });
-      expect(`${p.label}: 끌기 뒤 모델=${a2}`).toBe(`${p.label}: 끌기 뒤 모델=${max}`);
+      /* 고정 대기 0(dom-fixed-wait-census W3 · 탑 통합 261125) — 끌기 뒤 모델 값을 «기다려» 잰다 */
+      await expect.poll(() => page.evaluate(({ id, k }) => `${document.getElementById(id).dataset[k]}`, { id, k: p.key }), `${p.label}: 끌기 뒤 모델`).toBe(String(max));
       continue;
     }
     /* ⑵ 이제 «슬라이더를 건드린다». ★제 자리에서 input 을 한 번 — 사람이 집었다 놓은 꼴.

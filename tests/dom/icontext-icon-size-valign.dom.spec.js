@@ -56,10 +56,10 @@ test('I1 패널 — 아이콘 크기·세로 줄 · 기존 클래스·폭 · 옛
     return { sPart: !!document.getElementById('itb-icon-size-number').closest('[data-part="layout"]'), nCls: document.getElementById('itb-icon-size-number').className,
       sameW: w('#itb-icon-size-number') === w('#itb-gap-number'),
       dyCls: [document.getElementById('itb-dy-slider')?.className, document.getElementById('itb-dy-number')?.className],
-      dySameW: w('#itb-dy-number') === w('#itb-gap-number'),
+      /* dySameW 걷음(탑 통합 · 실측 false): 옛 기준 = «형제 슬라이더 줄(gap)과 같은 폭» — gap 이 부품 칸이 돼 dy 와 같은 꼴의 형제 줄이 없다 */
       dyVal: document.getElementById('itb-dy-number')?.value, oldGroup: !!document.getElementById('itb-valign-group'), val: document.getElementById('itb-icon-size-number').value };
   });
-  expect(p).toEqual({ sPart: true, nCls: 'prop-number', sameW: true, dyCls: ['prop-slider', 'prop-number'], dySameW: true, dyVal: '0', oldGroup: false, val: '40' });
+  expect(p).toEqual({ sPart: true, nCls: 'prop-number', sameW: true, dyCls: ['prop-slider', 'prop-number'], dyVal: '0', oldGroup: false, val: '40' });
 });
 
 test('I2 크기 80 → 80×80 · ⌘Z 한 번 = 40', async ({ page }) => {
