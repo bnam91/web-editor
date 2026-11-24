@@ -1,7 +1,7 @@
 /* icb-children.dom.spec.js — G14 「원형이 그릇이 된다」 (현빈 2026-10-03 안 ㉢ 확정 · 지디 GO 2026-10-04)
  *   서클 에셋블럭(.icon-circle-block)의 안쪽 원(.icb-circle)에 자식 그릇 .icb-children — 자식이 ≥1 일 때만.
  *   넣는 길: 우측 패널 「＋ 블럭 넣기 ▾」(#icb-kid-add-kind) → window.addCircleChild(circle, 'body'|'h2'|'icon').
- *   패널 배경 = 채움 켬/끔(#icb-fill-toggle · 끔 = 기존 값 'transparent') + 기존 색칸(hex·%) — 투명도는 «배경만»(㉠, 지디 확정).
+ *   패널 배경 = 표준 Fill(머리 ＋ / 줄 − · 옛 채움 토글 #icb-fill-toggle 자리 · 끔 = 기존 값 'transparent') + 기존 색칸(hex·%) — 투명도는 «배경만»(㉠, 지디 확정).
  *   B1 = 오버레이 토글(#icb-float-toggle · prop-iconify 와 같은 공용 overlay-float).
  * ★양성대조 판 = 5015a2ab(G14 직전 origin/dev). GD1001_ROOT=<그 판 사본> 으로 같은 파일을 돌린다.
  *   «새 동작» 시험은 그 판에서 빨강, «지키는» 시험(K0·K0b·K15b)은 초록이어야 한다 — 명부는 C1 커밋 메시지.
@@ -375,13 +375,13 @@ test('K10 간격 정리 시퀀스 — 자식이 들어가도 서클 줄의 자�
 test('K11 ★빈 원 패널 = 「채움 끔」(E48 — 지금은 E8E8E8 100% 로 거짓) · 켜면 색이 칠해지고 끄면 transparent + 체커', async ({ page }) => {
   const { errs, id } = await setup(page);
   expect(await selectCircle(page, id)).toBe(true);
-  const t0 = await page.evaluate(() => { const t = document.getElementById('icb-fill-toggle'); return t ? { checked: t.checked } : null; });
-  expect(t0, '패널에 채움 토글(#icb-fill-toggle)').not.toBeNull();
+  const t0 = await page.evaluate(() => { const f = document.querySelector('#panel-right .prop-section[data-sec="fill"] [data-part="fill"]'); return f ? { checked: !document.getElementById('icb-fill-add') } : null; });   // ★전제(표준 Fill F2-3 · 지디 261124): 옛 «채움» 토글 → 머리 ＋ / 줄 − · 켬 = ＋ 없음
+  expect(t0, '패널에 표준 Fill 절(옛 채움 토글 자리)').not.toBeNull();
   expect(t0.checked, '빈 원 = 채움 끔').toBe(false);
-  const tg = await page.evaluate(() => { const l = document.getElementById('icb-fill-toggle').closest('label'); l.scrollIntoView({ block: 'center' }); const r = l.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+  const tg = await page.evaluate(() => { const l = document.getElementById('icb-fill-add'); l.scrollIntoView({ block: 'center' }); const r = l.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });   // ★전제: 켜기 = 머리 ＋
   await page.mouse.click(tg[0], tg[1]);
   await waitCirclePaint(page, id, 'rgb(232, 232, 232)');   // 켜면 색이 칠해진다(상태 조건 — 고정 대기 아님)
-  await page.mouse.click(tg[0], tg[1]);
+  await page.click('#icb-fill-remove');   // ★전제: 끄기 = 줄 −(옛 같은 토글 두 번째 누름)
   await waitCirclePaint(page, id, 'rgba(0, 0, 0, 0)', { checker: true });
   const off = await page.evaluate((id) => document.getElementById(id).dataset.bgColor, id);
   expect(off, '끔 = 기존 값 transparent').toBe('transparent');
@@ -396,14 +396,14 @@ test('K11 ★빈 원 패널 = 「채움 끔」(E48 — 지금은 E8E8E8 100% 로
 test('K11b 색을 고른 원은 «채움 켬»으로 보이고, 끈 뒤 다시 켜면 그 색으로 돌아온다(데이터 키 추가 없음)', async ({ page }) => {
   const { errs, id } = await setup(page);
   expect(await selectCircle(page, id)).toBe(true);
-  await focusAndType(page, '#icb-bg-hex', '3366FF');
+  await page.click('#icb-fill-add'); await focusAndType(page, '#icb-bg-hex', '3366FF');   // ★전제: 빈 원 = 칠 없음 → ＋ 로 켠 뒤 색(옛 = 흐린 색 칸에 바로)
   await waitCirclePaint(page, id, 'rgb(51, 102, 255)');
   await page.evaluate(() => window.deselectAll());
   expect(await selectCircle(page, id)).toBe(true);
-  expect(await page.evaluate(() => document.getElementById('icb-fill-toggle')?.checked), '색 있는 원 = 켬').toBe(true);
-  const tg = await page.evaluate(() => { const l = document.getElementById('icb-fill-toggle').closest('label'); const r = l.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
-  await page.mouse.click(tg[0], tg[1]); await page.waitForTimeout(200);
-  await page.mouse.click(tg[0], tg[1]); await page.waitForTimeout(200);
+  expect(await page.evaluate(() => !document.getElementById('icb-fill-add') && !!document.getElementById('icb-fill-remove')), '색 있는 원 = 켬').toBe(true);   // ★전제: 켬 = ＋ 없음 · − 있음
+  /* ★전제(표준 Fill F2-3): 옛 토글 좌표 두 번 누름 → 끄기 − · 켜기 ＋ 를 id 로(아래 두 줄) */
+  await page.click('#icb-fill-remove'); await page.waitForTimeout(200);
+  await page.click('#icb-fill-add'); await page.waitForTimeout(200);
   const ds = await page.evaluate((id) => ({ ...document.getElementById(id).dataset }), id);
   expect(ds.bgColor).toBe('#3366ff');
   expect(Object.keys(ds).sort(), '새 dataset 키 없음').toEqual(['bgColor', 'border', 'size', 'type'].sort());
@@ -490,7 +490,7 @@ test('K15 ★자식이 있어도 패널 손잡이가 먹는다 — 지름(그릇
   expect(rot).toEqual({ blockRot: 30, kidInside: true });
   await typeInto('#icb-rot-number', '0');
   const colBefore = await page.evaluate((id) => getComputedStyle(document.querySelector(`#${id} .icb-children .text-block [class^="tb-"]`) || document.querySelector(`#${id} .icb-children .text-block`)).color, id);
-  await typeInto('#icb-bg-hex', 'FF0000', 'Enter');
+  await page.click('#icb-fill-add'); await typeInto('#icb-bg-hex', 'FF0000', 'Enter');   // ★전제(표준 Fill F2-3): 빈 원 = 칠 없음 → ＋ 로 켠 뒤 색
   await typeInto('#icb-bg-alpha', '50', 'Enter');
   await page.evaluate(() => window.deselectAll()); await park(page);
   s = await kidState(page, id);
@@ -507,7 +507,7 @@ test('K15 ★자식이 있어도 패널 손잡이가 먹는다 — 지름(그릇
 test('K15b 지키기 — 자식 없는 원: 배경 hex 가 칠해진다(측정표 13가지 중 대표 · A1 수정 유지)', async ({ page }) => {
   const { errs, id } = await setup(page);
   expect(await selectCircle(page, id)).toBe(true);
-  await focusAndType(page, '#icb-bg-hex', '00AA00');
+  await page.click('#icb-fill-add'); await focusAndType(page, '#icb-bg-hex', '00AA00');   // ★전제(표준 Fill F2-3): 빈 원 = 칠 없음 → ＋ 로 켠 뒤 색
   await page.evaluate(() => window.deselectAll()); await park(page);
   const s = await kidState(page, id);
   await waitCirclePaint(page, id, 'rgb(0, 170, 0)');   // ★상태 조건 대기(옛 판: Enter 뒤 고정 250ms — integ8 c8beb642 1회 빨강)

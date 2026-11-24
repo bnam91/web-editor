@@ -290,8 +290,8 @@ test.describe('S6 t4 ⒜ radial 기본 색 · 가운데', () => {
     }, id);
     console.log('A7 잰 값', JSON.stringify(m));
     expect(m.bgDs || '', '전제: 「블럭 배경」 = 빈 값(투명 기본)').toBe('');
-    expect(m.block.hex, '전제: 「블럭 배경」 칸이 있다').not.toBeNull();
-    expect(m.center, '가운데 「배경」 칸 = 빈 값일 때의 「블럭 배경」 칸(hex · 알파 · 스와치)').toEqual(m.block);
+    expect(m.block.hex, '★기대 바뀜(표준 Fill F2-3 · 지디 261124): 빈 「블럭 배경」 = «칠 없음» → 색 칸 없음(＋ 로 켬)').toBeNull();
+    expect(m.center, '가운데 「배경」 칸 = 옛 빈 「블럭 배경」 칸이 보이던 값(hex · 알파 · 스와치)').toEqual({ hex: 'FFFFFF', alpha: '100', swatch: 'rgb(255, 255, 255)' });   // ★전제: 견줌 상대(빈 블럭 배경 칸)가 «칠 없음»으로 사라짐 → 그 칸의 옛 값을 글로
     expect(['', 'transparent'], `가운데 배경 dataset = 투명 기본 — 실제 «${m.centerDs}»`).toContain(m.centerDs);
     expect(m.center.hex, '「배경」 hex = FFFFFF (검은 000000 아님)').toBe('FFFFFF');
     expect(m.center.swatch, '스와치 = 흰색(검은 rgb(0, 0, 0) 아님)').toBe('rgb(255, 255, 255)');
@@ -310,7 +310,7 @@ test.describe('S6 t4 ⒜ radial 기본 색 · 가운데', () => {
         dsBg: b.dataset.bg ?? null, dsCenterBg: b.dataset.centerBg ?? null };
     }, [id, p]);
     const out = {};
-    for (const p of ['rdl-center-bg', 'rdl-bg']) {
+    for (const p of ['rdl-center-bg']) {   // ★전제(표준 Fill F2-3): 빈 「블럭 배경」 = «칠 없음»(알파 칸 없음) → 가운데 「배경」만 들어갔다 나옴
       await expect(page.locator(`#${p}-alpha`), `전제: ${p} 알파 칸`).toHaveCount(1);
       const before = await read(p);
       await page.locator(`#${p}-alpha`).click();
@@ -323,9 +323,9 @@ test.describe('S6 t4 ⒜ radial 기본 색 · 가운데', () => {
       expect([after.dsBg, after.dsCenterBg], `${p}: 안 치고 나오면 문서 값 불변`).toEqual([before.dsBg, before.dsCenterBg]);
     }
     console.log('A8 잰 값', JSON.stringify(out));
-    expect(out['rdl-center-bg'].after.alpha, 'blur 뒤 가운데 「배경」 알파 = 「블럭 배경」 알파').toBe(out['rdl-bg'].after.alpha);
+    expect(out['rdl-center-bg'].after.alpha, 'blur 뒤 가운데 「배경」 알파 = 옛 빈 「블럭 배경」 알파(100)').toBe('100');   // ★전제: 견줌 상대가 «칠 없음»으로 사라짐 → 옛 값 글로
     expect(out['rdl-center-bg'].after.alpha, 'blur 뒤 가운데 「배경」 알파 = 100 (0 으로 뒤집히면 결함)').toBe('100');
-    expect(out['rdl-bg'].after.alpha, 'blur 뒤 「블럭 배경」 알파 = 100').toBe('100');
+    expect(await page.locator('#rdl-bg-alpha').count(), '★기대 바뀜(표준 Fill F2-3): 빈 「블럭 배경」 = «칠 없음» → 알파 칸 없음').toBe(0);
     expect(errs, 'pageerror').toEqual([]);
   });
 });
