@@ -100,11 +100,11 @@ export function showVectorProperties(block) {
   // ── 크기 ──────────────────────────────────────────────────────────────────────
   /* 표준 Layout L2 — 부품 배선(input = 바로 그림 · change = 잘라 + 이력 한 칸 · 빈 칸 = 되돌림 · 라벨 끌기 · 비율 사슬) */
   const _vbSize = (key) => (v) => { block.dataset[key] = v; window.renderVector(block); };
-  wireLayoutSection({ commit: () => { window.scheduleAutoSave?.(); pushHistory(); },
+  wireLayoutSection({ commit: () => { window.scheduleAutoSave?.(); (window.pushHistory || pushHistory)(); },   // 문 = window 쪽(편집기 안에선 같은 함수 · 감싼 이력 세기도 본다)
     w: { numberId: 'vb-w', min: 10, max: 1200, apply: _vbSize('w'), read: () => parseInt(block.dataset.w) || w },
     h: { numberId: 'vb-h', min: 10, max: 2000, apply: _vbSize('h'), read: () => parseInt(block.dataset.h) || h },
     chain: { id: 'vb-ratio', on: ratioLockOn(block, false), set: (on) => setRatioLock(block, on, false) } });
-  wireAppearanceSection({ op: { numberId: 'vb-opacity', apply: (v) => window.setBlockOpacity?.(block, v), commit: () => { pushHistory(); window.scheduleAutoSave?.(); } } });   // A4 — 계약(갈래 E) 없으면 그리기 0
+  wireAppearanceSection({ op: { numberId: 'vb-opacity', apply: (v) => window.setBlockOpacity?.(block, v), commit: () => { (window.pushHistory || pushHistory)(); window.scheduleAutoSave?.(); } } });   // A4 — 계약(갈래 E) 없으면 그리기 0
 
   // ── 색상 ──────────────────────────────────────────────────────────────────────
   wireColorField('vb', {
