@@ -6,6 +6,8 @@ import { renderPanel, sec } from './_panel-frame.js';
 import { wireHexText, parseHex6OrTransparent, formatHex6OrTransparent } from './color-picker.js';
 import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast } from './_fill-section.js';   /* 색 코드 칸 배선은 «한 자리»(유닛 colorhex) */
 
+import { layoutSizeRowHTML, layoutPadSlotHTML, layoutGapSlotHTML, layoutSlotNumberHTML, wireLayoutSection, ratioLockOn, setRatioLock } from './_layout-section.js';   // 표준 Layout(C2)
+
 export function showCanvasProperties(block) {
   if (block.dataset.cardMode === 'simple') {
     window.showSimpleCardProperties(block);
@@ -82,38 +84,20 @@ export function showCanvasProperties(block) {
         <input type="number" class="prop-number" id="cvb-rot-number" min="-180" max="180" value="${parseInt(block.dataset.rotation || '0')}">
       </div>
 `),
-      sec('size', `
-      <div class="prop-row">
-        <span class="prop-label">W</span>
-        <input type="number" class="prop-number" id="cvb-w" value="${w}" min="100" max="1200">
-        <span class="prop-label" style="margin-left:8px">H</span>
-        <input type="number" class="prop-number" id="cvb-h" value="${h}" min="${CVB_H_MIN}" max="${CVB_H_MAX}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">사진 영역</span>
-        <input type="range" class="prop-slider" id="cvb-img-ratio-slider" min="0" max="100" step="1" value="${imgRatio}">
-        <input type="number" class="prop-number" id="cvb-img-ratio-number" min="0" max="100" value="${imgRatio}">
-      </div>
-`),
+      /* ★표준 Layout(C2) — W/H = 부품 한 줄(+비율 사슬 기본 끔) · 옛 슬라이더 cvb-img-ratio/gap/padx 걷음 → 블럭 슬롯·간격·패딩(좌우만) · 숫자 칸 id·범위·저장 키 무변 */
+      sec('size', `${layoutSizeRowHTML({ prefix: 'cvb', chain: { on: ratioLockOn(block, false) },
+        w: { id: 'cvb-w', min: 100, max: 1200, value: w },
+        h: { id: 'cvb-h', min: CVB_H_MIN, max: CVB_H_MAX, value: h } })}
+      ${layoutSlotNumberHTML({ id: 'cvb-img-ratio-number', label: '사진 영역', value: imgRatio, min: 0, max: 100 })}`),
       sec('layout', `
-      <div class="prop-row">
-        <span class="prop-label">Gap</span>
-        <input type="range" class="prop-slider" id="cvb-gap-slider" min="0" max="48" step="2" value="${parseInt(block.dataset.cardGap ?? 12)}">
-        <input type="number" class="prop-number" id="cvb-gap-number" min="0" max="48" value="${parseInt(block.dataset.cardGap ?? 12)}">
-      </div>
+      ${layoutGapSlotHTML({ id: 'cvb-gap-number', value: parseInt(block.dataset.cardGap ?? 12), max: 48 })}
       <span class="prop-field-label">Insert Grid</span>
       <div class="grid-picker" id="cvb-grid-picker"></div>
       <div class="grid-picker-label" id="cvb-grid-picker-label">—</div>
 `),
-      sec('padding', `
-      <div class="prop-row">
-        <span class="prop-label">좌우패딩</span>
-        <input type="range" class="prop-slider" id="cvb-padx-slider" min="0" max="80" step="4" value="${parseInt(block.dataset.padX ?? 0)}">
-        <input type="number" class="prop-number" id="cvb-padx-number" min="0" max="80" value="${parseInt(block.dataset.padX ?? 0)}">
-      </div>
-`),
+      sec('padding', layoutPadSlotHTML({ xId: 'cvb-padx-number', x: parseInt(block.dataset.padX ?? 0), max: 80 })),
       sec('appearance', `
-      ${appearanceSectionHTML({ prefix: 'cvb', radius: { numberId: 'cvb-radius-number', value: radius, max: 60 } })}   <!-- ★표준 Appearance A2(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·dataset.radius·범위 무변 -->
+      ${appearanceSectionHTML({ prefix: 'cvb', op: { value: window.readBlockOpacity?.(block) ?? 100 }, radius: { numberId: 'cvb-radius-number', value: radius, max: 60 } })}   <!-- ★표준 Appearance A2(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·dataset.radius·범위 무변 -->
 `, { headTools: appearanceHeadToolsHTML({ prefix: 'cvb' }) }),
       sec('fill', fillSectionHTML({ prefix: 'cvb-fill', on: bg !== 'transparent', colorHtml: `<div class="prop-color-field">
         <div class="prop-color-swatch" style="background:${bg === 'transparent' ? '#fff' : bg}">
@@ -163,33 +147,16 @@ export function showCanvasProperties(block) {
   });
 
   // ── 크기 ──────────────────────────────────────────────────────────────────
-  const wInput = document.getElementById('cvb-w');
-  const hInput = document.getElementById('cvb-h');
-  wInput.addEventListener('change', () => {
-    block.dataset.canvasW = wInput.value;
-    window.renderCanvas(block);
-    window.pushHistory?.();
-  });
-  hInput.addEventListener('change', () => {
-    block.dataset.canvasH = hInput.value;
-    window.renderCanvas(block);
-    window.pushHistory?.();
-  });
+  /* ★표준 Layout(C2) — 칸 배선은 부품(input = 범위 안이면 바로 · change = 잘라 그린 «뒤» 이력 한 번 · 빈 칸 = 옛 값 · 라벨 끌기 · 사슬) · 저장 키 canvasW/H·범위(updateCanvasBlock 과 같은 자) 무변 */
+  const cvbCommit = () => window.pushHistory?.();
+  const cvbSet = (key) => (v) => { block.dataset[key] = v; window.renderCanvas(block); };
+  wireLayoutSection({ commit: cvbCommit,
+    w: { numberId: 'cvb-w', min: 100, max: 1200, apply: cvbSet('canvasW'), read: () => parseInt(block.dataset.canvasW) || 360 },
+    h: { numberId: 'cvb-h', min: CVB_H_MIN, max: CVB_H_MAX, apply: cvbSet('canvasH'), read: () => parseInt(block.dataset.canvasH) || 400 },
+    chain: { id: 'cvb-ratio', on: ratioLockOn(block, false), set: (on) => setRatioLock(block, on, false) } });
 
   // ── 사진 영역 비율 (cardMode=simple 카드의 img:text 비율) ──
-  const irSlider = document.getElementById('cvb-img-ratio-slider');
-  const irNumber = document.getElementById('cvb-img-ratio-number');
-  if (irSlider) {
-    const applyImgRatio = v => {
-      v = Math.min(100, Math.max(0, v));
-      block.dataset.imgRatio = v;
-      window.renderCanvas(block);
-      irSlider.value = v; irNumber.value = v;
-    };
-    irSlider.addEventListener('input',  () => applyImgRatio(parseInt(irSlider.value)));
-    irNumber.addEventListener('change', () => { applyImgRatio(parseInt(irNumber.value)); window.pushHistory?.(); });
-    irSlider.addEventListener('change', () => window.pushHistory?.());
-  }
+  wireLayoutSection({ commit: cvbCommit, w: { numberId: 'cvb-img-ratio-number', min: 0, max: 100, apply: cvbSet('imgRatio') } });
 
   // ── 회전 — 공유 헬퍼(applyRotationDeg, dataset.rotation)로 핫존과 동기 ──
   const cRotS = document.getElementById('cvb-rot-slider');
@@ -238,33 +205,13 @@ export function showCanvasProperties(block) {
   });
 
   // ── 반경 ──────────────────────────────────────────────────────────────────
-  wireAppearanceSection({ radius: { numberId: 'cvb-radius-number', max: 60, apply: (v) => { block.dataset.radius = v; window.renderCanvas(block); } } });   // 표준 Appearance A2(슬라이더 걷음)
+  wireAppearanceSection({ op: { numberId: 'cvb-opacity', apply: (v) => window.setBlockOpacity?.(block, v) }, radius: { numberId: 'cvb-radius-number', max: 60, apply: (v) => { block.dataset.radius = v; window.renderCanvas(block); } } });   // 표준 Appearance A2(슬라이더 걷음)
 
   // ── 카드 간격 ─────────────────────────────────────────────────────────────
-  const gapSlider = document.getElementById('cvb-gap-slider');
-  const gapNumber = document.getElementById('cvb-gap-number');
-  const applyGap = v => {
-    v = Math.min(48, Math.max(0, v));
-    block.dataset.cardGap = v;
-    window.renderCanvas(block);
-    gapSlider.value = v; gapNumber.value = v;
-  };
-  gapSlider.addEventListener('input',  () => applyGap(parseInt(gapSlider.value)));
-  gapNumber.addEventListener('change', () => { applyGap(parseInt(gapNumber.value)); window.pushHistory?.(); });
-  gapSlider.addEventListener('change', () => window.pushHistory?.());
+  wireLayoutSection({ commit: cvbCommit, w: { numberId: 'cvb-gap-number', max: 48, apply: cvbSet('cardGap') } });
 
   // ── 좌우 패딩 ─────────────────────────────────────────────────────────────
-  const padxSlider = document.getElementById('cvb-padx-slider');
-  const padxNumber = document.getElementById('cvb-padx-number');
-  const applyPadX = v => {
-    v = Math.min(80, Math.max(0, v));
-    block.dataset.padX = v;
-    window.renderCanvas(block);
-    padxSlider.value = v; padxNumber.value = v;
-  };
-  padxSlider.addEventListener('input',  () => applyPadX(parseInt(padxSlider.value)));
-  padxNumber.addEventListener('change', () => { applyPadX(parseInt(padxNumber.value)); window.pushHistory?.(); });
-  padxSlider.addEventListener('change', () => window.pushHistory?.());
+  wireLayoutSection({ commit: cvbCommit, w: { numberId: 'cvb-padx-number', max: 80, apply: cvbSet('padX') } });
 
   // ── 이미지 업로드 / 제거 ──────────────────────────────────────────────────
   document.getElementById('cvb-layer-list')?.addEventListener('click', e => {
