@@ -129,20 +129,20 @@ test('S5b icon-circle — ★옛 저장본(키 없음·solid) 그대로 = 3px·�
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-test('S5c zoom — 머리 ＋/− 없음 · 켬/끔 = 옛 라디오(bd) · 끄면 표준 몸 흐림 · 굵기 칸 = bdw · 위치 = 바깥 막힘', async ({ page }) => {
+test('S5c zoom — 머리 ＋/− 없음 · 켬/끔 = 체크(bd · 옛 라디오 → dev 체크 이관 · 기대 바뀜 train/0913-d) · 끄면 표준 몸 흐림 · 굵기 칸 = bdw · 위치 = 바깥 막힘', async ({ page }) => {
   await page.setViewportSize({ width: 1500, height: 1100 });
   const errs = await bootApp(page);
   const id = await openNew(page, 'window.addZoomBlock()', '.zoom-block', 'showZoomProperties');
   await page.waitForSelector('#zm-bdw-num', { state: 'attached' });
-  const r = await page.evaluate(() => ({ head: !!document.getElementById('zm-bd-on'), radios: document.querySelectorAll('input[name="zm-bd"]').length, align: [document.getElementById('zm-bd-align').value, document.getElementById('zm-bd-align').getAttribute('aria-disabled')] }));
-  await page.check('input[name="zm-bd"][value="on"]');
+  const r = await page.evaluate(() => ({ head: !!document.querySelector('button#zm-bd-on'), radios: document.querySelectorAll('input#zm-bd-on.ui-check-box').length, align: [document.getElementById('zm-bd-align').value, document.getElementById('zm-bd-align').getAttribute('aria-disabled')] }));
+  await page.check('#zm-bd-on');
   await page.waitForFunction(() => document.getElementById('zm-bd-fields')?.style.opacity === '');
   await fillChange(page, '#zm-bdw-num', '9');
   const bdw = await page.evaluate((id) => document.getElementById(id).dataset.bdw, id);
-  await page.check('input[name="zm-bd"][value="off"]');
+  await page.uncheck('#zm-bd-on');
   const off = await page.evaluate((id) => [document.getElementById(id).dataset.bd, document.getElementById(id).dataset.bdw, document.getElementById('zm-bd-fields').style.opacity], id);
   console.log('[S5c 실측]', JSON.stringify({ r, bdw, off }));
-  expect(r, '★머리 없음 · 라디오 둘 · 위치 바깥 막힘').toEqual({ head: false, radios: 2, align: ['outside', 'true'] });
+  expect(r, '★머리 없음 · 켬/끔 체크 하나(옛 라디오 둘 → dev 체크) · 위치 바깥 막힘').toEqual({ head: false, radios: 1, align: ['outside', 'true'] });
   expect(bdw).toBe('9');
   expect(off, '★없음 = bd off · 굵기 값 보존 · 몸 흐림').toEqual(['off', '9', '0.4']);
   expect(errs, errs.join(' | ')).toEqual([]);

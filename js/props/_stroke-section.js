@@ -150,14 +150,14 @@ export function wireStrokePopover({ prefix, adapter = null }) {
 }
 
 /** 배선 — 색(color-picker 한 벌) · 굵기(입력 = 쓰기 · change = 이력 한 칸 · push-after) · 위치(막힘이면 안 열림·안 바뀜). */
-export function wireStrokeSection({ prefix, adapter, alpha, maxWidth = 80, widthId = '', colorId = '', onWidth = 2, step = 1, minWidth = 0, noColor = false }) {
+export function wireStrokeSection({ prefix, adapter, alpha, maxWidth = 80, widthId = '', colorId = '', onWidth = 2, step = 1, minWidth = 0, noColor = false, headToggle = true }) {
   wireStrokePopover({ prefix, adapter });
   wireSides({ prefix, adapter, widthId });
   const num = (v) => { const x = Math.round((parseFloat(v) || 0) / step) * step; return Math.min(maxWidth, Math.max(minWidth, +x.toFixed(3))); };   // 0.5 걸음도 같은 길(parseInt 면 2.5 → 2)
   if (!noColor) wireColorField(colorId || `${prefix}-color`, { initialAlpha: alpha, onApply: (c) => adapter.color(c), onCommit: () => adapter.commit() });
   const w = document.getElementById(widthId || `${prefix}-width`);
   /* 머리 ＋/− — 켜면 «지난 굵기 · 없으면 onWidth»(에셋 옛 기본 2 그대로) · 끄면 adapter.none(없으면 굵기 0) · 몸 숨김 · 이력 한 칸 */
-  const on = document.getElementById(`${prefix}-on`), ui = w?.closest('.ui-stroke');
+  const on = headToggle ? document.getElementById(`${prefix}-on`) : null, ui = w?.closest('.ui-stroke');   // headToggle false = 머리 ＋/− 없는 블럭(zoom) — 같은 id 의 블럭 켬/끔 체크를 가로채지 않게(train/0913-d 머지 실측 · zm-bd-on)
   on?.addEventListener('change', () => {
     if (on.checked) { const cur = parseFloat(w?.value) || 0, v = cur > 0 ? cur : onWidth; if (w) w.value = String(v); adapter.width(v); }   // 끌 때 칸 값은 그대로 둔다 → 다시 켜면 지난 굵기
     else if (adapter.none) adapter.none(); else adapter.width(0);

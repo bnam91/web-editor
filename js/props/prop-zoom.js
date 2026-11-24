@@ -415,7 +415,7 @@ ${narrowRow}
 
   /* 표준 Stroke 부품 배선 — 어댑터 = 옛 bindPair('zm-bdw')·wireColorField('zm-bdc') 의 쓰기·이력 이름 그대로(push-after) · 머리 없음(켬/끔 = 라디오) */
   let _bdLast = '두께';
-  wireStrokeSection({ prefix: 'zm-bd', alpha: bdcAlpha, maxWidth: 80, widthId: 'zm-bdw-num', colorId: 'zm-bdc',
+  wireStrokeSection({ prefix: 'zm-bd', alpha: bdcAlpha, maxWidth: 80, widthId: 'zm-bdw-num', colorId: 'zm-bdc', headToggle: false,   // 켬/끔 = 블럭 체크 zm-bd-on(bindCheck) 정본 · 부품 머리 없음
     adapter: { color: (c) => { _bdLast = '색'; block.dataset.bdc = c; rerender(); }, width: (v) => { _bdLast = '두께'; block.dataset.bdw = String(v); rerender(); },
       commit: () => { window.pushHistory?.(`확대블럭 테두리 ${_bdLast}`); window.triggerAutoSave?.(); } } });
 
