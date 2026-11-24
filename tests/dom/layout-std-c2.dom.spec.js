@@ -41,9 +41,11 @@ async function scene(page, add, firstId) {
   return errs;
 }
 const setNum = (page, id, v) => page.evaluate(([id, v]) => {
-  let ph = 0; const o = window.pushHistory; window.pushHistory = (...a) => { ph++; return o?.(...a); };
+  /* 진단(수지 261125 r2 · LC2 sticker(글) 이력 2): 이력을 찍은 자리(라벨 + 부른 줄)를 같이 돌려 실패 글에 싣는다 — 단언은 수(ph)만 */
+  let ph = 0; const who = []; const o = window.pushHistory;
+  window.pushHistory = (...a) => { ph++; who.push(`${a[0] ?? ''} @ ${(new Error().stack || '').split('\n').slice(2, 4).map((x) => x.trim().replace(/^at /, '')).join(' < ')}`); return o?.(...a); };
   const n = document.getElementById(id); n.value = String(v); n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true }));
-  window.pushHistory = o; return { ph, shown: document.getElementById(id)?.value };
+  window.pushHistory = o; return { ph, who, shown: document.getElementById(id)?.value };
 }, [id, v]);
 const ds = (page, cls, key) => page.evaluate(([cls, key]) => [...document.querySelectorAll(`#canvas .${cls}`)].pop()?.dataset[key] ?? null, [cls, key]);
 
@@ -67,7 +69,7 @@ for (const [name, add, cls, ids, one] of CASES) {
     const got = { a: a.ph, b: [b.ph, b.shown] };
     const want = { a: 1, b: [1, String(one.cut)] };
     if (one.key) { got.key = await ds(page, cls, one.key); want.key = one.keyV ? one.keyV[1] : String(one.cut); }
-    expect(got).toEqual(want);
+    expect(got, `이력 찍은 자리 a=${JSON.stringify(a.who)} b=${JSON.stringify(b.who)}`).toEqual(want);
     expect(errs, errs.join('\n')).toEqual([]);
   });
 }
