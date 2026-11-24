@@ -156,7 +156,9 @@ export function wireLayoutSection({ w, h, chain = null, commit } = {}) {
     a.n.addEventListener('change', () => {
       begin();
       const raw = num(a, a.n.value), s = start; start = null;
-      if (!Number.isFinite(raw)) {   // 값 없음 = 아무 일도 없었다(되돌림 · 이력 0) · ⛔NaN 은 절대 apply 안 함
+      /* 값 없음 · 또는 편집 «전» 값과 같음(= 블럭이 이미 그 값 — 손잡이 끌기 뒤 늦은 change 등) = 아무 일도 없었다(되돌림 · apply·이력 0) · ⛔NaN 은 절대 apply 안 함
+         ⛔«지금 read()» 와 비교하지 않는다 — 치는 중 input 이 이미 그려서 read() 는 늘 같다(치고 Enter 가 이력을 잃는다) · 전 값 = begin() 이 잰 read() */
+      if (!Number.isFinite(raw) || lim(a, raw) === s[axes.indexOf(a)]) {
         axes.forEach((x, i) => {
           const ok = Number.isFinite(s[i]);
           if (ok && (x.read ? x.read() !== s[i] : x.dirty)) x.apply(s[i]);

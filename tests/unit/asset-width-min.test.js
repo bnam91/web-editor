@@ -112,7 +112,7 @@ test('S-3 숫자칸 커밋 — 하한은 상수 · «0»과 «빈 칸»을 갈�
   const lay = stripComments(readSrc(ROOT, 'js', 'props', '_layout-section.js'));
   const wire = sliceBlock(lay, 'function wireLayoutSection(');
   assert.ok(wire.includes('Number.isFinite('), '★숫자와 «값 없음»을 가르는 판정(Number.isFinite)이 없다');
-  const bail = wire.slice(wire.indexOf('if (!Number.isFinite(raw))'), wire.indexOf('return;', wire.indexOf('if (!Number.isFinite(raw))')));
+  const bail = wire.slice(wire.indexOf('if (!Number.isFinite(raw)'), wire.indexOf('return;', wire.indexOf('if (!Number.isFinite(raw)')));   // ★기대 바뀜(P-2 묵은 값 가드 — 같은 갈래에 «전 값과 같음» 조건이 붙어 닻 끝 «)» 를 뗌)
   assert.ok(bail.length > 0, '★빈 칸에서 «커밋하지 않고 빠져나가는» 길이 없다 — 지우다 만 칸이 폭을 바꾸면 안 된다');
   assert.ok(!/done\(|pushHistory/.test(bail), '★빈 칸 경로에서 이력을 쌓는다 — 아무 일도 없었는데 ⌘Z 한 칸을 먹는다');
   assert.ok(/Math\.max\(a\.min,/.test(wire), '★change 가 하한으로 자르지 않는다(0 = 「가장 작게」)');
