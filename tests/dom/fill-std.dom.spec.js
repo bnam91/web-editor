@@ -908,29 +908,47 @@ test('D36 쿠폰·스티커 글 꼴 — Figma JSON 크기·색·굵기·자리 =
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-/* 81행 ②(지디 261125 «고친다») — D37 캔버스 레이어 모드 배경 → Figma JSON(card-grid 항목에 layersBg · 그라데이션 · 숨김 키)
- *   예전: 레이어 모드도 card-grid(cards·textBg 만) → 배경 0 = Figma 칠 없음 · 곁 실측 로그 [D37 레이어 내용] = 레이어(글·도형)가 JSON 에 실리나
- *   ★layersBg = bg · 숨기면 layersBgHidden · 색 그대로 · [지킴] 심플 카드 모드 = layersBg 키 0(옛 바이트)
- * 양성대조: 고치기 전 판 0ccaa12a0 에서 D37 빨강 */
-test('D37 캔버스 레이어 모드 배경 — Figma JSON layersBg · 숨김 키 · [지킴] 심플 카드 키 0', async ({ page }) => {
+/* 86행(+81행 ②) — D37·D38 캔버스 레이어 모드 → Figma JSON «canvas-layers»(예전: card-grid · cards 0 · 배경·내용 0)
+ *   D37 ★배경 = grid.bg · 숨기면 grid.bgHidden · 색 그대로 · [지킴] 심플 모드 = card-grid 그대로(키 목록 = 옛 그대로 · canvas-layers 0)
+ *   D38 ★layers = dataset.layers 와 같은 꼴(알려진 칸) · grid(칸 수·틈·칸 크기) · scale = 살아 있는 .cvb-inner 배율 · ★그림 레이어 goya-asset:// → Inlined 후처리로 data URI(빈 그림 0 · IPC 만 가짜)
+ * 양성대조: 고치기 전 판 c384ce4aa 에서 D37·D38 빨강 */
+const CV_LAYERS = [{ type: 'shape', x: 20, y: 20, w: 120, h: 80, color: '#ff0000', radius: 8 }, { type: 'text', x: 30, y: 150, w: 260, h: 40, content: '레이어 글', fontSize: 28, color: '#000000' }];
+const CARD_GRID_KEYS = ['type', 'id', 'cards', 'gridCols', 'gridRows', 'cardGap', 'canvasW', 'canvasH', 'radius', 'imgRatio', 'cardMode', 'textBg', 'labelPos', 'overlayHeight', 'overlayWidth', 'gradientBg', 'imgShape', 'titleSize', 'descSize', 'titleColor', 'descColor', 'iconColor', 'textAlign', 'padX', 'height'];
+async function addCanvases(page, list) {
+  return page.evaluate(async (list) => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    const sec = await window.addSection(); const out = [];
+    for (const opts of list) { window.deselectAll(); window.selectSection(sec); const before = new Set(sec.querySelectorAll('.canvas-block')); window.addCanvasBlock(opts); out.push([...sec.querySelectorAll('.canvas-block')].find((x) => !before.has(x)).id); }
+    return out; }, list);
+}
+const cvEntry = (page, id, inlined) => page.evaluate(async ([id, inlined]) => { const j = inlined ? await window.buildFigmaExportJSONInlined(null) : window.buildFigmaExportJSON(null); let hit = null;
+  (function walk(o) { if (!o || typeof o !== 'object' || hit) return; if (o.id === id && o.type) { hit = o; return; } Object.values(o).forEach(walk); })(j); return hit ? JSON.parse(JSON.stringify(hit)) : null; }, [id, inlined]);
+test('D37 캔버스 레이어 모드 배경 — canvas-layers grid.bg · 숨김 키 · [지킴] 심플 모드 card-grid 그대로', async ({ page }) => {
   await page.setViewportSize({ width: 1500, height: 1100 });
   const errs = await bootApp(page);
-  const ids = await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
-    const sec = await window.addSection(); const out = [];
-    for (const opts of [{ bg: '#12ab34', canvasW: 360, canvasH: 300, layers: [{ type: 'shape', x: 20, y: 20, w: 120, h: 80, color: '#ff0000', radius: 8 }, { type: 'text', x: 30, y: 150, w: 260, h: 40, content: '레이어 글', fontSize: 28, color: '#000000' }] }, {}]) {
-      window.deselectAll(); window.selectSection(sec); const before = new Set(sec.querySelectorAll('.canvas-block')); window.addCanvasBlock(opts);
-      out.push([...sec.querySelectorAll('.canvas-block')].find((x) => !before.has(x)).id); }
-    return out; });
-  const entry = (id) => page.evaluate((id) => { const j = window.buildFigmaExportJSON(null); let hit = null;
-    (function walk(o) { if (!o || typeof o !== 'object' || hit) return; if (o.id === id && o.type) { hit = o; return; } Object.values(o).forEach(walk); })(j); return hit ? JSON.parse(JSON.stringify(hit)) : null; }, id);
-  const L = await entry(ids[0]), S = await entry(ids[1]);
-  console.log('[D37 레이어 내용]', JSON.stringify({ type: L?.type, cardMode: L?.cardMode, cards: (L?.cards || []).length, hasLayers: 'layers' in (L || {}), keys: Object.keys(L || {}).filter((k) => /layer|svg|text/i.test(k)) }));
-  expect([L?.type, await page.evaluate((id) => document.getElementById(id).dataset.cardMode || '', ids[0])], '[전제] 레이어 모드(cardMode 없음) → card-grid').toEqual(['card-grid', '']);
-  expect(String(L.layersBg || '').toLowerCase(), '★레이어 모드 배경이 Figma JSON 으로').toBe('#12ab34');
-  expect('layersBgHidden' in L, '안 숨기면 키 0').toBe(false);
-  expect(['layersBg' in S, 'layersBgHidden' in S], '[지킴] 심플 카드 모드 = 키 0').toEqual([false, false]);
+  const ids = await addCanvases(page, [{ bg: '#12ab34', canvasW: 360, canvasH: 300, layers: CV_LAYERS }, {}]);
+  const L = await cvEntry(page, ids[0]), S = await cvEntry(page, ids[1]);
+  expect(L?.type, '★레이어 모드 = canvas-layers').toBe('canvas-layers');
+  expect([String(L.grid.bg).toLowerCase(), 'bgHidden' in L.grid], '★배경 = grid.bg · 안 숨기면 키 0').toEqual(['#12ab34', false]);
+  expect([S?.type, Object.keys(S || {})], '[지킴] 심플 모드 = card-grid 옛 키 목록 그대로').toEqual(['card-grid', CARD_GRID_KEYS]);
   await page.evaluate(async (id) => { const m = await import('/js/props/_fill-section.js'); const it = m.fillKindOf(document.getElementById(id)); m.fillSetHidden(it.block, it.k, true); }, ids[0]);
-  const L1 = await entry(ids[0]);
-  expect([L1.layersBgHidden, String(L1.layersBg).toLowerCase()], '★숨기면 layersBgHidden · 색 그대로').toEqual([true, '#12ab34']);
+  const L1 = await cvEntry(page, ids[0]);
+  expect([L1.grid.bgHidden, String(L1.grid.bg).toLowerCase()], '★숨기면 bgHidden · 색 그대로').toEqual([true, '#12ab34']);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+test('D38 캔버스 레이어 내용 — layers·grid·scale = 화면 · 그림 레이어 goya-asset → data URI', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  await page.evaluate((PNG) => { window.electronAPI = { ...(window.electronAPI || {}), assetsReadAsDataUri: async ({ projectId, filename }) => (projectId === 'proj_x' && filename === 'a1.png' ? { ok: true, dataUri: PNG } : { ok: false }) }; }, PNG);
+  const layers = [...CV_LAYERS, { type: 'image', x: 200, y: 20, w: 100, h: 100, src: 'goya-asset://proj_x/a1.png', radius: 4 }];
+  const [id] = await addCanvases(page, [{ bg: '#12ab34', canvasW: 360, canvasH: 300, gridCols: 2, gridRows: 2, cardGap: 12, layers }]);
+  const E = await cvEntry(page, id), live = await page.evaluate((id) => { const b = document.getElementById(id); const m = /scale\(([\d.]+)\)/.exec(b.querySelector('.cvb-inner').style.transform); return { scale: m ? parseFloat(m[1]) : null, w: b.offsetWidth, layers: JSON.parse(b.dataset.layers), cw: parseInt(b.dataset.canvasW) || 360, ch: parseInt(b.dataset.canvasH) || 400 }; }, id);
+  expect(E?.type).toBe('canvas-layers');
+  expect(E.layers, '★layers = dataset.layers(알려진 칸)').toEqual(live.layers.map((l) => Object.fromEntries(Object.entries(l).filter(([k, v]) => ['type', 'x', 'y', 'w', 'h', 'color', 'radius', 'src', 'content', 'fontSize', 'fontWeight', 'align'].includes(k) && v !== '' && v != null))));
+  expect([E.grid.cols, E.grid.rows, E.grid.gap, E.grid.cellW, E.grid.cellH], '★칸 그리드(칸 크기 = 앱이 그리는 dataset 값)').toEqual([2, 2, 12, live.cw, live.ch]);
+  expect([E.scale, E.width], '★scale·폭 = 살아 있는 블럭').toEqual([live.scale, live.w]);
+  const I = await cvEntry(page, id, true);
+  const img = I.layers.find((l) => l.type === 'image');
+  expect(String(img.src).startsWith('data:image/png;base64,'), `★그림 레이어가 data URI 로 안 바뀜(빈 그림): ${String(img.src).slice(0, 40)}`).toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

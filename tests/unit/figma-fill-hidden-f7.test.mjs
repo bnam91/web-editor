@@ -288,19 +288,39 @@ test('G2 non-scaling-stroke 고리 → 속성 빼고 굵기 viewBox 단위(60px 
   assert.equal(plain.replace(/^<svg[^>]*>/, ''), BURST.replace(/^<svg[^>]*>/, ''), '[지킴] vector-effect 없는 svg 몸이 바뀌었다');
 });
 
-/* ── 81행 ②(지디 261125 «고친다») — 캔버스 레이어 모드 배경(card-grid layersBg) → 겉 프레임 칠 · 숨김 = 그 칠만 눈 끔 · [지킴] layersBg 없으면 옛 투명
- * 양성대조: _patches/l81-CTL-renderer.patch(옛 렌더러) → L1 빨강 */
-const CG = { type: 'card-grid', id: 'cv', cards: [], gridCols: 1, cardGap: 10, canvasW: 360, canvasH: 300, radius: 16, imgRatio: 75, cardMode: 'simple', textBg: '#cccccc', labelPos: 'below', height: 300 };
-test('L1 레이어 모드 배경 → card-grid 겉 프레임 칠 · 둥글기 · 숨김 = 그 칠만', () => {
-  const on = render([{ ...CG, layersBg: '#12ab34', layersRadius: 12 }]).cmds;
-  const wr = on.find((c) => c.cmd === 'create_frame' && c.params.name === 'card-grid_cv');
-  assert.ok(on.some((c) => c.cmd === 'set_fill_color' && c.params.nodeId === wr.id && isG(c.params.color)), '겉 프레임에 배경 칠이 없다');
-  assert.ok(on.some((c) => c.cmd === 'set_corner_radius' && c.params.nodeId === wr.id && c.params.radius === 12), '둥글기 없음');
-  const hid = render([{ ...CG, layersBg: '#12ab34', layersBgHidden: true }]).cmds;
-  const wr2 = hid.find((c) => c.cmd === 'create_frame' && c.params.name === 'card-grid_cv');
-  assert.deepEqual(hid.filter((c) => c.cmd === 'set_node_properties' && c.params.fillsVisible === false).map((c) => c.params.nodeId), [wr2.id], '숨김이 겉 프레임 칠 하나가 아니다');
+/* ── 86행 FIGMA-CANVAS-LAYERS-CONTENT-NOT-EXPORTED-01(+81행 ② 칸마다 배경 · 59dcad090 의 겉 프레임 한 칠은 1×1 만 맞았다)
+ *   C1 2×2 칸 · scale 0.5 · 칸마다 자리·칠·둥글기 · 레이어(도형·글·그림) 칸마다 되풀이 · 글 크기 × scale
+ *   C2 숨김 = 칸 칠 4개만 눈 끔 · C3 [지킴] 심플 card-grid 겉 프레임 옛 투명 · 둥글기·숨김 명령 0
+ * 양성대조: _patches/c86-CTL-renderer.patch(옛 렌더러) → C1·C2 빨강 */
+const PNG1 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+const CL = { type: 'canvas-layers', id: 'cv', scale: 0.5, width: 372, height: 306,
+  grid: { cols: 2, rows: 2, gap: 12, cellW: 360, cellH: 300, radius: 12, padX: 0, bg: '#12ab34' },
+  layers: [{ type: 'shape', x: 20, y: 20, w: 120, h: 80, color: '#ff0000', radius: 8 }, { type: 'text', x: 30, y: 150, w: 260, h: 40, content: '레이어 글', fontSize: 28, color: '#000000', fontWeight: '700', align: 'center' }, { type: 'image', x: 200, y: 20, w: 100, h: 100, src: PNG1 }] };
+test('C1 레이어 모드 2×2 · scale 0.5 → 칸 4 · 칸마다 칠·둥글기 · 레이어 셋 칸마다 · 글 크기 × scale', () => {
+  const { cmds } = render([CL]);
+  const outer = cmds.find((c) => c.cmd === 'create_frame' && c.params.name === 'canvas_cv');
+  const cells = cmds.filter((c) => c.cmd === 'create_frame' && /^cell_\d_\d$/.test(c.params.name));
+  assert.equal(cells.length, 4, '칸이 4 가 아니다');
+  assert.deepEqual(cells.map((c) => [c.params.parentId === outer.id, c.params.x, c.params.y, c.params.width, c.params.height, c.params.clipsContent]),
+    [[true, 0, 0, 180, 150, true], [true, 186, 0, 180, 150, true], [true, 0, 156, 180, 150, true], [true, 186, 156, 180, 150, true]], '칸 자리·크기(× 0.5 · 틈 12)');
+  for (const cl of cells) {
+    assert.ok(cmds.some((c) => c.cmd === 'set_fill_color' && c.params.nodeId === cl.id && isG(c.params.color)), '칸 칠 = 초록 아님');
+    assert.ok(cmds.some((c) => c.cmd === 'set_corner_radius' && c.params.nodeId === cl.id && c.params.radius === 6), '칸 둥글기 12×0.5');
+  }
+  assert.equal(cmds.filter((c) => c.cmd === 'create_frame' && c.params.name === 'layer_0_shape').length, 4, '도형 레이어가 칸마다 아님');
+  const tx = cmds.filter((c) => c.cmd === 'create_text' && c.params.text === '레이어 글');
+  assert.deepEqual([tx.length, tx[0].params.fontSize, tx[0].params.fontWeight, tx[0].params.textAlignHorizontal], [4, 14, 700, 'CENTER']);
+  assert.equal(cmds.filter((c) => c.cmd === 'set_image_fill').length, 4, '그림 레이어 칠이 칸마다 아님');
+  assert.equal(cmds.some((c) => c.cmd === 'set_fill_color' && c.params.nodeId === outer.id && isG(c.params.color)), false, '겉 프레임에 칠(틈까지 칠함 = 59dcad090 꼴)');
 });
-test('L2 [지킴] layersBg 없으면 겉 프레임 옛 투명 · 둥글기·숨김 명령 0', () => {
+test('C2 숨김 = 칸 칠만 눈 끔(4) · 겉·레이어 손 0', () => {
+  const { cmds } = render([{ ...CL, grid: { ...CL.grid, bgHidden: true } }]);
+  const cells = new Set(cmds.filter((c) => c.cmd === 'create_frame' && /^cell_/.test(c.params.name)).map((c) => c.id));
+  const hid = cmds.filter((c) => c.cmd === 'set_node_properties' && c.params.fillsVisible === false).map((c) => c.params.nodeId);
+  assert.equal(hid.length, 4); assert.ok(hid.every((h) => cells.has(h)), '칸 밖 칠을 껐다');
+});
+const CG = { type: 'card-grid', id: 'cv', cards: [], gridCols: 1, cardGap: 10, canvasW: 360, canvasH: 300, radius: 16, imgRatio: 75, cardMode: 'simple', textBg: '#cccccc', labelPos: 'below', height: 300 };
+test('C3 [지킴] 심플 card-grid 겉 프레임 옛 투명 · 둥글기·숨김 명령 0', () => {
   const { cmds } = render([CG]);
   const wr = cmds.find((c) => c.cmd === 'create_frame' && c.params.name === 'card-grid_cv');
   assert.deepEqual(cmds.filter((c) => c.cmd === 'set_fill_color' && c.params.nodeId === wr.id).map((c) => c.params.color), [{ r: 1, g: 1, b: 1, a: 0 }]);

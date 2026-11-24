@@ -885,6 +885,47 @@ function renderBlock(block, parentId, x, y, availableWidth) {
   }
 
   // ── CARD-GRID ─────────────────────────────────────────────────────
+  /* 86행 FIGMA-CANVAS-LAYERS-CONTENT-NOT-EXPORTED-01(+81행 ② 칸마다 배경) — 캔버스 레이어 모드 = 칸 그리드 × 칸마다 되풀이되는 레이어(도형·글·그림)
+     앱과 같은 셈: 블럭 폭 안 .cvb-inner(왼쪽 grid.padX) 를 scale 로 줄여 칸 (cellW+gap)·(cellH+gap) 간격 · 칸 = 배경·둥글기·내용 자르기 · 숨김 = 칸 칠만 눈 끔 */
+  if (block.type === 'canvas-layers') {
+    const g = block.grid || {}, sc = block.scale > 0 ? block.scale : 1;
+    const cols = g.cols || 1, rows = g.rows || 1, gap = Number.isFinite(g.gap) ? g.gap : 12, cw = g.cellW || 360, ch = g.cellH || 400, ip = g.padX || 0;
+    const totalW = cols * cw + (cols - 1) * gap, totalH = rows * ch + (rows - 1) * gap;
+    const bw = block.width > 0 ? Math.min(block.width, availableWidth) : Math.round(totalW * sc + 2 * ip);
+    const bh = block.height > 0 ? block.height : Math.round(totalH * sc);
+    const outer = run('create_frame', { x: x + Math.max(0, Math.round((availableWidth - bw) / 2)), y, width: Math.max(1, bw), height: Math.max(1, bh), name: `canvas_${block.id}`, parentId });
+    if (!outer) return bh;
+    run('set_fill_color', { nodeId: outer.id, color: { r: 1, g: 1, b: 1, a: 0 } });
+    const S = (v) => Math.round((v || 0) * sc * 100) / 100;
+    const font400 = loadFontSafe('Pretendard', 'Regular');
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      const cell = run('create_frame', { x: Math.round(ip + S(c * (cw + gap))), y: Math.round(S(r * (ch + gap))), width: Math.max(1, S(cw)), height: Math.max(1, S(ch)), name: `cell_${r}_${c}`, parentId: outer.id, clipsContent: true });
+      if (!cell) continue;
+      if (g.bgGradient) { run('set_fill_color', { nodeId: cell.id, color: { r: 1, g: 1, b: 1, a: 0 } }); const gp = cssGradientToFigmaPaint(g.bgGradient, S(cw), S(ch)); if (gp) run('set_gradient', { nodeId: cell.id, ...gp }); }
+      else run('set_fill_color', { nodeId: cell.id, color: g.bg ? hex(g.bg) : { r: 1, g: 1, b: 1, a: 0 } });
+      if (g.bg && g.bgHidden) _hideFills(cell.id);
+      if (g.radius) run('set_corner_radius', { nodeId: cell.id, radius: S(g.radius) });
+      (block.layers || []).forEach((L, i) => {
+        const lx = S(L.x), ly = S(L.y), lw = Math.max(1, S(L.w || 0)), lh = Math.max(1, S(L.h || 0)), nm = `layer_${i}_${L.type}`;
+        if (L.type === 'shape' || L.type === 'image') {
+          const n = run('create_frame', { x: lx, y: ly, width: lw, height: lh, name: nm, parentId: cell.id, clipsContent: true });
+          if (!n) return;
+          if (L.type === 'shape') run('set_fill_color', { nodeId: n.id, color: hex(L.color || '#cccccc') });
+          else if (typeof L.src === 'string' && L.src.startsWith('data:')) { run('set_fill_color', { nodeId: n.id, color: { r: 1, g: 1, b: 1, a: 0 } }); run('set_image_fill', { nodeId: n.id, imageSource: L.src.split(',')[1], sourceType: 'base64', scaleMode: 'FILL' }, { timeout: 25000 }); }
+          else run('set_fill_color', { nodeId: n.id, color: { r: 0.84, g: 0.84, b: 0.84, a: 1 } });   // 그림 없음/못 읽음 = 회색 자리(앱 빈 칸 체커 대신)
+          if (L.radius) run('set_corner_radius', { nodeId: n.id, radius: S(L.radius) });
+        } else if (L.type === 'text') {
+          const fw = parseInt(L.fontWeight) || (L.fontWeight === 'bold' ? 700 : 400), f = fw === 400 ? font400 : loadFontSafe('Pretendard', toFigmaFontStyle(fw));
+          const al = L.align === 'center' ? 'CENTER' : L.align === 'right' ? 'RIGHT' : 'LEFT';
+          const tn = run('create_text', { x: lx, y: ly, ...(L.w ? { width: lw } : {}), text: String(L.content || ''), fontSize: Math.max(1, Math.round((L.fontSize || 16) * sc)), fontWeight: fw, fontColor: hex(L.color || '#000000'), textAlignHorizontal: al, textAutoResize: L.w ? 'HEIGHT' : 'WIDTH_AND_HEIGHT', name: nm, parentId: cell.id });
+          if (tn) run('set_font_name', { nodeId: tn.id, family: f.family, style: f.style });
+        }
+      });
+    }
+    console.log(`      · canvas-layers ${cols}×${rows} · 레이어 ${(block.layers || []).length} · scale ${sc}`);
+    return bh;
+  }
+
   if (block.type === 'card-grid') {
     const { cards = [], gridCols = 2, cardGap = 10, canvasH = 400,
             radius = 16, textBg = '#cccccc', titleSize = 32, descSize = 20,
@@ -903,9 +944,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     // 래퍼 프레임 (투명)
     const wrapper = run('create_frame', { x: x + padX, y, width: effectiveW, height: cardH, name: `card-grid_${block.id}`, parentId });
     if (!wrapper) return cardH;
-    run('set_fill_color', { nodeId: wrapper.id, color: (block.layersBg && !block.layersBgGradient) ? hex(block.layersBg) : { r: 1, g: 1, b: 1, a: 0 } });   // 81행 ② 레이어 모드 배경(없으면 옛 투명)
-    if (block.layersBgGradient) { const _gp = cssGradientToFigmaPaint(block.layersBgGradient, effectiveW, cardH); if (_gp) run('set_gradient', { nodeId: wrapper.id, ..._gp }); }
-    if (block.layersBg) { if (block.layersRadius) run('set_corner_radius', { nodeId: wrapper.id, radius: block.layersRadius }); if (block.layersBgHidden) _hideFills(wrapper.id); }
+    run('set_fill_color', { nodeId: wrapper.id, color: { r: 1, g: 1, b: 1, a: 0 } });
 
     const gridRows = Math.ceil(cards.length / gridCols);
     const rowH = Math.floor(cardH / gridRows);

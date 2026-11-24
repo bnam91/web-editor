@@ -816,6 +816,26 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         height:     realH || (rows.length * (fontSize + 28) + 24),
       };
     }
+    if (el.classList.contains('canvas-block') && (el.dataset.cardMode || '') !== 'simple' && el.dataset.layers) {
+      /* 86행 FIGMA-CANVAS-LAYERS-CONTENT-NOT-EXPORTED-01(+81행 ② 칸마다 배경) — 레이어 모드 = 칸 그리드(gridRows×gridCols · 칸 사이 cardGap · 칸마다 배경·둥글기)
+         × 칸마다 되풀이되는 레이어(도형·글·그림 · 디자인 좌표). 예전엔 card-grid(cards 0)로 나가 배경·내용 모두 Figma 에 0.
+         꼴 = MCP add_canvas_block 레이어 꼴 그대로(알려진 칸만) · 그림 src(goya-asset://)는 buildFigmaExportJSONInlined 후처리가 data URI 로 · 심플 모드는 아래 card-grid 그대로(바이트 무변) */
+      let layers = [];
+      try { layers = JSON.parse(el.dataset.layers || '[]'); } catch {}
+      const LK = ['type', 'x', 'y', 'w', 'h', 'color', 'radius', 'src', 'content', 'fontSize', 'fontWeight', 'align'];
+      layers = (Array.isArray(layers) ? layers : []).filter((l) => l && ['shape', 'text', 'image'].includes(l.type))
+        .map((l) => Object.fromEntries(LK.filter((k) => l[k] !== undefined && l[k] !== null && l[k] !== '').map((k) => [k, l[k]])));
+      const _lv = (el.id && document.getElementById(el.id)) || el;
+      const _in = _lv.querySelector('.cvb-inner');
+      const _sm = /scale\(([\d.]+)\)/.exec((_in && _in.style.transform) || '');
+      const bg = el.dataset.bg || '';
+      const grid = { cols: parseInt(el.dataset.gridCols) || 1, rows: parseInt(el.dataset.gridRows) || 1, gap: parseInt(el.dataset.cardGap ?? '12'),
+        cellW: parseInt(el.dataset.canvasW) || 360, cellH: parseInt(el.dataset.canvasH) || 400, radius: parseInt(el.dataset.radius) || 0, padX: parseInt(el.dataset.padX ?? '0') || 0,
+        ...(bg && bg !== 'transparent' ? { bg } : {}), ...(el.dataset.fillHidden === '1' && bg && bg !== 'transparent' ? { bgHidden: true } : {}) };
+      if (grid.bg && /gradient\s*\(/i.test(grid.bg)) { const g = parseGradient(grid.bg); if (g && Array.isArray(g.stops) && g.stops.length >= 2) grid.bgGradient = { type: g.type, angle: g.angle, stops: g.stops }; }
+      return { type: 'canvas-layers', id: el.id || ('cvb_' + Math.random().toString(36).slice(2, 8)), layers, grid,
+        scale: _sm ? parseFloat(_sm[1]) : 1, width: Math.round(_lv.offsetWidth || 0), height: Math.round(_lv.offsetHeight || 0) };
+    }
     if (el.classList.contains('canvas-block')) {
       let cards = [];
       try { cards = JSON.parse(el.dataset.cards || '[]'); } catch {}
@@ -849,12 +869,6 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         textAlign: el.dataset.textAlign || 'center',
         padX:      ps?.padX || 0,
         height:    Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 400),
-        /* 81행 ②(지디 261125) — 레이어 모드(cardMode 없음)의 캔버스 배경(dataset.bg) = 예전 Figma 로 0 · 심플 모드 키와 안 섞이게 따로 이름(layersBg*) · transparent·없음 = 키 0(옛 바이트)
-           ⚠레이어 «내용»(dataset.layers 글·도형·그림)은 여전히 안 실린다 — 따로 보고(범위 큼) */
-        ...(() => { if ((el.dataset.cardMode || '') === 'simple') return {}; const b = el.dataset.bg; if (!b || b === 'transparent') return {};
-          const o = { layersBg: b, layersRadius: parseInt(el.dataset.radius) || 0, ...(el.dataset.fillHidden === '1' ? { layersBgHidden: true } : {}) };   // 둥글기 = 레이어 렌더와 같은 셈(없으면 0 · 위 radius 의 기본 16 은 카드 몫)
-          if (/gradient\s*\(/i.test(b)) { const g = parseGradient(b); if (g && Array.isArray(g.stops) && g.stops.length >= 2) o.layersBgGradient = { type: g.type, angle: g.angle, stops: g.stops }; }
-          return o; })(),
       };
     }
     if (el.classList.contains('chat-block')) {
