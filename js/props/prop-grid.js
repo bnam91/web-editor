@@ -31,6 +31,9 @@ import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
 import { parseAlphaFromColor, swatchHex, wireHexText, parseHex6, formatHex6 } from './color-picker.js';
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokePopover, STROKE_STYLES_CSS, STROKE_POP_WHY, edgeSelectHTML, wireEdgeSelect } from './_stroke-section.js';   // 표준 Stroke 부품(color-picker 무 import — 이 파일 규율 지킴)
 import { appearanceSectionHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A3)
+import { appearanceHeadToolsHTML } from './_appearance-section.js';   // 표준 Appearance A4(머리 눈)
+import { layoutSizeRowHTML, layoutGapSlotHTML, layoutSlotNumberHTML, wireLayoutSection, LAY_AUTO_WHY } from './_layout-section.js';   // 표준 Layout L2~L4
+import { wireNumberScrub } from './_helpers.js';   // 너비 칸 라벨 끌기(«빈 값 = 자동» 칸이라 확정 길은 옛 그대로)
 
 /* ══ 줄(line) 선택 — 「지금 우측 패널이 보고 있는 줄」 ═══════════════════════
  * ★블록별로 «주소»(r,c,li)를 기억한다. prop-banner02.js 의 _bn2ActiveLine 선례(어휘까지 빌린다).
@@ -2762,24 +2765,11 @@ ${_grdDisclosureHtml('grd-rowh-toggle', `행 높이 (${rows.length}행)`, open)}
  * ★1열/1행에서는 그 축 갭이 화면에 효과가 없어 죽은 컨트롤이 된다 — cols.length>=2 /
  *   rows.length>=2 일 때만 각각 노출한다(_ratioRowHtml/_rowHeightHtml 과 같은 술어). */
 function _gapRowHtml(cols, rows, colGap, rowGap) {
-  let html = '';
-  if (cols.length >= 2) {
-    html += `
-      <div class="prop-row" data-scope="block">
-        <span class="prop-label">열 간격</span>
-        <input type="range" class="prop-slider" id="grd-col-gap-slider" min="${GRID_COL_GAP_MIN}" max="${GRID_GAP_MAX}" step="2" value="${colGap}">
-        <input type="number" class="prop-number" id="grd-col-gap-number" min="${GRID_COL_GAP_MIN}" max="${GRID_GAP_MAX}" value="${colGap}">
-      </div>`;
-  }
-  if (rows.length >= 2) {
-    html += `
-      <div class="prop-row" data-scope="block">
-        <span class="prop-label">행 간격</span>
-        <input type="range" class="prop-slider" id="grd-row-gap-slider" min="${GRID_ROW_GAP_MIN}" max="${GRID_GAP_MAX}" step="2" value="${rowGap}">
-        <input type="number" class="prop-number" id="grd-row-gap-number" min="${GRID_ROW_GAP_MIN}" max="${GRID_GAP_MAX}" value="${rowGap}">
-      </div>`;
-  }
-  return html;   // ★U1 — 「행/열 사이 간격(px)」 힌트는 라벨이 이미 말한다(prop-hint ≤2)
+  /* ★표준 Layout L3(현빈 261124 L-4 · 시안 #mkp-layoutstd 간격 슬롯) — 열 ↔ · 행 ↕ 두 칸 한 줄(슬라이더 걷음 · id·범위(음수 겹치기 포함)·키 무변) · 1열/1행이면 그 칸만 빠진다(옛 술어 그대로) */
+  const xId = cols.length >= 2 ? 'grd-col-gap-number' : undefined, yId = rows.length >= 2 ? 'grd-row-gap-number' : undefined;
+  if (!xId && !yId) return '';
+  return `
+      <div data-scope="block" title="열 간격(↔) · 행 간격(↕) px">${layoutGapSlotHTML({ xId, yId, x: colGap, y: rowGap, xMin: GRID_COL_GAP_MIN, yMin: GRID_ROW_GAP_MIN, max: GRID_GAP_MAX })}</div>`;
 }
 
 /* ── G19 「블럭 간격」 — 그리드 «밑» 자식 블럭이 하나라도 있을 때만 (죽은 조절칸은 숨긴다 — 위 _gapRowHtml 과 같은 술어) ──
@@ -2793,11 +2783,7 @@ function _childGapRowHtml(block) {
   const v = window.gridChildGap?.(block) ?? 24;
   const lo = window.GRID_CHILD_GAP_MIN ?? 0, hi = window.GRID_CHILD_GAP_MAX ?? 80, st = window.GRID_CHILD_GAP_STEP ?? 2;
   return `
-      <div class="prop-row" data-scope="block">
-        <span class="prop-label" title="격자와 아래 블럭 사이·블럭끼리 간격(px)">블럭 간격</span>
-        <input type="range" class="prop-slider" id="grd-child-gap-slider" min="${lo}" max="${hi}" step="${st}" value="${v}">
-        <input type="number" class="prop-number" id="grd-child-gap-number" min="${lo}" max="${hi}" step="${st}" value="${v}">
-      </div>`;
+      <div data-scope="block" title="격자와 아래 블럭 사이·블럭끼리 간격(px)">${layoutSlotNumberHTML({ id: 'grd-child-gap-number', label: '블럭 간격', value: v, min: lo, max: hi, step: st })}</div>`;   // 표준 Layout L4 블럭 슬롯 숫자(슬라이더 걷음 · id·키·범위·step 무변)
 }
 
 /* ── G19 「＋ 블럭 넣기 ▾」 — 그리드 «밑»에 블럭을 쌓는다(블럭 선택 + T/G/K 는 지금처럼 «뒤 형제»: insert-anchor G3).
@@ -3211,20 +3197,14 @@ function _grdWidthMax(block) {
   const w = Math.floor(box.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0));
   return w > 0 ? Math.max(GRID_WIDTH_MIN, Math.min(GRID_WIDTH_MAX, w)) : GRID_WIDTH_MAX;
 }
+/* ★표준 Layout L2·L4(현빈 261124 L-2 19:22 · 시안 #mkp-layoutstd ①-b «너비 모드(그리드)») — 옛 «너비» 슬라이더 + «100%» 단추 → W 칸 + 너비 모드 드롭다운(고정 / 100% = 이미 있는 두 모드만)
+ *  · 높이 칸 없음(높이 = 칸·줄이 정한다) ⇒ 비율 사슬 막힘(LAY_AUTO_WHY) · 숫자 칸 id·범위·키(data-grid-width) 무변
+ *  · 빈 칸 = 자동(placeholder «자동» — 부품 칸엔 placeholder 가 없어 배선에서 단다 · 떠 있으면 안 단다) · 떠 있으면 모드 막힘(옛 «100%» disabled 자리) */
 function _grdWidthRowHtml(block) {
   const w = _grdWidthNow(block);
-  const wMax = _grdWidthMax(block);
-  const sliderVal = w.val ?? Math.min(wMax, Math.max(GRID_WIDTH_MIN, Math.round(block.offsetWidth) || GRID_WIDTH_MIN));
-  const autoTitle = w.floating
-    ? '떠 있는 동안은 굳힌 폭이 정본이라 «자동»으로 못 돌린다 — Ignore Auto Layout 을 끄고 누르세요'
-    : (w.auto ? '지금 자동 — 담는 그릇 폭을 다 쓴다' : '정한 폭을 지우고 담는 그릇 폭을 다 쓰게(100%) 되돌린다');
-  return `
-      <div class="prop-row">
-        <span class="prop-label" title="그리드 블럭 자체의 너비(px, ${GRID_WIDTH_MIN}~${wMax} — 담는 그릇 폭까지). 비우면 자동(100%)">너비</span>
-        <input type="range" class="prop-slider" id="grd-width-slider" min="${GRID_WIDTH_MIN}" max="${wMax}" step="1" value="${sliderVal}">
-        <input type="number" class="prop-number" id="grd-width-number" min="${GRID_WIDTH_MIN}" max="${wMax}" value="${w.val ?? ''}"${w.floating ? '' : ' placeholder="자동"'}>
-        <button type="button" class="prop-btn-sm${w.auto ? ' active' : ''}" id="grd-width-auto" title="${autoTitle}"${w.floating ? ' disabled' : ''}>100%</button>
-      </div>`;
+  return layoutSizeRowHTML({ prefix: 'grd', chain: { on: false, blocked: LAY_AUTO_WHY },
+    w: { id: 'grd-width-number', value: w.val ?? '', min: GRID_WIDTH_MIN, max: _grdWidthMax(block) },
+    mode: { w: { id: 'grd-width-mode', value: w.auto ? 'fill' : 'fixed', options: [['fixed', '고정'], ['fill', '100%']] } } });
 }
 /* ★제4안 「위아래 여백」(2026-10-05 · lane-grid-height) — 그리드 «한 값»이 모든 칸 위·아래 여백에 더해진다(cellPadY).
  *  읽는 문 = grid-block.js getGridCellPadY · 쓰는 문 = updateGridBlock{cellPadY}(히스토리 한 칸) · 상한 = GRID_CELL_PAD_Y_MAX(한 자리).
@@ -3252,33 +3232,17 @@ function _grdWireCellPadY(block) {
   });
 }
 function _grdWireWidth(block) {
-  const slider = document.getElementById('grd-width-slider');
   const number = document.getElementById('grd-width-number');
-  const autoBtn = document.getElementById('grd-width-auto');
+  const mode = document.getElementById('grd-width-mode');
+  const floating = block.dataset.overlayBlock === 'true';
   const clamp = (v) => Math.min(_grdWidthMax(block), Math.max(GRID_WIDTH_MIN, Math.round(v)));   // ★K1 ⒝ — 패널 입력 상한 = 그릇 폭(위 _grdWidthMax 한 자리)
-  if (slider) {
-    let armed = false;
-    /* ★양쪽 끝 표본 — 시작 = 첫 input 직전(pushHistoryStartSample), 끝 = change. mousedown 에 걸면
-       키보드(화살표)로 미는 길이 시작 표본을 못 찍는다. */
-    slider.addEventListener('input', () => {
-      if (!armed) {
-        armed = true;
-        if (typeof window.pushHistoryStartSample === 'function') window.pushHistoryStartSample('그리드 너비');
-        else window.pushHistory?.('그리드 너비');
-      }
-      const v = window.applyGridOwnWidth?.(block, clamp(Number(slider.value)));
-      if (v != null && number) number.value = v;
-      autoBtn?.classList.remove('active');
-    });
-    slider.addEventListener('change', () => {
-      if (!armed) return;
-      armed = false;
-      window.pushHistory?.('그리드 너비');   // ★끝 표본
-      window.scheduleAutoSave?.();
-      showGridProperties(block);
-    });
-  }
   if (number) {
+    if (!floating) number.placeholder = '자동';   // ★빈 칸 = 자동(가드 셋째 축 · 비지 않은 placeholder) — 떠 있으면 안 단다(자동이 없다)
+    number.title = `그리드 블럭 자체의 너비(px, ${GRID_WIDTH_MIN}~${_grdWidthMax(block)} — 담는 그릇 폭까지). 비우면 자동(100%)`;
+    /* 라벨 끌기(옛 슬라이더 자리) — 놓을 때 change 한 번 = 아래 확정 길 한 번(이력 한 칸) · 자동(빈 칸)에서 잡으면 지금 그려진 폭에서 시작 */
+    const scrub = document.getElementById('grd-width-number-scrub');
+    scrub?.addEventListener('pointerdown', () => { if (String(number.value).trim() === '') number.value = String(clamp(block.offsetWidth || GRID_WIDTH_MIN)); });
+    wireNumberScrub(scrub, number, { min: GRID_WIDTH_MIN, max: _grdWidthMax(block) });
     /* ⛔입력 «도중»(input)엔 안 쓴다 — 「500」을 치는 길에 「5」가 40 으로 죄여 그려진다. 확정(change = Enter·포커스 이탈) 때 한 번. */
     number.addEventListener('change', () => {
       const raw = String(number.value).trim();
@@ -3294,11 +3258,17 @@ function _grdWireWidth(block) {
       if (_grdToastCellFail(window.updateGridBlock?.(block.id, { width: v }))) number.value = _grdWidthNow(block).val ?? '';
     });
   }
-  if (autoBtn) {
-    autoBtn.addEventListener('click', () => {
-      if (autoBtn.disabled || block.dataset.overlayBlock === 'true') return;
-      if (window.getGridWidth?.(block) == null && block.dataset.gridWidthAuto === undefined) return;   // 이미 자동
-      _grdToastCellFail(window.updateGridBlock?.(block.id, { width: null }));
+  if (mode) {
+    /* 너비 모드 — 100% = 옛 «100%» 단추 길(키 지움 updateGridBlock width:null) · 고정 = 지금 그려진 폭을 키로(그 뒤 W 칸으로 고친다) */
+    if (floating) { mode.disabled = true; mode.title = '떠 있는 동안은 굳힌 폭이 정본이라 «자동»으로 못 돌린다 — Ignore Auto Layout 을 끄고 고르세요'; }
+    mode.addEventListener('change', () => {
+      if (mode.disabled || block.dataset.overlayBlock === 'true') return;
+      if (mode.value === 'fill') {
+        if (window.getGridWidth?.(block) == null && block.dataset.gridWidthAuto === undefined) return;   // 이미 자동
+        _grdToastCellFail(window.updateGridBlock?.(block.id, { width: null }));
+      } else if (window.getGridWidth?.(block) == null) {
+        _grdToastCellFail(window.updateGridBlock?.(block.id, { width: clamp(block.offsetWidth || GRID_WIDTH_MIN) }));
+      }
     });
   }
 }
@@ -4147,7 +4117,7 @@ ${_flattenRowHtml(rows, cols)}
     ${_grdNestColVAlignHtml(_nestHit, block)}
     ${_anyHit ? '' : _grdKidsAddSectionHtml()}`),
       sec('padding', _pad3.padding),
-      sec('appearance', _grdImageClipOfHit(_anyHit || _nestD1, block)),
+      sec('appearance', `<div data-scope="block">${appearanceSectionHTML({ prefix: 'grd', op: { value: window.readBlockOpacity?.(block) ?? 100 } })}</div>${_grdImageClipOfHit(_anyHit || _nestD1, block)}`, { headTools: appearanceHeadToolsHTML({ prefix: 'grd' }) }),   // 표준 Appearance A4 — 블럭 Opacity(맨 앞 · 블럭 스코프) + 옛 그림 자르기 그대로
       sec('typography', _grdScopeWrap('line', _typo.typo)),
       sec('fill', `${_grdScopeWrap('line', _typo.fill)}${_anyHit ? '' : _grdBlockBgSectionHtml(block)}`),
       sec('stroke', `${_borderSectionHtml(_cellBorder)}
@@ -4300,33 +4270,17 @@ ${_flattenRowHtml(rows, cols)}
    *   다시 그려 포커스가 든 input 이 교체되고 타이핑/드래그가 끊긴다(색 피커·비율 입력과 같은 함정).
    * ★dataset.gap(레거시 균일값)은 여기서 손대지 않는다 — 패널 슬라이더 조작은 rowGap/colGap 만
    *   갱신한다(현빈 확정 정책: API 의 gap 호출만 양축 동시 갱신, 패널은 축별). */
-  const colGapSlider = document.getElementById('grd-col-gap-slider');
-  const colGapNumber = document.getElementById('grd-col-gap-number');
-  if (colGapSlider && colGapNumber) {
-    bindSlider(colGapSlider, colGapNumber, (v) => {
-      block.dataset.colGap = String(v);
-      window.renderGridBlock?.(block);
-      window._grdSyncLineMark?.(block, grdGetActiveLine(block));
-    }, { min: GRID_COL_GAP_MIN, max: GRID_GAP_MAX });   // ★t6-02 열도 음수(겹치기) — GRID_COL_GAP_MIN 주석(grid-block.js)
-  }
-  const rowGapSlider = document.getElementById('grd-row-gap-slider');
-  const rowGapNumber = document.getElementById('grd-row-gap-number');
-  if (rowGapSlider && rowGapNumber) {
-    bindSlider(rowGapSlider, rowGapNumber, (v) => {
-      block.dataset.rowGap = String(v);
-      window.renderGridBlock?.(block);
-      window._grdSyncLineMark?.(block, grdGetActiveLine(block));
-    }, { min: GRID_ROW_GAP_MIN, max: GRID_GAP_MAX });   // ★행만 음수(겹치기) — GRID_ROW_GAP_MIN 주석(grid-block.js)
-  }
-  /* G19 「블럭 간격」 — 그릇 겉모습만 바꾼다(그리드 재렌더 불필요). 이력은 bindSlider 규약 그대로. */
-  const kidGapSlider = document.getElementById('grd-child-gap-slider');
-  const kidGapNumber = document.getElementById('grd-child-gap-number');
-  if (kidGapSlider && kidGapNumber) {
-    bindSlider(kidGapSlider, kidGapNumber, (v) => {
-      block.dataset.childGap = String(v);
-      window.applyGridChildGap?.(block);
-    }, { min: window.GRID_CHILD_GAP_MIN ?? 0, max: window.GRID_CHILD_GAP_MAX ?? 80 });
-  }
+  /* ★표준 Layout L3 — 옛 bindSlider 두 쌍 자리(슬라이더 걷음) · 같은 쓰기 · 부품 배선(input = 범위 안이면 바로 · change = 잘라 + 이력·저장 한 번 · 빈 칸 = 되돌림 · 라벨 끌기) · 축마다 제 하한(음수 겹치기) */
+  const _gapAxis = (numberId, key, min) => document.getElementById(numberId) && { numberId, min, max: GRID_GAP_MAX, apply: (v) => {
+    block.dataset[key] = String(v);
+    window.renderGridBlock?.(block);
+    window._grdSyncLineMark?.(block, grdGetActiveLine(block));
+  } };
+  wireLayoutSection({ w: _gapAxis('grd-col-gap-number', 'colGap', GRID_COL_GAP_MIN), h: _gapAxis('grd-row-gap-number', 'rowGap', GRID_ROW_GAP_MIN) });
+  /* G19 「블럭 간격」 — 그릇 겉모습만 바꾼다(그리드 재렌더 불필요) · 표준 Layout L4 블럭 슬롯 숫자(옛 bindSlider 자리) */
+  wireLayoutSection({ w: { numberId: 'grd-child-gap-number', min: window.GRID_CHILD_GAP_MIN ?? 0, max: window.GRID_CHILD_GAP_MAX ?? 80, step: window.GRID_CHILD_GAP_STEP ?? 2,
+    apply: (v) => { block.dataset.childGap = String(v); window.applyGridChildGap?.(block); } } });
+  wireAppearanceSection({ op: { numberId: 'grd-opacity', apply: (v) => window.setBlockOpacity?.(block, v) } });   // A4 Opacity — 계약(갈래 E) 없으면 그리기 0
   /* G19 「＋ 블럭 넣기 ▾」 — 고르면 바로 넣고 머리로 되돌린다(「＋ 줄 추가 ▾」와 같은 꼴). */
   const kidAdd = document.getElementById('grd-kid-add-kind');
   kidAdd?.addEventListener('change', () => {

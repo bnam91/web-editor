@@ -81,8 +81,8 @@ test('P0 [새 것] 패널 너비 max = 그릇 내용 폭(860) · 숫자칸은 �
     for (const [fx, fy] of [[0.06, 0.5], [0.06, 0.3], [0.06, 0.7]])   /* 첫 열 안(8열이어도 열 폭 ≥ 1/8) — 열 경계 거터·모서리 손잡이·＋ 를 피한다 */ { const x = r.left + r.width * fx, y = r.top + r.height * fy; if (!bad(document.elementFromPoint(x, y))) return [x, y]; }
     return [r.left + r.width * 0.06, r.top + r.height / 2]; }, 'wG');
   await clickAt(page, p[0], p[1], { sel: '[id="wG"]' }, { label: '그리드 고르기' });
-  await expect.poll(() => page.evaluate(() => !!document.getElementById('grd-width-slider')), { message: '[전제] 너비 줄' }).toBe(true);
-  const r = await page.evaluate(() => ({ sMax: document.getElementById('grd-width-slider').max, nMax: document.getElementById('grd-width-number').max, nVal: document.getElementById('grd-width-number').value, inner: (() => { const i = document.getElementById('wI'); const cs = getComputedStyle(i); return Math.floor(i.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)); })() }));
-  expect({ sMax: r.sMax, nMax: r.nMax, nVal: r.nVal }, JSON.stringify(r)).toEqual({ sMax: String(r.inner), nMax: String(r.inner), nVal: '3000' });
+  await expect.poll(() => page.evaluate(() => !!document.getElementById('grd-width-number')), { message: '[전제] 너비 줄' }).toBe(true);   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 슬라이더 없음 · 상한은 숫자 칸(+ 라벨 끌기 같은 수)
+  const r = await page.evaluate(() => ({ nMax: document.getElementById('grd-width-number').max, nVal: document.getElementById('grd-width-number').value, inner: (() => { const i = document.getElementById('wI'); const cs = getComputedStyle(i); return Math.floor(i.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)); })() }));
+  expect({ nMax: r.nMax, nVal: r.nVal }, JSON.stringify(r)).toEqual({ nMax: String(r.inner), nVal: '3000' });
   expect(errs).toEqual([]);
 });
