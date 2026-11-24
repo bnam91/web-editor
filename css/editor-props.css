@@ -68,8 +68,9 @@
 .prop-section[data-sec] > .prop-sec-body [hidden] { display: none; }
 /* ⑯ 몸 아래 여백은 --ui-sec-body-pb «하나» — 마지막 «보이는» 자식(과 그 한 겹 아래 — 예 fx 목록의 마지막 카드)의 아래 margin 을 끈다.
    숨은 꼬리([hidden] · 인라인 display:none — 예 cv-chips[hidden])는 건너뛴다(:has(~ 보이는 형제) 로 «뒤에 보이는 형제 없음»을 잰다). */
+/* 둘째 줄 가운데 겹 = :nth-last-child(1 of :not([hidden])) — 옛 :not([hidden]):not(:has(~ :not([hidden]))) 와 같은 뜻·명시도(0,2,0) · :has 는 주어 겹에만(대성 성능 · 지디 261125) */
 .prop-sec-body > :not([hidden], [style*="display:none"], [style*="display: none"]):not(:has(~ :not([hidden], [style*="display:none"], [style*="display: none"]))),
-.prop-sec-body > :not([hidden]):not(:has(~ :not([hidden]))) > :not([hidden], [style*="display:none"], [style*="display: none"]):not(:has(~ :not([hidden], [style*="display:none"], [style*="display: none"]))) { margin-bottom: 0; }
+.prop-sec-body > :nth-last-child(1 of :not([hidden])) > :not([hidden], [style*="display:none"], [style*="display: none"]):not(:has(~ :not([hidden], [style*="display:none"], [style*="display: none"]))) { margin-bottom: 0; }
 /* ⑰ 몸에 보이는 자식이 없는 펼친 절(Stroke 끔 · 효과 0 · 머리만 절) — 아래 여백 0 ⇒ 머리 위아래가 --ui-sec-head-py 로 대칭(손잡이 가운데) */
 .prop-section[data-sec]:not(:has(> .prop-sec-body > :not([hidden], [style*="display:none"], [style*="display: none"]))) { padding-bottom: 0; }
 /* 틀 절 몸 안의 옛 하위 절(.prop-section — 빌더가 절 통째를 줄 때) — 좌우 들임을 두 번 받지 않게(틀 절이 이미 들였다)
@@ -95,7 +96,8 @@
 .cv-chips.ts-recent-row { margin-bottom: var(--ui-space-1); }   /* ⑩(현빈 261122 · 시안 v11.6) — 최근 효과 칩 줄 → 아래 Line Height 라벨 0(닿음) → 4 */
 /* 머리 «＋»(재설계 1차 ⑨) — Stroke: 체크박스를 감싼 단추(켜면 «−») · Effects: 같은 칼럼 폭 select(목록 = 효과 종류) */
 .prop-sec-add > input { position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0; }
-.prop-sec-add:has(> input:checked) > .prop-sec-add-plus, .prop-sec-add:not(:has(> input:checked)) > .prop-sec-add-minus { display: none; }
+/* :has 는 주어 겹에만(대성 성능 · 그리드=프레임 드롭 뒤 재계산 · 지디 261125) — 두 쓰는 곳(_stroke-section · text-template 그림자) 다 input 이 svg 앞 ⇒ ~ 로 같은 뜻 · 명시도 0,3,1 그대로 */
+.prop-sec-add > input:checked ~ .prop-sec-add-plus, .prop-sec-add > input:not(:checked) ~ .prop-sec-add-minus { display: none; }
 .prop-sec-add:has(> input:focus-visible) { outline: var(--ui-focus-ring); }
 .prop-section[data-sec] .prop-row > .prop-chain-btn:last-child { margin-left: calc(var(--ui-space-1_5) - var(--ui-space-1)); }   /* 줄 gap 4 + 이것 2 = 칼럼 사이 6 ⇒ 숫자 칸 끝이 다른 줄과 같은 자리 */
 /* Q2 Type 띠 · Q1 Layout 묶음(시안 v10 · 현빈 GO 261120 — .mk-kind-strip · .mk-part · .mk-sub-row 값 그대로).
@@ -407,7 +409,8 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
      겹쳐 단 것 — prop-page 칼럼 12 · prop-asset Preset · prop-graph Chart Type)은 공용 규칙에서
      ★빠져 네 변이 같은 색 1px 테두리를 ★그대로 가진다. ★되살리는 법: git 이전 판의 이 블록을 되돌려라. */
 
-.prop-type-group:has(.prop-preset-btn) .prop-preset-btn.prop-type-btn {
+/* :has 걷음(주어 겹에만 · 지디 261125): 주어가 그룹 안 .prop-preset-btn 이면 그룹은 늘 그걸 «가진다» ⇒ 조건이 늘 참 · 명시도 0,4,0 은 클래스 겹쳐 지킴 */
+.prop-type-group .prop-preset-btn.prop-preset-btn.prop-type-btn {
   flex-direction: row;
   align-items: center;
   justify-content: center;
@@ -439,7 +442,7 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
        이기는지에 idle 색이 딸려간다(이 그룹 밖 버튼까지 같이 움직인다).
      ⇒ «같은 자리에 같은 무게로» active 갈래를 하나 더 둔다(0,6,0). 색은 새로 짓지 않고
        643 이 원래 선언해 둔 값을 그대로 쓴다 — 되살리는 것이지 바꾸는 것이 아니다. */
-.prop-type-group:has(.prop-preset-btn) .prop-preset-btn.prop-type-btn.active {
+.prop-type-group .prop-preset-btn.prop-preset-btn.prop-type-btn.active {   /* :has 걷음(위와 같은 까닭 · 명시도 그대로) */
   /* 미카사 실앱 검사 261124 — 프리셋 «켬» = 고른 표식 = 2단 회색(옛: 남색 바탕 + 위 기본의 테·글이 섞였다) */
   background: var(--ui-sel-neutral-on-bg); border-color: var(--ui-sel-neutral-on-border); color: var(--ui-sel-neutral-on-text);
 }

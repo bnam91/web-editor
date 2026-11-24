@@ -177,7 +177,8 @@ test('R9 Stroke 머리 = 단추꼴 label 안 체크박스 + ＋/− 그림 · Ef
   assert.match(on, /<button type="button" class="prop-chain-btn prop-fx-add-btn" id="txt-fx-add-btn"[^>]*aria-haspopup="menu"[^>]*>[\s\S]*?<div class="prop-fx-menu" id="txt-fx-menu" role="menu" hidden><button type="button" class="fp-menu-item" role="menuitem" data-fx="/);
   assert.doesNotMatch(on, /id="txt-fx-add"/);
   const props = css('css/editor-props.css');
-  assert.match(props, /\.prop-sec-add:has\(> input:checked\) > \.prop-sec-add-plus,\s*\.prop-sec-add:not\(:has\(> input:checked\)\) > \.prop-sec-add-minus\s*\{\s*display:\s*none/);
+  /* ★기대 바뀜(:has 는 주어 겹에만 · 대성 성능 · 지디 261125) — 같은 뜻을 형제 결합자로: 위 174 가 «input 이 svg 앞» 을 잠근다(~ 의 전제) */
+  assert.match(props, /\.prop-sec-add > input:checked ~ \.prop-sec-add-plus,\s*\.prop-sec-add > input:not\(:checked\) ~ \.prop-sec-add-minus\s*\{\s*display:\s*none/);
   assert.match(stripComments(readSrc(ROOT, 'js/effects-registry.js')), /<option value="">\$\{FX_ADD_HEAD_LABEL\}<\/option>/, '[대조] 다른 패널(plus 없음)은 옛 «효과 추가…» 그대로');
 });
 
