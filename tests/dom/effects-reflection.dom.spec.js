@@ -119,12 +119,12 @@ test('R1 ★패널(진짜 마우스) — 텍스트·도형·에셋 셋 다 「Ef
     await select(id);
     const sec = await page.evaluate(([P, after]) => { const s = document.getElementById(`${P}-fx-section`); if (!s) return null;
       const a = document.getElementById(`${P}-fx-add`);
-      return { title: s.querySelector('.prop-section-title').textContent.trim(), prevOk: after ? s.previousElementSibling?.id === after : true,
+      return { title: s.querySelector('.prop-section-title').textContent.trim(), prevOk: after ? !!(document.getElementById(after)?.compareDocumentPosition(s) & Node.DOCUMENT_POSITION_FOLLOWING) && !document.getElementById(`${P}-shadow-section`) : true,   /* ★기대 바뀜(P-2 SECTION_ORDER v1 — Stroke 와 Effects 사이에 Appearance·Typography·Selection 이 선다): «Stroke 뒤 · 옛 Shadow 절 없음» */
         addTag: a?.tagName || null, addCls: a?.className || null, headVal: a ? a.options[0].value : null, headSel: a ? a.selectedIndex : null,
         opts: a ? [...a.options].slice(1).map(o => o.value) : null, addText: (a?.textContent || '').trim() }; }, [P, after]);
     expect(sec, `${id}: Effects 절`).not.toBeNull();
     expect(sec.title).toBe('Effects');
-    expect(sec.prevOk, '텍스트 = Stroke 절 바로 아래(t4-01 — Shadow 절은 Effects 카드로 옮겼다)').toBe(true);
+    expect(sec.prevOk, '텍스트 = Stroke 절 뒤 · Shadow 절 없음(t4-01 — Shadow 절은 Effects 카드로 · v1 순서)').toBe(true);
     if (P === 'txt') {   /* ★기대 바뀜(시안 v10 · 현빈 GO 261120): 텍스트 = 머리 ＋ 단추 → 종류 메뉴 — «고르는 목록»의 뜻(열어도 안 붙고 고른 것만)은 그대로 잰다 */
       expect(await fxAddKeys(page, 'txt'), '목록 = 아직 안 걸린 효과 — 반사가 들어 있다').toContain('reflect');
       await click('#txt-fx-add-btn');

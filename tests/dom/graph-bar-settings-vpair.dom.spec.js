@@ -265,8 +265,9 @@ for (const type of TYPES) test(`B7-9 [${type}] ★넘침 없음 — 비교 12항
     const cap = await page.evaluate(() => Math.floor(document.querySelector('#b7g .grb-bar-fill').parentElement.clientWidth));
     await setNum(page, IDS.thick, 48); await setNum(page, IDS.gap, 80); await setNum(page, IDS.padx, 80);
     const r = await page.evaluate(() => { const b = document.getElementById('b7g'); const bars = b.querySelector('.grb-bars-v');
-      return { sw: bars.scrollWidth, cw: bars.clientWidth, bsw: b.scrollWidth, bcw: b.clientWidth, ds: b.dataset.vBarThickness }; });
-    expect(r.ds, `키가 안 들어갔다(48 · 칸 폭 ${cap} 이 작으면 그 폭 — H1)`).toBe(String(Math.min(48, cap)));
+      return { sw: bars.scrollWidth, cw: bars.clientWidth, bsw: b.scrollWidth, bcw: b.clientWidth, ds: b.dataset.vBarThickness, shown: document.getElementById('grb-bar-thickness-number')?.value }; });
+    /* ★기대 바뀜(P-2 ccf983799 묵은 값 가드 · 탑 통합 261125): 칸이 이미 상한(cap)을 보이면 48 → 잘라 cap = 편집 전 값과 같음 = 무동작(키 안 씀 · 이력 0) ⇒ 키가 없으면 «칸이 cap 을 보인다»로 같은 뜻 */
+    expect(r.ds ?? r.shown, `키가 안 들어갔다(48 · 칸 폭 ${cap} 이 작으면 그 폭 — H1)`).toBe(String(Math.min(48, cap)));
     expect(r.sw, `바 줄이 넘친다 ${JSON.stringify(r)}`).toBeLessThanOrEqual(r.cw);
     expect(r.bsw, `블럭이 넘친다 ${JSON.stringify(r)}`).toBeLessThanOrEqual(r.bcw);
     expect(errs, errs.join('\n')).toEqual([]);
