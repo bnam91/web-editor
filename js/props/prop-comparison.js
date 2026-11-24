@@ -2,8 +2,7 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
-import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A2 · A4 Opacity)
-import { layoutPadSlotHTML, layoutGapSlotHTML, layoutSlotNumberHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(L3·L4 · C1)
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A2)
 import { colorFieldHTML, wireColorField } from './color-picker.js';
 import { _num, getComparisonCols, getComparisonFeaturedIdx, setComparisonCols, cmpEmptyRow, cmpEmptyRows, CMP_HD_HINT, cmpGetActiveCell, cmpPickRowImage, cmpRowHeights } from '../blocks/comparison-block.js';
 /* ★1017t1c4 — 행 높이의 바닥·천장과 «쓰는 한 벌». 캔버스 행 경계 드래그(overlay-handles.js)와 ★같은 함수·같은 수를 쓴다.
@@ -161,12 +160,25 @@ export function showComparisonProperties(block) {
       sec('position', window.floatPositionRowHTML?.({ prefix: 'cmp', posEl: block }) || '', {
         headTools: window.overlayToggleBtnHTML?.({ id: 'cmp-float-toggle', active: floating, title: '오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다(Figma의 Ignore Auto Layout과 같은 개념). 다시 누르면 원래 있던 자리로 돌아갑니다.' }) || '',
       }),
-      /* ★표준 Layout L3·L4(현빈 261124 L-4 · 시안 #mkp-layoutstd) — 옛 cmp-ovl/rowh/rowgap/padx/pady 슬라이더 걷음 · 숫자 칸 id·키·범위 무변
-         겹침·행 높이 = 블럭 슬롯 숫자(layoutSlotNumberHTML) · 행 간격 = Gap 슬롯 · 패딩 = 축마다 제 상한(좌우 160 · 상하 80) */
-      sec('layout', `${layoutSlotNumberHTML({ id: 'cmp-ovl-num', label: '겹침', min: 0, max: 80, value: _num(d.overlap, 32) })}${layoutSlotNumberHTML({ id: 'cmp-rowh-num', label: '행 높이', min: 24, max: 140, value: parseInt(d.rowH) || 64 })}${layoutGapSlotHTML({ id: 'cmp-rowgap-num', value: _num(d.rowGap, 8), min: 0, max: 40 })}`),
-      sec('padding', layoutPadSlotHTML({ xId: 'cmp-padx-num', yId: 'cmp-pady-num', x: parseInt(d.padX) || 0, y: parseInt(d.padY) || 0, xMax: 160, yMax: 80 })),
+      sec('layout', `
+      <div class="prop-row"><span class="prop-label">겹침</span>
+        <input type="range" class="prop-slider" id="cmp-ovl" min="0" max="80" step="2" value="${_num(d.overlap, 32)}">
+        <input type="number" class="prop-number" id="cmp-ovl-num" min="0" max="80" value="${_num(d.overlap, 32)}"></div>
+      <div class="prop-row"><span class="prop-label">행 높이</span>
+        <input type="range" class="prop-slider" id="cmp-rowh" min="24" max="140" step="2" value="${parseInt(d.rowH) || 64}">
+        <input type="number" class="prop-number" id="cmp-rowh-num" min="24" max="140" value="${parseInt(d.rowH) || 64}"></div>
+      <div class="prop-row"><span class="prop-label">행 간격</span>
+        <input type="range" class="prop-slider" id="cmp-rowgap" min="0" max="40" step="1" value="${_num(d.rowGap, 8)}">
+        <input type="number" class="prop-number" id="cmp-rowgap-num" min="0" max="40" value="${_num(d.rowGap, 8)}"></div>`),
+      sec('padding', `
+      <div class="prop-row"><span class="prop-label">좌우패딩</span>
+        <input type="range" class="prop-slider" id="cmp-padx" min="0" max="160" step="2" value="${parseInt(d.padX) || 0}">
+        <input type="number" class="prop-number" id="cmp-padx-num" min="0" max="160" value="${parseInt(d.padX) || 0}"></div>
+      <div class="prop-row"><span class="prop-label">상하패딩</span>
+        <input type="range" class="prop-slider" id="cmp-pady" min="0" max="80" step="2" value="${parseInt(d.padY) || 0}">
+        <input type="number" class="prop-number" id="cmp-pady-num" min="0" max="80" value="${parseInt(d.padY) || 0}"></div>`),
       sec('appearance', `
-      ${appearanceSectionHTML({ prefix: 'cmp', op: { value: window.readBlockOpacity?.(block) ?? 100 }, radius: { numberId: 'cmp-rad-num', value: _num(d.radius, 20), max: 40 } })}${redactSection}`, { headTools: appearanceHeadToolsHTML({ prefix: 'cmp' }) }),   /* ★표준 Appearance A2(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·dataset.radius·범위 무변 */
+      ${appearanceSectionHTML({ prefix: 'cmp', radius: { numberId: 'cmp-rad-num', value: _num(d.radius, 20), max: 40 } })}${redactSection}`, { headTools: appearanceHeadToolsHTML({ prefix: 'cmp' }) }),   /* ★표준 Appearance A2(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·dataset.radius·범위 무변 */
       sec('typography', `
       <div class="prop-row"><span class="prop-label">제목 크기</span>
         <input type="range" class="prop-slider" id="cmp-tfont" min="12" max="56" step="1" value="${parseInt(d.titleFont) || 26}">
@@ -230,17 +242,14 @@ export function showComparisonProperties(block) {
   nScale?.addEventListener('input', () => setScale(nScale.value));
   sScale?.addEventListener('change', commit); nScale?.addEventListener('change', commit);
 
-  /* 표준 Layout 배선(부품) — input = 범위 안이면 바로 · change = 잘라 + commit 한 번 · 빈 칸 = 옛 값 되돌림 · 라벨 끌기 */
-  const lay = (id, dk, min, max) => wireLayoutSection({ commit, w: { numberId: id, min, max, apply: (v) => { block.dataset[dk] = v; rerender(); } } });
-  lay('cmp-ovl-num', 'overlap', 0, 80);
-  wireAppearanceSection({ radius: { numberId: 'cmp-rad-num', max: 40, apply: (v) => { block.dataset.radius = v; rerender(); }, commit },   // 표준 Appearance A2 — 옛 pair('cmp-rad') 자리
-    op: { numberId: 'cmp-opacity', apply: (v) => window.setBlockOpacity?.(block, v), commit } });   // A4 — 계약(갈래 E) 없으면 그리기 0
-  lay('cmp-padx-num', 'padX', 0, 160);
-  lay('cmp-pady-num', 'padY', 0, 80);
+  pair('cmp-ovl', 'cmp-ovl-num', 'overlap', 0, 80);
+  wireAppearanceSection({ radius: { numberId: 'cmp-rad-num', max: 40, apply: (v) => { block.dataset.radius = v; rerender(); }, commit } });   // 표준 Appearance A2 — 옛 pair('cmp-rad') 자리
+  pair('cmp-padx', 'cmp-padx-num', 'padX', 0, 160);
+  pair('cmp-pady', 'cmp-pady-num', 'padY', 0, 80);
   pair('cmp-tfont', 'cmp-tfont-num', 'titleFont', 12, 56);
   pair('cmp-rfont', 'cmp-rfont-num', 'rowFont', 10, 40);
-  lay('cmp-rowh-num', 'rowH', 24, 140);
-  lay('cmp-rowgap-num', 'rowGap', 0, 40);
+  pair('cmp-rowh', 'cmp-rowh-num', 'rowH', 24, 140);
+  pair('cmp-rowgap', 'cmp-rowgap-num', 'rowGap', 0, 40);
 
   // 칼럼별: 배경 / 텍스트 (★1017t1c1 — 제목 입력칸은 뺐다. 캔버스 헤더 더블클릭 _editableTitle 이 대체 수단)
   cols.forEach((col, idx) => {
