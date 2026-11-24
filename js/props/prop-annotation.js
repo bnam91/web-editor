@@ -1,12 +1,13 @@
 // prop-annotation.js — 어노테이션 우측 속성 패널
 // 프리셋 / 선 / 시작점 / 라벨 (디자인 시스템 공용 컴포넌트 사용)
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML, escHtml, checkHTML } from './_helpers.js';
+import { blockHeaderHTML, escHtml, checkHTML, wireNumberScrub } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_STYLES_CSS, STROKE_POP_WHY } from './_stroke-section.js';
 /* ★1017t1h3 — 「고른 글자만」 한 벌. ⛔선택을 여기서 따로 저장하지 않는다(_text-selection.js 머리말 ⛔). */
 import { getSavedTextSelection, withTextSelection, applyStyleToRange } from './_text-selection.js';
+import { appearanceSectionHTML, appearanceHeadToolsHTML, appearanceSlotNumberHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A3 · annotation)
 
 // ── 프리셋 ───────────────────────────────────────────────────────────────
 /* ★1013t1A2 — 프리셋은 «색·선·시작점»만 바꾼다. 글자 크기(옛 16)는 뺐다: 기본이 24 가 됐는데
@@ -465,21 +466,8 @@ export function showAnnotationProperties(block) {
         <input type="number" class="prop-number" id="annot-label-pad-num" min="0" max="24" step="1" value="${st.labelPad ?? 8}">
       </div>`),
       // 모서리(radius)는 어디서나 Appearance(§8 Q2) — 라벨 이미지 라운드 · 치수선 라벨 모서리
-      sec('appearance', `${st.labelMode === 'text' ? '' : `
-      <div class="prop-row">
-        <span class="prop-label">라운드</span>
-        <input type="range" class="prop-slider" id="annot-img-radius" min="0" max="50" step="1" value="${st.labelImageRadius}">
-        <input type="number" class="prop-number" id="annot-img-radius-num" min="0" max="50" step="1" value="${st.labelImageRadius}">
-      </div>`}
-      ${st.annotKind === 'dim' ? `
-      <!-- ★합침 261026 — 모서리 칸은 택일5 그대로 «치수선만»(그쪽 G2 「일반 어노테이션엔 칸 없음」). 1013t2C6 ⓒ 는 «처음 0» 만 바랐다(칸은 그때 S7 이 덧붙인 것 — 걷었다).
-           ★택일5(msg5223 «라벨 모서리 라운드» · 현빈 ⒝ 조절칸 · «기본값은 지금처럼 유지») — ★치수선만. 꼴 = 라벨그룹 «모서리»(prop-label-group.js lg-item-radius · 0~50 px).
-           처음 값 4 = CSS 기본(.annot-label border-radius:4px) — 안 건드리면 키 0(바이트 보존). -->
-      <div class="prop-row">
-        <span class="prop-label">모서리</span>
-        <input type="range"  class="prop-slider" id="annot-label-radius" min="0" max="50" step="1" value="${st.labelRadius ?? 4}">
-        <input type="number" class="prop-number" id="annot-label-radius-num" min="0" max="50" value="${st.labelRadius ?? 4}">
-      </div>` : ''}`),
+      /* ★표준 Appearance A3(지디 261124 (가)) — 표준 R = 치수선 라벨 모서리(부품 · 치수선만) · 라벨 그림 라운드 = 아래 슬롯 «숫자 + 라벨 끌기» 한 줄(부위 R · 끝 단추 없음) · 옛 슬라이더 둘 걷음 · id·키·0~50 무변 */
+      sec('appearance', `${st.annotKind === 'dim' ? appearanceSectionHTML({ prefix: 'annot-label', radius: { numberId: 'annot-label-radius-num', value: st.labelRadius ?? 4, max: 50 } }) : ''}${st.labelMode === 'text' ? '' : appearanceSlotNumberHTML({ id: 'annot-img-radius-num', label: '그림 라운드', value: st.labelImageRadius, max: 50, kind: 'image-radius' })}`, (st.annotKind === 'dim' || st.labelMode !== 'text') ? { headTools: appearanceHeadToolsHTML({ prefix: 'annot' }) } : {}),
       sec('typography', st.labelMode === 'text' ? `
       <div class="prop-row">
         <span class="prop-label">크기</span>
@@ -762,17 +750,14 @@ export function showAnnotationProperties(block) {
     imgSzN.addEventListener('change', () => window.pushHistory?.('라벨 이미지 크기'));
   }
 
-  const imgR  = propPanel.querySelector('#annot-img-radius');
-  const imgRN = propPanel.querySelector('#annot-img-radius-num');
-  if (imgR && imgRN) {
-    imgR.addEventListener('input',  () => { imgRN.value = imgR.value; _writeProps(block, { labelImageRadius: parseFloat(imgR.value) }); });
-    imgR.addEventListener('change', () => window.pushHistory?.('라벨 이미지 라운드'));
+  const imgRN = propPanel.querySelector('#annot-img-radius-num');   // 부위 R 슬롯(표준 Appearance A3 · 슬라이더 걷음) — 옛 숫자 칸 배선 그대로 + 라벨 끌기
+  if (imgRN) {
     imgRN.addEventListener('input', () => {
       const v = Math.min(50, Math.max(0, parseFloat(imgRN.value) || 0));
-      imgR.value = v;
       _writeProps(block, { labelImageRadius: v });
     });
     imgRN.addEventListener('change', () => window.pushHistory?.('라벨 이미지 라운드'));
+    wireNumberScrub(propPanel.querySelector('#annot-img-radius-num-scrub'), imgRN, { min: 0, max: 50 });
   }
 
   // ★1017t1h5 — 「없음」 발견 가능성: 알파 0 이면 스와치에 swatch-none(체커)을 켠다(prop-grid.js 꼴).
@@ -829,17 +814,7 @@ export function showAnnotationProperties(block) {
     window.pushHistory?.('라벨 너비 자동');
   });
   // ★택일5 — 모서리(치수선만 · 칸이 없으면 무동작). 건드려야만 CSS 기본(4px)을 이긴다 — 여백(labelPad)과 같은 꼴.
-  const rad = propPanel.querySelector('#annot-label-radius');
-  const radN = propPanel.querySelector('#annot-label-radius-num');
-  if (rad && radN) {
-    rad.addEventListener('input',  () => { radN.value = rad.value; _writeProps(block, { labelRadius: parseFloat(rad.value) }); });
-    rad.addEventListener('change', () => window.pushHistory?.('라벨 모서리'));
-    radN.addEventListener('change', () => {
-      const v = window.annotClampLabelBox?.(radN.value, 'labelRadius') ?? 0;
-      rad.value = v; radN.value = v; _writeProps(block, { labelRadius: v });
-      window.pushHistory?.('라벨 모서리');
-    });
-  }
+  wireAppearanceSection({ radius: { numberId: 'annot-label-radius-num', max: 50, apply: (v) => _writeProps(block, { labelRadius: v }), commit: () => window.pushHistory?.('라벨 모서리') } });   // 표준 R(치수선만 · 칸 없으면 무동작) · 범위 = ANNOT_LIMITS.labelRadius 0~50 과 같음
 
   // ★1013t1A3 라벨 위치 — 쓰고 → 다시 그리고(패널 포함) → 찍는다(push-after · tests/unit/prop-push-after)
   const dxIn = propPanel.querySelector('#annot-label-dx');

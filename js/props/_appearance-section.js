@@ -34,6 +34,15 @@ export function appearanceSectionHTML({ prefix, radius: r }) {
       </div>`;
 }
 
+/** 부위 R 슬롯 한 줄(표준 절 R 은 하나 — 지디 261124 (가)) — 이름 + [아이콘(끌기) 숫자] · 끝 단추 없음 · 배선은 블럭 쪽(끌기 = wireNumberScrub(`${id}-scrub`)) */
+export function appearanceSlotNumberHTML({ id, label, value, min = 0, max, kind }) {
+  return `
+      <div class="prop-row ui-app-slot" data-slot="below" data-slot-kind="${kind}">
+        <span class="prop-label">${label}</span>
+        <div class="prop-icon-input" data-part="number"><span class="prop-xy-label ui-app-scrub" id="${id}-scrub" title="${label} — 좌우로 끌면 바뀐다">${APP_RADIUS_ICON}</span><input type="number" class="prop-number" id="${id}" min="${min}" max="${max}" step="1" value="${value}" aria-label="${label}"></div>
+      </div>`;
+}
+
 /** 배선 — 옛 bindSlider 의 숫자 칸 몫 그대로(input = 잘라 적용 · change = 먹은 값 보이기 + 이력 + 저장) + 라벨 끌기 */
 export function wireAppearanceSection({ radius: r }) {
   const n = document.getElementById(r.numberId);

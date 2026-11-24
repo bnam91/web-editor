@@ -185,3 +185,44 @@ for (const c of A3) {
     expect(errs).toEqual([]);
   });
 }
+
+/* ── A3 annotation(지디 261124 (가)): 표준 R = 치수선 라벨 모서리(부품) · 라벨 그림 라운드 = 아래 슬롯 «숫자 + 라벨 끌기»(끝 단추 없음) ── */
+async function annotScene(page, opts) {
+  await page.setViewportSize({ width: 1700, height: 1100 });
+  const errs = await bootApp(page);
+  await page.evaluate(async (opts) => {
+    const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    const sec = await window.addSection();
+    const b = window.makeAnnotationBlock(opts); b.id = 'anA'; sec.querySelector('.section-inner').appendChild(b);
+    window.showAnnotationProperties(b);
+  }, opts);
+  return errs;
+}
+test('AS8 annotation 치수선 — 라벨 모서리 = 부품(머리 눈 · 끝 모서리 단추) · 20 → labelRadius · 끌기 +5', async ({ page }) => {
+  const errs = await annotScene(page, { points: [[200, 160], [500, 160]], text: '수치입력', annotKind: 'dim', dimOffset: 60 });
+  await expect(page.locator('#annot-label-radius-num')).toHaveCount(1);
+  expect(await page.evaluate(() => ({ part: !!document.getElementById('annot-label-radius-num').closest('[data-part="appearance"] [data-field="appearance-radius"]'),
+    slider: !!document.querySelector('#panel-right .prop-section[data-sec="appearance"] input[type=range]'), eye: document.getElementById('annot-app-eye')?.getAttribute('aria-disabled'), corners: !!document.getElementById('annot-label-corners') })))
+    .toEqual({ part: true, slider: false, eye: 'true', corners: true });
+  const R = () => page.evaluate(() => document.getElementById('anA').dataset.labelRadius ?? null);
+  await page.evaluate(() => { const n = document.getElementById('annot-label-radius-num'); n.value = '20'; n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); });
+  await expect.poll(R).toBe('20');
+  const h = page.locator('#annot-label-radius-num-scrub'); await h.scrollIntoViewIfNeeded(); const b = await h.boundingBox();
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down(); await page.mouse.move(b.x + b.width / 2 + 5, b.y + b.height / 2, { steps: 5 }); await page.mouse.up();
+  await expect.poll(R).toBe('25');
+  expect(errs).toEqual([]);
+});
+test('AS8b annotation 그림 라벨 — «그림 라운드» = 아래 슬롯 한 줄(숫자 + 끌기 · 끝 단추 없음 · 부품 칸 아님) · 20 → labelImageRadius · 끌기 +5', async ({ page }) => {
+  const errs = await annotScene(page, { points: [[20, 20], [160, 90]], text: 'APA', labelMode: 'image', labelImageSrc: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=' });
+  await expect(page.locator('#annot-img-radius-num')).toHaveCount(1);
+  expect(await page.evaluate(() => { const n = document.getElementById('annot-img-radius-num'), row = n.closest('.ui-app-slot');
+    return { slot: row?.dataset.slotKind ?? null, label: row?.querySelector('.prop-label')?.textContent, endBtn: !!row?.querySelector('.prop-chain-btn'), inStd: !!n.closest('[data-field="appearance-radius"]'), slider: !!document.querySelector('#panel-right .prop-section[data-sec="appearance"] input[type=range]') }; }))
+    .toEqual({ slot: 'image-radius', label: '그림 라운드', endBtn: false, inStd: false, slider: false });
+  const R = () => page.evaluate(() => document.getElementById('anA').dataset.labelImageRadius ?? null);
+  await page.evaluate(() => { const n = document.getElementById('annot-img-radius-num'); n.value = '20'; n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); });
+  await expect.poll(R).toBe('20');
+  const h = page.locator('#annot-img-radius-num-scrub'); await h.scrollIntoViewIfNeeded(); const b = await h.boundingBox();
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down(); await page.mouse.move(b.x + b.width / 2 + 5, b.y + b.height / 2, { steps: 5 }); await page.mouse.up();
+  await expect.poll(R).toBe('25');
+  expect(errs).toEqual([]);
+});
