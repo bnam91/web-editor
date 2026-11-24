@@ -450,6 +450,13 @@ function _onHandleMouseDown(e, ss, dir) {
     if (!isFullWidth) {
       ss.style.height = `${newH}px`; ss.style.minHeight = `${newH}px`; ss.dataset.height = String(newH);
     }
+    /* ★표준 Layout(갈래 C4) — 패널 W/H 숫자 칸을 끄는 동안 같이 맞춘다(에셋 손잡이와 같은 꼴). 칸이 옛 값을 쥔 채면
+       포커스가 남은 칸의 늦은 change(패널을 다시 그릴 때 등)가 그 옛 값을 다시 먹여 손잡이 결과를 되돌린다(resize-handle-*-1020w2b 실측). */
+    if (ss.classList.contains('selected')) {
+      const _wN = document.getElementById('ss-width-num'), _hN = document.getElementById('ss-height-num');
+      if (_wN) _wN.value = String(Math.round(newW));
+      if (_hN && !isFullWidth) _hN.value = String(Math.round(newH));
+    }
     if (_anchor0) {
       const p = anchoredLeftTop(_anchor0.L, _anchor0.T, startW, startH, newW, newH, _dirL, _rotStart);
       _applyOverlayPos(ss, p.left, p.top);
