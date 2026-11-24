@@ -973,7 +973,7 @@ function renderCanvas(block) {
   const layers   = JSON.parse(block.dataset.layers || '[]');
   const designW  = parseInt(block.dataset.canvasW) || 360;
   const designH  = parseInt(block.dataset.canvasH) || 400;
-  const bg       = block.dataset.bg || 'transparent';
+  const bg       = block.dataset?.fillHidden === '1' ? 'transparent' : (block.dataset.bg || 'transparent');   // F6-2 숨김(키 = props/_fill-section setFillHiddenKey · import 0 = 하네스 단독 적재) — 칠만 안 함 · 색 키 그대로
   const radius   = parseInt(block.dataset.radius) || 0;
   const gridCols = parseInt(block.dataset.gridCols) || 1;
   const gridRows = parseInt(block.dataset.gridRows) || 1;

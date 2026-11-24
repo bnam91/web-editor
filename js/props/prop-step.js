@@ -1,6 +1,6 @@
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast } from './_fill-section.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast, fillHiddenOf, setFillHiddenKey } from './_fill-section.js';
 import { alignBtn, blockHeaderHTML } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
 
@@ -186,7 +186,7 @@ export function showStepProperties(block, activeIdxArg) {
         <input type="number" class="prop-number" id="stb-desc-size-number" min="10" max="64" value="${descSize}">
       </div>`),
       sec('fill', `
-      <div id="stb-card-bg-row" style="display:${stepStyle === 'card' ? 'block' : 'none'}">${fillSectionHTML({ prefix: 'stb-fill', on: stepCardBg !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'stb-card-bg', hex: stepCardBg, alpha: parseAlphaFromColor(stepCardBg) }) })}</div>
+      <div id="stb-card-bg-row" style="display:${stepStyle === 'card' ? 'block' : 'none'}">${fillSectionHTML({ prefix: 'stb-fill', hiddenWhy: '', hidden: fillHiddenOf(block), on: stepCardBg !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'stb-card-bg', hex: stepCardBg, alpha: parseAlphaFromColor(stepCardBg) }) })}</div>
       <div class="prop-row">
         <span class="prop-label">배지 배경</span>
         ${colorFieldHTML({ idPrefix: 'stb-num-bg', hex: numBg, alpha: parseAlphaFromColor(numBg) })}
@@ -270,6 +270,7 @@ export function showStepProperties(block, activeIdxArg) {
   bindColor('stb-card-bg',    'stepCardBg', stepCardBg);
   /* 표준 Fill F5-1 — − = stepCardBg 'transparent' · ＋ = 지난 색 · 없으면 토큰 기본 */
   wireFillSection({ prefix: 'stb-fill', adapter: {
+    hide: (on) => { setFillHiddenKey(block, on); rerender(); },   // F6-2 숨김 — 키만 바꾸고 다시 그림(렌더러가 키를 보고 칠 안 함)
     none: () => { fillLast.set(block.id, stepCardBg); block.dataset.stepCardBg = 'transparent'; rerender(); showStepProperties(block, activeIdx); },
     add: () => { block.dataset.stepCardBg = fillLast.get(block.id, _stepToken('--preset-step-card-bg', '#f5f5f5')); rerender(); showStepProperties(block, activeIdx); },
     commit: () => window.pushHistory?.() } });

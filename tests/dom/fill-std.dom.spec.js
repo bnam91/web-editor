@@ -494,3 +494,39 @@ test('D24 파일 왕복 — 숨김 유지 · 색 그대로 · [음성] 키 없�
   expect(await fileSt(page, id), '★숨긴 채 저장 → 다시 열기 = 키 1 · 면 투명 · 색 그대로 · 눈 눌림').toEqual({ key: '1', fo: '0', color: '#ff0000', pressed: 'true' });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* F6-2 렌더러 9(지디 261124 «증상 그 자체를 고정») — 패널에서 끈 칠이 «다른 값 하나 바꾼 rerender» 뒤 되살아나지 않는다
+ * D25 블럭마다 1칸: 유일 색(#12ab34)으로 칠 → [전제] 그 색이 그림에 있다 → 눈 → 없다 · 키 1 → radius 바꿔 렌더러 다시 부름 → 여전히 없다 · 색 키 그대로
+ *   «그림에 있다» = 블럭 하위 인라인/SVG 속성 문자열(data-* 저장 키 뺌) + 계산된 background·fill·stop-color 어디에든 그 색
+ * 양성대조: _patches/fill-f6-2-CTL-<블럭>.patch(그 렌더러 한 줄만 뺌) ⇒ 그 블럭 칸만 빨강 */
+const F62 = [
+  ['canvas', "window.addCanvasBlock()", '.canvas-block', 'showCanvasProperties', 'renderCanvas', 'bg', 'cvb-fill', { cardMode: 'layers', layers: JSON.stringify([{ type: 'text', content: 'T', color: '#000000', fontSize: 16 }]) }],   // 심플 모드는 심플카드 패널(글 배경 = 패널 직접칠 5 쪽)
+  ['modal', "window.addModalBlock()", '.modal-block', 'showModalProperties', 'renderModalBlock', 'bg', 'mdl-fill', {}],
+  ['innercard', "window.addInnerCardBlock()", '.innercard-block', 'showInnerCardProperties', 'renderInnerCardBlock', 'bg', 'icd-fill', {}],
+  ['banner02', "window.addBanner02Block()", '.banner02-block', 'showBanner02Properties', 'renderBanner02', 'bg', 'bn2-fill', {}],
+  ['step', "window.addStepBlock()", '.step-block', 'showStepProperties', 'renderStepBlock', 'stepCardBg', 'stb-fill', { stepStyle: 'card' }],
+  ['sticker-text', "window.addStickerBlock({ shape: 'text' })", '.sticker-block', 'showStickerProperties', 'renderStickerBlock', 'bgColor', 'stk-t-fill', {}],
+  ['radial', "window.addRadialBlock()", '.radial-block', 'showRadialProperties', 'renderRadialBlock', 'bg', 'rdl-fill', {}],
+  ['coupon', "window.addCouponBlock()", '.coupon-block', 'showCouponProperties', 'renderCouponBlock', 'bodyCol', 'cpn-fill', {}],
+  ['zoom', "window.addZoomBlock()", '.zoom-block', 'showZoomProperties', 'renderZoomBlock', 'fill', 'zm-fillstd', {}],
+];
+for (const [name, make, sel, show, render, key, px, prep] of F62) {
+  test(`D25 ${name} — 숨김 → 다른 값 rerender → 여전히 숨김 · 색 키 그대로`, async ({ page }) => {
+    await page.setViewportSize({ width: 1500, height: 1100 });
+    const errs = await bootApp(page);
+    const id = await page.evaluate(async ([make, sel, show, render, key, prep]) => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+      const sec = await window.addSection(); window.deselectAll(); window.selectSection(sec); await eval(make); const b = sec.querySelector(sel);
+      Object.assign(b.dataset, prep, { [key]: '#12ab34' }); window[render](b); window.selectBlock(b.id); window[show](b); return b.id; }, [make, sel, show, render, key, prep]);
+    const has = () => page.evaluate((id) => { const b = document.getElementById(id), all = [b, ...b.querySelectorAll('*')];
+      const cl = b.cloneNode(true); [cl, ...cl.querySelectorAll('*')].forEach((e) => [...e.attributes].forEach((at) => { if (at.name.startsWith('data-')) e.removeAttribute(at.name); }));   // 저장 키(data-*)는 «그림»이 아니다
+      if (/12ab34|rgb\(18, ?171, ?52\)/i.test(cl.outerHTML)) return true;
+      return all.some((e) => { const cs = getComputedStyle(e); return [cs.backgroundColor, cs.backgroundImage, cs.fill, cs.stopColor].some((v) => /rgb\(18, 171, 52\)/.test(v || '')); }); }, id);
+    const k = () => page.evaluate(([id, key]) => { const b = document.getElementById(id); return [b.getAttribute('data-fill-hidden'), b.dataset[key]]; }, [id, key]);
+    expect(await has(), '[전제] 유일 색이 그림에 있다(없으면 «숨김»이 공짜로 참)').toBe(true);
+    await page.click(`#${px}-eye`); await raf(page);
+    expect([await has(), ...(await k())], '★눈 = 그림에서 그 색 0 · 키 1 · 색 키 그대로').toEqual([false, '1', '#12ab34']);
+    await page.evaluate(([id, render]) => { const b = document.getElementById(id); b.dataset.radius = '9'; window[render](b); }, [id, render]); await raf(page);
+    expect([await has(), ...(await k())], '★다른 값 바꿔 rerender 뒤에도 숨김(렌더러가 키를 본다)').toEqual([false, '1', '#12ab34']);
+    expect(errs, errs.join(' | ')).toEqual([]);
+  });
+}

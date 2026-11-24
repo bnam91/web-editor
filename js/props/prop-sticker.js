@@ -3,7 +3,7 @@ import { blockHeaderHTML, sliderRowHTML, escHtml, rotRowHTML, wireRotRow } from 
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_POP_WHY } from './_stroke-section.js';
-import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast } from './_fill-section.js';   // 표준 Fill F5-2b
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast, fillHiddenOf, setFillHiddenKey } from './_fill-section.js';   // 표준 Fill F5-2b
 import { panelRenderedColor } from './_panel-rendered.js';
 import { sanitizeIconMarkup } from '../util/sanitize-svg.js';
 import { glowSectionHTML, wireGlowSection } from './prop-sticker-glow.js';
@@ -469,7 +469,7 @@ export function showStickerProperties(block) {
       </div>`);
     put('fill', `
     <div id="stk-text-colors-section">
-      ${fillSectionHTML({ prefix: 'stk-t-fill', on: bgColor !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'stk-t-bg', hex: (bgColor === 'transparent' ? '#ffffff' : bgColor), alpha: (bgColor === 'transparent' ? 0 : bgAlpha) }) })}
+      ${fillSectionHTML({ prefix: 'stk-t-fill', hiddenWhy: '', hidden: fillHiddenOf(block), on: bgColor !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'stk-t-bg', hex: (bgColor === 'transparent' ? '#ffffff' : bgColor), alpha: (bgColor === 'transparent' ? 0 : bgAlpha) }) })}
       <div class="prop-color-row">
         <span class="prop-label">글자색</span>
         ${colorFieldHTML({ idPrefix: 'stk-t-color', hex: textColor, alpha: txtAlpha })}
@@ -728,6 +728,7 @@ export function showStickerProperties(block) {
   });
   /* 표준 Fill F5-2b — 글 스티커 배경 − = 'transparent'(옛 «알파 0» 이 저장하던 값) · ＋ = 지난 색 · 없으면 #FFFFFF */
   if (isText) wireFillSection({ prefix: 'stk-t-fill', adapter: {
+    hide: (on) => { setFillHiddenKey(block, on); rerender(); window.scheduleAutoSave?.(); },   // F6-2 숨김 — 키만 바꾸고 다시 그림(렌더러가 키를 보고 칠 안 함)
     none: () => { fillLast.set(block.id, bgColor); block.dataset.bgColor = 'transparent'; rerender(); showStickerProperties(block); },
     add: () => { block.dataset.bgColor = fillLast.get(block.id, '#ffffff'); rerender(); showStickerProperties(block); },
     commit: () => { window.pushHistory?.('텍스트 스티커 배경'); window.scheduleAutoSave?.(); } } });

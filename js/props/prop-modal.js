@@ -6,7 +6,7 @@ import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor,
          wireHexText, parseHex6, formatHex6 } from './color-picker.js';
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_STYLES_CSS, STROKE_POP_WHY } from './_stroke-section.js';
-import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast } from './_fill-section.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast, fillHiddenOf, setFillHiddenKey } from './_fill-section.js';
 import { hasSides, readSides, writeSides, sidesMixed } from '../stroke-look.js';
 /* ★1017a5 — ★배경 크기 칸의 ★현재값·기본값은 js/frame-bg.js 가 정본(⛔사본 금지 · 그 머리말 :22). */
 import { frameBgSize } from '../frame-bg.js';
@@ -278,7 +278,7 @@ export function showModalProperties(block) {
 `),
       sec('typography', _typo.body),
       sec('fill', `
-      ${fillSectionHTML({ prefix: 'mdl-fill', on: bg !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'mdl-bg', hex: bg, alpha: parseAlphaFromColor(bg) }) })}
+      ${fillSectionHTML({ prefix: 'mdl-fill', hiddenWhy: '', hidden: fillHiddenOf(block), on: bg !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'mdl-bg', hex: bg, alpha: parseAlphaFromColor(bg) }) })}
       <div class="ui-fill-slot" data-slot="below" data-slot-kind="bg-image"><div class="prop-row"><span class="prop-label">이미지</span><button class="prop-action-btn secondary" id="mdl-bg-img-btn" style="flex:1">이미지 선택</button></div>
       <input type="file" id="mdl-bg-img-input" accept="image/*" style="display:none">
       ${hasBgImg ? `
@@ -364,6 +364,7 @@ export function showModalProperties(block) {
   wireColor('mdl-bg', 'bg');
   /* 표준 Fill F2 — 배경 «없음» = bg 'transparent'(렌더 = CSS 그대로 · Figma = 옛 길 a:0) · ＋ = 지난 색 · 없으면 그 변형 기본 */
   wireFillSection({ prefix: 'mdl-fill', adapter: {
+    hide: (on) => { setFillHiddenKey(block, on); rerender(); window.scheduleAutoSave?.(); },   // F6-2 숨김 — 키만 바꾸고 다시 그림(렌더러가 키를 보고 칠 안 함)
     none: () => { fillLast.set(block.id, bg); block.dataset.bg = 'transparent'; rerender(); window.scheduleAutoSave?.(); showModalProperties(block); },
     add: () => { block.dataset.bg = fillLast.get(block.id, _effDefault(v, 'bg')); rerender(); window.scheduleAutoSave?.(); showModalProperties(block); },
     commit: () => window.pushHistory?.() } });

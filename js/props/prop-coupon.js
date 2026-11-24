@@ -19,7 +19,7 @@
 */
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast } from './_fill-section.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast, fillHiddenOf, setFillHiddenKey } from './_fill-section.js';
 /* ★HTML 이스케이프는 ★정본 하나다 — ⛔제 사본을 만들지 마라
    (tests/unit/name-axes-to-markup X9 가 사본 수를 센다). */
 import { blockHeaderHTML, escHtml as _esc, disclosureChevronHtml } from './_helpers.js';
@@ -184,7 +184,7 @@ ${_pairRow('cpn-width', '폭', width, L.width.min, L.width.max)}
       <div class="prop-row" title="비율 16:9 를 블럭이 스스로 지킵니다 (비율 고르기는 2단계)"><span class="prop-label">높이</span><span class="prop-value-text">${boxH}px · 16:9</span></div>`),
       sec('appearance', _pairRow('cpn-radius', '모서리', radius, L.radius.min, L.radius.max)),
       sec('fill', `
-      ${fillSectionHTML({ prefix: 'cpn-fill', on: bodyCol !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'cpn-body', hex: _swatchHex(bodyCol, COUPON_DEFAULTS.bodyCol), alpha: parseAlphaFromColor(bodyCol) }) })}
+      ${fillSectionHTML({ prefix: 'cpn-fill', hiddenWhy: '', hidden: fillHiddenOf(block), on: bodyCol !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'cpn-body', hex: _swatchHex(bodyCol, COUPON_DEFAULTS.bodyCol), alpha: parseAlphaFromColor(bodyCol) }) })}
       <div class="prop-row">
         <span class="prop-label">스텁색</span>
         ${colorFieldHTML({ idPrefix: 'cpn-stub', hex: _swatchHex(stubCol, COUPON_DEFAULTS.stubCol), alpha: parseAlphaFromColor(stubCol) })}
@@ -233,6 +233,7 @@ ${_pairRow('cpn-width', '폭', width, L.width.min, L.width.max)}
   wireColor('cpn-body', 'bodyCol');
   /* 표준 Fill F5-1 — − = bodyCol 'transparent' · ＋ = 지난 색 · 없으면 블럭 기본 */
   wireFillSection({ prefix: 'cpn-fill', adapter: {
+    hide: (on) => { setFillHiddenKey(block, on); rerender(); },   // F6-2 숨김 — 키만 바꾸고 다시 그림(렌더러가 키를 보고 칠 안 함)
     none: () => { fillLast.set(block.id, block.dataset.bodyCol || COUPON_DEFAULTS.bodyCol); block.dataset.bodyCol = 'transparent'; rerender(); showCouponProperties(block, slotKey); },
     add: () => { block.dataset.bodyCol = fillLast.get(block.id, COUPON_DEFAULTS.bodyCol); rerender(); showCouponProperties(block, slotKey); },
     commit } });

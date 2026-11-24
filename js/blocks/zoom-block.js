@@ -280,6 +280,7 @@ function _normalizeInlineStyles(block) {
 
 function renderZoomBlock(block) {
   const st = readZoomState(block);
+  if (block.dataset?.fillHidden === '1') st.fill = 'checker';   // F6-2 숨김(키 = props/_fill-section setFillHiddenKey · import 0 = 하네스 단독 적재) — 칠만 안 함 · 색 키 그대로 · 줌의 «칠 없음» = 체커(ZOOM_CHECKER) · readZoomState 는 패널·끌기도 읽어 손 안 댐
   const box = blockBoxSpec(st);
   /* ★블록 «자신»이 도형(+테두리) 상자다 — 그래서 선택 오버레이가 이 상자의 border-radius 를
      그대로 읽어 «원이면 원»으로 그린다. 보조 상자가 필요 없다.
