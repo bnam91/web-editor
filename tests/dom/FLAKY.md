@@ -443,3 +443,6 @@ ft-restore-remeasures-at-other-width.dom.spec.js:112 X0   빨강 1/1 (u6m 전수
 
 ## 2026-11-21 · dev16 전수 — 이름 ＋ 수 (⛔원인 라벨 없이)
 - `ft-restore-remeasures-at-other-width` X0 — 인텔 dev16 전수(e648a47b2) 1/1 빨강 · 같은 sha 아이맥 재기 0/1.
+
+## 2026-11-24 · cert-block RH1 (tp/0914-position-std) — 이름 ＋ 수 (⛔원인 라벨 없이)
+- `cert-block.dom.spec.js:688` RH1 «모서리 손잡이로 폭 조절 · ⌘Z» — srv 표적 1 워커 flaky 1/1 · 머리 144117799 workers 1 ×8: 3/8 · 0/8 · 1/8 빨강 · 제품 파일을 ed5971b62(Position 앞)로 바꾼 판 ×8: 5/8 · 2/8 빨강.
