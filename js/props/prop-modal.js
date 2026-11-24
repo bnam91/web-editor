@@ -279,8 +279,7 @@ export function showModalProperties(block) {
       sec('typography', _typo.body),
       sec('fill', `
       ${fillSectionHTML({ prefix: 'mdl-fill', on: bg !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'mdl-bg', hex: bg, alpha: parseAlphaFromColor(bg) }) })}
-      <div class="ui-fill-slot" data-slot="below" data-slot-kind="bg-image"><span class="prop-field-label">Image</span>
-      <button class="prop-action-btn secondary" id="mdl-bg-img-btn">이미지 선택</button>
+      <div class="ui-fill-slot" data-slot="below" data-slot-kind="bg-image"><div class="prop-row"><span class="prop-label">이미지</span><button class="prop-action-btn secondary" id="mdl-bg-img-btn" style="flex:1">이미지 선택</button></div>
       <input type="file" id="mdl-bg-img-input" accept="image/*" style="display:none">
       ${hasBgImg ? `
         <div class="prop-row">
@@ -292,7 +291,7 @@ export function showModalProperties(block) {
             ${_bgSizeCustom ? `<option value="${_bgSizeNow}" selected>직접 조절</option>` : ''}
           </select>
         </div>
-        <button class="prop-action-btn secondary" id="mdl-bg-pos-btn" style="margin-top:6px;">${block._secBgEditing ? '배경이미지 편집 완료' : '배경이미지 편집'}</button>
+        <div class="prop-row"><span class="prop-label">위치</span><button class="prop-action-btn secondary" id="mdl-bg-pos-btn" style="flex:1">${block._secBgEditing ? '배경이미지 편집 완료' : '배경이미지 편집'}</button></div>
         <button class="prop-action-btn danger" id="mdl-bg-img-clear" style="margin-top:4px;">이미지 제거</button>
       ` : ''}</div>
 ` + (isIcon ? `

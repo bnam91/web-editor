@@ -198,3 +198,39 @@ test('D10 새 radial·zoom = «칠 없음»(옛 기본값) · 옛 «배경 지�
   expect(out, '★새 블럭 = 옛 기본(radial bg 없음 · zoom checker) = «칠 없음» + 머리 ＋ · 옛 단추·라디오 0').toEqual({ radial: ['', 0, true, false], zoom: ['checker', 0, true, false] });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* F3ⓐ — 그라데이션 블럭 Fill = 표준 겹 줄(이름칸 Linear/Radial · 견본 = goya-cp 그라데이션 탭만 · − 막힘) + 옛 정지점 바·목록 = 슬롯(옛 id)
+ * D11 탭 방출(goya-cp:gradient) → 정지점 키 gradStops · 종류 · 방향 = 가까운 프리셋(지디 (가) · 100° → «to right») · 견본 툴팁에 맞춘 이름·각도(조용히 안 바뀜) · commit = ⌘Z 한 칸
+ * D12 옛 손잡이(종류 select)를 바꾸면 견본 이름칸·시드가 따라온다 · − 막힘(까닭) · 단색/이미지 탭 막힘 표식(cpModes)
+ * 양성대조: _patches/fill-f3-CTL.patch(탭 방출이 방향을 안 맞춤) ⇒ D11 빨강 */
+async function gradScene(page) {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const id = await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); const sec = await window.addSection(); window.deselectAll(); window.selectSection(sec); const b = window.addGradientBlock(); const el = (b && b.id && document.getElementById(b.id)) || [...document.querySelectorAll('.gradient-block')].pop(); window.selectBlock?.(el.id); window.showGradientProperties(el); window.clearHistory?.(); return el.id; });
+  await page.waitForSelector('#panel-right .prop-section[data-sec="fill"] [data-part="fill"]', { state: 'attached' });
+  return { errs, id };
+}
+test('D11 그라데이션 블럭 — 탭 방출 → 정지점·종류·방향(가까운 프리셋) · 툴팁 = 맞춘 이름 · ⌘Z 한 칸', async ({ page }) => {
+  const { errs, id } = await gradScene(page);
+  const g0 = await page.evaluate((id) => ({ ds: { ...document.getElementById(id).dataset }, name: document.getElementById('grad-fill-hex')?.value, ro: document.getElementById('grad-fill-hex')?.readOnly, modes: document.getElementById('grad-fill-color')?.dataset.cpModes, slot: !!document.querySelector('[data-slot-kind="gradient-stops"] #grad-stops-bar') }), id);
+  expect([g0.name, g0.ro, g0.modes, g0.slot], '[전제] 이름칸 Linear(읽기 전용) · 탭 = 그라데이션만 · 옛 정지점 바 = 슬롯').toEqual(['Linear', true, 'gradient', true]);
+  await page.evaluate(() => { const i = document.getElementById('grad-fill-color'); const detail = { type: 'linear', angle: 100, stops: [{ color: '#ff0000', offset: 0, opacity: 1 }, { color: '#0000ff', offset: 1, opacity: 0.5 }], commit: true };
+    i.dispatchEvent(new CustomEvent('goya-cp:gradient', { bubbles: true, detail })); i.dispatchEvent(new CustomEvent('goya-cp:gradient-commit', { bubbles: true, detail })); });
+  const g1 = await page.evaluate((id) => { const b = document.getElementById(id); return { dir: b.dataset.gradDirection, style: b.dataset.gradStyle, stops: JSON.parse(b.dataset.gradStops || '[]'), sel: document.getElementById('grad-direction')?.value, tip: document.getElementById('grad-fill-color')?.closest('.prop-color-swatch')?.title || '' }; }, id);
+  expect([g1.dir, g1.style, g1.sel], '★100° → 가까운 프리셋 «to right»(키 gradDirection 그대로) · 방향 select 도').toEqual(['to right', 'linear', 'to right']);
+  expect(g1.stops, '★정지점 = 탭 값(키 gradStops · alpha = opacity)').toEqual([{ color: '#ff0000', alpha: 1, offset: 0 }, { color: '#0000ff', alpha: 0.5, offset: 1 }]);
+  expect(g1.tip, '★툴팁 = 맞춘 방향 이름 + 탭 각도(조용히 안 바뀜)').toMatch(/좌→우.*100°/);
+  await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z');
+  await expect.poll(() => page.evaluate((id) => document.getElementById(id)?.dataset.gradDirection ?? null, id), { message: '★⌘Z 한 칸 = 옛 방향' }).toBe(g0.ds.gradDirection ?? null);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+test('D12 옛 종류 select → 이름칸·시드 따라옴 · − 막힘(까닭)', async ({ page }) => {
+  const { errs, id } = await gradScene(page);
+  await page.selectOption('#grad-style', 'radial');
+  const r = await page.evaluate(() => ({ name: document.getElementById('grad-fill-hex')?.value, seed: JSON.parse(document.getElementById('grad-fill-color')?.dataset.cpGradient || '{}').type, rm: document.getElementById('grad-fill-remove')?.getAttribute('aria-disabled'), why: document.getElementById('grad-fill-remove')?.title || '' }));
+  expect([r.name, r.seed], '★종류 select = Radial → 이름칸·탭 시드 Radial').toEqual(['Radial', 'radial']);
+  expect([r.rm, /지울 수 없/.test(r.why)], '★− 막힘 + 까닭').toEqual(['true', true]);
+  await page.click('#grad-fill-remove', { force: true });
+  expect(await page.evaluate((id) => !!document.getElementById(id)?.dataset.gradStops || !!document.getElementById(id)?.dataset.gradStart, id), '★막힌 − = 칠 그대로').toBe(true);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

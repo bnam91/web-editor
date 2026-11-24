@@ -13,7 +13,8 @@
 import { propPanel } from '../globals.js';
 import { bindSlider, blockHeaderHTML } from './_helpers.js';
 import { renderPanel, sec, hintHTML } from './_panel-frame.js';
-import { wireHexText, parseHex6, formatHex6, noticeAlphaText } from './color-picker.js';
+import { wireHexText, parseHex6, formatHex6, noticeAlphaText, colorFieldHTML, wireColorField } from './color-picker.js';
+import { fillSectionHTML, setFillKindName } from './_fill-section.js';
 
 const DIRS = [
   { v: 'to bottom',       label: '↓ 위→아래' },
@@ -25,6 +26,13 @@ const DIRS = [
   { v: 'to top right',    label: '↗ ↙→↗' },
   { v: 'to top left',     label: '↖ ↘→↖' },
 ];
+
+/* 표준 Fill F3ⓐ — goya-cp 그라데이션 탭 ↔ 이 블럭(정지점 키 gradStops 그대로) · 방향은 프리셋 8개뿐이라 탭 각도를 «가장 가까운 프리셋»으로 맞춘다(지디 261124 (가) · 키·저장 바이트 무변 · 맞춘 이름을 견본 툴팁에 바로 = 조용히 안 바뀜) */
+const DIR_DEG = { 'to top': 0, 'to top right': 45, 'to right': 90, 'to bottom right': 135, 'to bottom': 180, 'to bottom left': 225, 'to left': 270, 'to top left': 315 };
+export const gradSnapDir = (deg) => { const d = ((Math.round(Number(deg) || 0) % 360) + 360) % 360; return Object.entries(DIR_DEG).reduce((best, [v, a]) => { const diff = Math.min(Math.abs(d - a), 360 - Math.abs(d - a)); return diff < best[1] ? [v, diff] : best; }, ['to bottom', 999])[0]; };
+const _gradCss = (style, dir, stops) => { const parts = stops.map((st) => { const h = (st.color || '#000000').replace('#', ''); return `rgba(${parseInt(h.slice(0, 2), 16) || 0},${parseInt(h.slice(2, 4), 16) || 0},${parseInt(h.slice(4, 6), 16) || 0},${st.alpha ?? 1}) ${Math.round((st.offset || 0) * 100)}%`; }).join(', ');
+  return style === 'radial' ? `radial-gradient(circle, ${parts})` : `linear-gradient(${dir}, ${parts})`; };
+const _dirTip = (dir, deg) => `방향 = ${(DIRS.find((d) => d.v === dir) || DIRS[0]).label}${deg != null ? ` (탭 ${Math.round(deg)}° → 가까운 8방향으로 맞춤)` : ''} — 견본 = 칠 고르기(그라데이션 탭)`;
 
 export function showGradientProperties(block) {
   const style       = block.dataset.gradStyle      || 'linear';
@@ -39,6 +47,7 @@ export function showGradientProperties(block) {
   const startHex = (startColor || '#000000').replace('#','').toUpperCase();
   const endHex   = (endColor   || '#000000').replace('#','').toUpperCase();
   const startAlphaPct = Math.round(startAlpha * 100);
+  const _stops0 = (window.resolveGradientStops?.(block) || []).length >= 2 ? window.resolveGradientStops(block) : [{ color: startColor, alpha: startAlpha, offset: 0 }, { color: endColor, alpha: endAlpha, offset: 1 }];
   const endAlphaPct   = Math.round(endAlpha   * 100);
 
   renderPanel(block, {
@@ -72,11 +81,14 @@ export function showGradientProperties(block) {
           ${DIRS.map(d => `<option value="${d.v}" ${direction===d.v?'selected':''}>${d.label}</option>`).join('')}
         </select>
       </div>`),
-      sec('fill', `
+      sec('fill', fillSectionHTML({ prefix: 'grad-fill', kind: style === 'radial' ? 'radial' : 'linear', removeWhy: '그라데이션 블럭은 칠을 지울 수 없어요 — 블럭째 지우세요',
+        colorHtml: colorFieldHTML({ idPrefix: 'grad-fill', hex: _stops0[0]?.color || startColor, alpha: 100, gradientCss: _gradCss(style, direction, _stops0) })
+          .replace('class="prop-color-alpha-input"', 'class="prop-color-alpha-input" readonly title="정지점마다 투명도 — 아래 목록"'),
+        slotsBelow: `<div class="ui-fill-slot" data-slot="below" data-slot-kind="gradient-stops">
       <div class="grad-stops-bar" id="grad-stops-bar"></div>
       ${hintHTML('바를 클릭해 중간색 추가 · 핸들 드래그로 위치 · ×로 삭제(최소 2개)')}
       <div id="grad-stops-list"></div>
-      <button type="button" id="grad-add-stop" class="prop-btn" style="margin-top:6px;width:100%;font-size:12px;">+ 중간색 추가</button>`),
+      <button type="button" id="grad-add-stop" class="prop-btn" style="margin-top:6px;width:100%;font-size:12px;">+ 중간색 추가</button></div>` })),   // 표준 Fill F3ⓐ — 겹 줄(이름칸 Linear/Radial · 견본 = goya-cp 그라데이션 탭) + 옛 정지점 바·목록 = 슬롯(옛 id · 걷기는 따로 결정)
       sec('size', `
       <div class="prop-row">
         <span class="prop-label">너비</span>
@@ -376,6 +388,37 @@ export function showGradientProperties(block) {
 
   // 초기 렌더
   { const init = STOP(); paintBar(init); buildList(init); }
+
+  /* 표준 Fill F3ⓐ — 견본 = goya-cp «그라데이션» 탭만(단색·이미지 = 이 블럭이 못 그림 · 탭 막힘 + 까닭) · 탭 → 정지점(setStops = 옛 쓰기 한 길) · 종류 · 방향(가까운 프리셋 · 툴팁에 바로) */
+  const fillInp = document.getElementById('grad-fill-color');
+  if (fillInp) {
+    fillInp.dataset.cpModes = 'gradient';
+    fillInp.dataset.cpModesNote = '그라데이션 블럭은 그라데이션만 칠합니다.';
+    fillInp.dataset.cpGradient = JSON.stringify({ type: styleSel.value === 'radial' ? 'radial' : 'linear', angle: DIR_DEG[dirSel.value] ?? 180,
+      stops: STOP().map((st) => ({ color: st.color, offset: st.offset, opacity: st.alpha ?? 1 })) });
+    const sw = fillInp.closest('.prop-color-swatch');
+    if (sw) sw.title = _dirTip(dirSel.value);
+    wireColorField('grad-fill', { onApply: () => {}, onCommit: () => {} });   // 단색 쓰기 없음(탭 막힘) — 열기 배선만
+    fillInp.addEventListener('goya-cp:gradient', (e) => {
+      const d = e.detail; if (!d || !Array.isArray(d.stops) || d.stops.length < 2) return;
+      const style = d.type === 'radial' ? 'radial' : 'linear', dir = gradSnapDir(d.angle);
+      block.dataset.gradStyle = style; block.dataset.gradDirection = dir;
+      styleSel.value = style; dirSel.value = dir; if (dirRow) dirRow.style.display = style === 'radial' ? 'none' : '';
+      setStops(d.stops.map((st) => ({ color: st.color, offset: st.offset, alpha: st.opacity ?? 1 })), false);
+      try { fillInp.dataset.cpGradient = JSON.stringify({ type: d.type, angle: d.angle, stops: d.stops }); } catch (_) {}
+      if (sw) { sw.style.background = _gradCss(style, dir, STOP()); sw.title = _dirTip(dir, d.angle); }
+      setFillKindName(document.getElementById('grad-fill-hex'), style);
+    });
+    fillInp.addEventListener('goya-cp:gradient-commit', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
+    /* 옛 손잡이(종류·방향 select · 정지점 바·목록)가 바꾼 뒤 견본·탭 시드를 맞춘다 — 그쪽 처리기가 먼저 돌고(먼저 붙음) 이건 거품으로 뒤에 */
+    const syncFill = () => { const st = STOP(); if (st.length < 2) return;
+      fillInp.dataset.cpGradient = JSON.stringify({ type: styleSel.value === 'radial' ? 'radial' : 'linear', angle: DIR_DEG[dirSel.value] ?? 180, stops: st.map((x) => ({ color: x.color, offset: x.offset, opacity: x.alpha ?? 1 })) });
+      if (sw) { sw.style.background = _gradCss(styleSel.value, dirSel.value, st); sw.title = _dirTip(dirSel.value); }
+      setFillKindName(document.getElementById('grad-fill-hex'), styleSel.value === 'radial' ? 'radial' : 'linear'); };
+    [styleSel, dirSel].forEach((el) => el.addEventListener('change', syncFill));
+    const slot = fillInp.closest('.ui-fill')?.querySelector('[data-slot-kind="gradient-stops"]');
+    ['change', 'click', 'mouseup'].forEach((t) => slot?.addEventListener(t, () => setTimeout(syncFill, 0)));
+  }
 
   // 너비/높이 — sticker 패턴: dataset만 갱신, renderGradientBlock으로 cssText 재적용
   const widthSlider = document.getElementById('grad-width-slider');

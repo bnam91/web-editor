@@ -34,13 +34,14 @@ export function setFillKindName(hexEl, kind) {
  * @param {string} [o.kind]       'solid' | 'linear' | 'radial' | 'image' — 이름칸(단색이면 옛 HEX 그대로)
  * @param {string} [o.hiddenWhy]  눈 막힘 까닭(F6 전 = «곧 지원») · '' 면 산다(F6)
  * @param {string} [o.slotsBelow] 블럭 슬롯(.ui-stroke-slot 꼴)
+ * @param {string} [o.removeWhy]  − 막힘 까닭(칠을 못 지우는 블럭 · 예: 그라데이션 블럭) · '' 면 산다
  */
-export function fillSectionHTML({ prefix, colorHtml, on = true, kind = 'solid', hiddenWhy = '숨기기 — 곧 지원', slotsBelow = '' }) {
+export function fillSectionHTML({ prefix, colorHtml, on = true, kind = 'solid', hiddenWhy = '숨기기 — 곧 지원', slotsBelow = '', removeWhy = '' }) {
   let field = String(colorHtml || '').replace('class="prop-color-field"', 'class="prop-color-field" data-part="color" data-field="fill-color"');
   if (FILL_KIND_NAME[kind]) field = field.replace(/(<input type="text" class="prop-color-hex"[^>]*?) value="[^"]*"/, `$1 value="${FILL_KIND_NAME[kind]}" readonly data-fill-kind="${kind}"`);
   const eyeDis = hiddenWhy ? ` aria-disabled="true" tabindex="0" title="${hiddenWhy}"` : '';
   const layer = `<div class="ui-fill-layer" data-fill-index="0">
-          <div class="prop-color-row ui-f-row">${field}<button type="button" class="prop-icon-btn ui-fill-btn" id="${prefix}-eye" aria-label="숨기기" aria-pressed="false"${eyeDis}>${EYE}</button><button type="button" class="prop-icon-btn ui-fill-btn" id="${prefix}-remove" aria-label="칠 지우기" title="칠 지우기">${MINUS}</button></div>
+          <div class="prop-color-row ui-f-row">${field}<button type="button" class="prop-icon-btn ui-fill-btn" id="${prefix}-eye" aria-label="숨기기" aria-pressed="false"${eyeDis}>${EYE}</button><button type="button" class="prop-icon-btn ui-fill-btn" id="${prefix}-remove" aria-label="칠 지우기" title="${removeWhy || '칠 지우기'}"${removeWhy ? ' aria-disabled="true"' : ''}>${MINUS}</button></div>
         </div>`;
   return `
       <div class="ui-fill" data-part="fill"${on ? '' : ' data-empty="1"'}>
@@ -57,7 +58,8 @@ export function fillHeadToolsHTML({ prefix, on }) {
 export function wireFillSection({ prefix, adapter }) {
   if (!adapter) return;
   document.getElementById(`${prefix}-add`)?.addEventListener('click', () => { adapter.add(); adapter.commit?.(); });
-  document.getElementById(`${prefix}-remove`)?.addEventListener('click', () => { adapter.none(); adapter.commit?.(); });
+  const rm = document.getElementById(`${prefix}-remove`);
+  if (rm?.getAttribute('aria-disabled') !== 'true') rm?.addEventListener('click', () => { adapter.none(); adapter.commit?.(); });
   const eye = document.getElementById(`${prefix}-eye`);
   if (eye?.getAttribute('aria-disabled') === 'true') {
     eye.addEventListener('click', (e) => e.preventDefault());
