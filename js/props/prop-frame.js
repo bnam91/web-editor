@@ -6,6 +6,7 @@ import { syncFrameBgVars, frameBgSize, applyFrameBgImageInline, setFrameBgOpacit
 import { clipsContent } from '../clip-content.js';   /* ★★켬 판정의 ★단 한 자리(2026-10-10 c2 · 지디 ㉠) */   /* ★프레임 배경 ★먹이는 한 자리(2026-10-10 ③) */
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_STYLES_CSS, STROKE_POP_WHY } from './_stroke-section.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, setFillKindName, fillLast, fillKindOfCss } from './_fill-section.js';
 import { hasSides, readSides, writeSides, cssSideWidths, sidesMixed } from '../stroke-look.js';
 import { bindSlider, alignBtn, blockHeaderHTML, sliderRowHTML, overlayToggleBtnHTML, rotRowHTML, wireRotRow } from './_helpers.js';
 import { applyFrameTransform, frameAlignOffset, framePadding, applyFrameHAlignToChild } from '../frame-geometry.js';
@@ -388,6 +389,7 @@ function _renderAutoPanel(ss) {
   const bgGradCss = [ss.dataset.bg, ss.style.backgroundImage].find(v => /gradient\s*\(/i.test(v || '')) || '';
   const hexBg  = bgGradCss ? '#ffffff' : rgbToHex(rawBg);   // 그라데이션이면 wireColorField 가 첫 스탑 색으로 덮는다
   const bgAlpha = bgGradCss ? 100 : parseAlphaFromColor(rawBg);
+  const fillOn = !!bgGradCss || rawBg !== 'transparent';   // 표준 Fill F2 — «없음» = 'transparent'(새 프레임 기본도 이 값 = 머리 ＋ 만) · 알파 0 rgba = 켬·0%(옛 바이트)
   const padY   = Math.round(panelRenderedPx(ss, 'paddingTop'));   // 묶음 B E115 — 그려진 위 여백(_frameDecorCss 는 dataset.padding+인라인 padding 으로 그린다 · 옛 표시는 dataset.padY 만 → 0)
   /* ★★2026-10-11 — ★여기 ★있던 식을 ★★`js/drag-utils.js` ★`framePadXData` 로 ★★파생시켰다.
      ⚰️★옛 줄: ★`parseInt(ss.dataset.padX) || parseInt(ss.style.paddingLeft) || 0`   // F5: 데이터 칸이 없던 옛 프레임은 인라인 padding 을 읽는다
@@ -607,16 +609,13 @@ function _renderAutoPanel(ss) {
       </div>`}
 `),
       sec('fill', `
-      <div class="prop-color-row">
-        <span class="prop-label">${bgAlpha === 0 ? '배경색 (투명)' : '배경색'}</span>
-        ${colorFieldHTML({ idPrefix: 'ss-bg', hex: hexBg, alpha: bgAlpha, gradientCss: bgGradCss })}
-      </div>
+      ${fillSectionHTML({ prefix: 'ss-fill', on: fillOn, kind: fillKindOfCss(bgGradCss), colorHtml: colorFieldHTML({ idPrefix: 'ss-bg', hex: hexBg, alpha: bgAlpha, gradientCss: bgGradCss }) })}
       <div class="prop-row">
         <span class="prop-label">배경 투명도</span>
         <input type="range" class="prop-slider" id="ss-bgopa-slider" min="0" max="100" step="1" value="${bgOpacity}">
         <input type="number" class="prop-number" id="ss-bgopa-num" min="0" max="100" value="${bgOpacity}">
       </div>
-      <span class="prop-field-label">Image</span>
+      <div class="ui-fill-slot" data-slot="below" data-slot-kind="bg-image"><span class="prop-field-label">Image</span>
       <button class="prop-action-btn secondary" id="ss-bg-img-btn">이미지 선택</button>
       <input type="file" id="ss-bg-img-input" accept="image/*" style="display:none">
       ${ss.dataset.bgImg ? '' : `<div id="ss-bg-empty-box">
@@ -647,8 +646,8 @@ function _renderAutoPanel(ss) {
         </div>
         <button class="prop-action-btn secondary" id="ss-bg-pos-btn" style="margin-top:4px;">배경이미지 편집</button>
         <!-- 1120b P3(현빈 261120) — 「이미지 제거」(#ss-bg-img-clear) 단추 걷음 -->
-      ` : ''}
-`),
+      ` : ''}</div>
+`, { headTools: fillHeadToolsHTML({ prefix: 'ss-fill', on: fillOn }) }),   // 표준 Fill F2 — 칠 없음이면 머리 ＋ 만(이미지·투명도 줄은 그대로 = 슬롯)
       /* ★표준 Stroke 절 부품(현빈 261123 GO · 8910 strokestd2) — 색 한 줄 · [위치|굵기] · 머리 ＋/−(없음 = 굵기 0 · §4c 없음 열) · 옛 «스타일» select 는 line-style 슬롯(단계 3 팝오버에서 «스타일» 칸으로 흡수)
          위치 = 칸만 막힘: 프레임 테두리는 CSS border(box-sizing:border-box) = 안쪽 · 옛 id(ss-border-w-num · ss-border 색 · ss-border-style) 지킴 */
       sec('stroke', strokeSectionHTML({ prefix: 'ss-stroke', color: hexBorderColor, alpha: borderAlpha, width: borderWidth, maxWidth: 20, align: 'inside', canAlign: false,
@@ -960,28 +959,36 @@ function _renderAutoPanel(ss) {
   if (bgPosBtn)   bgPosBtn.addEventListener('click', () => _frameBgEdit(ss));
 
   // 배경색 (solid + gradient)
+  const applyBgSolid = (c) => {
+    // 이전 그라데이션 제거 후 솔리드 적용
+    ss.style.backgroundImage = '';
+    ss.style.backgroundColor = c;
+    ss.dataset.bg = c;
+    _syncFrameBgVars();
+    window.scheduleAutoSave?.();
+  };
   wireColorField('ss-bg', {
     initialAlpha: bgAlpha,
     gradientValue: bgGradCss,   // T-059 2라운드: 재선택 후에도 그라데이션 탭·스탑으로 열린다
-    onApply: (c) => {
-      // 이전 그라데이션 제거 후 솔리드 적용
-      ss.style.backgroundImage = '';
-      ss.style.backgroundColor = c;
-      ss.dataset.bg = c;
-      _syncFrameBgVars();
-      window.scheduleAutoSave?.();
-    },
+    onApply: (c) => { applyBgSolid(c); setFillKindName(document.getElementById('ss-bg-hex'), 'solid'); },
     onGradient: (css, commit) => {
       // 그라데이션은 backgroundColor가 아니라 background로 적용
       ss.style.backgroundColor = '';
       ss.style.background = css;
       ss.dataset.bg = css;
       _syncFrameBgVars();
+      setFillKindName(document.getElementById('ss-bg-hex'), fillKindOfCss(css));
       window.scheduleAutoSave?.();
       if (commit) window.pushHistory?.();
     },
     onCommit: () => window.pushHistory?.(),
   });
+
+  /* 표준 Fill F2 — − = 'transparent'(옛 단색 쓰기 길 그대로 = 그라데이션도 걷힘 · 이미지 = 슬롯이라 그대로) · ＋ = 지난 색 · 없으면 #FFFFFF(Figma 프레임 기본) */
+  wireFillSection({ prefix: 'ss-fill', adapter: {
+    none: () => { fillLast.set(ss.id, bgGradCss || hexBg); applyBgSolid('transparent'); if (ss.dataset.bgImg) applyFrameBgImageInline?.(ss); showFrameProperties(ss); },
+    add: () => { const c = fillLast.get(ss.id, '#ffffff'); if (/gradient\s*\(/i.test(c)) { ss.style.backgroundColor = ''; ss.style.background = c; ss.dataset.bg = c; _syncFrameBgVars(); window.scheduleAutoSave?.(); } else applyBgSolid(c); showFrameProperties(ss); },
+    commit: () => window.pushHistory?.() } });
 
   // 보더
   const borderStyleEl  = document.getElementById('ss-border-style');

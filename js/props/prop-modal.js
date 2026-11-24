@@ -6,6 +6,7 @@ import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor,
          wireHexText, parseHex6, formatHex6 } from './color-picker.js';
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_STYLES_CSS, STROKE_POP_WHY } from './_stroke-section.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast } from './_fill-section.js';
 import { hasSides, readSides, writeSides, sidesMixed } from '../stroke-look.js';
 /* ★1017a5 — ★배경 크기 칸의 ★현재값·기본값은 js/frame-bg.js 가 정본(⛔사본 금지 · 그 머리말 :22). */
 import { frameBgSize } from '../frame-bg.js';
@@ -276,8 +277,8 @@ export function showModalProperties(block) {
 `),
       sec('typography', _typo.body),
       sec('fill', `
-      <div class="prop-row"><span class="prop-label">배경색</span>${colorFieldHTML({ idPrefix: 'mdl-bg', hex: bg, alpha: parseAlphaFromColor(bg) })}</div>
-      <span class="prop-field-label">Image</span>
+      ${fillSectionHTML({ prefix: 'mdl-fill', on: bg !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'mdl-bg', hex: bg, alpha: parseAlphaFromColor(bg) }) })}
+      <div class="ui-fill-slot" data-slot="below" data-slot-kind="bg-image"><span class="prop-field-label">Image</span>
       <button class="prop-action-btn secondary" id="mdl-bg-img-btn">이미지 선택</button>
       <input type="file" id="mdl-bg-img-input" accept="image/*" style="display:none">
       ${hasBgImg ? `
@@ -292,7 +293,7 @@ export function showModalProperties(block) {
         </div>
         <button class="prop-action-btn secondary" id="mdl-bg-pos-btn" style="margin-top:6px;">${block._secBgEditing ? '배경이미지 편집 완료' : '배경이미지 편집'}</button>
         <button class="prop-action-btn danger" id="mdl-bg-img-clear" style="margin-top:4px;">이미지 제거</button>
-      ` : ''}
+      ` : ''}</div>
 ` + (isIcon ? `
       <div class="prop-row">
         <span class="prop-label">아이콘색</span>
@@ -301,7 +302,7 @@ export function showModalProperties(block) {
           : colorFieldHTML({ idPrefix: 'mdl-ic', hex: iconColor, alpha: parseAlphaFromColor(iconColor) })}
       </div>
 ` : '') + `
-      <span class="prop-field-label">Text</span>` + _fill.body),
+      <span class="prop-field-label">Text</span>` + _fill.body, { headTools: fillHeadToolsHTML({ prefix: 'mdl-fill', on: bg !== 'transparent' }) }),   // 표준 Fill F2 — 배경 = 표준 줄 · 아이콘색·Text = 부위 색(그대로)
       /* ★표준 Stroke 절 부품(현빈 261123 GO · 8910 strokestd2) — 머리 ＋/−(없음 = borderW 0 명시 · 키 없는 옛 저장본은 변형 기본 그대로 · §4c 없음 열) · 옛 «스타일» 단추 묶음 = line-style 슬롯(단계 3 팝오버로)
          위치 = 칸만 막힘: 모달 테두리는 CSS border(box-sizing:border-box) = 안쪽 · 옛 id(mdl-bw-number · mdl-bc · [data-bs]) 지킴 */
       sec('stroke', strokeSectionHTML({ prefix: 'mdl-stroke', color: borderColor, alpha: parseAlphaFromColor(borderColor), width: borderW, maxWidth: 12, align: 'inside', canAlign: false,
@@ -361,6 +362,11 @@ export function showModalProperties(block) {
     });
   };
   wireColor('mdl-bg', 'bg');
+  /* 표준 Fill F2 — 배경 «없음» = bg 'transparent'(렌더 = CSS 그대로 · Figma = 옛 길 a:0) · ＋ = 지난 색 · 없으면 그 변형 기본 */
+  wireFillSection({ prefix: 'mdl-fill', adapter: {
+    none: () => { fillLast.set(block.id, bg); block.dataset.bg = 'transparent'; rerender(); window.scheduleAutoSave?.(); showModalProperties(block); },
+    add: () => { block.dataset.bg = fillLast.get(block.id, _effDefault(v, 'bg')); rerender(); window.scheduleAutoSave?.(); showModalProperties(block); },
+    commit: () => window.pushHistory?.() } });
   /* 표준 Stroke 부품 배선 — 어댑터 = 옛 wireColor/wireNum 이 하던 쓰기 그대로(dataset.borderColor·borderW · rerender · commit) · 없음 = borderW 0 */
   wireStrokeSection({ prefix: 'mdl-stroke', alpha: parseAlphaFromColor(block.dataset.borderColor || ''), maxWidth: 12, widthId: 'mdl-bw-number', colorId: 'mdl-bc', onWidth: 2,
     adapter: { color: (c) => { block.dataset.borderColor = c; rerender(); }, width: (v) => { block.dataset.borderW = String(v); rerender(); }, commit,

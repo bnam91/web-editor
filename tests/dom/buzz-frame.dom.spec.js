@@ -207,7 +207,7 @@ test('BZ-01 삽입 메뉴 「Buzz」 → 표식 붙은 자유배치 프레임 + 
   expect(outsideOf(st), '모든 낱개가 프레임 안').toEqual([]);
   /* 패널 꼴(판정서 M4): 버즈 프레임에는 프레임의 Layout 절(free → stack)이 없다 · 단추 묶음과 다음 라벨이 붙지 않는다 */
   /* ★U3 — 옛 「Layout 절 없음」은 «free → stack 단추 없음»이 뜻이었다(아래 줄이 잰다). Layout 절은 이제 Child Align·간격을 담아 있다. */
-  expect(await page.evaluate(() => !!document.querySelector('#panel-right .prop-section[data-sec="fill"] #ss-bg-color')), '나머지 프레임 절(배경 = Fill)은 그대로').toBe(true);
+  expect(await page.evaluate(() => !!document.querySelector('#panel-right .prop-section[data-sec="fill"] :is(#ss-bg-color, #ss-fill-add)')), '나머지 프레임 절(배경 = Fill)은 그대로').toBe(true);   // ★기대 바뀜(표준 Fill F2 · 지디 (ㄱ) 261124): 버즈 기본 bg transparent = «칠 없음» → 색 칸 대신 머리 ＋(#ss-fill-add)
   await expect(page.locator('#ss-to-stack-btn'), '버즈 프레임에는 「stack」 변환 단추가 없다').toHaveCount(0);
   const gaps = await page.evaluate(() => {
     const top = (el) => el.getBoundingClientRect().top, bottom = (el) => el.getBoundingClientRect().bottom;
@@ -1263,9 +1263,9 @@ test('BZ-26 1013t2D1⒜ 새 버즈(기본 스타일)의 프레임 배경 = 투�
   expect(await bgOf(page, fid), '새 버즈: 프레임 배경이 투명(색 · 그림 없음)').toEqual({ data: 'transparent', color: CLEAR, image: 'none' });
   const panel = () => page.evaluate(() => {
     const hex = document.getElementById('ss-bg-hex');
-    return { label: hex?.closest('.prop-color-row')?.querySelector('.prop-label')?.textContent.trim() ?? null, alpha: document.getElementById('ss-bg-alpha')?.value ?? null };
+    return { none: !!document.getElementById('ss-fill-add'), colorRow: !!hex };   // ★기대 바뀜(표준 Fill F2 · 지디 (ㄱ) 261124): 옛 «배경색 (투명)» 라벨·0% = 이제 «칠 없음» + 머리 ＋(같은 값 bg transparent · 바이트 무변)
   });
-  expect(await panel(), '패널 Background: 「배경색 (투명)」 · 불투명도 0').toEqual({ label: '배경색 (투명)', alpha: '0' });
+  expect(await panel(), '패널 Fill: 「칠 없음」 + 머리 ＋(옛 「배경색 (투명)」 · 0%)').toEqual({ none: true, colorRow: false });   // ★기대 바뀜(표준 Fill F2 · (ㄱ))
   /* 투명이면 뒤의 섹션 색이 그대로 보인다 — 프레임의 빈 자리에서 «보이는 색» = 섹션 배경 */
   const secBg = await page.evaluate((secId) => getComputedStyle(document.getElementById(secId)).backgroundColor, secId);
   expect(rgbaOf(secBg)?.a, `전제: 섹션에 불투명한 배경이 있다(${secBg})`).toBe(1);
@@ -1277,7 +1277,7 @@ test('BZ-26 1013t2D1⒜ 새 버즈(기본 스타일)의 프레임 배경 = 투�
   }
   const T = ['transparent', CLEAR, 'none'];
   expect(seen, '스타일 6종의 프레임 기본 배경: 알약만 #5f564e · 나머지 5종은 투명').toEqual({ bubble: T, tail: T, tape: T, strip: T, pill: ['#5f564e', PILL_SOLID, 'none'], card: T });
-  expect(await panel(), '카드로 돌아온 뒤 패널도 투명').toEqual({ label: '배경색 (투명)', alpha: '0' });
+  expect(await panel(), '카드로 돌아온 뒤 패널도 «칠 없음»').toEqual({ none: true, colorRow: false });   // ★기대 바뀜(표준 Fill F2 · (ㄱ))
   const errs2 = await reopen(page, fid);
   expect(await bgOf(page, fid), '다시 연 뒤에도 투명').toEqual({ data: 'transparent', color: CLEAR, image: 'none' });
   expect([errs, errs2]).toEqual([[], []]);

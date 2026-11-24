@@ -1392,5 +1392,6 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
 .ui-stroke2 .ui-s2-main > .prop-chain-btn.active { background: var(--ui-bg-hover); color: var(--ui-accent); }
 .ui-stroke2 .prop-color-row.ui-s2-layer > .prop-color-field { flex: 1 1 auto; max-width: none; }
 .ui-stroke2[aria-disabled="true"] .ui-stroke-std, .ui-stroke2 [data-field="stroke-align"][aria-disabled="true"] { opacity: var(--ui-disabled-opacity, 0.5); }
+.ui-fill .ui-f-row > .prop-color-field { flex: 1 1 auto; max-width: none; } .ui-fill-slot[data-slot="below"] { border-top: thin dashed var(--ui-border-mid); padding-top: var(--ui-space-1_5); margin-top: var(--ui-space-1_5); } .ui-fill .prop-color-hex[data-fill-kind] { text-transform: none; cursor: pointer; } .ui-fill-btn[aria-disabled="true"] { opacity: var(--ui-disabled-opacity, 0.5); cursor: not-allowed; }   /* 표준 Fill(F1 · 시안 #mkp-fillstd) — 이름칸 «Linear» 대소문자 그대로 · 눈 막힘(F6 전) */
 /* 절 끝 여백 = --ui-sec-body-pb 하나(⑯ 규칙은 몸 아래 두 겹까지만 본다 — 부품 줄은 세 겹째: 몸 › .ui-stroke2 › 묶음 › 줄) · 슬롯이 뒤에 오면 표준 묶음 끝 줄 여백은 슬롯과의 사이로 남는다 (prop-section-bottom-gap B1 실측 22 → 16) */
 .ui-stroke2 > :last-child > :last-child { margin-bottom: 0; }
