@@ -2,7 +2,7 @@
  *
  * 꼴(시안 ①): .ui-fill[data-part=fill] › .ui-fill-layer[data-fill-index="0"](겹 줄 하나 · 여러 겹 = 안 함 · 자리만)
  *   겹 줄 = 옛 색 칸(colorFieldHTML · 견본 · 이름칸 · %) + 눈(숨김 · F6 전엔 막힘) + −(칠 지우기 = 어댑터 none)
- *   이름칸: 단색 = HEX · 그라데이션 = «Linear»/«Radial» · 이미지 = «Image»(읽기 전용 — 종류는 견본 클릭 = 앱 color-picker 탭에서 바꾼다)
+ *   이름칸: 단색 = HEX · 그라데이션 = «Linear»/«Radial» · 이미지 = «Image» — ⛔읽기 전용 아님: 누르면(포커스) 옛 HEX 가 들어와 «HEX 쳐서 단색으로» 옛 길이 산다(text-gradient G6 · 261124) · 안 바꾸고 나가면 이름으로 돌아감
  *   칠 없음 = «칠 없음 — ＋ 로 더하기» 한 줄 + 머리 ＋(fillHeadToolsHTML · 어댑터 add)
  *   ⛔그 줄은 .prop-hint 가 아니다(.ui-fill-none) — 힌트면 패널 힌트 수(≤2)·힌트 명부 spec 에 잡힌다(radial-t4-b H0 · 지혜맥 261124)
  * 견본 클릭 = 앱 color-picker(goya-cp · 단색/그라데이션/이미지 탭) 그대로 — 계획의 «종류 팝오버»를 새로 짓지 않는다(실측 261124).
@@ -20,12 +20,15 @@ export const fillLast = { set: (id, c) => { if (id && c && c !== 'transparent') 
 /** CSS 칠 문자열 → 이름칸 종류(그라데이션 아니면 'solid') */
 export const fillKindOfCss = (css) => { const m = /(linear|radial|conic)-gradient\s*\(/i.exec(css || ''); return m ? m[1].toLowerCase() : 'solid'; };
 
-/** 이름칸 즉시 맞춤(피커 탭을 바꾼 뒤 · 패널 재그리기 없이) — 단색이면 읽기 전용 풀고 HEX 는 피커가 채운다 */
+/** 이름칸 즉시 맞춤(피커 탭을 바꾼 뒤 · 패널 재그리기 없이) — 이름으로 바꿀 때 그때 HEX 를 data-fill-hex 에 둠(포커스 때 되돌림) · 단색이면 표식만 걷고 HEX 는 피커가 채운다 */
 export function setFillKindName(hexEl, kind) {
   if (!hexEl) return;
-  if (FILL_KIND_NAME[kind]) { hexEl.value = FILL_KIND_NAME[kind]; hexEl.readOnly = true; hexEl.dataset.fillKind = kind; }
-  else if (hexEl.dataset.fillKind) { hexEl.readOnly = false; delete hexEl.dataset.fillKind; }
+  if (FILL_KIND_NAME[kind]) { if (!hexEl.dataset.fillKind) hexEl.dataset.fillHex = hexEl.value; hexEl.value = FILL_KIND_NAME[kind]; hexEl.dataset.fillKind = kind; }
+  else if (hexEl.dataset.fillKind) { if (hexEl.value === FILL_KIND_NAME[hexEl.dataset.fillKind]) hexEl.value = hexEl.dataset.fillHex || hexEl.value; delete hexEl.dataset.fillKind; delete hexEl.dataset.fillHex; }
 }
+/* 이름칸 포커스 = HEX(쳐서 단색으로 가는 옛 길) · 안 바꾸고 나가면 이름 — 패널마다 배선 없이 한 벌(document 위임) */
+if (typeof document !== 'undefined') document.addEventListener('focusin', (e) => { const h = e.target; if (h?.classList?.contains('prop-color-hex') && h.dataset.fillKind) { h.value = h.dataset.fillHex || ''; h.select?.(); } });
+if (typeof document !== 'undefined') document.addEventListener('focusout', (e) => { const h = e.target; if (h?.classList?.contains('prop-color-hex') && h.dataset.fillKind && FILL_KIND_NAME[h.dataset.fillKind]) h.value = FILL_KIND_NAME[h.dataset.fillKind]; });
 
 /**
  * @param {object} o
@@ -39,7 +42,7 @@ export function setFillKindName(hexEl, kind) {
  */
 export function fillSectionHTML({ prefix, colorHtml, on = true, kind = 'solid', hiddenWhy = '숨기기 — 곧 지원', slotsBelow = '', removeWhy = '' }) {
   let field = String(colorHtml || '').replace('class="prop-color-field"', 'class="prop-color-field" data-part="color" data-field="fill-color"');
-  if (FILL_KIND_NAME[kind]) field = field.replace(/(<input type="text" class="prop-color-hex"[^>]*?) value="[^"]*"/, `$1 value="${FILL_KIND_NAME[kind]}" readonly data-fill-kind="${kind}"`);
+  if (FILL_KIND_NAME[kind]) field = field.replace(/(<input type="text" class="prop-color-hex"[^>]*?) value="([^"]*)"/, `$1 value="${FILL_KIND_NAME[kind]}" data-fill-kind="${kind}" data-fill-hex="$2"`);
   const eyeDis = hiddenWhy ? ` aria-disabled="true" tabindex="0" title="${hiddenWhy}"` : '';
   const layer = `<div class="ui-fill-layer" data-fill-index="0">
           <div class="prop-color-row ui-f-row">${field}<button type="button" class="prop-icon-btn ui-fill-btn" id="${prefix}-eye" aria-label="숨기기" aria-pressed="false"${eyeDis}>${EYE}</button><button type="button" class="prop-icon-btn ui-fill-btn" id="${prefix}-remove" aria-label="칠 지우기" title="${removeWhy || '칠 지우기'}"${removeWhy ? ' aria-disabled="true"' : ''}>${MINUS}</button></div>
