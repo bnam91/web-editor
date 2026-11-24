@@ -1,10 +1,11 @@
-/* layout-std-c2.dom.spec.js — 표준 Layout L2~L4 · C2 갈래 아홉 패널(정본 시안 8910 #mkp-layoutstd · PLAN-appearance-layout-std-261124 §2·§2-b · 탑 C2 발주·판정 261124)
+/* layout-std-c2.dom.spec.js — 표준 Layout L2~L4 · C2 갈래 일곱 패널(정본 시안 8910 #mkp-layoutstd · PLAN-appearance-layout-std-261124 §2·§2-b · 탑 C2 발주·판정 261124)
+ *   대상 일곱 = sticker(글·기본·형광펜) · innercard · coupon · laurel · step · iconify · cert(simple-card·canvas 는 대성 갈래로 이관 261125)
  *   슬라이더 걷음(현빈 L-4) → 숫자 칸 + 라벨 끌기(부품 js/props/_layout-section.js) · ⛔숫자 칸 id·저장 키·범위 무변
  *   LC1 Size·Layout·Padding 절 슬라이더 0 · 옛 숫자 칸 id 가 전부 부품(data-part="layout") 안 · 끌기 손잡이(${id}-scrub) 있음
  *   LC2 칸 하나 값 → 저장 키 · 범위 밖 = 잘림 · 이력 1(칸마다 대표 하나)
  *   LC3 sticker 글 너비 모드(§2-b · 옛 체크 stk-t-boxw-on) — 고정 → boxW px · 너비 칸 열림 / 자동 → 'auto' · 너비 칸 막힘
  *   LC4 step 패딩 L/R + 옛 사슬 stb-ph-chain(슬롯 끝 칸) — 잠금이면 L 을 바꿀 때 R 도 같은 값
- *   양성대조(CTL) = 제품 파일 9 를 P 머리(1baa53b8f)로 되돌림 → LC1·LC3·LC4 빨강(슬라이더 남음 · 칸이 부품 밖 · 드롭다운 없음) · LC2 는 숫자 칸이 옛에도 있어 일부 초록일 수 있음.
+ *   양성대조(CTL) = 제품 파일 7 을 P 머리(1baa53b8f)로 되돌림 → LC1·LC3·LC4 빨강(슬라이더 남음 · 칸이 부품 밖 · 드롭다운 없음) · LC2 는 숫자 칸이 옛에도 있어 일부 초록일 수 있음.
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js tests/dom/layout-std-c2.dom.spec.js --workers=1 */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -15,10 +16,6 @@ const CASES = [
     { id: 'stk-t-pad-x-num', v: 22, over: 999, cut: 400, key: 'padX' }],
   ['sticker(기본)', 'window.addStickerBlock()', 'sticker-block', ['stk-size-num'], { id: 'stk-size-num', v: 90, over: 9999, cut: 600, key: 'size' }],
   ['sticker(형광펜)', "window.addStickerBlock({ shape: 'highlight' })", 'sticker-block', ['stk-hl-w-num', 'stk-hl-h-num'], { id: 'stk-hl-w-num', v: 300, over: 9999, cut: 1200, key: 'hlW' }],
-  ['simple-card', 'window.addCanvasBlock()', 'canvas-block', ['cvb-w', 'cvb-h', 'cvb-img-ratio-number', 'cvb-gap-number', 'cvb-padx-number'],
-    { id: 'cvb-gap-number', v: 20, over: 999, cut: 48, key: 'cardGap' }],
-  ['canvas', "window.addCanvasBlock(); { const b = [...document.querySelectorAll('#canvas .canvas-block')].pop(); delete b.dataset.cardMode; window.showCanvasProperties(b); }", 'canvas-block',
-    ['cvb-w', 'cvb-h', 'cvb-img-ratio-number', 'cvb-gap-number', 'cvb-padx-number'], { id: 'cvb-padx-number', v: 24, over: 999, cut: 80, key: 'padX' }],
   ['innercard', 'window.addInnerCardBlock()', 'innercard-block', ['icd-pad-number'], { id: 'icd-pad-number', v: 30, over: 999, cut: 120, key: 'padding' }],
   ['coupon', 'window.addCouponBlock()', 'coupon-block', ['cpn-width-number'], null],   // 폭 change = 패널 다시 그림 → 값 칸은 LC1 만
   ['laurel', 'window.addLaurelBlock()', 'laurel-block', ['lrl-all-height-num', 'lrl-all-gap-num'], { id: 'lrl-all-height-num', v: 200, over: 9999, cut: 600, key: null }],
