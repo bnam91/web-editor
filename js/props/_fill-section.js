@@ -1,7 +1,8 @@
 /* _fill-section.js — 표준 Fill 절 부품(현빈 GO 261124 · 시트 0.9.14 DS-FILL-STD-SECTION-01 · 정본 시안 8910 #mkp-fillstd 탑 55ad8d1 · 계획 gdragon PLAN §4d 65c973c)
  *
  * 꼴(시안 ①): .ui-fill[data-part=fill] › .ui-fill-layer[data-fill-index="0"](겹 줄 하나 · 여러 겹 = 안 함 · 자리만)
- *   겹 줄 = 옛 색 칸(colorFieldHTML · 견본 · 이름칸 · %) + 눈(숨김 · F6 전엔 막힘) + −(칠 지우기 = 어댑터 none)
+ *   겹 줄 = 옛 색 칸(colorFieldHTML · 견본 · 이름칸 · %) + 눈(숨김 · 어댑터 hide · 블럭이 hiddenWhy:'' 로 켤 때만 · 아니면 막힘) + −(칠 지우기 = 어댑터 none)
+ *   숨김(F6): 키 = 블럭 data-fill-hidden="1" «숨길 때만»(보이면 키 없음 = 옛 바이트 · setFillHiddenKey 한 곳) · 색 값은 안 지움 · 그리는 법은 어댑터(블럭마다 칠이 사는 자리가 다름)
  *   이름칸: 단색 = HEX · 그라데이션 = «Linear»/«Radial» · 이미지 = «Image» — ⛔읽기 전용 아님: 누르면(포커스) 옛 HEX 가 들어와 «HEX 쳐서 단색으로» 옛 길이 산다(text-gradient G6 · 261124) · 안 바꾸고 나가면 이름으로 돌아감
  *   칠 없음 = «칠 없음 — ＋ 로 더하기» 한 줄 + 머리 ＋(fillHeadToolsHTML · 어댑터 add)
  *   ⛔그 줄은 .prop-hint 가 아니다(.ui-fill-none) — 힌트면 패널 힌트 수(≤2)·힌트 명부 spec 에 잡힌다(radial-t4-b H0 · 지혜맥 261124)
@@ -10,6 +11,7 @@
  * 데이터 = 어댑터 { add(), none(), commit() } — 부품은 블럭을 모른다.
  */
 const EYE = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6s1.8-3.5 5-3.5S11 6 11 6s-1.8 3.5-5 3.5S1 6 1 6z"/><circle cx="6" cy="6" r="1.4"/></svg>';
+const EYE_OFF = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6s1.8-3.5 5-3.5S11 6 11 6s-1.8 3.5-5 3.5S1 6 1 6z"/><path d="M2 10L10 2"/></svg>';
 const MINUS = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 6h8"/></svg>';
 const PLUS = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 2v8M2 6h8"/></svg>';
 export const FILL_KIND_NAME = Object.freeze({ linear: 'Linear', radial: 'Radial', conic: 'Angular', image: 'Image' });   // conic = Figma GRADIENT_ANGULAR(옛 홀로그램 칠 · 새로 고르는 종류 아님)
@@ -17,6 +19,9 @@ export const FILL_KIND_NAME = Object.freeze({ linear: 'Linear', radial: 'Radial'
 /** 지난 색(＋ 로 되살림) — 블럭 id 열쇠(⌘Z/⇧⌘Z 가 요소를 새로 만들어 요소 열쇠는 잃는다 · F1 D3 실측) · shortcut: 세션 안에서만(저장 키 0) — 다시 열어서도 원하면 dataset 키로 */
 const _LAST = new Map();
 export const fillLast = { set: (id, c) => { if (id && c && c !== 'transparent') _LAST.set(id, c); }, get: (id, dflt) => _LAST.get(id) || dflt };
+/** 숨김 키 — 숨길 때만 "1" · 보이면 속성 자체를 지움(빈 값 남기지 않음) */
+export const fillHiddenOf = (el) => el?.getAttribute?.('data-fill-hidden') === '1';
+export function setFillHiddenKey(el, on) { if (!el) return; if (on) el.setAttribute('data-fill-hidden', '1'); else el.removeAttribute('data-fill-hidden'); }
 /** CSS 칠 문자열 → 이름칸 종류(그라데이션 아니면 'solid') */
 export const fillKindOfCss = (css) => { const m = /(linear|radial|conic)-gradient\s*\(/i.exec(css || ''); return m ? m[1].toLowerCase() : 'solid'; };
 
@@ -36,16 +41,18 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
  * @param {string} o.colorHtml    옛 색 칸 마크업(colorFieldHTML · 옛 id 그대로)
  * @param {boolean} [o.on]        false = 칠 없음(겹 줄 대신 «칠 없음» 줄 · 머리 ＋)
  * @param {string} [o.kind]       'solid' | 'linear' | 'radial' | 'image' — 이름칸(단색이면 옛 HEX 그대로)
- * @param {string} [o.hiddenWhy]  눈 막힘 까닭(F6 전 = «곧 지원») · '' 면 산다(F6)
+ * @param {string} [o.hiddenWhy]  눈 막힘 까닭(기본 «곧 지원») · '' 면 산다(F6 · 어댑터 hide 필요)
+ * @param {boolean} [o.hidden]    숨김 중(눈 눌림 · 줄 흐림 · fillHiddenOf(block))
  * @param {string} [o.slotsBelow] 블럭 슬롯(.ui-stroke-slot 꼴)
  * @param {string} [o.removeWhy]  − 막힘 까닭(칠을 못 지우는 블럭 · 예: 그라데이션 블럭) · '' 면 산다
  */
-export function fillSectionHTML({ prefix, colorHtml, on = true, kind = 'solid', hiddenWhy = '숨기기 — 곧 지원', slotsBelow = '', removeWhy = '' }) {
+export function fillSectionHTML({ prefix, colorHtml, on = true, kind = 'solid', hiddenWhy = '숨기기 — 곧 지원', hidden = false, slotsBelow = '', removeWhy = '' }) {
   let field = String(colorHtml || '').replace('class="prop-color-field"', 'class="prop-color-field" data-part="color" data-field="fill-color"');
   if (FILL_KIND_NAME[kind]) field = field.replace(/(<input type="text" class="prop-color-hex"[^>]*?) value="([^"]*)"/, `$1 value="${FILL_KIND_NAME[kind]}" data-fill-kind="${kind}" data-fill-hex="$2"`);
   const eyeDis = hiddenWhy ? ` aria-disabled="true" tabindex="0" title="${hiddenWhy}"` : '';
-  const layer = `<div class="ui-fill-layer" data-fill-index="0">
-          <div class="prop-color-row ui-f-row">${field}<button type="button" class="prop-icon-btn ui-fill-btn" id="${prefix}-eye" aria-label="숨기기" aria-pressed="false"${eyeDis}>${EYE}</button><button type="button" class="prop-icon-btn ui-fill-btn" id="${prefix}-remove" aria-label="칠 지우기" title="${removeWhy || '칠 지우기'}"${removeWhy ? ' aria-disabled="true"' : ''}>${MINUS}</button></div>
+  const hid = !hiddenWhy && hidden;
+  const layer = `<div class="ui-fill-layer" data-fill-index="0"${hid ? ' data-hidden="1"' : ''}>
+          <div class="prop-color-row ui-f-row">${field}<button type="button" class="prop-icon-btn ui-fill-btn" id="${prefix}-eye" aria-label="${hid ? '보이기' : '숨기기'}" aria-pressed="${hid}"${eyeDis}>${hid ? EYE_OFF : EYE}</button><button type="button" class="prop-icon-btn ui-fill-btn" id="${prefix}-remove" aria-label="칠 지우기" title="${removeWhy || '칠 지우기'}"${removeWhy ? ' aria-disabled="true"' : ''}>${MINUS}</button></div>
         </div>`;
   return `
       <div class="ui-fill" data-part="fill"${on ? '' : ' data-empty="1"'}>
@@ -58,14 +65,22 @@ export function fillHeadToolsHTML({ prefix, on }) {
   return on ? '' : `<button type="button" class="prop-chain-btn prop-sec-add ui-fill-add" id="${prefix}-add" data-part="end-slot" aria-label="칠 더하기" title="칠 더하기">${PLUS}</button>`;
 }
 
-/** 배선 — ＋ = adapter.add · − = adapter.none · 각 이력 한 칸(commit) · 눈 막힘이면 열림·누름 막음 */
+/** 배선 — ＋ = adapter.add · − = adapter.none(숨김 중이면 숨김 먼저 걷음 — 다시 ＋ 했을 때 숨은 채로 안 남게) · 눈 = adapter.hide(켬/끔 · 줄은 제자리에서 바꿈) · 각 이력 한 칸(commit) · 눈 막힘이면 열림·누름 막음 */
 export function wireFillSection({ prefix, adapter }) {
   if (!adapter) return;
   document.getElementById(`${prefix}-add`)?.addEventListener('click', () => { adapter.add(); adapter.commit?.(); });
   const rm = document.getElementById(`${prefix}-remove`);
-  if (rm?.getAttribute('aria-disabled') !== 'true') rm?.addEventListener('click', () => { adapter.none(); adapter.commit?.(); });
   const eye = document.getElementById(`${prefix}-eye`);
-  if (eye?.getAttribute('aria-disabled') === 'true') {
+  const eyeLive = !!eye && eye.getAttribute('aria-disabled') !== 'true' && typeof adapter.hide === 'function';
+  if (rm?.getAttribute('aria-disabled') !== 'true') rm?.addEventListener('click', () => { if (eyeLive && eye.getAttribute('aria-pressed') === 'true') adapter.hide(false); adapter.none(); adapter.commit?.(); });
+  if (eyeLive) eye.addEventListener('click', () => {
+    const on = eye.getAttribute('aria-pressed') !== 'true';
+    adapter.hide(on);
+    eye.setAttribute('aria-pressed', String(on)); eye.setAttribute('aria-label', on ? '보이기' : '숨기기'); eye.innerHTML = on ? EYE_OFF : EYE;
+    const lay = eye.closest('.ui-fill-layer'); if (on) lay?.setAttribute('data-hidden', '1'); else lay?.removeAttribute('data-hidden');
+    adapter.commit?.();
+  });
+  else if (eye) {
     eye.addEventListener('click', (e) => e.preventDefault());
     eye.addEventListener('keydown', (e) => { if (e.key !== 'Tab') e.preventDefault(); });
   }
