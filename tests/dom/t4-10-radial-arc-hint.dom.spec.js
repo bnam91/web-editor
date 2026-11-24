@@ -83,7 +83,7 @@ test('T1 ★★★t4-10 — ★호 모드 패널에 ★「기본은 반원입니
 
   /* ★★⑴ ★0건을 ★「없다」로 ★닫지 않는다 — ★이 패널에 ★.prop-hint 가 ★하나라도 있나를 ★먼저 본다.
      ⛔없으면 ★「힌트 선택자가 바뀌었다」와 ★구분이 안 된다 ⇒ ★그때는 ★이 자가 ★죽은 것이다. */
-  const anyHint = await page.evaluate(() => document.querySelectorAll('#panel-right .prop-hint').length);
+  const anyHint = await page.evaluate(() => document.querySelectorAll('#panel-right .prop-hint, #panel-right .ui-fill-none').length);   // ★전제(표준 Fill F2-3·5550215a7 · 지디 261124): 호 패널의 유일한 힌트 «배경이 투명입니다»가 표준 «칠 없음» 줄(.ui-fill-none = 힌트 아님)로 바뀜 → 살아있음 셈에 그 줄도
   expect(anyHint,
     '★이 패널에 .prop-hint 가 0개다 — ★선택자가 바뀌었나(그러면 아래 「없다」는 ★안 재고 있다)'
   ).toBeGreaterThanOrEqual(1);
