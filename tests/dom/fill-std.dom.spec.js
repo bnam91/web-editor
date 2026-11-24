@@ -1030,3 +1030,70 @@ test('D41 프레임 배경 그림 — Figma JSON bgImg·bgSize · goya-asset →
   expect('bgImg' in (D || {}), '[지킴] 자리표시(bgImgEmpty) = 키 0').toBe(false);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* 87행 FRAME-BG-CONTAIN-REPEATS-01 — D42 프레임 배경 그림 «Contain» = 그림 하나(지디 261125 · Figma FIT 과 같은 뜻) · Cover 는 옛 그대로
+ *   ★캔버스(본체·::before 반투명 길) computed no-repeat · 열기(serialize → applyProjectData) 뒤 그대로 · PNG(CDP) 빨강 넓이 ≈ 그림 하나 · HTML 내보내기 computed no-repeat
+ *   [지킴] Cover = repeat 그대로 · 인라인 단축 background 그대로(옛 바이트)
+ * 양성대조: _patches/d87-CTL-product.patch(제품 고침 되돌림) ⇒ D42 빨강 */
+test('D42 프레임 배경 Contain = 반복 없음(캔버스·::before·열기·PNG·HTML) · [지킴] Cover 그대로', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const RED = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC';
+  const BLUE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYPgPAAEDAQAIicLsAAAAAElFTkSuQmCC';
+  const build = async () => { const errs = await bootApp(page);
+    const ids = await page.evaluate(async ([RED, BLUE]) => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+      const sec = await window.addSection(); sec.id = 'sD42'; sec.style.backgroundColor = '#ffffff'; const out = [];
+      for (const src of [RED, BLUE, RED]) { window.deselectAll(); window.selectSection(sec); const before = new Set(sec.querySelectorAll('.frame-block:not([data-text-frame])')); await window.addFrameBlock();
+        const f = [...sec.querySelectorAll('.frame-block:not([data-text-frame])')].find((x) => !before.has(x)); f.style.width = '400px'; f.style.height = '100px'; f.style.minHeight = '0px';
+        /* prop-frame 그림 고르기와 같은 손(ss-bg-img-input onload) */
+        f.style.backgroundImage = `url('${src}')`; f.style.backgroundSize = window.frameBgSize(f); f.style.backgroundPosition = 'center'; f.dataset.bgImg = src; out.push(f.id); }
+      return out; }, [RED, BLUE]);
+    return { errs, ids }; };
+  const { errs, ids } = await build();
+  for (const i of [0, 2]) {   /* 패널 «사이즈» = Contain (실 배선) */
+    await page.evaluate((id) => { const f = document.getElementById(id); window.deselectAll(); window.selectBlock(id); window.showFrameProperties(f); }, ids[i]);
+    await page.selectOption('#ss-bg-size', 'contain');
+  }
+  await page.evaluate((id) => { const f = document.getElementById(id); f.dataset.bgOpacity = '0.5'; f.style.setProperty('--frame-bg-opacity', '0.5'); f.classList.add('has-bg-opacity'); window.syncFrameBgVars(f); }, ids[2]);   /* ::before 길 — frame-bg.js setFrameBgOpacity 몸통(창에 안 걸림) 그대로 */
+  const rep = (ids) => page.evaluate((ids) => ids.map((id) => { const f = document.getElementById(id); return { size: f.dataset.bgSize ?? null, rep: getComputedStyle(f).backgroundRepeat, before: getComputedStyle(f, '::before').backgroundRepeat, rl: f.style.backgroundRepeat }; }), ids);
+  const live = await rep(ids);
+  const snap = await page.evaluate(() => window.serializeProject());
+  /* PNG — 실앱 capture-section-cdp 를 같은 CDP 명령으로 흉내(stroke-std installCdpCapture 와 같은 손) */
+  const cdp = await page.context().newCDPSession(page);
+  await page.exposeFunction('__cdpShot', async ({ x = 0, y = 0, width, height }) => (await cdp.send('Page.captureScreenshot', { format: 'png', clip: { x: Math.round(x), y: Math.round(y), width: Math.ceil(width), height: Math.ceil(height), scale: 1 }, captureBeyondViewport: true, fromSurface: true })).data);
+  const png = await page.evaluate(async () => { const old = window.electronAPI; window.electronAPI = new Proxy({}, { get: (t, k) => (k === 'captureSectionCdp' ? (o) => window.__cdpShot(o) : old?.[k]) });
+    const url = await window.exportSection(document.getElementById('sD42'), 'png', 860, { returnDataUrl: true }); window.electronAPI = old;
+    if (typeof url !== 'string' || !url.startsWith('data:image/png')) return { err: 'not png' };
+    const i = new Image(); i.src = url; await i.decode(); const c = document.createElement('canvas'); c.width = i.width; c.height = i.height; const g = c.getContext('2d'); g.drawImage(i, 0, 0);
+    const d = g.getImageData(0, 0, c.width, c.height).data; let red = 0, blue = 0;
+    for (let k = 0; k < d.length; k += 4) { if (d[k] > 200 && d[k + 1] < 60 && d[k + 2] < 60) red++; if (d[k] < 60 && d[k + 1] < 60 && d[k + 2] > 200) blue++; }
+    return { red, blue, w: i.width }; });
+  /* HTML — 받은 파일을 그대로 다른 탭에 띄워 computed 를 잰다 */
+  const [dh] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }), page.evaluate(() => { window.exportHTMLFile(); return null; })]);
+  const html = require('fs').readFileSync(await dh.path(), 'utf8');
+  const hp = await page.context().newPage();
+  await hp.setContent(html, { waitUntil: 'domcontentloaded' });
+  const htm = await hp.evaluate((ids) => ids.map((id, i) => { const f = document.getElementById(id); return f ? getComputedStyle(f, i === 2 ? '::before' : null).backgroundRepeat : null; }), ids);   /* 셋째 = ::before 길(본체는 그림 비움) */
+  await hp.close();
+  /* 열기 — 저장본을 새 부팅에 얹는다 */
+  const errs2 = await bootApp(page);
+  await page.evaluate((d) => window.applyProjectData(d), JSON.parse(snap));
+  await page.waitForFunction((id) => !!document.getElementById(id), ids[0]);
+  const reopened = await rep(ids);
+  console.log('[D42 실측]', JSON.stringify({ live, png, htm, reopened }));
+  expect(live.slice(0, 2).map((x) => [x.size, x.rep]), '★캔버스 Contain = no-repeat · [지킴] Cover = repeat(옛 그대로)').toEqual([['contain', 'no-repeat'], [null, 'repeat']]);
+  expect(live[2].before, '★반투명(::before) 길 Contain = no-repeat').toBe('no-repeat');
+  expect(live.map((x) => x.rl), '★인라인 반복 = Contain 만 no-repeat · [지킴] Cover = 단축 그대로(initial · 옛 바이트) · ::before 길 = 본체 비움').toEqual(['no-repeat', 'initial', '']);
+  expect(reopened.slice(0, 2).map((x) => x.rep), '★열기 뒤 그대로').toEqual(['no-repeat', 'repeat']);
+  expect(reopened[2].before, '★열기 뒤 ::before 그대로').toBe('no-repeat');
+  /* 빨강 프레임 400×100 · Contain = 100×100 하나(≈10000) · 반복이면 ≈40000 · 파랑 Cover 400×100 ≈ 40000 */
+  expect(png.red, `★PNG Contain 빨강 = 그림 하나 넓이(${png.red})`).toBeGreaterThan(5000);
+  expect(png.red, `★PNG Contain 빨강 = 반복 없음(${png.red})`).toBeLessThan(15000);
+  expect(png.blue, `[지킴] PNG Cover 파랑 = 상자 가득(${png.blue})`).toBeGreaterThan(35000);
+  expect(htm, '★HTML 내보내기 Contain = no-repeat · [지킴] Cover = repeat · ::before 길 = no-repeat').toEqual(['no-repeat', 'repeat', 'no-repeat']);
+  /* Contain → Cover 되돌리면 반복도 돌아온다(우리가 박은 no-repeat 만 걷음) */
+  await page.evaluate((id) => { const f = document.getElementById(id); window.deselectAll(); window.selectBlock(id); window.showFrameProperties(f); }, ids[0]);
+  await page.selectOption('#ss-bg-size', 'cover');
+  expect(await page.evaluate((id) => { const f = document.getElementById(id); return [f.style.backgroundRepeat, getComputedStyle(f).backgroundRepeat]; }, ids[0]), '★Cover 로 되돌림 = 인라인 반복 걷힘 · repeat').toEqual(['', 'repeat']);
+  expect(errs, errs.join(' | ')).toEqual([]);
+  expect(errs2, errs2.join(' | ')).toEqual([]);
+});

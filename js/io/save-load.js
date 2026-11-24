@@ -1,5 +1,5 @@
 import { canvasEl, state, PAGE_LABELS } from '../globals.js';   /* ★canvasWrap 은 뺐다 — 깔때기만 쓴다(직접 대입 재유입 방지) */
-import { syncFrameBgVars, frameBgSize } from '../frame-bg.js';   /* ★프레임 배경 ★먹이는 한 자리(2026-10-10 ③) */
+import { syncFrameBgVars, frameBgSize, syncFrameBgRepeat } from '../frame-bg.js';   /* ★프레임 배경 ★먹이는 한 자리(2026-10-10 ③) */
 import { externalizeProjectData, adoptForeignAssets, applyAdoptedAssets, stopAdoptingForQuit, recordExternalizeBaseline } from './asset-externalize.js';
 import { buildProjForSave } from './proj-merge.js';   /* ★저장 병합은 «한 벌»(T-232 ⓑ) */
 import { liftSvgTransformsForH2C } from './h2c-prep.js';   /* ★svg 의 CSS transform 을 감싸는 쪽으로 — h2c 는 svg 쪽을 안 그린다 */
@@ -1846,6 +1846,7 @@ function rebindAll(opts = {}) {
       ss.style.backgroundImage = `url(${ss.dataset.bgImg})`;
       ss.style.backgroundSize = frameBgSize(ss);   /* ★2026-10-10 ③ — ★:1161(섹션)은 dataset 을 읽는데 ★여기만 상수였다 */
       ss.style.backgroundPosition = ss.dataset.bgPos || 'center';
+      syncFrameBgRepeat(ss);
     } else if (ss.dataset.bgPos && ss.style.backgroundImage) {
       ss.style.backgroundPosition = ss.dataset.bgPos;
     }

@@ -1,6 +1,6 @@
 import './block-flip.js';     // side-effect import — window.applyFlip/toggleFlip 를 블럭 렌더러(스티커·아이콘·모달·목업·줌)보다 먼저(Q17 반전)
 import './graph-limits.js';   // side-effect import — window.GRAPH_LIMITS 를 «이 모듈보다 먼저» 싣는다(하네스·앱 같은 길, 로드 순서 의존 없음)
-import { syncFrameBgVars, frameBgSize } from './frame-bg.js';   /* ★프레임 배경 ★먹이는 한 자리(2026-10-10 ③) */
+import { syncFrameBgVars, frameBgSize, syncFrameBgRepeat } from './frame-bg.js';   /* ★프레임 배경 ★먹이는 한 자리(2026-10-10 ③) */
 import { state } from './globals.js';
 import {
   genId,
@@ -6934,6 +6934,7 @@ function updateFrameBlock(blockId, partial = {}) {
       block.style.backgroundImage = `url("${src}")`;
       block.style.backgroundSize = frameBgSize(block);
       block.style.backgroundPosition = 'center';
+      syncFrameBgRepeat(block);
       block.dataset.bgImg = src;
       _syncBgVars();
       applied.bgImage = src;
@@ -7133,6 +7134,7 @@ function updateFrameBlock(blockId, partial = {}) {
         block.style.backgroundImage = `url("${block.dataset.bgImg}")`;
         block.style.backgroundSize = frameBgSize(block);
         block.style.backgroundPosition = block.dataset.bgPos || 'center';
+        syncFrameBgRepeat(block);
       } else if (bgVal) {
         block.style.backgroundColor = bgVal;
       }

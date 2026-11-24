@@ -2,7 +2,7 @@
    PROP-FRAME — Frame 속성 패널 (frame-block)
 ══════════════════════════════════════ */
 import { propPanel } from '../globals.js';
-import { syncFrameBgVars, frameBgSize, applyFrameBgImageInline, setFrameBgOpacity } from '../frame-bg.js';
+import { syncFrameBgVars, frameBgSize, applyFrameBgImageInline, setFrameBgOpacity, syncFrameBgRepeat } from '../frame-bg.js';
 import { clipsContent } from '../clip-content.js';   /* ★★켬 판정의 ★단 한 자리(2026-10-10 c2 · 지디 ㉠) */   /* ★프레임 배경 ★먹이는 한 자리(2026-10-10 ③) */
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_STYLES_CSS, STROKE_POP_WHY } from './_stroke-section.js';
@@ -900,6 +900,7 @@ function _renderAutoPanel(ss) {
       ss.style.backgroundImage = `url('${src}')`;
       ss.style.backgroundSize = frameBgSize(ss);
       ss.style.backgroundPosition = 'center';
+      syncFrameBgRepeat(ss);
       ss.dataset.bgImg = src;
       delete ss.dataset.bgImgEmpty; ss.classList.remove('sec-bg-empty');   // ★진짜 그림이 오면 «자리표시»는 물러난다(섹션과 같다)
       document.getElementById('ss-bg-empty-box')?.remove();

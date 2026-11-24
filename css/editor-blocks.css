@@ -348,6 +348,8 @@
   opacity: var(--frame-bg-opacity, 1);
   border-radius: inherit;
 }
+/* 87행 FRAME-BG-CONTAIN-REPEATS-01(지디 261125) — Contain = 그림 하나(Figma FIT 과 같은 뜻) · ::before 길. 본체는 인라인(js/frame-bg.js syncFrameBgRepeat) · Cover 는 옛 그대로 */
+.frame-block.has-bg-opacity[data-bg-size="contain"]::before { background-repeat: no-repeat; }
 /* 직속 자식이 ::before(z-index:0) 위에 오도록 보장 (free/flow 양쪽) */
 .frame-block.has-bg-opacity > * {
   position: relative;
