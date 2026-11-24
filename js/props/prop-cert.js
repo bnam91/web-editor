@@ -12,6 +12,8 @@ import { readCertState, setCertList, CERT_SHADOWS } from '../blocks/cert-block.j
 const SHADOW_LABEL = { none: '없음', soft: '부드럽게', strong: '진하게' };
 const MODE_LABEL = { stack: '스택(겹침)', grid: '격자(A4 칸)' };
 import { CERT_PRESET_NAMES, CERT_MAX_SHEETS, CERT_MAX_GRID, CERT_SHEET_H } from '../blocks/cert-layout.js';
+import { layoutGapSlotHTML, layoutSlotNumberHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(C2)
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance A4(C2)
 const PICK_COLS = 4, PICK_ROWS = 3;   // 그리드 피커 4×3 = CERT_MAX_GRID
 
 const _ICON = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3"><rect x="3.5" y="1" width="6" height="8.5" rx="0.5"/><path d="M2.5 2.5v8.5h6"/></svg>`;
@@ -38,7 +40,9 @@ export function showCertProperties(block) {
   /* ⑰ⓑ 오버레이(플로팅) — 공용 js/overlay-float.js 한 벌(모달·아이콘과 같은 겉모습·배선) · 떠 있나 = 공용 isFloat */
   const _crtPosEl = posElOf(block);
   const _crtIsFloat = !!(_crtPosEl && isFloat(_crtPosEl));
-  const sheetHRow = sliderRowHTML('용지 높이', 'crt-sheeth-slider', 'crt-sheeth-number', { min: CERT_SHEET_H.min, max: CERT_SHEET_H.max, step: 1, value: st.sheetH });
+  /* ★표준 Layout(C2) — 옛 슬라이더 crt-sheetw/sheeth/gapx/gapy/jitter 걷음 → 블럭 슬롯·간격 슬롯(숫자 + 라벨 끌기) · 숫자 칸 id·범위·저장 키 무변
+     ⚠️⑭ 자석 턱 141 은 슬라이더 끌기에만 있던 몫 — 슬라이더와 같이 빠짐(숫자 칸 직접 입력엔 원래 없음 · 탑 판정 청) */
+  const sheetHRow = layoutSlotNumberHTML({ id: 'crt-sheeth-number', label: '용지 높이', value: st.sheetH, min: CERT_SHEET_H.min, max: CERT_SHEET_H.max });
   const calloutsRow = _toggleRow('crt-callouts', '지시선 글', withCallouts, st.mode === 'grid' ? '용지마다 아래 제목·설명(+상태 칩)' : '용지마다 세로 지시선 + 제목·설명(+상태 칩)');
   /* ★rp-on-dev ⓐ(261118) — 우측 패널 틀(_panel-frame)로 이관. 옛 「Documents」 한 절을 소유대로 갈랐다(id·배선 무변):
        Kind = 모드·배치 · Content = 장 수·샘플넣기 · Position = X/Y(+머리 손잡이 플로팅 — asset·shape 선례) · Size = 용지 크기·높이(스택)
@@ -59,18 +63,18 @@ export function showCertProperties(block) {
       sec('position', `
       ${floatPositionRowHTML({ prefix: 'crt', posEl: _crtPosEl })}`, { headTools: overlayToggleBtnHTML({ id: 'crt-float-toggle', active: _crtIsFloat }) }),
       sec('size', isGrid ? '' : `
-      ${sliderRowHTML('용지 크기', 'crt-sheetw-slider', 'crt-sheetw-number', { min: 20, max: 45, step: 1, value: Math.round(st.sheetW * 100) })}
+      ${layoutSlotNumberHTML({ id: 'crt-sheetw-number', label: '용지 크기', value: Math.round(st.sheetW * 100), min: 20, max: 45 })}
       ${sheetHRow}`),
       sec('layout', isGrid ? `
       <div class="grid-picker" id="crt-grid-picker" title="열 × 행 — 장 수 = 열 × 행"></div>
       <div class="grid-picker-label" id="crt-grid-picker-label">${st.cols} × ${rows}</div>
       ${sheetHRow}
-      ${sliderRowHTML('가로 간격', 'crt-gapx-slider', 'crt-gapx-number', { min: -80, max: 80, step: 2, value: st.gapX })}
-      ${sliderRowHTML('세로 간격', 'crt-gapy-slider', 'crt-gapy-number', { min: -80, max: 80, step: 2, value: st.gapY })}
+      ${layoutGapSlotHTML({ xId: 'crt-gapx-number', yId: 'crt-gapy-number', x: st.gapX, y: st.gapY, min: -80, max: 80 })}
       <div class="prop-row" title="간격이 음수일 때 겹친 칸의 위아래"><span class="prop-label">겹침 순서</span><select class="prop-select" id="crt-overlap">
         <option value="right"${st.overlap === 'left' ? '' : ' selected'}>오른쪽이 위</option><option value="left"${st.overlap === 'left' ? ' selected' : ''}>왼쪽이 위</option></select></div>` : `
-      ${sliderRowHTML('흩뿌림', 'crt-jitter-slider', 'crt-jitter-number', { min: 0, max: 100, step: 5, value: Math.round(st.jitter * 100) })}
+      ${layoutSlotNumberHTML({ id: 'crt-jitter-number', label: '흩뿌림', value: Math.round(st.jitter * 100), min: 0, max: 100, step: 5 })}
       <div class="prop-row"><button class="prop-btn" id="crt-reshuffle" style="width:100%" title="흩뿌림이 0 보다 클 때 다른 배치로">다시 섞기</button></div>`),
+      sec('appearance', appearanceSectionHTML({ prefix: 'crt', op: { value: window.readBlockOpacity?.(block) ?? 100 } }), { headTools: appearanceHeadToolsHTML({ prefix: 'crt' }) }),   // ★표준 Appearance A4(C2) — Opacity 만
       sec('padding', canFB ? `
       ${_toggleRow('crt-fullbleed', '패딩 제외', block.dataset.fullBleed === 'true', '섹션 좌우 패딩을 무시하고 끝까지')}` : ''),
       sec('effects', `
@@ -159,15 +163,15 @@ export function showCertProperties(block) {
     s.addEventListener('change', commit);
     n.addEventListener('change', () => { apply(parseFloat(n.value)); commit(); });
   };
-  wireNum('crt-jitter', 'jitter', 0, 100, { scale: 0.01 });
-  wireNum('crt-sheetw', 'sheetW', 20, 45, { scale: 0.01 });
-  wireNum('crt-sheeth', 'sheetH', CERT_SHEET_H.min, CERT_SHEET_H.max, { snap: { to: CERT_SHEET_H.def, tol: 4 } });   // ⑭ 141(A4) 자석 턱 ±4
-  { // 턱 눈금 — 트랙(.prop-slider 배경 = --ui-border) 위 141 자리에 1px 선(--ui-text-muted) · 엄지 12px 반폭 보정
-    const sl = $('crt-sheeth-slider'), p = (CERT_SHEET_H.def - CERT_SHEET_H.min) / (CERT_SHEET_H.max - CERT_SHEET_H.min);
-    if (sl) sl.style.background = `linear-gradient(var(--ui-text-muted), var(--ui-text-muted)) no-repeat calc(6px + (100% - 12px) * ${p.toFixed(4)}) 50% / 1px 9px, var(--ui-border)`;
-  }
-  wireNum('crt-gapx', 'gapX', -80, 80);   // ⑦ 음수 = 겹침 · ⑱ 가로(열 사이)
-  wireNum('crt-gapy', 'gapY', -80, 80);   // ⑱ 세로(행 사이)
+  /* ★표준 Layout(C2) — 칸 배선은 부품(input = 범위 안이면 바로 · change = 잘라 그린 «뒤» commit 한 번 · 빈 칸 = 옛 값 · 라벨 끌기) · 저장 값 꼴(×0.01) 무변 */
+  const crtNum = (numberId, key, min, max, scale = 1) => wireLayoutSection({ commit,
+    w: { numberId, min, max, apply: (v) => { block.dataset[key] = String(v * scale); rerender(); } } });
+  crtNum('crt-jitter-number', 'jitter', 0, 100, 0.01);
+  crtNum('crt-sheetw-number', 'sheetW', 20, 45, 0.01);
+  crtNum('crt-sheeth-number', 'sheetH', CERT_SHEET_H.min, CERT_SHEET_H.max);
+  crtNum('crt-gapx-number', 'gapX', -80, 80);   // ⑦ 음수 = 겹침 · ⑱ 가로(열 사이)
+  crtNum('crt-gapy-number', 'gapY', -80, 80);   // ⑱ 세로(행 사이)
+  wireAppearanceSection({ op: { numberId: 'crt-opacity', apply: (v) => window.setBlockOpacity?.(block, v), commit } });   // ★표준 Appearance A4(C2)
   wireFloatToggle({ block, buttonId: 'crt-float-toggle', rerender: () => { window.renderCertBlock?.(block); showCertProperties(block); window.showHandlesFor?.(block); } });
   wireFloatPosition({ block, xId: 'crt-x-number', yId: 'crt-y-number' });
   wireNum('crt-titlesize', 'titleSize', 10, 48);

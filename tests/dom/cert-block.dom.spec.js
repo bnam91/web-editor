@@ -479,9 +479,10 @@ test('U2 격자 패널 순서 — 피커 → 용지 높이 → 가로 간격 →
   const id = await addViaMenu(page);
   await openPanel(page, id);
   const r = await page.evaluate(() => {
-    const row = (sel) => document.querySelector(sel)?.closest('.prop-row, .grid-picker-label');
-    const order = ['#crt-grid-picker-label', '#crt-sheeth-number', '#crt-gapx-number', '#crt-gapy-number', '#crt-overlap'].map(row);
-    return { allThere: order.every(Boolean), chain: order.every((el, i) => i === 0 || order[i - 1]?.nextElementSibling === el),
+    /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 가로/세로 간격 = 간격 슬롯 «한 줄 두 칸»(부품 .ui-layout) ⇒ 줄 = 그 감싸개 · 세로 간격은 가로와 같은 줄 */
+    const row = (sel) => { const e = document.querySelector(sel); return e?.closest('.ui-layout') || e?.closest('.prop-row, .grid-picker-label'); };
+    const order = ['#crt-grid-picker-label', '#crt-sheeth-number', '#crt-gapx-number', '#crt-overlap'].map(row);
+    return { allThere: order.every(Boolean) && row('#crt-gapy-number') === order[2], chain: order.every((el, i) => i === 0 || order[i - 1]?.nextElementSibling === el),
       pickerFirst: document.getElementById('crt-grid-picker')?.nextElementSibling === order[0], oldGap: !!document.getElementById('crt-gap-number'),
       sample: document.getElementById('crt-samples')?.closest('.prop-row')?.textContent.trim() };
   });
