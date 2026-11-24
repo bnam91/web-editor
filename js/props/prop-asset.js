@@ -91,7 +91,7 @@ export function showAssetProperties(ab) {
   // T-059 2라운드: 그라데이션이면 _hex6 가 #000000 으로 떨어져 Solid 복귀 = 검정이었다 → wireColorField(gradientValue)가 첫 스탑으로 채운다
   const assetBgGrad = /gradient\s*\(/i.test(currentBgColor) ? currentBgColor : '';
   const currentBgAlpha = assetBgGrad ? 100 : parseAlphaFromColor(currentBgColor);
-  const fillOn = ab.dataset.bgColor !== 'transparent';   // 표준 Fill F2-2 — «없음» = bgColor 'transparent'(지디 (ㄴ) 261124) · 키 없음 = 옛 그대로 «켬·A0A0A0»(바이트·시험 무변 · 거짓 표시는 시트 ASSET-BG-NOKEY-FALSE-ON-DISPLAY-01)
+  const fillOn = !!ab.dataset.bgColor && ab.dataset.bgColor !== 'transparent';   // 표준 Fill F2-2 — «없음» = bgColor 'transparent'(지디 (ㄴ) 261124) · 74행 ASSET-BG-NOKEY-FALSE-ON-DISPLAY-01: 키 없음 = 캔버스 체커(칠 없음)이니 패널도 «칠 없음 · ＋»(옛: «켬·A0A0A0» 거짓 표시) · ＋ = 지난 색 또는 #A0A0A0
   const currentFit = ab.dataset.fit || 'cover';
   // B23: 에셋 외곽선(stroke)
   const currentStrokeWidth = parseInt(ab.dataset.strokeWidth || '0');

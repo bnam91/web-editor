@@ -150,7 +150,8 @@ test('D8 새 에셋(키 없음) = 옛 그대로 켬·A0A0A0 · 체커 줄 = 슬�
     const s = await st2(page, id, K);
     out[kind] = [s.v, s.layers, s.add];
   }
-  expect(out.asset, '★새 에셋 = 키 없음 · 옛 그대로 «켬»(A0A0A0 · 지디 (ㄴ)) · 머리 ＋ 없음').toEqual([null, 1, false]);
+  // ★기대 바뀜(74행 ASSET-BG-NOKEY-FALSE-ON-DISPLAY-01 · 지디 261125): 키 없음 = 캔버스 체커(칠 없음)라 패널도 «칠 없음» + 머리 ＋(옛 기대 «켬·A0A0A0» = 거짓 표시) · 값 검사 = D39
+  expect(out.asset, '★새 에셋 = 키 없음 · «칠 없음» + 머리 ＋(캔버스 체커와 같음)').toEqual([null, 0, true]);
   expect(out.canvas, '★새 레이어 캔버스 = bg transparent(옛 기본) · «칠 없음» + 머리 ＋').toEqual(['transparent', 0, true]);
   await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); const sec = await window.addSection(); window.deselectAll(); window.selectSection(sec); window.addAssetBlock(); const b = [...sec.querySelectorAll('.asset-block')].pop(); window.selectBlock?.(b.id); window.showAssetProperties(b); });
   const slot = await page.evaluate(() => !!document.querySelector('#panel-right .prop-section[data-sec="fill"] .ui-fill-slot[data-slot="below"][data-slot-kind="checker"] #asset-checker-tone-on'));
@@ -950,5 +951,29 @@ test('D38 캔버스 레이어 내용 — layers·grid·scale = 화면 · 그림 
   const I = await cvEntry(page, id, true);
   const img = I.layers.find((l) => l.type === 'image');
   expect(String(img.src).startsWith('data:image/png;base64,'), `★그림 레이어가 data URI 로 안 바뀜(빈 그림): ${String(img.src).slice(0, 40)}`).toBe(true);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* 74행 ASSET-BG-NOKEY-FALSE-ON-DISPLAY-01 — D39 새 에셋(bgColor 키 없음)은 캔버스 = 체커(칠 없음)인데 패널은 «켬·A0A0A0» 이었다(거짓 표시)
+ *   ★키 없음 → 패널 «칠 없음 — ＋ 로 더하기»(.ui-fill[data-empty]) · 머리 ＋ · 캔버스 체커 그대로 · ＋ 누르면 칠 생김·패널 켬 · [지킴] 색 지정한 에셋 = 켬
+ * 양성대조: 고치기 전 판(fillOn = bgColor !== 'transparent') 에서 D39 빨강 */
+test('D39 새 에셋(키 없음) 패널 = 칠 없음 · ＋ 로 더하면 켬 · [지킴] 색 있는 에셋 = 켬', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const st = (id) => page.evaluate((id) => { const b = document.getElementById(id); window.selectBlock?.(id); window.showAssetProperties(b);
+    const f = document.querySelector('#panel-right [data-part="fill"]'); const cs = getComputedStyle(b);
+    return { key: b.dataset.bgColor ?? null, empty: f?.dataset.empty === '1', none: !!document.querySelector('#panel-right .ui-fill-none'), add: !!document.getElementById('asset-fill-add'), checker: /repeating-conic/.test(cs.backgroundImage) }; }, id);
+  const ids = await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    const sec = await window.addSection(); const out = [];
+    for (let i = 0; i < 2; i++) { window.deselectAll(); window.selectSection(sec); const before = new Set(sec.querySelectorAll('.asset-block')); await window.addAssetBlock(); out.push([...sec.querySelectorAll('.asset-block')].find((x) => !before.has(x)).id); }
+    const m = await import('/js/props/_fill-section.js'); const it = m.fillKindOf(document.getElementById(out[1])); it.k.paint(it.block, '#12ab34'); return out; });
+  const a0 = await st(ids[0]);
+  expect([a0.key, a0.checker], '[전제] 새 에셋 = 키 없음 · 캔버스 체커').toEqual([null, true]);
+  expect([a0.empty, a0.none, a0.add], `★키 없음인데 패널이 «켬»(거짓 표시) ${JSON.stringify(a0)}`).toEqual([true, true, true]);
+  await page.evaluate(() => document.getElementById('asset-fill-add').click());
+  const a1 = await st(ids[0]);
+  expect([a1.key !== null && a1.key !== 'transparent', a1.empty, a1.add, a1.checker], `＋ 뒤 = 칠 생김 · 패널 켬 · 체커 없음 ${JSON.stringify(a1)}`).toEqual([true, false, false, false]);
+  const b0 = await st(ids[1]);
+  expect([b0.empty, b0.add], '[지킴] 색 지정 에셋 = 켬').toEqual([false, false]);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
