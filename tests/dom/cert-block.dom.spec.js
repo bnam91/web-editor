@@ -28,8 +28,7 @@
  *      양성대조: cert-block.js 격자 칸 `aspect-ratio:100 / ${st.sheetH}` 를 `210 / 297` 로 → SH1(격자) 빨강 · collageLayout 호출의 `ratio: st.sheetH / 100,` 삭제 → SH1(스택) 빨강
  *   OV1 겹침 순서(⑬ · ⑮ 기본 «왼쪽이 위») — 간격 −40 · 기본 → 겹친 곳 = 왼쪽 칸(0)·위 행 칸(0) · 출력 클론도 같은 z · «오른쪽이 위» 명시 → 칸 1·칸 2
  *      양성대조: cert-block.js _renderGridStage 의 `(st.overlap === 'left' ? \`z-index:…\` : '')` 를 `''` 로 → OV1 빨강
- *   SN1 «용지 높이» 자석 턱(⑭) — 슬라이더 끌기 139·143·145 → 141 · 130·146 → 그대로 · 숫자 칸 직접 139 → 139 · 트랙에 턱 눈금
- *      양성대조: prop-cert.js wireNum('crt-sheeth', …) 의 `, { snap: { to: CERT_SHEET_H.def, tol: 4 } }` 삭제 → SN1 빨강
+ *   SN1 «용지 높이» — ★기대 바뀜(현빈 L-4 슬라이더 걷음 · C2 261125): 슬라이더·자석 턱(⑭)·턱 눈금 걷힘 · 숫자 칸 직접 139 → 139(턱 없음 · 옛과 같음)
  *   IE1 안 2 — 그림 든 칸 더블클릭 = 틀 안 그림 편집(공용 편집기 · 코너 핸들) · 끌기 → certs[0].crop(％) · 틀 크기 그대로 · 출력 클론도 같은 crop
  *       · ⌘Z 한 번 = 크롭 전(그림은 남음) · 다시 열어 «원래대로» = crop 없음(cover) · (빈 칸 더블클릭 = 파일창은 K4)
  *      양성대조: cert-block.js 더블클릭의 `if (readCertState(block).certs[i]?.img) { enterCertImageEditMode(block, i); return; }` 삭제 → IE1 빨강
@@ -626,21 +625,16 @@ test('OV1 겹침 순서 — 기본 왼쪽이 위(⑮) · 오른쪽 명시', asyn
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-test('SN1 용지 높이 자석 턱 141(⑭)', async ({ page }) => {
+/* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 라벨 끌기는 1px = 1 · 자석 턱(141 ±4)과 턱 눈금은 슬라이더 몸짓이라 같이 걷힘(현빈 L-4)
+   ⇒ 슬라이더 없음 · 숫자 칸 직접 입력 = 원래대로 턱 없음(139 는 139) */
+test('SN1 용지 높이 — 슬라이더·자석 턱 걷힘(⑭ · 기대 바뀜) · 숫자 칸 직접 입력엔 턱 없음', async ({ page }) => {
   const errs = await boot(page);
   const id = await addViaMenu(page);
   await stackMode(page, id);
-  const drag = (v) => page.evaluate(({ id, v }) => { const s = document.getElementById('crt-sheeth-slider'); s.value = String(v); s.dispatchEvent(new Event('input', { bubbles: true }));
-    return [+document.getElementById('crt-sheeth-number').value, +document.getElementById(id).dataset.sheetH, +s.value]; }, { id, v });
-  expect(await drag(139)).toEqual([141, 141, 141]);
-  expect(await drag(143)).toEqual([141, 141, 141]);
-  expect(await drag(145), '경계 ±4 포함').toEqual([141, 141, 141]);
-  expect(await drag(130)).toEqual([130, 130, 130]);
-  expect(await drag(146)).toEqual([146, 146, 146]);
+  expect(await page.evaluate(() => !!document.getElementById('crt-sheeth-slider')), '슬라이더 걷힘').toBe(false);
   await page.fill('#crt-sheeth-number', '139');
   await page.dispatchEvent('#crt-sheeth-number', 'change');
   expect(await page.evaluate((id) => document.getElementById(id).dataset.sheetH, id), '숫자 칸 직접 입력엔 턱 없음').toBe('139');
-  expect(await page.evaluate(() => document.getElementById('crt-sheeth-slider').style.background), '턱 눈금').toMatch(/linear-gradient/);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
