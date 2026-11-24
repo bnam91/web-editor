@@ -130,9 +130,21 @@ test('E2 꼴 틀린 shapeInner(스크립트·모르는 속성) = 안 씀 · 옛 
 /* D 점선 dashPattern(Stroke 마지막 칸 · 지디 261124): CSS dashed = [3w,2w] · dotted = [w,w] · 실선 = 인자 없음(옛 명령) · 플러그인 node.dashPattern · 옛 플러그인 = 무시(실선) */
 const dashOf = (cmds) => cmds.filter((c) => c.cmd === 'set_stroke_color').map((c) => c.params.dashPattern ?? null);
 test('D1 프레임 dashed 굵기 2 = dashPattern [6,4]', () => { assert.deepEqual(dashOf(render([{ ...FRAME, border: { width: 2, style: 'dashed', color: '#000000' } }])), [[6, 4]]); });
-test('D2 프레임 dotted 굵기 3 = [3,3] · 그리드 G17 면별 dotted 도', () => {
-  assert.deepEqual(dashOf(render([{ ...FRAME, border: { width: 3, style: 'dotted', color: '#000000' } }])), [[3, 3]]);
-  assert.deepEqual(dashOf(render([{ type: 'generic', kind: 'grid', id: 'g2', width: 300, height: 100, bg: '', radius: 0, svg: '', texts: [], border: { top: { width: 2, style: 'dotted', color: 'rgb(0, 0, 0)' }, right: null, bottom: null, left: null } }])), [[2, 2]]);
+/* ★기대 바뀜(미카사 261124 Figma 실측 · 지디): dotted [w,w]+끝 NONE = 네모 토막 → [0,2w] + strokeCap ROUND(둥근 점) */
+const capOf = (cmds) => cmds.filter((c) => c.cmd === 'set_stroke_color').map((c) => c.params.strokeCap ?? null);
+test('D2 프레임 dotted 굵기 3 = [0,6] + 끝 ROUND · 그리드 G17 면별 dotted 도 · dashed 는 끝 인자 없음', () => {
+  const c3 = render([{ ...FRAME, border: { width: 3, style: 'dotted', color: '#000000' } }]);
+  assert.deepEqual([dashOf(c3), capOf(c3)], [[[0, 6]], ['ROUND']]);
+  const g = render([{ type: 'generic', kind: 'grid', id: 'g2', width: 300, height: 100, bg: '', radius: 0, svg: '', texts: [], border: { top: { width: 2, style: 'dotted', color: 'rgb(0, 0, 0)' }, right: null, bottom: null, left: null } }]);
+  assert.deepEqual([dashOf(g), capOf(g)], [[[0, 4]], ['ROUND']]);
+  assert.deepEqual(capOf(render([{ ...FRAME, border: { width: 2, style: 'dashed', color: '#000000' } }])), [null]);
+});
+test('D6 플러그인 strokeCap ROUND → node.strokeCap · 모르는 값은 안 씀', async () => {
+  const { ctx, nodes } = plugin(); nodes.x = { ...FRAME_NODE(), dashPattern: [], strokeCap: 'NONE' };
+  await ctx.__hc('set_stroke_color', { nodeId: 'x', color: { r: 0, g: 0, b: 0, a: 1 }, strokeWeight: 2, dashPattern: [0, 4], strokeCap: 'ROUND' });
+  assert.deepEqual([nodes.x.dashPattern, nodes.x.strokeCap], [[0, 4], 'ROUND']);
+  await ctx.__hc('set_stroke_color', { nodeId: 'x', color: { r: 0, g: 0, b: 0, a: 1 }, strokeWeight: 2, strokeCap: 'X";' });
+  assert.equal(nodes.x.strokeCap, 'ROUND', '모르는 값으로 안 덮음');
 });
 test('D3 [음성] 실선 = dashPattern 인자 없음(옛 명령 글자 그대로)', () => {
   const c = render([{ ...FRAME, border: { width: 3, style: 'solid', color: '#ff0000' } }]).find((x) => x.cmd === 'set_stroke_color');
@@ -151,8 +163,8 @@ test('D5 옛 플러그인(dev) + dashPattern = 무시 · 실선으로 그려짐(
   const ctx = vm.createContext({ figma, __html__: '', console, setTimeout, clearTimeout });
   vm.runInContext(old + '\n;globalThis.__hc = handleCommand;', ctx);
   nodes.x = { ...FRAME_NODE(), dashPattern: [] };
-  await ctx.__hc('set_stroke_color', { nodeId: 'x', color: { r: 0, g: 0, b: 0, a: 1 }, strokeWeight: 2, dashPattern: [6, 4] });
-  assert.deepEqual([nodes.x.strokeWeight, nodes.x.strokes.length, nodes.x.dashPattern], [2, 1, []]);
+  await ctx.__hc('set_stroke_color', { nodeId: 'x', color: { r: 0, g: 0, b: 0, a: 1 }, strokeWeight: 2, dashPattern: [0, 4], strokeCap: 'ROUND' });
+  assert.deepEqual([nodes.x.strokeWeight, nodes.x.strokes.length, nodes.x.dashPattern, nodes.x.strokeCap], [2, 1, [], undefined]);   // 옛 플러그인 = 점·끝 둘 다 무시 = 실선(지금 꼴)
 });
 
 /* C 도형 선 색(지디 261124 · 실측: 렌더러가 선을 면 색으로 칠함) — strokeColor 있으면 svg stroke = 그 색 · 없으면 옛(면 색) · 꼴 틀리면 옛 · 화살촉 color = 면 색 그대로 */
