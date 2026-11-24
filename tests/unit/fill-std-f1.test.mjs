@@ -82,3 +82,21 @@ test('R2 [음성] 알파 0 색 = 옛 꼴 그대로(켬·0%)', () => {
   const s = svgOf({ ...SHAPE, color: 'rgba(255, 0, 0, 0)' });
   assert.match(s, /style="color:rgba\(255, 0, 0, 0\);stroke-width:2;fill:rgba\(255, 0, 0, 0\);stroke:rgba\(255, 0, 0, 0\);"/);
 });
+
+/* F2-2 — banner02 칠 없음(bg 'transparent') = Figma 프레임 칠 투명(옛 hex() 는 # 아닌 글자를 흰색으로 읽어 흰 상자가 갔다) · R4 [음성] 단색 = 옛 명령 그대로
+ * 양성대조(예측): 렌더러 banner02 줄의 transparent 갈래를 빼면 R3 빨강 · R4 초록 */
+function cmdsOf(block) {
+  const dir = mkTmpRoot('renderer-fill-f22-');
+  const src = path.join(ROOT, 'figma-renderer');
+  for (const f of fs.readdirSync(src)) if (f.endsWith('.mjs')) fs.copyFileSync(path.join(src, f), path.join(dir, f));
+  fs.writeFileSync(path.join(dir, 'figma_cmd.mjs'), FAKE);
+  const json = path.join(dir, 'd.json'), log = path.join(dir, 'l.log');
+  fs.writeFileSync(json, JSON.stringify({ meta: { canvasWidth: 860, theme: { sectionGap: 100 } }, sections: [{ id: 's', name: 's', background: '#ffffff', paddingBottom: 0, minHeight: 0, blocks: [block] }] }));
+  const r = spawnSync('node', [path.join(dir, 'sangpe_to_figma.mjs'), 'CH', json], { encoding: 'utf8', env: { ...process.env, FAKE_LOG: log } });
+  assert.equal(r.status, 0, r.stderr);
+  return fs.readFileSync(log, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+}
+const BN2 = { type: 'banner02', id: 'b1', bannerW: 780, bannerH: 260, radius: 20, textX: 36, textY: 35, textW: 358, lines: [], imgW: 0 };
+const bn2Fill = (cmds) => { const f = cmds.find((c) => c.cmd === 'create_frame' && /^banner02_/.test(c.params.name)); assert.ok(f, '[전제] 배너 프레임'); return cmds.find((c) => c.cmd === 'set_fill_color' && c.params.nodeId === f.id)?.params.color; };
+test('R3 banner02 칠 없음(transparent) = 칠 투명(a 0)', () => { assert.equal(bn2Fill(cmdsOf({ ...BN2, bg: 'transparent' })).a, 0); });
+test('R4 [음성] banner02 단색 = 옛 hex 그대로', () => { assert.deepEqual(bn2Fill(cmdsOf({ ...BN2, bg: '#ff0000' })), { r: 1, g: 0, b: 0, a: 1 }); });

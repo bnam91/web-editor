@@ -117,7 +117,7 @@ const paint = (page) => page.evaluate(() => {
 async function openBgPicker(page) {
   const pos = await page.evaluate(() => {
     const body = document.querySelector('#panel-right .panel-body');
-    const sec = [...body.querySelectorAll('.prop-section')].find(s => /배경/.test(s.innerText));
+    const sec = [...body.querySelectorAll('.prop-section')].find(s => s.dataset.sec === 'fill' || /배경/.test(s.innerText));   // ★전제(표준 Fill F2-2 · 지디 261124): 배경 줄 «배경색» 라벨 걷힘(시안 #mkp-fillstd 겹 줄 = 라벨 없음) → 절 이름(data-sec=fill)으로도
     const sw = sec && sec.querySelector('.prop-color-swatch');
     if (!sw) return null;
     const r = sw.getBoundingClientRect();
@@ -137,7 +137,7 @@ async function seedGradient(page) {
   await page.waitForTimeout(120);
   await page.evaluate((h) => {
     const body = document.querySelector('#panel-right .panel-body');
-    const sec = [...body.querySelectorAll('.prop-section')].find(s => /배경/.test(s.innerText));
+    const sec = [...body.querySelectorAll('.prop-section')].find(s => s.dataset.sec === 'fill' || /배경/.test(s.innerText));   // ★전제(표준 Fill F2-2 · 지디 261124): 배경 줄 «배경색» 라벨 걷힘(시안 #mkp-fillstd 겹 줄 = 라벨 없음) → 절 이름(data-sec=fill)으로도
     const inp = sec.querySelector('.prop-color-hex');
     inp.value = h;
     inp.dispatchEvent(new Event('input', { bubbles: true }));

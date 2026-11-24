@@ -1229,7 +1229,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const bx = x + Math.max(0, Math.round((availableWidth - bw) / 2));
     const frame = run('create_frame', { x: bx, y, width: bw, height: bh, name: `banner02_${block.id || ''}`, parentId });
     if (!frame) return block.height || bh;
-    run('set_fill_color', { nodeId: frame.id, color: hex(block.bg || '#1a1f3d') });
+    run('set_fill_color', { nodeId: frame.id, color: /^transparent$/i.test(block.bg || '') ? { r: 1, g: 1, b: 1, a: 0 } : hex(block.bg || '#1a1f3d') });   // 표준 Fill F2-2 — 칠 없음 = 투명(hex() 는 # 아닌 글자를 흰색으로 읽는다 · 공용 함수는 안 고침)
     if (block.radius) run('set_corner_radius', { nodeId: frame.id, radius: block.radius });
     // 우측 이미지(또는 플레이스홀더)
     if (block.imgW > 0) {
