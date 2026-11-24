@@ -150,7 +150,7 @@ async function makeDim(page) {
 const labelState = (page, id) => page.evaluate((i) => { const b = document.getElementById(i); const l = b.querySelector('.annot-label');
   return { cs: getComputedStyle(l).borderTopLeftRadius, inline: l.style.borderRadius, key: b.dataset.labelRadius ?? null, attr: b.hasAttribute('data-label-radius') }; }, id);
 const panelRow = (page) => page.evaluate(() => { const n = document.getElementById('annot-label-radius-num'), s = document.getElementById('annot-label-radius');
-  return { num: !!n, slider: !!s, val: n ? n.value : null, min: n?.min ?? null, max: n?.max ?? null, label: n?.closest('.prop-row')?.querySelector('.prop-label')?.textContent?.trim() ?? null }; });
+  return { num: !!n, slider: !!s, val: n ? n.value : null, min: n?.min ?? null, max: n?.max ?? null, label: (n?.closest('.ui-s2-cell')?.querySelector(':scope > span') || n?.closest('.prop-row')?.querySelector('.prop-label'))?.textContent?.trim() ?? null }; });   /* ★기대 바뀜(표준 Appearance A3 · 지디 261124 (가)) — 표준 부품 칸이면 작은 라벨(.ui-s2-cell > span) */
 
 test('G1 (지킴) 새 치수선 라벨 모서리 = 지금 값 4px · 키·인라인 0 (바이트 보존)', async ({ page }) => {
   const errs = await boot(page);
@@ -168,7 +168,7 @@ test('R1 치수선 패널 «모서리» 칸 — 0~50 px · 처음 값 4 · 12 �
   const id = await makeDim(page);
   const row = await panelRow(page);
   log('R1-row', row);
-  expect(row, '칸 꼴 = 라벨그룹 «모서리»와 같다(범위 0~50 · 숫자칸 ＋ 슬라이더)').toEqual({ num: true, slider: true, val: '4', min: '0', max: '50', label: '모서리' });
+  expect(row, '칸 꼴 = 표준 Appearance 부품(범위 0~50 · 숫자칸 + 라벨 끌기 · 슬라이더 걷음)').toEqual({ num: true, slider: false, val: '4', min: '0', max: '50', label: 'Corner radius' });   /* ★기대 바뀜(표준 Appearance A3 · 현빈 261124 L-4/7 슬라이더 걷음) — 옛 «라벨그룹 모서리 꼴(숫자 + 슬라이더)» → 표준 R */
   await page.fill('#annot-label-radius-num', '12');
   await page.press('#annot-label-radius-num', 'Enter');
   expect(await poll(page, (i) => getComputedStyle(document.querySelector(`#${i} .annot-label`)).borderTopLeftRadius === '12px', id, 3000), '라벨 계산 반경 12px').toBe(true);
