@@ -3,6 +3,8 @@ import { blockHeaderHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast } from './_fill-section.js';
+import { layoutSizeRowHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(L2 · C1)
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A4 Opacity)
 
 // 브릿지(V 커버) 블록 프로퍼티 — 색상 + 꼬리(V홈) 모양(너비/깊이/곡률 슬라이더) + 블록 높이. 공용 prop 클래스 재사용.
 // 모양 파라미터는 data-bridge-width/depth/arc/height 에 저장(직렬화) → renderBridgeBlock이 path/높이 재생성.
@@ -36,12 +38,9 @@ export function showBridgeProperties(block) {
     sections: [
       sec('fill', fillSectionHTML({ prefix: 'brg-fill', on: color !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'brg', hex: color, alpha }) }),
         { headTools: fillHeadToolsHTML({ prefix: 'brg-fill', on: color !== 'transparent' }) }),   // 표준 Fill F2 — 없음 = bridgeColor 'transparent'(svg path fill 그대로 받음)
-      sec('size', `
-      <div class="prop-row">
-        <span class="prop-label">높이</span>
-        <input type="range" class="prop-slider" id="brg-h-slider" min="20" max="300" step="2" value="${height}">
-        <input type="number" class="prop-number" id="brg-h-number" min="20" max="300" value="${height}">
-      </div>`),
+      /* ★표준 Layout L2(현빈 261124 L-4) — 옛 brg-h-slider 걷음 · 숫자 칸 id·범위 무변 · H 만 = 한 칸(one) · 아이콘 ↕(one.icon h) */
+      sec('size', layoutSizeRowHTML({ prefix: 'brg', one: { id: 'brg-h-number', label: 'Height', icon: 'h', min: 20, max: 300, value: height } })),
+      sec('appearance', appearanceSectionHTML({ prefix: 'brg', op: { value: window.readBlockOpacity?.(block) ?? 100 } }), { headTools: appearanceHeadToolsHTML({ prefix: 'brg' }) }),   // A4 Opacity 만(모서리 없음)
       // 옛 제목 「꼬리 (V홈)」 — 절 제목 규칙(영어 Title Case · 괄호 금지)으로 «Tail». V홈 모양 세 손잡이(너비·깊이·곡률)
       sec('special', `
       <div class="prop-row">
@@ -108,18 +107,16 @@ export function showBridgeProperties(block) {
   const wSlider = $('brg-w-slider'), wNumber = $('brg-w-number');
   const dSlider = $('brg-d-slider'), dNumber = $('brg-d-number');
   const aSlider = $('brg-a-slider'), aNumber = $('brg-a-number');
-  const hSlider = $('brg-h-slider'), hNumber = $('brg-h-number');
 
   const rerender = () => { window.renderBridgeBlock?.(block); };
   const setWidth  = (v) => { v = Math.max(30, Math.min(860, parseInt(v) || 120)); block.dataset.bridgeWidth  = String(v); wSlider.value = v; wNumber.value = v; rerender(); };
   const setDepth  = (v) => { v = Math.max(8,  Math.min(90,  parseInt(v) || 88));  block.dataset.bridgeDepth  = String(v); dSlider.value = v; dNumber.value = v; rerender(); };
   const setArc    = (v) => { v = parseInt(v); if (!Number.isFinite(v)) v = 0; v = Math.max(-200, Math.min(100, v)); block.dataset.bridgeArc = String(v); aSlider.value = v; aNumber.value = v; rerender(); };  // 부호값: −안으로 오목 / 0 직선 / +밖으로 볼록
-  const setHeight = (v) => { v = Math.max(20, Math.min(300, parseInt(v) || 90));  block.dataset.bridgeHeight = String(v); hSlider.value = v; hNumber.value = v; rerender(); };
   const commit = () => { window.pushHistory?.(); window.scheduleAutoSave?.(); };
 
-  hSlider.addEventListener('input', () => setHeight(hSlider.value));   // 블럭 높이(Size) — 모양과 무관
-  hSlider.addEventListener('change', commit);
-  hNumber.addEventListener('change', () => { setHeight(hNumber.value); commit(); });
+  /* 블럭 높이(Size) — 모양과 무관 · 표준 Layout 배선(부품: input = 범위 안이면 바로 · change = 잘라 + 이력 한 번 · 빈 칸 = 옛 값 · 라벨 끌기) */
+  wireLayoutSection({ commit, w: { numberId: 'brg-h-number', min: 20, max: 300, apply: (v) => { block.dataset.bridgeHeight = String(v); rerender(); } } });
+  wireAppearanceSection({ op: { numberId: 'brg-opacity', apply: (v) => window.setBlockOpacity?.(block, v), commit } });   // A4 — 계약(갈래 E) 없으면 그리기 0
 
   /* t13C-02 모양·물결 손잡이 — 모양 바꾸면 패널 다시(V 줄 ↔ 물결 줄) · 값 = data-bridge-wave-* (V 값은 그대로 둠 = 되돌아오면 옛 V) */
   $('brg-shape')?.addEventListener('change', (e) => {

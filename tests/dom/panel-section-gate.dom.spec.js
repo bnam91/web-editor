@@ -232,7 +232,7 @@ test('G3 접기 없음 — 머리를 눌러도 그대로 · 옛 접기 저장이
   await page.waitForFunction(() => typeof window.rebindAll === 'function' && typeof window.groupSelectedBlocks === 'function', null, { timeout: 20000 });
   await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); await window.addSection(); const sec = c.querySelector('.section-block'); window.__secEl = () => sec; });
   await openKind(page, { cls: 'bridge-block', entry: 'addBridgeBlock' });
-  await expect(page.locator('#brg-h-slider'), '[전제] 브릿지 패널').toBeAttached();
+  await expect(page.locator('#brg-h-number'), '[전제] 브릿지 패널').toBeAttached();
   await expect(body('size'), '★옛 접기 저장이 절을 숨겼다').toBeVisible();
   await expect(body('fill'), '★옛 접기 저장이 절을 숨겼다').toBeVisible();
 });
