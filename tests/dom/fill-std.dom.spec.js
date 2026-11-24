@@ -768,3 +768,29 @@ test('D31 글 스티커 배경 — Figma JSON bg = bgColor · 숨김 키 · [지
   expect([t1.fillHidden, String(t1.bg).toLowerCase()], '★숨기면 fillHidden · 색 그대로').toEqual([true, '#12ab34']);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* F8 탐침 + ③(지디 261125) — D32 쿠폰·줌·브리지·캔버스 레이어 모드 블럭의 Figma JSON 실측(로그 [D32 실측]: svg 길이 · cards 수)
+ *   단언: 쿠폰·줌·브리지 항목에 svg 가 «실린다»(렌더러가 그리게 된 것의 전제) · 브리지 숨김 = fillHidden + svg 뿌리 fill-opacity:0 «뺌»(Figma 에서 칠 눈을 켜면 색이 돌아오게)
+ *   레이어 모드 cards 수는 «재기만»(0 이면 지디 판단 · 손 0) */
+test('D32 F8 탐침 — 쿠폰·줌·브리지 svg 실림 · 브리지 숨김 svg 에 fill-opacity:0 없음 · 레이어 모드 cards 수(재기만)', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const ids = await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    const sec = await window.addSection(); const out = {};
+    for (const [k, mk, sel] of [['coupon', () => window.addCouponBlock(), '.coupon-block'], ['zoom', () => window.addZoomBlock(), '.zoom-block'], ['bridge', () => window.addBridgeBlock(), '.bridge-block'], ['layers', () => window.addCanvasBlock(), '.canvas-block']]) {
+      window.deselectAll(); window.selectSection(sec); const before = new Set(sec.querySelectorAll(sel)); await mk(); out[k] = [...sec.querySelectorAll(sel)].find((x) => !before.has(x)).id; }
+    const L = document.getElementById(out.layers); L.dataset.cardMode = 'layers'; L.dataset.layers = JSON.stringify([{ type: 'text', content: 'T', color: '#000000', fontSize: 16 }]); window.renderCanvas(L);
+    return out; });
+  const entries = () => page.evaluate((ids) => { const j = window.buildFigmaExportJSON(null); const got = {};
+    (function walk(o) { if (!o || typeof o !== 'object') return; for (const [k, id] of Object.entries(ids)) if (o.id === id && o.type && !got[k]) got[k] = JSON.parse(JSON.stringify(o)); Object.values(o).forEach(walk); })(j); return got; }, ids);
+  const e = await entries();
+  console.log('[D32 실측]', JSON.stringify(Object.fromEntries(Object.entries(e).map(([k, v]) => [k, { type: v.type, kind: v.kind, svgLen: (v.svg || '').length, cards: Array.isArray(v.cards) ? v.cards.length : null }]))));
+  for (const k of ['coupon', 'zoom', 'bridge']) expect([e[k]?.type, e[k]?.kind, (e[k]?.svg || '').startsWith('<svg')], `★${k} = generic · svg 실림`).toEqual(['generic', k, true]);
+  expect(e.layers, '[전제] 레이어 모드 블럭 항목 있음').toBeTruthy();
+  await page.evaluate(async (id) => { const m = await import('/js/props/_fill-section.js'); const it = m.fillKindOf(document.getElementById(id)); m.fillSetHidden(it.block, it.k, true); }, ids.bridge);
+  const live = await page.evaluate((id) => document.getElementById(id).querySelector('svg')?.getAttribute('style') || '', ids.bridge);
+  expect(live, '[전제] 캔버스 브리지 svg 에는 fill-opacity:0(F6-2b)').toContain('fill-opacity:0');
+  const b1 = (await entries()).bridge;
+  expect([b1.fillHidden, /fill-opacity:0/.test(b1.svg)], '★브리지 숨김 = fillHidden · 내보낸 svg 엔 fill-opacity:0 없음').toEqual([true, false]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

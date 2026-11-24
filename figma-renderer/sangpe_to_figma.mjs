@@ -94,6 +94,8 @@ function applyBorder(nodeId, border) {
    플러그인 set_node_properties fillsVisible(691fc4c83) · ⛔옛 플러그인은 인자를 조용히 버리고 돌려준 값에 fillsVisible 이 없다 → 한 번만 경고(안내 문구 = FILL_HIDDEN_OLD_PLUGIN_MSG) */
 export const FILL_HIDDEN_OLD_PLUGIN_MSG = '⚠️ 숨긴 칠(Fill 눈 끔)이 Figma 에서 보여요 — Figma 플러그인이 옛 판이에요. 플러그인을 다시 불러온(import) 뒤 내보내면 숨긴 칠이 «칠 눈 꺼짐»으로 들어가요.';
 let _fillHiddenOldWarned = false;
+/* generic 중 «svg 가 곧 몸»인 종류 — 렌더러가 svg 를 그린다(F8 · 옛: vector 만) */
+const _SVG_BODY_KINDS = ['vector', 'bridge', 'coupon', 'zoom'];
 function _hideFills(nodeId) {
   if (!nodeId) return;
   const r = run('set_node_properties', { nodeId, fillsVisible: false });
@@ -1496,11 +1498,20 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       });
       /* VECTOR-FIGMA-EXPORT-DROPS-SVG-01 — 벡터 블럭(kind 'vector')은 svg 가 몸이다 → 프레임 안에 그린다(옛: 빈 프레임).
          보내는 쪽 svg 는 화면 렌더(뿌리 width/height 100%) — 블럭 크기 숫자로 바꿔 넣는다. 그 밖 generic 의 svg(어노 등)는 종전대로 안 그림(겹쳐 그릴 위험 · 별건). */
-      if (block.kind === 'vector' && typeof block.svg === 'string' && /^\s*<svg\b/i.test(block.svg)) {
+      /* F8 ③⑤⑥(시트 83행 FIGMA-EXPORT-EMPTY-FRAME-COUPON-ZOOM-BRIDGE-01 · 실측: 이 조건 하나 때문에 쿠폰·줌·브리지가 Figma 에 «투명 빈 프레임») — 몸이 svg 인 셋도 그린다
+         쿠폰 svg 의 <text> 는 generic 글 모음(tb-* 등)에 안 잡혀 겹쳐 그리지 않는다 · 그 밖 generic svg(어노 등)는 종전대로 안 그림 */
+      if (_SVG_BODY_KINDS.includes(block.kind) && typeof block.svg === 'string' && /^\s*<svg\b/i.test(block.svg)) {
         const vw = Math.max(1, w), vh = Math.max(1, h || 1);
         const vsvg = block.svg.replace(/^\s*<svg\b([^>]*)>/i, (m, at) => `<svg${at.replace(/\s(width|height)\s*=\s*("[^"]*"|'[^']*')/gi, '')} width="${vw}" height="${vh}">`);
         const vn = run('create_node_from_svg', { svg: vsvg, parentId: frame.id, x: 0, y: 0 }, { timeout: 15000 });
         if (vn) run('resize_node', { nodeId: vn.id, width: vw, height: vh });
+        /* F7 숨김 — 브리지 = 칠 있는 벡터(몸 path)마다 칠 눈 끔(도형과 같은 걸음) · 쿠폰·줌은 보낸 svg 가 «캔버스가 숨김으로 그린 그림»(몸 칠 이미 투명)이라 걷지 않음
+           ⛔걸으면 쿠폰 스텁(다른 부위 색) 칠까지 끈다 · 한계: 쿠폰·줌 숨김은 Figma 에서 «칠 눈 꺼짐»이 아니라 «칠 없음»으로 보임(색을 svg 가 안 실음) */
+        if (vn && block.fillHidden && block.kind === 'bridge') {
+          const info = run('get_node_info', { nodeId: vn.id });
+          const walk = (n) => { if (!n) return; if (/^(VECTOR|ELLIPSE|RECTANGLE|POLYGON|STAR|BOOLEAN_OPERATION)$/.test(n.type) && Array.isArray(n.fills) && n.fills.length) _hideFills(n.id); (n.children || []).forEach(walk); };
+          walk(info?.document || info);
+        }
       }
       const font = loadFontSafe('Pretendard', 'Regular');
       (block.texts || []).forEach((t, i) => {

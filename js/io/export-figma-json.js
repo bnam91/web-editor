@@ -1227,6 +1227,8 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         width: w, height: h || 0, bg: (ds.type === 'sticker' && ds.shape === 'text' ? ds.bgColor : ds.bg) || '', radius: parseInt(ds.radius) || 0,   // F8 ④ 글 스티커 배경 = bgColor(ds.bg 아님 · 예전엔 늘 빈 값 → Figma 칠 0) · 'transparent' 면 렌더러가 투명
         svg: [...el.querySelectorAll('svg')].find(s => _notKid(s) && !s.closest('.itb-icon'))?.outerHTML || '', texts,   /* ICONTEXT-EMPTY-ICON-PLACEHOLDER-IN-EXPORT-01 — .itb-icon 안 svg 는 편집 자리표시뿐(고른 아이콘·사진은 img) */
       };
+      /* F8 ③ 브리지 숨김 — 캔버스 svg 뿌리 style 의 fill-opacity:0(F6-2b 렌더러)을 그대로 싣으면 Figma 가 «불투명도 0 칠»로 받아 칠 눈을 켜도 안 보인다 → 뺀다(숨김은 렌더러가 칠 visible:false 로 · F7) */
+      if (ds.type === 'bridge' && out.fillHidden && out.svg) out.svg = out.svg.replace(/;fill-opacity:0(?=[;"])/, '');
       /* FIGMA-EXPORT-GRID-IMAGES-MISSING-01 — 그리드 칸 그림(<img class="grd-img">)은 위 svg·texts 어디에도 안 실려 Figma 엔 빈 프레임이었다.
          그리드일 때만 · 그림이 있을 때만 images 를 싣는다(없으면 옛 바이트). 자리는 «살아 있는 문서»에서 블럭 왼위 기준 레이아웃 px(화면 사각형 ÷ 배율)
          — 자식(G19 그릇 안) 그림은 자식 블럭이 따로 싣는다(살아 있는 그릇 _lkb 로 거름). 원 모양은 circle. */

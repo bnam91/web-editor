@@ -130,3 +130,26 @@ test('R3 옛 플러그인 — 경고 문구 «한 번»(숨긴 블럭 둘이어�
   const nw = render([{ ...b, id: 'a', fillHidden: true }]).out;
   assert.equal(/Figma 플러그인이 옛 판이에요/.test(nw), false, '새 판인데 경고');
 });
+
+/* ── F8(시트 83행 FIGMA-EXPORT-EMPTY-FRAME-COUPON-ZOOM-BRIDGE-01 · 지디 261125) — svg 가 곧 몸인 generic 셋을 렌더러가 그린다
+ *   S1 쿠폰·줌·브리지: create_node_from_svg 1 · 부모 = 그 블럭 프레임 · [지킴] vector 그대로 1 · 모달(svg 있어도) 0
+ *   S2 숨김: 브리지 = 칠 있는 벡터 fillsVisible:false · 쿠폰 = 걷지 않음(fillsVisible 명령 0 — 스텁 칠을 끄지 않게)
+ * 재현(고치기 전 70f325a69 실측): 셋 다 create_node_from_svg 0 · 투명 프레임 하나 · 양성대조: _patches/fill-f8-CTL-svgkinds.patch(_SVG_BODY_KINDS = vector 만) → S1·S2 빨강 */
+const SVG8 = '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="120" viewBox="0 0 300 120"><path d="M0 0H300V120H0Z" fill="#12ab34"/></svg>';
+const gen = (kind, extra) => ({ type: 'generic', id: kind.slice(0, 2), kind, width: 300, height: 120, bg: '', radius: 0, svg: SVG8, texts: [], ...extra });
+for (const kind of ['bridge', 'coupon', 'zoom', 'vector', 'modal']) {
+  test(`S1 ${kind} — svg 몸 그림(${kind === 'modal' ? '[지킴] 안 그림' : '1번 · 부모 = 그 프레임'})`, () => {
+    const { cmds } = render([gen(kind)]);
+    const fr = cmds.find((c) => c.cmd === 'create_frame' && c.params.name === `${kind}_${kind.slice(0, 2)}`);
+    const sv = cmds.filter((c) => c.cmd === 'create_node_from_svg');
+    assert.ok(fr, '[전제] 블럭 프레임');
+    if (kind === 'modal') assert.equal(sv.length, 0, '모달 svg 를 그렸다(겹쳐 그림 위험 · 종전대로 0)');
+    else assert.deepEqual(sv.map((c) => c.params.parentId), [fr.id], `${kind} svg 가 그 프레임에 한 번 안 그려졌다(빈 프레임)`);
+  });
+}
+test('S2 숨김 — 브리지 = 칠 벡터 fillsVisible:false · 쿠폰 = 걷지 않음', () => {
+  const b = render([gen('bridge', { fillHidden: true })]).cmds, c = render([gen('coupon', { fillHidden: true })]).cmds;
+  assert.deepEqual(b.filter((x) => x.cmd === 'set_node_properties' && x.params.fillsVisible === false).map((x) => x.params.nodeId), ['vfill'], '브리지 몸 칠을 안 껐다');
+  assert.equal(c.filter((x) => x.cmd === 'set_node_properties' && 'fillsVisible' in x.params).length, 0, '쿠폰을 걸어 칠을 껐다(스텁까지 꺼짐)');
+  assert.equal(c.filter((x) => x.cmd === 'create_node_from_svg').length, 1, '[전제] 쿠폰도 그렸다');
+});
