@@ -8,6 +8,7 @@ import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_STYLE
 /* ★1017t1h3 — 「고른 글자만」 한 벌. ⛔선택을 여기서 따로 저장하지 않는다(_text-selection.js 머리말 ⛔). */
 import { getSavedTextSelection, withTextSelection, applyStyleToRange } from './_text-selection.js';
 import { appearanceSectionHTML, appearanceHeadToolsHTML, appearanceSlotNumberHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A3 · annotation)
+import { layoutPadSlotHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout 패딩 슬롯(C3)
 
 // ── 프리셋 ───────────────────────────────────────────────────────────────
 /* ★1013t1A2 — 프리셋은 «색·선·시작점»만 바꾼다. 글자 크기(옛 16)는 뺐다: 기본이 24 가 됐는데
@@ -459,15 +460,11 @@ export function showAnnotationProperties(block) {
         <button class="prop-btn" id="annot-label-w-auto" type="button"${st.labelWidth == null ? ' disabled' : ''} title="글 길이만큼">자동</button>
       </div>
       ` : ''}`),
-      sec('padding', `
-      <div class="prop-row">
-        <span class="prop-label">여백</span>
-        <input type="range" class="prop-slider" id="annot-label-pad" min="0" max="24" step="1" value="${st.labelPad ?? 8}">
-        <input type="number" class="prop-number" id="annot-label-pad-num" min="0" max="24" step="1" value="${st.labelPad ?? 8}">
-      </div>`),
+      /* ★표준 Layout 패딩 슬롯(C3 · 현빈 261124 L-4/7) — 사방 한 값 한 칸 · 옛 슬라이더 걷음 · id·키·0~24 무변 */
+      sec('padding', layoutPadSlotHTML({ allId: 'annot-label-pad-num', all: st.labelPad ?? 8, max: 24 })),
       // 모서리(radius)는 어디서나 Appearance(§8 Q2) — 라벨 이미지 라운드 · 치수선 라벨 모서리
       /* ★표준 Appearance A3(지디 261124 (가)) — 표준 R = 치수선 라벨 모서리(부품 · 치수선만) · 라벨 그림 라운드 = 아래 슬롯 «숫자 + 라벨 끌기» 한 줄(부위 R · 끝 단추 없음) · 옛 슬라이더 둘 걷음 · id·키·0~50 무변 */
-      sec('appearance', `${st.annotKind === 'dim' ? appearanceSectionHTML({ prefix: 'annot-label', radius: { numberId: 'annot-label-radius-num', value: st.labelRadius ?? 4, max: 50 } }) : ''}${st.labelMode === 'text' ? '' : appearanceSlotNumberHTML({ id: 'annot-img-radius-num', label: '그림 라운드', value: st.labelImageRadius, max: 50, kind: 'image-radius' })}`, (st.annotKind === 'dim' || st.labelMode !== 'text') ? { headTools: appearanceHeadToolsHTML({ prefix: 'annot' }) } : {}),
+      sec('appearance', `${appearanceSectionHTML({ prefix: 'annot-label', op: { value: window.readBlockOpacity?.(block) ?? 100 }, radius: st.annotKind === 'dim' ? { numberId: 'annot-label-radius-num', value: st.labelRadius ?? 4, max: 50 } : null })}${st.labelMode === 'text' ? '' : appearanceSlotNumberHTML({ id: 'annot-img-radius-num', label: '그림 라운드', value: st.labelImageRadius, max: 50, kind: 'image-radius' })}`, (st.annotKind === 'dim' || st.labelMode !== 'text') ? { headTools: appearanceHeadToolsHTML({ prefix: 'annot' }) } : {}),
       sec('typography', st.labelMode === 'text' ? `
       <div class="prop-row">
         <span class="prop-label">크기</span>
@@ -785,17 +782,7 @@ export function showAnnotationProperties(block) {
     adapter: { width: (v) => _writeProps(block, { labelBorderWidth: v }), look: (part) => { if (part.style) _writeProps(block, { labelBorderStyle: part.style }); }, commit: () => window.pushHistory?.('선 두께') } });
 
   // ★1017t1h5 — 여백(패딩). 건드려야만 CSS 기본(4px 8px)을 사방 동일 값으로 이긴다.
-  const pad = propPanel.querySelector('#annot-label-pad');
-  const padN = propPanel.querySelector('#annot-label-pad-num');
-  if (pad && padN) {
-    pad.addEventListener('input',  () => { padN.value = pad.value; _writeProps(block, { labelPad: parseFloat(pad.value) }); });
-    pad.addEventListener('change', () => window.pushHistory?.('라벨 여백'));
-    padN.addEventListener('change', () => {
-      const v = Math.min(24, Math.max(0, parseFloat(padN.value) || 0));
-      pad.value = v; _writeProps(block, { labelPad: v });
-      window.pushHistory?.('라벨 여백');
-    });
-  }
+  wireLayoutSection({ commit: () => window.pushHistory?.('라벨 여백'), w: { numberId: 'annot-label-pad-num', max: 24, apply: (v) => _writeProps(block, { labelPad: v }) } });   // C3 — 슬라이더 걷음
 
   /* ★1013t2C6 — 라벨 너비(비우면 자동 = 글 길이) · 모서리. 여백과 같은 길(쓰고 → 다시 그리고 → 찍는다). */
   const lw = propPanel.querySelector('#annot-label-w');
@@ -814,6 +801,7 @@ export function showAnnotationProperties(block) {
     window.pushHistory?.('라벨 너비 자동');
   });
   // ★택일5 — 모서리(치수선만 · 칸이 없으면 무동작). 건드려야만 CSS 기본(4px)을 이긴다 — 여백(labelPad)과 같은 꼴.
+  wireAppearanceSection({ op: { numberId: 'annot-label-opacity', apply: (v) => window.setBlockOpacity?.(block, v) } });   // A4 Opacity(블럭)
   wireAppearanceSection({ radius: { numberId: 'annot-label-radius-num', max: 50, apply: (v) => _writeProps(block, { labelRadius: v }), commit: () => window.pushHistory?.('라벨 모서리') } });   // 표준 R(치수선만 · 칸 없으면 무동작) · 범위 = ANNOT_LIMITS.labelRadius 0~50 과 같음
 
   // ★1013t1A3 라벨 위치 — 쓰고 → 다시 그리고(패널 포함) → 찍는다(push-after · tests/unit/prop-push-after)
