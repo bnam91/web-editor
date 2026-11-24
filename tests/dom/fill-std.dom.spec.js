@@ -293,3 +293,42 @@ test('D15 그라데이션 이름칸 포커스 = HEX · 나가면 이름 · HEX �
   expect(after, '★HEX 치면 단색 · 이름 표식 걷힘').toEqual(['112233', null]);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* F5-1 — 쿠폰(본체 = 표준 · 없음 'transparent' · 스텁 = 부위 색) · 스텝(카드 꼴일 때 카드 배경 = 표준 · 없음 'transparent' · 배지·제목·설명 = 부위 색) · 월계수(일괄 색 = 표준 · − 막힘 = 잎이 안 보임 · «일괄 채움» 프리셋 = 슬롯)
+ * D16 쿠폰·스텝 − = 키 transparent · ⌘Z 한 칸 · ＋ = 지난 색 · 월계수 − 막힘(까닭) · 프리셋 select = 슬롯(leaf-fill-preset) 안
+ * 양성대조: _patches/fill-f5-1-CTL.patch(쿠폰 어댑터 none 이 bodyCol 을 안 씀) ⇒ D16 coupon 빨강 */
+const F51 = {
+  coupon: { make: 'window.addCouponBlock()', sel: '.coupon-block', show: 'showCouponProperties', p: 'cpn-fill', hex: 'cpn-body-hex', key: 'bodyCol', none: 'transparent', pre: {} },
+  step:   { make: 'window.addStepBlock()', sel: '.step-block', show: 'showStepProperties', p: 'stb-fill', hex: 'stb-card-bg-hex', key: 'stepCardBg', none: 'transparent', pre: { stepStyle: 'card' } },
+};
+for (const [kind, K] of Object.entries(F51)) {
+  test(`D16 ${kind} — − = ${K.key} transparent · ⌘Z 한 칸 · ＋ = 지난 색 · 옛 id`, async ({ page }) => {
+    await page.setViewportSize({ width: 1500, height: 1100 });
+    const errs = await bootApp(page);
+    const id = await page.evaluate(async ([make, sel, show, key, pre]) => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); const sec = await window.addSection(); window.deselectAll(); window.selectSection(sec); await eval(make); const b = [...sec.querySelectorAll(sel)].pop(); b.id = b.id || 'f51B'; Object.assign(b.dataset, pre); b.dataset[key] = '#ff0000'; window.selectBlock?.(b.id); window[show](b); window.clearHistory?.(); return b.id; }, [K.make, K.sel, K.show, K.key, K.pre]);
+    await page.waitForSelector('#panel-right .prop-section[data-sec="fill"] [data-part="fill"]', { state: 'attached' });
+    const s0 = await st2(page, id, K);
+    expect([s0.layers, s0.add, s0.hex], '[전제] 칠 있음 · 옛 색 칸 id(HEX) 그대로').toEqual([1, false, 'FF0000']);
+    await page.click(`#${K.p}-remove`); await raf(page);
+    const s1 = await st2(page, id, K);
+    expect([s1.v, s1.layers, s1.add], '★− = 키 transparent · «칠 없음» · 머리 ＋').toEqual([K.none, 0, true]);
+    await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z');
+    await expect.poll(() => page.evaluate(([id, key]) => document.getElementById(id)?.dataset[key] ?? null, [id, K.key]), { message: '★⌘Z 한 칸 = 지우기 전 색' }).toBe('#ff0000');
+    await page.keyboard.press('Meta+Shift+z'); await expect.poll(() => page.evaluate(([id, key]) => document.getElementById(id)?.dataset[key] ?? null, [id, K.key])).toBe(K.none);
+    await page.evaluate(([id, show]) => { const b = document.getElementById(id); window.selectBlock?.(id); window[show](b); }, [id, K.show]);
+    await page.click(`#${K.p}-add`); await raf(page);
+    const s3 = await st2(page, id, K);
+    expect([s3.v, s3.layers, s3.add], '★＋ = 지난 색 · 겹 줄 돌아옴').toEqual(['#ff0000', 1, false]);
+    expect(errs, errs.join(' | ')).toEqual([]);
+  });
+}
+test('D16 laurel — 일괄 색 = 표준 줄 · − 막힘(잎이 안 보임) · «일괄 채움» 프리셋 = 슬롯', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); const sec = await window.addSection(); window.deselectAll(); window.selectSection(sec); window.addLaurelBlock(); const b = [...sec.querySelectorAll('.laurel-block')].pop(); window.selectBlock?.(b.id); window.showLaurelProperties(b); });
+  await page.waitForSelector('#lrl-all-leaf-color', { state: 'attached' });
+  const r = await page.evaluate(() => ({ inLayer: !!document.querySelector('.ui-fill-layer #lrl-all-leaf-hex'), rm: document.getElementById('lrl-fill-remove')?.getAttribute('aria-disabled'), why: document.getElementById('lrl-fill-remove')?.title,
+    preset: !!document.querySelector('.ui-fill-slot[data-slot-kind="leaf-fill-preset"] #lrl-all-fill') }));
+  expect(r, '★일괄 색 = 겹 줄 · − 막힘 까닭 · 프리셋 = 슬롯').toEqual({ inLayer: true, rm: 'true', why: '잎이 안 보이게 되는 길이라 지금은 못 지워요', preset: true });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
