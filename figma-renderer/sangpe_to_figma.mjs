@@ -1545,8 +1545,18 @@ function renderBlock(block, parentId, x, y, availableWidth) {
         const sized = typeof t.w === 'number' && t.w > 0;
         const tx = Math.max(0, t.x || 0), ty = Math.max(0, sized ? (t.y || 0) : (typeof t.y === 'number' && t.y) ? t.y : i * 44);
         const tw = parseInt(t.fw) || 400, tf = tw === 400 ? font : loadFontSafe('Pretendard', toFigmaFontStyle(tw));   // 85행 — 보낸 굵기(fw · 쿠폰 «12만원»·스티커 «NEW» 굵게) · 안 보냈으면 옛 그대로 Regular
-        const tn = run('create_text', { x: tx, y: ty, width: sized ? t.w : Math.max(20, w - tx), text: t.t, fontSize: t.fs || 24, fontWeight: tw, fontColor: hex(t.color || '#111111'), textAlignHorizontal: sized && ['CENTER', 'RIGHT'].includes(t.align) ? t.align : 'LEFT', textAutoResize: 'HEIGHT', name: `gtext_${i}`, parentId: frame.id });
-        if (tn) { run('set_font_name', { nodeId: tn.id, family: tf.family, style: tf.style }); applyTextRanges(tn.id, t.ranges, tf.family, { run, loadFontSafe, hex }); }
+        /* 85행 미카사 3차 T1 — 한 줄 글(잰 폭 있고 줄바꿈 없음)을 앱 DOM 폭으로 고정하면 Figma 글꼴 폭이 조금만 넓어도 «12»→«1/2» 로 꺾임
+           ⇒ 한 줄 글 = 폭 고정 안 함(WIDTH_AND_HEIGHT) · 가운데·오른쪽이면 잰 상자 기준으로 자리 맞춤(get_node_info 폭 → move_node) · 여러 줄·폭 안 잰 글 = 옛 그대로 */
+        const oneLine = sized && !/[\r\n]/.test(String(t.t || ''));
+        const al = sized && ['CENTER', 'RIGHT'].includes(t.align) ? t.align : 'LEFT';
+        const tn = run('create_text', { x: tx, y: ty, ...(oneLine ? {} : { width: sized ? t.w : Math.max(20, w - tx) }), text: t.t, fontSize: t.fs || 24, fontWeight: tw, fontColor: hex(t.color || '#111111'), textAlignHorizontal: al, textAutoResize: oneLine ? 'WIDTH_AND_HEIGHT' : 'HEIGHT', name: `gtext_${i}`, parentId: frame.id });
+        if (tn) {
+          run('set_font_name', { nodeId: tn.id, family: tf.family, style: tf.style }); applyTextRanges(tn.id, t.ranges, tf.family, { run, loadFontSafe, hex });
+          if (oneLine && al !== 'LEFT') {
+            const nw = run('get_node_info', { nodeId: tn.id })?.absoluteBoundingBox?.width;
+            if (nw > 0) run('move_node', { nodeId: tn.id, x: Math.round(al === 'CENTER' ? tx + (t.w - nw) / 2 : tx + t.w - nw), y: ty });
+          }
+        }
       });
     }
     return h;

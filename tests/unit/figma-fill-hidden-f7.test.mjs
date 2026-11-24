@@ -68,7 +68,7 @@ const id = 'n' + process.hrtime.bigint();
 appendFileSync(process.env.FAKE_LOG, JSON.stringify({ cmd, params: p, id }) + '\\n');
 let out = { id };
 if (cmd === 'get_document_info') out = { children: [] };
-if (cmd === 'get_node_info') out = { document: { id: 'svgroot', type: 'FRAME', fills: [], children: [{ id: 'vfill', type: 'VECTOR', fills: [{ type: 'SOLID' }], children: [] }, { id: 'vline', type: 'VECTOR', fills: [], children: [] }] } };
+if (cmd === 'get_node_info') out = { document: { id: 'svgroot', type: 'FRAME', fills: [], children: [{ id: 'vfill', type: 'VECTOR', fills: [{ type: 'SOLID' }], children: [] }, { id: 'vline', type: 'VECTOR', fills: [], children: [] }] }, absoluteBoundingBox: { width: 30, height: 20 } };   // 폭 30 = 85행 W1 자리 셈용(다른 칸은 document 만 봄)
 if (cmd === 'set_node_properties') out = process.env.FAKE_OLD ? { id: p.nodeId, visible: true } : { id: p.nodeId, visible: true, fillsVisible: p.fillsVisible !== false };
 console.log(JSON.stringify(out));`;
 function render(blocks, old, srcDir) {
@@ -305,4 +305,29 @@ test('L2 [지킴] layersBg 없으면 겉 프레임 옛 투명 · 둥글기·숨�
   const wr = cmds.find((c) => c.cmd === 'create_frame' && c.params.name === 'card-grid_cv');
   assert.deepEqual(cmds.filter((c) => c.cmd === 'set_fill_color' && c.params.nodeId === wr.id).map((c) => c.params.color), [{ r: 1, g: 1, b: 1, a: 0 }]);
   assert.equal(cmds.filter((c) => (c.cmd === 'set_corner_radius' || c.cmd === 'set_node_properties') && c.params.nodeId === wr.id).length, 0);
+});
+
+/* ── 85행 미카사 3차 T1 — 쿠폰 «12»→«1/2» 꺾임: 한 줄 글을 앱 DOM 폭으로 고정 + HEIGHT 라 Figma 글꼴 폭이 넘침
+ *   W1 한 줄·가운데 → width 안 줌 · WIDTH_AND_HEIGHT · 잰 폭(가짜 30) 기준 가운데로 move_node(x = tx + (w-30)/2)
+ *   W2 [지킴] 여러 줄 → width 고정 · HEIGHT · move 0 · W3 한 줄·왼쪽 → width 안 줌 · move 0
+ * 양성대조: _patches/w85-CTL-renderer.patch(옛 렌더러) → W1·W3 빨강 */
+const tx1 = (extra) => stk({ texts: [{ t: '12', fs: 40, color: '#ffffff', x: 100, y: 10, w: 50, align: 'CENTER', fw: 700, ...extra }] });
+test('W1 한 줄·가운데 글 → 폭 고정 안 함 · WIDTH_AND_HEIGHT · 가운데 자리 맞춤', () => {
+  const { cmds } = render([tx1({})]);
+  const ct = cmds.find((c) => c.cmd === 'create_text' && c.params.text === '12');
+  assert.equal('width' in ct.params, false, '한 줄 글에 폭을 고정했다(꺾임)'); assert.equal(ct.params.textAutoResize, 'WIDTH_AND_HEIGHT');
+  const mv = cmds.find((c) => c.cmd === 'move_node' && c.params.nodeId === ct.id);
+  assert.ok(mv, '가운데 자리 맞춤(move_node)이 없다'); assert.equal(mv.params.x, Math.round(100 + (50 - 30) / 2)); assert.equal(mv.params.y, 10);
+});
+test('W2 [지킴] 여러 줄 글 → 폭 고정 · HEIGHT · move 0', () => {
+  const { cmds } = render([tx1({ t: '첫 줄\n둘째 줄' })]);
+  const ct = cmds.find((c) => c.cmd === 'create_text' && c.params.text.startsWith('첫 줄'));
+  assert.deepEqual([ct.params.width, ct.params.textAutoResize], [50, 'HEIGHT']);
+  assert.equal(cmds.filter((c) => c.cmd === 'move_node' && c.params.nodeId === ct.id).length, 0);
+});
+test('W3 한 줄·왼쪽 글 → 폭 고정 안 함 · move 0(왼쪽 기준 = 처음 자리 그대로)', () => {
+  const { cmds } = render([tx1({ align: 'LEFT' })]);
+  const ct = cmds.find((c) => c.cmd === 'create_text' && c.params.text === '12');
+  assert.deepEqual(['width' in ct.params, ct.params.textAutoResize, ct.params.x], [false, 'WIDTH_AND_HEIGHT', 100]);
+  assert.equal(cmds.filter((c) => c.cmd === 'move_node' && c.params.nodeId === ct.id).length, 0);
 });
