@@ -155,7 +155,7 @@ test('S2 숨김 — 브리지 = 칠 벡터 fillsVisible:false · 쿠폰 = 걷지
 });
 
 /* ── F8 ①(시트 81행 · 지디 261125) — 에셋 배경색(bg) = 프레임 자기 칠 · 그림 있으면 그림 = 자식 프레임 imgfill_<id>
- *   A1 ⓐ bg 없는 에셋(그림·빈 칸·크롭·둥글기) = 명령 목록·이름·부모가 «고치기 전 판(git HEAD 의 렌더러)»과 같다(노드 id 뺀 바이트 대조)
+ *   A1 ⓐ bg 없는 에셋(그림·빈 칸·크롭·둥글기) = 명령 목록·이름·부모가 «고치기 전 판(4188f69c1 렌더러 · git 에서 읽음)»과 같다(노드 id 뺀 바이트 대조)
  *   A2 빈 칸 + bg = 그 프레임 칠 = bg · 체커 svg 0
  *   A3 그림 + bg = 프레임 칠 bg · 자식 imgfill(부모 = 프레임 · clipsContent true · 둥글기 같음) · set_image_fill = 자식 · 자르기 끔이어도 자식은 자름
  *   A4 ⓑ 크롭 + bg = 자식 하나(imgcrop) · imgfill 0 · 부모 칠 = bg
@@ -164,11 +164,14 @@ test('S2 숨김 — 브리지 = 칠 벡터 fillsVisible:false · 쿠폰 = 걷지
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 const img = (extra) => ({ type: 'image', id: 'ab', height: 200, sizePct: 100, padX: 0, style: { borderRadius: 0 }, src: PNG, overlayOn: false, ...extra });
 const strip = (cmds) => { const ids = new Map(cmds.map((c, i) => [c.id, 'N' + i])); return JSON.stringify(cmds.map((c) => [c.cmd, JSON.stringify(c.params).replace(/"n\d+"/g, (m) => ids.get(m.slice(1, -1)) || m)])); };
+const PRE_F8A = '4188f69c1';   // 고치기 전 판(F8 ① 바로 앞) — HEAD 로 두면 커밋 뒤 자기 자신과 비교 = 빈 시험
 function oldRenderer() {
   const dir = mkTmpRoot('fill-f8a-old-');
-  for (const f of fs.readdirSync(path.join(ROOT, 'figma-renderer'))) if (f.endsWith('.mjs')) {
-    const r = spawnSync('git', ['-C', ROOT, 'show', `HEAD:figma-renderer/${f}`], { encoding: 'utf8' });
-    if (r.status === 0) fs.writeFileSync(path.join(dir, f), r.stdout);
+  const ls = spawnSync('git', ['-C', ROOT, 'ls-tree', '--name-only', `${PRE_F8A}:figma-renderer`], { encoding: 'utf8' });
+  assert.equal(ls.status, 0, `[전제] 고치기 전 판 ${PRE_F8A} 를 못 읽음(얕은 clone?) — ${ls.stderr}`);
+  for (const f of ls.stdout.split('\n').filter((x) => x.endsWith('.mjs'))) {
+    const r = spawnSync('git', ['-C', ROOT, 'show', `${PRE_F8A}:figma-renderer/${f}`], { encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr); fs.writeFileSync(path.join(dir, f), r.stdout);
   }
   return dir;
 }
