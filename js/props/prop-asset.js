@@ -215,7 +215,7 @@ export function showAssetProperties(ab) {
       // 플로팅 토글 = Position 절 머리 손잡이(§2-1) · X/Y(플로팅일 때만 — 몸통이 비어도 머리 손잡이가 있으면 절은 남는다)
       /* 1120b A1(현빈 261120) — 정렬 줄 = Position 절 · 라벨은 텍스트 블럭 Layout 과 같은 꼴(.prop-field-label «Alignment» + .prop-align-group) */
       sec('position', `
-      ${floatPositionRowHTML({ prefix: 'asset', posEl: floatPosEl })}${isFloatOverlay ? '' : `
+      ${floatPositionRowHTML({ prefix: 'asset', posEl: floatPosEl, flowAlign: false })}${isFloatOverlay ? '' : `
       <span class="prop-field-label">Alignment</span>${/* 현빈 261123 S1-4 — 떠 있으면 흐름용 가로 정렬은 뜻이 없어 걷고 위 부모 기준 6칸이 그 자리(시안 8910 floatalign) */ ''}
       <div class="prop-align-group" id="asset-align-group">
           ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', active: currentAlign==='left', attrs: { 'data-align': 'left' } })}

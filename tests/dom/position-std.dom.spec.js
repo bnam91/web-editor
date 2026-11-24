@@ -78,3 +78,43 @@ test('PS4 슬라이더 30 → 옛 키 dataset.rotation · 숫자 칸 30 · ⌘Z 
   await expect.poll(() => page.evaluate((id) => document.getElementById(id).dataset.rotation || '0', mid), '★⌘Z 한 번 = 0(되돌리기는 블럭 DOM 을 새로 그린다 → id 로 다시 집는다)').toBe('0');
   expect(errs).toEqual([]);
 });
+
+/* ── P2 — 6-2 흐름 안 블럭 정렬·X/Y = disabled(숨김 아님)을 공용 floatPositionRowHTML 한 곳에서 → 소비자 전부 ── */
+const KINDS = [
+  ['shape', "window.addShapeBlock('rectangle')", '.shape-block', 'shape'],
+  ['cert', 'window.addCertBlock()', '.cert-block', 'crt'],
+  ['grid', 'window.addGridBlock()', '.grid-block', 'grd'],
+  ['iconify', 'window.addIconifyBlock()', '.icon-block', 'icn'],
+  ['comparison', 'window.addComparisonBlock()', '.comparison-block', 'cmp'],
+  ['text', "window.addTextBlock('body')", '.text-block', 'txt'],
+];
+async function flowScene(page, add) {
+  await page.setViewportSize({ width: 1700, height: 1100 });
+  const errs = await bootApp(page);
+  await page.evaluate(async (add) => {
+    const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    const sec = await window.addSection(); window.deselectAll?.(); window.selectSection?.(sec);
+    (0, eval)(add);
+  }, add);
+  return errs;
+}
+const flowRead = (page, pfx) => page.evaluate((pfx) => {
+  const x = document.getElementById(pfx + '-x-number'), y = document.getElementById(pfx + '-y-number');
+  const al = [...document.querySelectorAll('#panel-right [data-float-align]')];
+  return { xy: [!!x && x.disabled, !!y && y.disabled], tip: /흐름/.test((x && (x.title || x.closest('[title]')?.title)) || ''), align: [al.length, al.filter((b) => b.disabled).length] };
+}, pfx);
+
+for (const [name, add, , pfx] of KINDS) {
+  test(`PS5 흐름 안 ${name} — X/Y·정렬 6 = 있음 + disabled + 툴팁(6-2)`, async ({ page }) => {
+    const errs = await flowScene(page, add);
+    await expect.poll(() => flowRead(page, pfx), `★${name} 흐름 = X/Y disabled · 정렬 6 disabled(옛: 없음 또는 씀)`).toEqual({ xy: [true, true], tip: true, align: [6, 6] });
+    expect(errs).toEqual([]);
+  });
+}
+
+test('PS6 흐름 안 에셋 — X/Y disabled + 툴팁 · 정렬 = 흐름용 가로 3칸(씀 · S1-4 그대로) · 부모 기준 6칸 없음', async ({ page }) => {
+  const errs = await flowScene(page, "window.addAssetBlock('standard')");
+  await expect.poll(() => flowRead(page, 'asset').then((r) => ({ xy: r.xy, tip: r.tip, six: r.align[0] }))).toEqual({ xy: [true, true], tip: true, six: 0 });
+  expect(await page.evaluate(() => [...document.querySelectorAll('#asset-align-group [data-align]')].map((b) => b.disabled)), '★흐름용 3칸은 씀').toEqual([false, false, false]);
+  expect(errs).toEqual([]);
+});

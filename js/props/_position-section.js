@@ -8,11 +8,11 @@
  * ⛔새 배선을 짓지 않는다 — 떠 있기·X/Y·정렬·회전은 지금 wireFloatToggle·wireFloatPosition·wireFloatAlign·wireRotRow 그대로. 이 파일은 슬라이드 토글·슬라이더만 잇는다.
  * ⛔저장 키·옛 id 무변(어댑터 = 블럭 패널이 지금 쓰는 id 를 그대로 넘긴다).
  */
-import { overlayToggleBtnHTML, rotRowHTML, floatAlignRowHTML } from './_helpers.js';
-import { floatPositionRowHTML, isFloat } from '../overlay-float.js';
+import { overlayToggleBtnHTML, rotRowHTML } from './_helpers.js';
+import { floatPositionRowHTML, POS_FLOW_WHY } from '../overlay-float.js';
+export { POS_FLOW_WHY };
 
 export const ROT_SLIDE_KEY = 'goditor.rotSlideMode';
-export const POS_FLOW_WHY = '흐름 안 블럭은 자리가 흐름으로 정해져요 — 괄호 단추(Ignore Auto Layout)를 켜면 써요';
 const ROT_NONE_WHY = '이 블럭은 회전이 없어요';
 const SLIDE_ICON = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><path d="M1.5 6h9"/><circle cx="7.5" cy="6" r="1.8" fill="currentColor"/></svg>';
 
@@ -29,18 +29,6 @@ export function positionHeadToolsHTML({ prefix, ialId = '', ialOn = false, rotCa
   return slide + (ialId ? overlayToggleBtnHTML({ id: ialId, active: ialOn }) : '');
 }
 
-/** 흐름 안(6-2) — 정렬 6·X/Y 를 같은 id 로 disabled + 툴팁 */
-function _flowRowsHTML(prefix) {
-  const dis = ` disabled aria-disabled="true" title="${POS_FLOW_WHY}"`;
-  const align = floatAlignRowHTML().replace(/<button /g, `<button${dis} `).replace('data-float-align-row="parent"', `data-float-align-row="flow" title="${POS_FLOW_WHY}"`);
-  return `${align}
-      <span class="prop-field-label">X / Y</span>
-      <div class="prop-lhls-row" data-pos-flow="1" title="${POS_FLOW_WHY}">
-        <div class="prop-lhls-col"><div class="prop-icon-input"><span class="prop-xy-label">X</span><input type="number" id="${prefix}-x-number" value="" aria-label="X position"${dis}></div></div>
-        <div class="prop-lhls-col"><div class="prop-icon-input"><span class="prop-xy-label">Y</span><input type="number" id="${prefix}-y-number" value="" aria-label="Y position"${dis}></div></div>
-      </div>`;
-}
-
 /**
  * @param {object} o
  * @param {string} o.prefix  블럭의 옛 접두(예: 'mdl') — X/Y = `${prefix}-x-number`·`-y-number` · 슬라이드 = `${prefix}-rot-slide`
@@ -49,7 +37,7 @@ function _flowRowsHTML(prefix) {
  * @param {object} [o.rot]  rotRowHTML 인자(p·numberId·value·flipH·flipV·ids) — 없으면 회전 줄 0
  */
 export function positionSectionHTML({ prefix, posEl, xy = true, rot = null }) {
-  const place = !xy ? '' : (posEl && isFloat(posEl) ? floatPositionRowHTML({ prefix, posEl }) : _flowRowsHTML(prefix));
+  const place = xy ? floatPositionRowHTML({ prefix, posEl }) : '';   // 떠 있음 = S1-4 · 흐름 = disabled(6-2) — 둘 다 공용 한 곳(overlay-float)
   if (!rot) return place;
   const slide = rotSlideOn() ? `
       <div class="prop-row ui-rot-slide-row"><input type="range" class="prop-slider" id="${rot.numberId}-slider" min="${rot.min ?? -180}" max="${rot.max ?? 180}" step="1" value="${Number(rot.value) || 0}" aria-label="회전(슬라이더)" style="flex:1;min-width:0"></div>` : '';
