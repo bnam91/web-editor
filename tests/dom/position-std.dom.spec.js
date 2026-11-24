@@ -162,14 +162,14 @@ for (const [name, add, pfx, num, key] of ROT_KINDS_B) {
     expect(errs).toEqual([]);
   });
 }
-test('PS9 iconify — 90° 단추 4 그대로 · 단추 누르면 슬라이드 슬라이더도 따라간다', async ({ page }) => {
+test('PS9 iconify — 0/90/180/270 단추 4 걷음(현빈 GO 261124 14:25 · 기대 바뀜) · 회전 줄 ↻(90°)이 dataset.rotation 을 돌리고 슬라이드 슬라이더도 따라간다', async ({ page }) => {
   const errs = await flowScene(page, 'window.addIconifyBlock()');
   await page.evaluate(() => { try { localStorage.removeItem('goditor.rotSlideMode'); } catch (_) {} });
   await expect(page.locator('#icn-rot-slide')).toHaveCount(1);
   await page.click('#icn-rot-slide');
-  await expect.poll(() => page.evaluate(() => [document.querySelectorAll('#icn-rotation-group [data-deg]').length, !!document.getElementById('icn-rot-number-slider')])).toEqual([4, true]);
-  await page.click('#icn-rotation-group [data-deg="90"]');
-  await expect.poll(() => page.evaluate(() => [document.getElementById('icn-rot-number').value, document.getElementById('icn-rot-number-slider').value])).toEqual(['90', '90']);
+  await expect.poll(() => page.evaluate(() => [document.querySelectorAll('#icn-rotation-group, #panel-right [data-deg]').length, !!document.getElementById('icn-rot-number-slider'), !!document.getElementById('icn-rot-90')])).toEqual([0, true, true]);
+  await page.click('#icn-rot-90');
+  await expect.poll(() => page.evaluate(() => { const n = document.getElementById('icn-rot-number'), s = document.getElementById('icn-rot-number-slider'); return [n && n.value, s && s.value, [...document.querySelectorAll('#canvas *')].some((e) => e.dataset && e.dataset.rotation === '90')]; })).toEqual(['90', '90', true]);
   await page.evaluate(() => { try { localStorage.removeItem('goditor.rotSlideMode'); } catch (_) {} });
   expect(errs).toEqual([]);
 });

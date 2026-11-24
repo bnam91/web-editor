@@ -61,13 +61,7 @@ export function showIconifyProperties(block) {
       // 플로팅 토글 = Position 절 머리 손잡이(§2-1 — 플로팅·X/Y·회전은 Position)
       sec('position', `
       ${window.floatPositionRowHTML?.({ prefix: 'icn', posEl: block }) || ''}
-      <div class="prop-align-group" id="icn-rotation-group">
-        <button class="prop-align-btn${rotation ===   0 ? ' active' : ''}" data-deg="0">0°</button>
-        <button class="prop-align-btn${rotation ===  90 ? ' active' : ''}" data-deg="90">90°</button>
-        <button class="prop-align-btn${rotation === 180 ? ' active' : ''}" data-deg="180">180°</button>
-        <button class="prop-align-btn${rotation === 270 ? ' active' : ''}" data-deg="270">270°</button>
-      </div>
-      ${positionSectionHTML({ prefix: 'icn', posEl: block, xy: false, rot: { p: 'icn', numberId: 'icn-rot-number', value: (rotation > 180 ? rotation - 360 : rotation), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' } })}`, { headTools: positionHeadToolsHTML({ prefix: 'icn', ialId: 'icn-float-toggle', ialOn: floating }) }),   // 표준 Position P3(지디 261124 — 90° 단추 4 = 빠른 단추 그대로 · 슬라이드 모드 씀)
+      ${/* 0/90/180/270 단추 4 걷음(현빈 GO 261124 14:25 · 키 rotation 무변 · 90° 돌리기 = 회전 줄 ↻) */ ''}${positionSectionHTML({ prefix: 'icn', posEl: block, xy: false, rot: { p: 'icn', numberId: 'icn-rot-number', value: (rotation > 180 ? rotation - 360 : rotation), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' } })}`, { headTools: positionHeadToolsHTML({ prefix: 'icn', ialId: 'icn-float-toggle', ialOn: floating }) }),   // 표준 Position P3(슬라이드 모드 씀 · 90° 단추 4 걷음 = 현빈 GO 261124 14:25)
       sec('size', `
       <div class="prop-row">
         <span class="prop-label">크기</span>
@@ -386,28 +380,15 @@ export function showIconifyProperties(block) {
     });
   }
 
-  // 회전 — 공유 헬퍼(applyRotationDeg, dataset.rotation)로 통일. 프리셋 버튼(0/90/180/270)·
+  // 회전 — 공유 헬퍼(applyRotationDeg, dataset.rotation)로 통일. (0/90/180/270 단추 4 = 걷음 · 현빈 GO 261124 14:25 · 90° = 회전 줄 ↻ 단추)·
   // 자유 슬라이더/숫자(icn-rot-*)·코너 핫존(asset-rotate.js)이 같은 상태를 쓴다.
   const _icnRotS = propPanel.querySelector('#icn-rot-slider');
   const _icnRotN = propPanel.querySelector('#icn-rot-number');
   const _icnSyncUI = (deg, typing) => {
-    const norm = ((deg % 360) + 360) % 360;         // 프리셋 버튼은 0/90/180/270 표기
     const signed = deg > 180 ? deg - 360 : deg;     // 슬라이더는 -180..180
-    propPanel.querySelectorAll('#icn-rotation-group .prop-align-btn').forEach(b => {
-      b.classList.toggle('active', parseInt(b.dataset.deg) === norm);
-    });
     if (_icnRotS) _icnRotS.value = signed;
-    if (_icnRotN && !typing) _icnRotN.value = signed;
-    const _icnSlide = propPanel.querySelector('#icn-rot-number-slider'); if (_icnSlide) _icnSlide.value = signed;   // 슬라이드 모드 슬라이더(부품)도 90° 단추를 따라간다   // QA2 M4 — 치는 중엔 칸을 다시 안 쓴다(«-30» 을 칠 수 있게) · 끝낼 때(change) 범위로 정규화
+    if (_icnRotN && !typing) _icnRotN.value = signed;   // QA2 M4 — 치는 중엔 칸을 다시 안 쓴다(«-30» 을 칠 수 있게) · 끝낼 때(change) 범위로 정규화
   };
-  const applyRotation = deg => {
-    window.applyRotationDeg?.(block, deg);
-    _icnSyncUI(parseInt(deg) || 0);
-    window.pushHistory?.();
-  };
-  propPanel.querySelectorAll('#icn-rotation-group .prop-align-btn').forEach(btn => {
-    btn.addEventListener('click', () => applyRotation(parseInt(btn.dataset.deg)));
-  });
   const _icnFree = (v, typing) => {
     v = Math.min(180, Math.max(-180, parseInt(v) || 0));
     window.applyRotationDeg?.(block, v);
