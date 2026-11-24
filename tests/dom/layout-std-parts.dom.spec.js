@@ -57,7 +57,7 @@ test('AL2 꽉참 = 사슬 막힘 · H 바꿔도 W 그대로 → 고정 폭(430)�
   await setNum(page, 'asset-h-number', 500);
   expect(await nums(page), '★꽉참이면 H 만 바뀐다').toEqual([860, 500]);
   expect([await page.evaluate((s) => (0, eval)(s).style.width, A), (await blockWH(page)).lock]).toEqual([wcss0, null]);
-  await page.click('#asset-ratio');   // 막힘 = 눌러도 아무 일 없음
+  await page.click('#asset-ratio', { force: true });   // 막힘 = 눌러도 아무 일 없음 · force = Playwright 는 aria-disabled 단추를 «안 누른다»(사람 클릭은 닿는다)
   expect((await blockWH(page)).lock).toBe(null);
   await setNum(page, 'asset-w-number', 430);
   expect(await nums(page), '꽉참에서 시작한 편집은 안 따라감').toEqual([430, 500]);
