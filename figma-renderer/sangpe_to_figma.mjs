@@ -55,10 +55,13 @@ function run(command, params, opts = {}) {
   if (tmpFile) { try { unlinkSync(tmpFile); } catch {} }
 
   if (result.error) throw result.error;
+  if (command === 'delete_node') _noteTopNode(command, params, null);
   // delete_node 등 반환값 없는 커맨드는 파싱 경고 생략
   if (!result.stdout?.trim()) return null;
   try {
-    return JSON.parse(result.stdout);
+    const out = JSON.parse(result.stdout);
+    if (command !== 'delete_node') _noteTopNode(command, params, out);
+    return out;
   } catch {
     console.error(`  ⚠️  [${command}] 파싱 실패:`, result.stdout?.slice(0, 80));
     return null;
@@ -206,8 +209,28 @@ function checkerSvg(w, h, ellipse) {
     + `</pattern>${clip}</defs><rect width="${W}" height="${H}" fill="url(#ckp)"${ca}/></svg>`;
 }
 
-// 반환값: 실제 점유 높이(px)
+/* ★A4 블럭 불투명도(지디 261124) — block.opacity(0~1)를 그 블럭이 parentId 바로 밑에 만든 노드(들)에 건다
+   (플러그인 set_node_properties — 옛 플러그인에도 있다 ⇒ 플러그인 갱신 불필요). 안쪽 블럭(자식 renderBlock)은 제 몫을 따로 건다.
+   shortcut: 한 블럭이 parentId 밑에 노드를 여럿 만들면 각자에 걸린다(겹친 자리는 그룹 불투명도와 다르다) — 그런 갈래가 문제되면 감싸는 프레임으로. */
+const _opCapture = [];
+function _noteTopNode(command, params, out) {
+  const cap = _opCapture[_opCapture.length - 1];
+  if (!cap) return;
+  if (command === 'delete_node') { cap.ids.delete(params?.nodeId); return; }
+  if (/^create_/.test(command) && out?.id && params?.parentId === cap.parentId) cap.ids.add(out.id);
+}
 function renderBlock(block, parentId, x, y, availableWidth) {
+  if (!(block?.opacity >= 0 && block.opacity < 1)) return renderBlockInner(block, parentId, x, y, availableWidth);
+  const cap = { parentId, ids: new Set() };
+  _opCapture.push(cap);
+  let h;
+  try { h = renderBlockInner(block, parentId, x, y, availableWidth); } finally { _opCapture.pop(); }
+  for (const nodeId of cap.ids) run('set_node_properties', { nodeId, opacity: block.opacity });
+  return h;
+}
+
+// 반환값: 실제 점유 높이(px)
+function renderBlockInner(block, parentId, x, y, availableWidth) {
 
   // ── GAP (빈 프레임 스페이서) ─────────────────────────────────
   if (block.type === 'gap') {
