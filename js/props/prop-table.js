@@ -5,6 +5,8 @@ import { parseRatio, parseRatioStrict, noticeRatioRejected, blockHeaderHTML, dis
 import { renderPanel, sec } from './_panel-frame.js';
 import { withTextSelection, spanExactlyCovering } from './_text-selection.js';
 import { panelRenderedPx } from './_panel-rendered.js';
+import { layoutPadSlotHTML, layoutSlotNumberHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(L2~L4 · C1)
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A4 Opacity)
 
 function _tblTok(name, fallback) {
   if (typeof getComputedStyle !== 'function') return fallback;
@@ -374,6 +376,8 @@ export function showTableProperties(block) {
         ${checkHTML({ id: 'tbl-show-header', label: '헤더', checked: curShowHeader })}
       </div>
       <div class="prop-hint">셀을 더블클릭하면 텍스트를 편집할 수 있습니다.</div>`),
+      /* ★표준 Layout L2~L4(현빈 261124 L-4 · 시안 #mkp-layoutstd) — 옛 tbl-img-h/rowh/pad/padx 슬라이더 걷음 · 숫자 칸 id·키·범위 무변
+         이미지 행·행 높이·셀 패딩(상하) = 블럭 슬롯 숫자(layoutSlotNumberHTML) · 좌우패딩 = 패딩 슬롯 x 만 */
       sec('size', `    ${(() => {
       const imgRows = Array.from(table.querySelectorAll('tr[data-row-img="true"]'));
       if (!imgRows.length) return '';
@@ -382,11 +386,7 @@ export function showTableProperties(block) {
         ${imgRows.map((tr, i) => {
           const curH = parseInt(tr.dataset.imgH) || 0;
           return `
-          <div class="prop-row">
-            <span class="prop-label">이미지 행 ${i + 1}</span>
-            <input type="range" class="prop-slider" id="tbl-img-h-slider-${i}" min="0" max="600" step="1" value="${curH}">
-            <input type="number" class="prop-number" id="tbl-img-h-num-${i}" min="0" max="600" value="${curH}" title="이미지 행 높이(px) · 0 = 정사각형 자동">
-          </div>`;
+          ${layoutSlotNumberHTML({ id: `tbl-img-h-num-${i}`, label: `이미지 행 ${i + 1}`, min: 0, max: 600, value: curH })}`;   /* 0 = 정사각형 자동 */
         }).join('')}
       </div>`;
     })()}
@@ -438,24 +438,11 @@ export function showTableProperties(block) {
           </button>
         </div>
       </div>
-      <div class="prop-row">
-        <span class="prop-label">행 높이</span>
-        <input type="range" class="prop-slider" id="tbl-rowh-slider" min="0" max="160" step="2" value="${curRowH}">
-        <input type="number" class="prop-number"  id="tbl-rowh-number" min="0" max="160" value="${curRowH}">
-      </div>
+      ${layoutSlotNumberHTML({ id: 'tbl-rowh-number', label: '행 높이', min: 0, max: 160, value: curRowH })}
       ${_perRowHeightHTML()}
 `),
-      sec('padding', `
-      <div class="prop-row">
-        <span class="prop-label">셀 패딩</span>
-        <input type="range" class="prop-slider" id="tbl-pad-slider" min="0" max="40" step="2" value="${curPad}">
-        <input type="number" class="prop-number"  id="tbl-pad-number" min="0" max="40" value="${curPad}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">좌우패딩</span>
-        <input type="range" class="prop-slider" id="tbl-padx-slider" min="0" max="120" step="2" value="${curTablePadX}">
-        <input type="number" class="prop-number"  id="tbl-padx-number" min="0" max="120" value="${curTablePadX}">
-      </div>`),
+      sec('padding', `${layoutSlotNumberHTML({ id: 'tbl-pad-number', label: '셀 패딩', min: 0, max: 40, value: curPad })}${layoutPadSlotHTML({ xId: 'tbl-padx-number', x: curTablePadX, max: 120 })}`),
+      sec('appearance', appearanceSectionHTML({ prefix: 'tbl', op: { value: window.readBlockOpacity?.(block) ?? 100 } }), { headTools: appearanceHeadToolsHTML({ prefix: 'tbl' }) }),   // A4 Opacity 만(모서리 없음)
       sec('typography', `
       <div class="prop-row">
         <span class="prop-label">폰트</span>
@@ -719,22 +706,9 @@ export function showTableProperties(block) {
     if (!block.dataset.colBgs) _applyColColors(block);
   }
 
-  /* Image Row Heights — :img row마다 슬라이더 */
+  /* Image Row Heights — :img row마다 한 칸(표준 Layout 배선: input = 범위 안이면 바로 · change = 잘라 + undo 1액션 · 빈 칸 = 옛 값 · 라벨 끌기) */
   Array.from(table.querySelectorAll('tr[data-row-img="true"]')).forEach((tr, i) => {
-    const slider = document.getElementById(`tbl-img-h-slider-${i}`);
-    const num    = document.getElementById(`tbl-img-h-num-${i}`);
-    const apply = (raw) => {
-      const n = Math.max(0, Math.min(600, parseInt(raw) || 0));
-      _applyRowImgHeight(tr, n);
-      if (slider) slider.value = n;
-      if (num)    num.value = n;
-      window.scheduleAutoSave?.();
-    };
-    slider?.addEventListener('input', e => apply(e.target.value));
-    num?.addEventListener('input',    e => apply(e.target.value));
-    // 커밋(change) 1회 = undo 1액션 (다른 tbl 슬라이더와 동일 패턴)
-    slider?.addEventListener('change', () => window.pushHistory());
-    num?.addEventListener('change',    () => window.pushHistory());
+    wireLayoutSection({ w: { numberId: `tbl-img-h-num-${i}`, min: 0, max: 600, apply: (n) => { _applyRowImgHeight(tr, n); window.scheduleAutoSave?.(); } } });
   });
 
   /* 정렬 */
@@ -779,12 +753,8 @@ export function showTableProperties(block) {
   const applyPad = v => {
     block.dataset.cellPad = v;
     table.querySelectorAll('th, td').forEach(cell => { cell.style.padding = v + 'px 16px'; });
-    document.getElementById('tbl-pad-slider').value = v;
-    document.getElementById('tbl-pad-number').value = v;
   };
-  document.getElementById('tbl-pad-slider').addEventListener('input',  e => applyPad(parseInt(e.target.value)));
-  document.getElementById('tbl-pad-number').addEventListener('change', e => { applyPad(parseInt(e.target.value)); window.pushHistory(); });
-  document.getElementById('tbl-pad-slider').addEventListener('change', () => window.pushHistory());
+  wireLayoutSection({ w: { numberId: 'tbl-pad-number', min: 0, max: 40, apply: applyPad } });
 
   /* 행 높이 */
   const applyRowH = v => {
@@ -797,14 +767,10 @@ export function showTableProperties(block) {
     table.querySelectorAll('thead tr').forEach(tr => {
       tr.style.height = v > 0 ? v + 'px' : '';
     });
-    document.getElementById('tbl-rowh-slider').value = v;
-    document.getElementById('tbl-rowh-number').value = v;
     // 일괄 설정은 전 행의 인라인 height 를 v 로 덮어씀 → 행별 입력도 동기화(개별값 무효화)
     propPanel.querySelectorAll('.tbl-row-h-item').forEach(inp => { inp.value = v > 0 ? v : ''; });
   };
-  document.getElementById('tbl-rowh-slider').addEventListener('input',  e => applyRowH(parseInt(e.target.value)));
-  document.getElementById('tbl-rowh-number').addEventListener('change', e => { applyRowH(parseInt(e.target.value)); window.pushHistory(); });
-  document.getElementById('tbl-rowh-slider').addEventListener('change', () => window.pushHistory());
+  wireLayoutSection({ w: { numberId: 'tbl-rowh-number', min: 0, max: 160, apply: applyRowH } });
 
   /* 행별 높이 — 각 tbody tr 의 인라인 height 개별 조정 (진실원=인라인 style.height) */
   propPanel.querySelectorAll('.tbl-row-h-item').forEach(inp => {
@@ -863,12 +829,9 @@ export function showTableProperties(block) {
     block.dataset.tablePadX = v;
     block.style.paddingLeft  = v + 'px';
     block.style.paddingRight = v + 'px';
-    document.getElementById('tbl-padx-slider').value = v;
-    document.getElementById('tbl-padx-number').value = v;
   };
-  document.getElementById('tbl-padx-slider').addEventListener('input',  e => applyTablePadX(parseInt(e.target.value)));
-  document.getElementById('tbl-padx-number').addEventListener('change', e => { applyTablePadX(parseInt(e.target.value)); window.pushHistory(); });
-  document.getElementById('tbl-padx-slider').addEventListener('change', () => window.pushHistory());
+  wireLayoutSection({ w: { numberId: 'tbl-padx-number', min: 0, max: 120, apply: applyTablePadX } });
+  wireAppearanceSection({ op: { numberId: 'tbl-opacity', apply: (v) => window.setBlockOpacity?.(block, v) } });   // A4 — 계약(갈래 E) 없으면 그리기 0
 
   /* 선 색 — CSS var --tbl-line-color */
 
