@@ -65,7 +65,7 @@ export function showIconifyProperties(block) {
       sec('position', `
       ${window.floatPositionRowHTML?.({ prefix: 'icn', posEl: block }) || ''}
       ${/* 0/90/180/270 단추 4 걷음(현빈 GO 261124 14:25 · 키 rotation 무변 · 90° 돌리기 = 회전 줄 ↻) */ ''}${positionSectionHTML({ prefix: 'icn', posEl: block, xy: false, rot: { p: 'icn', numberId: 'icn-rot-number', value: (rotation > 180 ? rotation - 360 : rotation), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' } })}`, { headTools: positionHeadToolsHTML({ prefix: 'icn', ialId: 'icn-float-toggle', ialOn: floating }) }),   // 표준 Position P3(슬라이드 모드 씀 · 90° 단추 4 걷음 = 현빈 GO 261124 14:25)
-      sec('size', layoutSizeRowHTML({ prefix: 'icn', one: { id: 'icn-size-number', label: 'Size', min: 16, max: 512, value: size } })),   // ★표준 Layout(C2) — 옛 슬라이더 icn-size-slider 걷음 · 숫자 칸 id·범위 무변
+      sec('size', layoutSizeRowHTML({ prefix: 'icn', one: { id: 'icn-size-number', label: 'Size', icon: 'px', min: 16, max: 512, value: size } })),   // ★표준 Layout(C2) — 옛 슬라이더 icn-size-slider 걷음 · 숫자 칸 id·범위 무변
       sec('appearance', appearanceSectionHTML({ prefix: 'icn', op: { value: window.readBlockOpacity?.(block) ?? 100 } }), { headTools: appearanceHeadToolsHTML({ prefix: 'icn' }) }),   // ★표준 Appearance A4(C2) — Opacity 만(모서리 없음)
       // 플로팅이면 정렬이 뜻이 없다 ⇒ 절째 안 그린다(숨긴 줄만 든 빈 머리 금지)
       sec('layout', floating ? '' : `

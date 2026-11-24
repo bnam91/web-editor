@@ -255,7 +255,7 @@ export function showStickerProperties(block) {
       </div>`);
     put('position', `
       ${positionSectionHTML({ prefix: 'stk-icon', posEl: null, xy: false, rot: { p: 'stk-icon', numberId: 'stk-icon-rot-num', value: parseFloat(block.dataset.rotation) || 0, flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' } })}`);
-    put('size', layoutSizeRowHTML({ prefix: 'stk-icon', one: { id: 'stk-icon-size-num', label: 'Size', min: 16, max: 600, value: parseInt(block.dataset.size) || 64 } }));   // ★표준 Layout(C2) — 옛 슬라이더 stk-icon-size 걷음 · 숫자 칸 id·범위 무변
+    put('size', layoutSizeRowHTML({ prefix: 'stk-icon', one: { id: 'stk-icon-size-num', label: 'Size', icon: 'px', min: 16, max: 600, value: parseInt(block.dataset.size) || 64 } }));   // ★표준 Layout(C2) — 옛 슬라이더 stk-icon-size 걷음 · 숫자 칸 id·범위 무변
     put('fill', `
       <div class="prop-color-row">
         <span class="prop-label">색상</span>
@@ -337,7 +337,7 @@ export function showStickerProperties(block) {
   if (basic) {
     if (!isCount) put('size', `
     <div id="stk-size-section">
-      <div id="stk-size-row">${layoutSizeRowHTML({ prefix: 'stk', one: { id: 'stk-size-num', label: 'Size', min: 10, max: 600, value: size } })}</div>
+      <div id="stk-size-row">${layoutSizeRowHTML({ prefix: 'stk', one: { id: 'stk-size-num', label: 'Size', icon: 'px', min: 10, max: 600, value: size } })}</div>
     </div>`);   // ★표준 Layout(C2) — 옛 슬라이더 stk-size 걷음 · 줄 id stk-size-row(시험이 보임 판정) 남김
     put('typography', `
       <div class="prop-row">
