@@ -2,7 +2,8 @@
 // 헤더는 신규 블록 체크리스트가 요구하는 풀 구조:
 //   prop-block-label > prop-block-icon + prop-block-info + prop-block-id
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
+import { blockHeaderHTML, wireRotRow } from './_helpers.js';
+import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from './_position-section.js';   // 표준 Position 절(0.9.14 73행 P3)
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { strokeSectionHTML, wireStrokeSection, STROKE_POP_WHY } from './_stroke-section.js';
@@ -148,16 +149,12 @@ export function showZoomProperties(block) {
       <button class="prop-action-btn secondary" id="zm-img-btn" style="width:100%;margin-top:6px;">이미지 선택...</button>
       ${hasImg ? `<div class="prop-row"><button class="prop-action-btn" id="zm-img-clear" style="width:100%;">이미지 제거</button></div>` : ''}`),
       sec('position', `
-      <!-- ★회전° 슬라이더는 «남긴다» — 현빈 2026-09-09 의 말은 「회전 슬라이드«로만» 하니까
-             그것 좀 고쳐줘」였다. 고칠 대상은 «로만»이지 슬라이더 자체가 아니다.
-           ⇒ 캔버스 코너 바깥의 회전 핫존(.zm-rotate-handle)을 더해 「로만」을 없앴다.
-           ★남긴 이유 둘: ⑴ 각도를 «정확히» 치는 길이 여기뿐이다(핸들은 45° 스냅 아니면 1° 반올림)
-                          ⑵ 캔버스에서 돌리면 이 두 입력이 «따라 움직인다»(overlay-handles.js
-                             _syncZoomRotUI). 지우면 그 동기가 갈 곳을 잃는다.
-           ⛔id 규약은 zm-rot · zm-rot-num 이다 — -slider / -number 가 «아니다».
-             asset-rotate.js 의 _syncNumSlider 가 찾는 이름과 다르다(그래서 전용 동기를 뒀다).
-           ⚠️여기는 템플릿 리터럴 «안»이라 이 주석에 백틱을 쓰면 리터럴이 끊긴다 — 실제로 끊었다. -->
-      <span class="prop-field-label">Rotation</span>${rotRowHTML({ p: 'zm', numberId: 'zm-rot-num', value: st.rot, flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' })}`),
+      <!-- ★현빈 2026-09-09 «회전 슬라이드«로만» 하니까 고쳐줘» = 고칠 대상은 «로만» — 캔버스 코너 바깥 회전 핫존(.zm-rotate-handle)이 그 답.
+           ★표준 Position P3(지디 261124): 슬라이더는 머리 «슬라이드 모드»(패널 설정 하나)가 가져간다 — 기본 숫자 칸 · 켜면 그 위 슬라이더 줄(zm-rot-num-slider).
+           ★캔버스에서 돌리면 숫자 칸·슬라이더가 따라 움직인다(overlay-handles.js _syncZoomRotUI).
+           ⛔id 규약은 zm-rot-num 이다 — -number 가 «아니다»(asset-rotate.js _syncNumSlider 와 다름 · 그래서 전용 동기).
+           ⚠️템플릿 리터럴 «안»이라 이 주석에 백틱 금지. -->
+      ${positionSectionHTML({ prefix: 'zm', posEl: null, xy: false, rot: { p: 'zm', numberId: 'zm-rot-num', value: st.rot, flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' } })}`, { headTools: positionHeadToolsHTML({ prefix: 'zm' }) }),
       sec('size', `
       ${_pairRow('zm-size', '크기', Math.round(st.w ?? st.size), 20, 600, 2)}`),
       // 옛 「Text」 절 — 켬/끔·정렬·크기. 글자 색은 Fill 절(글자 꺼짐이면 흐리게)
@@ -363,6 +360,7 @@ ${narrowRow}
   bindPair('zm-size',   'size',   '확대블럭 크기',      20, 600);
   bindPair('zm-rot',    'rot',    '확대블럭 회전',    -180, 180);
   wireRotRow({ p: 'zm', numberId: 'zm-rot-num', host: () => block });   // Q17 · Q20(시안 v10)
+  wirePositionSection({ prefix: 'zm', numberId: 'zm-rot-num', rerender: () => window.showZoomProperties?.(block) });
   // ★[숨김] 위 angleRow·lengthRow 와 «짝»이다 — UI 가 없는데 바인딩만 남기면 안 된다(bdr 과 같은 규율).
   // bindPair('zm-angle',  'angle',  '확대블럭 방향',    -180, 180);
   // bindPair('zm-length', 'length', '확대블럭 길이',       0, 1200);

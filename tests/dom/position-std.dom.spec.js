@@ -183,3 +183,30 @@ test('PS10 흐름 안 프레임 — X/Y 씀(disabled 아님) · X 15 → dataset
   await expect.poll(() => page.evaluate(() => [...document.querySelectorAll('#canvas *')].some((e) => e.dataset && e.dataset.translateX === '15')), '★흐름 프레임 X = translate 덧 이동').toBe(true);
   expect(errs).toEqual([]);
 });
+
+/* ── zoom(지디 261124 ②): 슬라이드 모드가 옛 «회전 슬라이더 남김»의 뜻을 가져감 · 캔버스 회전 핫존 → 숫자 칸·슬라이더 동기 유지 ── */
+test('PS11 zoom — 슬라이더 20 → zm-rot-num → dataset.rot · 캔버스 회전 핫존을 끌면 숫자 칸·슬라이더가 같은 값으로 따라온다', async ({ page }) => {
+  const errs = await flowScene(page, 'window.addZoomBlock()');
+  await page.evaluate(() => { try { localStorage.removeItem('goditor.rotSlideMode'); } catch (_) {} });
+  await expect(page.locator('#zm-rot-slide')).toHaveCount(1);
+  await page.click('#zm-rot-slide');
+  await expect(page.locator('#zm-rot-num-slider')).toHaveCount(1);
+  await page.evaluate(() => { const s = document.getElementById('zm-rot-num-slider'); s.value = '20'; s.dispatchEvent(new Event('input', { bubbles: true })); s.dispatchEvent(new Event('change', { bubbles: true })); });
+  await expect.poll(() => page.evaluate(() => [document.getElementById('zm-rot-num')?.value, [...document.querySelectorAll('#canvas *')].some((e) => e.dataset && e.dataset.rot === '20')])).toEqual(['20', true]);
+  /* 핫존 끌기 — 좌표는 자리 굳은 뒤(waitStableRect 대신 rect 두 번 같을 때까지) */
+  const h = page.locator('.zm-rotate-handle').first();
+  await expect(h).toHaveCount(1);
+  let prev = null;
+  await expect.poll(async () => { const b = await h.boundingBox(); const same = prev && b && Math.abs(b.x - prev.x) < 0.5 && Math.abs(b.y - prev.y) < 0.5; prev = b; return !!same; }).toBe(true);
+  const hb = await h.boundingBox();
+  const c = await page.evaluate(() => { const z = [...document.querySelectorAll('#canvas *')].find((e) => e.dataset && e.dataset.rot === '20'); const r = z.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+  const sx = hb.x + hb.width / 2, sy = hb.y + hb.height / 2, rad = Math.hypot(sx - c.x, sy - c.y), a0 = Math.atan2(sy - c.y, sx - c.x);
+  await page.mouse.move(sx, sy); await page.mouse.down();
+  for (let i = 1; i <= 6; i++) { const a = a0 + (i / 6) * (Math.PI / 4); await page.mouse.move(c.x + rad * Math.cos(a), c.y + rad * Math.sin(a)); }
+  const v = await page.evaluate(() => [document.getElementById('zm-rot-num')?.value, document.getElementById('zm-rot-num-slider')?.value]);   // ★끄는 «동안»(놓기 전) — 놓은 뒤 패널 다시 그림이 덮어 주는 것과 가른다
+  await page.mouse.up();
+  expect(v[0], '★핫존이 회전을 바꿨다').not.toBe('20');
+  expect(v[1], '★슬라이더가 숫자 칸과 같은 값으로 따라왔다').toBe(v[0]);
+  await page.evaluate(() => { try { localStorage.removeItem('goditor.rotSlideMode'); } catch (_) {} });
+  expect(errs).toEqual([]);
+});
