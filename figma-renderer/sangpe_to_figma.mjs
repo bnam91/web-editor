@@ -288,6 +288,14 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       if (!_gr) console.log(`      ⚠️ frame gradient 실패 → 투명 폴백 ${block.id}`);
     }
     if (block.fillHidden) _hideFills(frame.id);   // F7
+    /* 71행 FIGMA-FRAME-BG-IMAGE-MISSING-01 — 프레임 배경 그림(내보내기 bgImg · data: 만) · 색 없으면 프레임 자기 칠 = 그림 · 색 있으면 자식 bgimg_(맨 아래 · 같은 둥글기 · set_image_fill 이 칠을 갈아 끼우니 한 노드에 둘 못 둠)
+       맞춤 contain = FIT · 그 밖 FILL · 숨김(F7)은 색만 — 캔버스도 그림 있는 프레임은 색만 끔(css :not([data-bg-img])) */
+    if (typeof block.bgImg === 'string' && block.bgImg.startsWith('data:')) {
+      const _hasColor = !!_gPaint || !!(_fc && (_fc.a ?? 1) > 0);
+      let _imgNode = frame.id;
+      if (_hasColor) { const _bi = run('create_frame', { x: 0, y: 0, width: fw, height: fh, name: `bgimg_${block.id || ''}`, parentId: frame.id, clipsContent: true }); if (_bi) { _imgNode = _bi.id; if (block.radius) run('set_corner_radius', { nodeId: _bi.id, radius: block.radius }); } }
+      run('set_image_fill', { nodeId: _imgNode, imageSource: block.bgImg.split(',')[1], sourceType: 'base64', scaleMode: block.bgSize === 'contain' ? 'FIT' : 'FILL' }, { timeout: 25000 });
+    }
     if (block.radius) run('set_corner_radius', { nodeId: frame.id, radius: block.radius });
     if (block.free) {
       for (const ch of (block.children || [])) {

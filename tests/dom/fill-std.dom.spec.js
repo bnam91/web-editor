@@ -1004,3 +1004,29 @@ test('D40 여러 고름 Fill — 키 없는 에셋 = 단일 패널과 같은 «�
   expect(same, '[지킴] 같은 색 둘 = 그 색').toEqual({ fill: true, empty: false, hex: '12ab34', mixed: false });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* 71행 FIGMA-FRAME-BG-IMAGE-MISSING-01 — D41 프레임 배경 그림 → Figma JSON frame bgImg·bgSize(prop-frame 과 같은 꼴: dataset.bgImg = 원문 src)
+ *   ★그림 프레임 = bgImg 원문·bgSize · ★goya-asset:// → Inlined 후처리 data URI · [지킴] 그림 없는 프레임·자리표시(bgImgEmpty) = 키 0
+ * 양성대조: 고치기 전 판(5b1a07b19) 에서 D41 빨강 */
+test('D41 프레임 배경 그림 — Figma JSON bgImg·bgSize · goya-asset → data URI · [지킴] 없음·자리표시 = 키 0', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  await page.evaluate((PNG) => { window.electronAPI = { ...(window.electronAPI || {}), assetsReadAsDataUri: async ({ projectId, filename }) => (projectId === 'proj_x' && filename === 'f1.png' ? { ok: true, dataUri: PNG } : { ok: false }) }; }, PNG);
+  const ids = await page.evaluate(async (PNG) => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    const sec = await window.addSection(); const out = [];
+    for (let i = 0; i < 4; i++) { window.deselectAll(); window.selectSection(sec); const before = new Set(sec.querySelectorAll('.frame-block:not([data-text-frame])')); await window.addFrameBlock(); out.push([...sec.querySelectorAll('.frame-block:not([data-text-frame])')].find((x) => !before.has(x)).id); }
+    const put = (id, src) => { const f = document.getElementById(id); f.style.backgroundImage = `url('${src}')`; f.dataset.bgImg = src; };
+    put(out[0], PNG); document.getElementById(out[0]).dataset.bgSize = 'contain';
+    put(out[1], 'goya-asset://proj_x/f1.png');
+    const e = document.getElementById(out[3]); e.dataset.bgImg = PNG; e.dataset.bgImgEmpty = '1';
+    return out; }, PNG);
+  const entry = (id, inlined) => page.evaluate(async ([id, inlined]) => { const j = inlined ? await window.buildFigmaExportJSONInlined(null) : window.buildFigmaExportJSON(null); let hit = null;
+    (function walk(o) { if (!o || typeof o !== 'object' || hit) return; if (o.id === id && o.type) { hit = o; return; } Object.values(o).forEach(walk); })(j); return hit ? JSON.parse(JSON.stringify(hit)) : null; }, [id, inlined]);
+  const A = await entry(ids[0]), B = await entry(ids[1], true), C = await entry(ids[2]), D = await entry(ids[3]);
+  expect([A?.type, A?.bgImg, A?.bgSize], '★그림 프레임 = bgImg 원문·bgSize').toEqual(['frame', PNG, 'contain']);
+  expect(String(B?.bgImg).startsWith('data:image/png;base64,'), `★goya-asset 그림이 data URI 로 안 바뀜: ${String(B?.bgImg).slice(0, 40)}`).toBe(true);
+  expect([C?.type, 'bgImg' in (C || {}), 'bgSize' in (C || {})], '[지킴] 그림 없는 프레임 = 키 0').toEqual(['frame', false, false]);
+  expect('bgImg' in (D || {}), '[지킴] 자리표시(bgImgEmpty) = 키 0').toBe(false);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

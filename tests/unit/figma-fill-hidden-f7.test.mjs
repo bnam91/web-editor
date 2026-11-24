@@ -351,3 +351,28 @@ test('W3 한 줄·왼쪽 글 → 폭 고정 안 함 · move 0(왼쪽 기준 = �
   assert.deepEqual(['width' in ct.params, ct.params.textAutoResize, ct.params.x], [false, 'WIDTH_AND_HEIGHT', 100]);
   assert.equal(cmds.filter((c) => c.cmd === 'move_node' && c.params.nodeId === ct.id).length, 0);
 });
+
+/* ── 71행 FIGMA-FRAME-BG-IMAGE-MISSING-01 — 프레임 배경 그림(bgImg) → Figma
+ *   B1 색 없음 = 프레임 칠 = 그림 · contain = FIT · B2 색 있음 = 자식 bgimg_(같은 둥글기) 에 그림 · 프레임은 색 · B3 [지킴] bgImg 없음·data: 아님 = 그림 명령 0
+ * 양성대조: _patches/b71-CTL-renderer.patch(옛 렌더러) → B1·B2 빨강 */
+const FR = (extra) => ({ type: 'frame', id: 'fb', width: 300, height: 200, bg: '', radius: 12, free: true, children: [], ...extra });
+test('B1 색 없는 프레임 + 그림 → 프레임 칠 = 그림 · contain = FIT', () => {
+  const { cmds } = render([FR({ bgImg: PNG1, bgSize: 'contain' })]);
+  const fr = cmds.find((c) => c.cmd === 'create_frame' && c.params.name === 'frame_fb');
+  assert.deepEqual(cmds.filter((c) => c.cmd === 'set_image_fill').map((c) => [c.params.nodeId, c.params.scaleMode]), [[fr.id, 'FIT']]);
+});
+test('B2 색 있는 프레임 + 그림 → 자식 bgimg_ 에 그림(같은 둥글기) · 프레임 = 색', () => {
+  const { cmds } = render([FR({ bg: '#12ab34', bgImg: PNG1 })]);
+  const fr = cmds.find((c) => c.cmd === 'create_frame' && c.params.name === 'frame_fb');
+  const bi = cmds.find((c) => c.cmd === 'create_frame' && c.params.name === 'bgimg_fb');
+  assert.ok(bi && bi.params.parentId === fr.id, '그림 자식이 없다');
+  assert.deepEqual(cmds.filter((c) => c.cmd === 'set_image_fill').map((c) => [c.params.nodeId, c.params.scaleMode]), [[bi.id, 'FILL']]);
+  assert.ok(cmds.some((c) => c.cmd === 'set_fill_color' && c.params.nodeId === fr.id && isG(c.params.color)), '프레임 색이 없어졌다');
+  assert.ok(cmds.some((c) => c.cmd === 'set_corner_radius' && c.params.nodeId === bi.id && c.params.radius === 12));
+});
+test('B3 [지킴] bgImg 없음·data: 아님 = 그림 명령 0 · 자식 0', () => {
+  for (const b of [FR({}), FR({ bgImg: 'goya-asset://p/x.png' })]) {
+    const { cmds } = render([b]);
+    assert.equal(cmds.filter((c) => c.cmd === 'set_image_fill' || (c.cmd === 'create_frame' && /^bgimg_/.test(c.params.name))).length, 0);
+  }
+});

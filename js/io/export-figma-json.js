@@ -1594,6 +1594,9 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       const _bg = fb.dataset.bg || '';
       const out = { type: 'frame', id: fb.id || '', width: w, height: h,
                bg: _bg, radius: parseInt(fb.dataset.radius) || 0, free, children, ..._fh(fb) };
+      /* 71행 FIGMA-FRAME-BG-IMAGE-MISSING-01 — 프레임 배경 그림(prop-frame 이 쓰는 dataset.bgImg = 원문 src · data: 또는 goya-asset:// · url() 안 씌움) + 맞춤(bgSize)
+         그림 없음·자리표시(bgImgEmpty)면 키 0(옛 바이트) · goya-asset 은 buildFigmaExportJSONInlined 후처리가 data URI 로 · 그리드 칸(_gridHostBlock)도 같은 식(대성 몫) */
+      if (fb.dataset.bgImg && fb.dataset.bgImgEmpty !== '1') { out.bgImg = fb.dataset.bgImg; out.bgSize = fb.dataset.bgSize || 'cover'; }
       { const _bd = _strokeBorderOut(fb.dataset, parseInt(fb.dataset.borderWidth) || 0, fb.dataset.borderColor || '', fb.dataset.borderStyle || 'solid'); if (_bd) out.border = _bd; }   // 표준 Stroke 4-3 — 프레임 테두리(굵기 0 = 안 실음)
       // ★0919 QA: 배경 그라데이션 → 모델(렌더러가 set_gradient 로 칠함). 예전엔 렌더러가 CSS 문자열에서 «처음 나오는 rgba()»
       //   를 단색으로 칠해 가운데 스탑 색 한 가지가 됐다.
