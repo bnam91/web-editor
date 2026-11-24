@@ -32,7 +32,7 @@ async function scene(page, w) {
 }
 const field = (page) => page.evaluate(() => {
   const n = document.getElementById('ss-width-num'), r = document.getElementById('ss-width-slider');
-  return { num: n.value, slider: r.value, min: +r.min, step: +r.step || 1 };
+  return { num: n.value, slider: r ? r.value : null };   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 슬라이더 없음(null) · 칸 = 숫자 칸 하나
 });
 /* 범위 슬라이더는 브라우저가 값을 min + step×k 로 «맞춘다»(716 · min 200 · step 10 → 720) — 숫자칸은 안 맞춘다.
  * 그래서 슬라이더 기대값 = 그려진 폭을 그 슬라이더 자신의 min·step 으로 맞춘 «정확한» 값(어림 아님). */
@@ -46,7 +46,7 @@ test('W1 ★섹션 직속 기본 프레임 — 끌기 전 칸 = 그려진 폭(�
   const f = await field(page);
   console.log('  W1 field:', JSON.stringify(f), 'drawn', pre.drawn);
   expect(f.num, '★숫자칸 = 실제 폭(860 아님)').toBe(String(pre.drawn));
-  expect(f.slider, '슬라이더 = 실제 폭을 슬라이더 step 에 맞춘 값').toBe(snap(pre.drawn, f));
+  expect(f.slider, '슬라이더 걷음').toBe(null);
   expect(errs, errs.join('\n')).toEqual([]);
 });
 
@@ -54,6 +54,6 @@ test('W2 [지킴] 상한 안 프레임(400) — 칸 = 400 = dataset = 그려진 
   const { errs, pre } = await scene(page, 400);
   expect(pre, '[전제] 400 은 조이지 않는다').toEqual({ dw: 400, drawn: 400 });
   const f = await field(page);
-  expect({ num: f.num, slider: f.slider }).toEqual({ num: '400', slider: '400' });
+  expect({ num: f.num, slider: f.slider }).toEqual({ num: '400', slider: null });
   expect(errs, errs.join('\n')).toEqual([]);
 });

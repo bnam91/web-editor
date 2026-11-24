@@ -42,16 +42,15 @@ const press = async (page, id) => { await page.click(`#${id}`); await page.waitF
 
 test('A1 ★패널에 「좌우 패딩」 줄이 있고 섹션 줄과 같은 꼴(.prop-row·라벨·슬라이더·숫자) — 위아래 줄은 「상하 패딩」(2026-10-03 지디: 다른 패널과 같은 말)', async ({ page }) => {
   await setup(page, { free: false, kid: STACK_ASSET });
+  /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 두 줄(라벨·슬라이더·숫자) → 표준 패딩 슬롯 한 줄(작은 라벨 «Padding» · [↔ 좌우][↕ 상하] 숫자 + 라벨 끌기 · id 무변) */
   const r = await page.evaluate(() => {
-    const row = document.getElementById('ss-padx-slider')?.closest('.prop-row');
-    const y = document.getElementById('ss-pady-slider')?.closest('.prop-row');
-    return { label: row?.querySelector('.prop-label')?.textContent, kids: row ? [...row.children].map(e => e.className) : null,
-             yLabel: y?.querySelector('.prop-label')?.textContent, rowH: row ? row.getBoundingClientRect().height : 0 };
+    const slot = document.getElementById('ss-padx-num')?.closest('[data-part="layout"][data-slot="pad"]');
+    return { label: slot?.querySelector('.ui-s2-cell > span')?.textContent, same: !!slot && slot === document.getElementById('ss-pady-num')?.closest('[data-part="layout"][data-slot="pad"]'),
+             fields: ['ss-padx-num', 'ss-pady-num'].map((id) => document.getElementById(id)?.closest('[data-field]')?.dataset.field),
+             sliders: !!document.getElementById('ss-padx-slider') || !!document.getElementById('ss-pady-slider'),
+             rowH: Math.round(document.getElementById('ss-padx-num')?.closest('.prop-icon-input')?.getBoundingClientRect().height || 0) };
   });
-  expect(r.label).toBe('좌우패딩');   // ★기대 바뀜(패널 재설계 1차 ⑤ Q25 — 패딩 이름 붙여 쓰기)
-  expect(r.kids).toEqual(['prop-label', 'prop-slider', 'prop-number']);
-  expect(r.yLabel).toBe('상하패딩');   // ★기대 바뀜(같은 까닭)
-  expect(Math.round(r.rowH)).toBe(24);
+  expect(r).toEqual({ label: 'Padding', same: true, fields: ['layout-pad-x', 'layout-pad-y'], sliders: false, rowH: 24 });
 });
 
 test('A2 ★스택 프레임: 좌우 패딩 40 → 자식(왼쪽 정렬)이 여백만큼 안쪽, 가운데 정렬은 안쪽 상자 기준', async ({ page }) => {
