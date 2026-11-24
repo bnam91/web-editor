@@ -85,8 +85,9 @@ function applyBorder(nodeId, border) {
   const st = _strokeOf(border);
   if (!st || !nodeId) return;
   /* ★점선(Stroke 마지막 칸 · 지디 261124) — CSS dashed = [3w, 2w] · dotted = [w, w](js/stroke-look.js derivedDash · vector _dashArray 와 같은 식) · 실선이면 인자 없음(옛 명령 그대로) · 옛 플러그인은 무시 = 실선 */
-  const w = st.weight, dash = st.style === 'dashed' ? [3 * w, 2 * w] : st.style === 'dotted' ? [w, w] : null;
-  run('set_stroke_color', { nodeId, color: hex(st.color || '#000000'), strokeWeight: st.weight, ...(st.sides ? { sides: st.sides } : {}), align: 'INSIDE', ...(dash ? { dashPattern: dash } : {}) });
+  /* ★점(dotted · 미카사 261124 실측: [w,w] + 끝 NONE = Figma 에서 «네모 토막» · 앱은 둥근 점) → [0, 2w] + strokeCap ROUND(Figma 둥근 점 관례) · 대시는 그대로 · 옛 플러그인 = 둘 다 무시 = 실선(지금 꼴) */
+  const w = st.weight, dash = st.style === 'dashed' ? [3 * w, 2 * w] : st.style === 'dotted' ? [0, 2 * w] : null;
+  run('set_stroke_color', { nodeId, color: hex(st.color || '#000000'), strokeWeight: st.weight, ...(st.sides ? { sides: st.sides } : {}), align: 'INSIDE', ...(dash ? { dashPattern: dash } : {}), ...(st.style === 'dotted' ? { strokeCap: 'ROUND' } : {}) });
 }
 
 function hex(h) {

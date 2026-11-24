@@ -720,6 +720,7 @@ async function setStrokeColor(params) {
     sides,   // ★표준 Stroke 4-3(goditor 261124) — 선택: { top, right, bottom, left } → strokeTop/Right/Bottom/LeftWeight(면별) · 없으면 옛 동작
     align,   // ★선택: 'INSIDE'|'CENTER'|'OUTSIDE' → strokeAlign(goditor CSS 테두리 = border-box = INSIDE) · 없으면 옛 동작
     dashPattern,   // ★선택(goditor Stroke 점선 · 261124): [길이, 간격, …] → node.dashPattern · 없으면 옛 동작(실선)
+    strokeCap,     // ★선택(goditor Stroke 점 · 261124): 'NONE'|'ROUND'|'SQUARE' → node.strokeCap(점선 끝 · dotted = ROUND 로 둥근 점) · 없으면 옛 동작
   } = params || {};
 
   if (!nodeId) {
@@ -782,6 +783,7 @@ async function setStrokeColor(params) {
     }
   }
   if ((align === "INSIDE" || align === "CENTER" || align === "OUTSIDE") && "strokeAlign" in node) node.strokeAlign = align;
+  if ((strokeCap === "NONE" || strokeCap === "ROUND" || strokeCap === "SQUARE") && "strokeCap" in node) node.strokeCap = strokeCap;
   if (Array.isArray(dashPattern) && "dashPattern" in node) {
     const dp = dashPattern.map((v) => parseFloat(v)).filter((v) => !isNaN(v) && v >= 0);
     if (dp.length === dashPattern.length) node.dashPattern = dp;
