@@ -105,11 +105,12 @@ test('PA-1 ★속성 패널에 «새» push-before 가 안 생긴다 (js/props �
 
 test('PA-2 ★음성대조 — 이 검사가 «옛 모양»을 실제로 잡는가', () => {
   /* 화석을 안 베낀다 — 지금 소스에서 옛 모양으로 되돌린 변형본을 만든다. */
-  const f = sources().find(s => s.rel.endsWith('prop-mockup.js'));
-  assert.ok(f, '★prop-mockup.js 를 못 찾았다 — 이 검사가 «안 돈» 것이지 통과가 아니다');
+  /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C3): 목업 폭 칸 = 부품(wireLayoutSection · apply 뒤 commit) → 표본을 iconify 크기 칸으로 */
+  const f = sources().find(s => s.rel.endsWith('prop-iconify.js'));
+  assert.ok(f, '★prop-iconify.js 를 못 찾았다 — 이 검사가 «안 돈» 것이지 통과가 아니다');
   const mutated = f.code.replace(
-    /applyWidth\(parseInt\(wNumber\.value\)\);\s*window\.pushHistory\?\.\(\);/,
-    'window.pushHistory?.(); applyWidth(parseInt(wNumber.value));');
+    /applySize\(parseInt\(sNumber\.value\)\);\s*window\.pushHistory\?\.\(\);/,
+    'window.pushHistory?.(); applySize(parseInt(sNumber.value));');
   assert.notEqual(mutated, f.code, '★변환이 늙었다 — 폭 숫자칸 배선을 못 찾았다');
   const found = [...mutated.matchAll(PUSH_BEFORE)].filter(m => !BENIGN.has(m[1]));
   assert.ok(found.length > 0,
@@ -118,7 +119,7 @@ test('PA-2 ★음성대조 — 이 검사가 «옛 모양»을 실제로 잡는�
 
 test('PA-3 세 자리가 «지금 모양»으로 남아 있다 (고침이 되돌려지면 빨강)', () => {
   const want = [
-    ['prop-mockup.js',  /applyWidth\(parseInt\(wNumber\.value\)\);\s*window\.pushHistory\?\.\(\)/],
+    ['prop-mockup.js',  /wireLayoutSection\(\{ commit: \(\) => window\.pushHistory\?\.\(\), w: \{ numberId: 'mkp-width-number'/],   // ★기대 바뀜(C3 · 슬라이더 걷음) — 폭 칸 = 부품(change: apply → commit)
     ['prop-iconify.js', /applySize\(parseInt\(sNumber\.value\)\);\s*window\.pushHistory\?\.\(\)/],
     ['prop-asset.js',   /applyAlign\(btn\.dataset\.align\);\s*window\.pushHistory\?\.\(\)/],
   ];
