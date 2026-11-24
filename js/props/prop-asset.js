@@ -9,7 +9,7 @@ import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } fro
 import { videoTrimSectionHTML, wireVideoTrim } from './asset-video-trim.js';
 import { clipsContent, CLIP_DEFAULTS, applyAssetClip } from '../clip-content.js';   /* ★「내용 자르기」 한 자리(2026-10-10 c2) */
 import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A3)
-import { layoutSizeRowHTML, wireLayoutSection, ratioLockOn, setRatioLock } from './_layout-section.js';   // 표준 Layout(L1 · 첫 소비자)
+import { layoutSizeRowHTML, wireLayoutSection, ratioLockOn, setRatioLock, LAY_FULLW_WHY } from './_layout-section.js';   // 표준 Layout(L1 · 첫 소비자)
 /* ★폭 하한은 «리터럴로 쓰지 않는다» — asset-width-limits.js 한 자리에서 온다.
    패널(슬라이더·숫자칸·커밋 clamp)과 모서리 핸들이 «같은 수»를 봐야 갈라지지 않는다.
    (선례: prop-modal.js 가 MODAL_LIMITS 를, prop-gap.js 가 GAP_MIN/MAX 를 그렇게 쓴다.) */
@@ -226,7 +226,7 @@ export function showAssetProperties(ab) {
           ${alignBtn('object-h', 'right', { label: '오른쪽 정렬', title: '오른쪽 정렬', active: currentAlign==='right', attrs: { 'data-align': 'right' } })}
       </div>`}`, { headTools: overlayToggleBtnHTML({ id: 'asset-float-toggle', active: isFloatOverlay }) }),
       /* ★표준 Layout L1(현빈 261124 L-4 · 시안 #mkp-layoutstd) — 옛 슬라이더 걷음 · 숫자 칸 id·범위 무변 · 비율 사슬 기본 켬(에셋 · 키 = dataset.ratioLock 다를 때만) */
-      sec('size', layoutSizeRowHTML({ prefix: 'asset', chain: { on: ratioLockOn(ab, ASSET_RATIO_DEFAULT) },
+      sec('size', layoutSizeRowHTML({ prefix: 'asset', chain: { on: ratioLockOn(ab, ASSET_RATIO_DEFAULT), blocked: currentW >= 860 ? LAY_FULLW_WHY : null },   // 꽉참(줄 폭) = 사슬 막힘(지디 261125 ⒜ · 저장 키 무변)
         w: { id: 'asset-w-number', min: ASSET_W_MIN, max: 860, value: currentW },
         h: { id: 'asset-h-number', min: H_MIN, max: 1600, value: currentH } })),
       sec('padding', `
@@ -365,10 +365,11 @@ export function showAssetProperties(ab) {
      ★옛 폭 칸 규약(⚠️`parseInt(v) || 860` 은 0 과 빈 칸을 둘 다 꽉참으로 보냈다) 그대로 — 0 = 하한 ASSET_W_MIN 으로 막고 ·
        빈 칸·NaN = «값 없음» → 편집 전 값(readW())으로 되돌리고 pushHistory 도 안 한다(Number.isFinite 판정은 wireLayoutSection 안).
      높이 칸도 같은 규약(옛 `|| 780` 폴백 걷음 — 빈 칸이 780 으로 튀지 않는다) · 하한은 눈금과 «같은 한 벌»(H_MIN). */
-  wireLayoutSection({ commit: () => window.pushHistory?.(),
+  const _layAsset = wireLayoutSection({ commit: () => window.pushHistory?.(),
     w: { numberId: 'asset-w-number', min: ASSET_W_MIN, max: 860, apply: applyW, read: readW },
     h: { numberId: 'asset-h-number', min: H_MIN, max: 1600, apply: applyH, read: () => parseInt(ab.style.height) || ab.offsetHeight },
-    chain: { id: 'asset-ratio', on: ratioLockOn(ab, ASSET_RATIO_DEFAULT), set: (on) => setRatioLock(ab, on, ASSET_RATIO_DEFAULT) } });
+    chain: { id: 'asset-ratio', on: ratioLockOn(ab, ASSET_RATIO_DEFAULT), set: (on) => setRatioLock(ab, on, ASSET_RATIO_DEFAULT),
+      blocked: () => (readW() >= 860 ? LAY_FULLW_WHY : null) } });   // 꽉참 = applyW 의 «v >= 860 → 풀블리드» 와 같은 셈(readW) · 고정 폭으로 돌아오면 다시 묶인다
 
   const setWSliderDisabled = disabled => {
     wNumber.disabled = disabled;
@@ -502,6 +503,7 @@ export function showAssetProperties(ab) {
       return;
     }
     syncPresetActive();
+    _layAsset?.refresh();   // 핸들·프리셋·패딩 토글이 폭을 바꾸면 사슬 막힘(꽉참)도 다시 잰다
   });
   try {
     _presetObs.observe(ab, { attributes: true, attributeFilter: ['style', 'data-preset'] });

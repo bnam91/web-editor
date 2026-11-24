@@ -23,7 +23,7 @@ const nums = (page) => page.evaluate(() => [document.getElementById('asset-w-num
 const setNum = (page, id, v) => page.evaluate(([id, v]) => { const n = document.getElementById(id); n.value = String(v); n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); }, [id, v]);
 const countHistory = (page) => page.evaluate(() => { window.__ph = 0; const o = window.pushHistory; window.pushHistory = (...a) => { window.__ph++; return o?.(...a); }; });
 
-test('AL1 asset Layout = 표준 꼴 — 슬라이더 0 · 작은 라벨 Width | Height(부품 안 · «Size» 작은 제목 걷힘) · 칸 24px · 끝 비율 사슬 켬(기본 · 키 없음)', async ({ page }) => {
+test('AL1 asset Layout = 표준 꼴 — 슬라이더 0 · 작은 라벨 Width | Height(부품 안 · «Size» 작은 제목 걷힘) · 칸 24px · 끝 비율 사슬(새 에셋 = 꽉참 → 막힘 · 키 없음)', async ({ page }) => {
   const errs = await assetScene(page);
   const o = await page.evaluate(() => {
     const size = document.getElementById('psec-size');
@@ -37,37 +37,49 @@ test('AL1 asset Layout = 표준 꼴 — 슬라이더 0 · 작은 라벨 Width | 
       h: !!document.getElementById('asset-h-number')?.closest('[data-part="layout"] [data-field="layout-h"]'),
       sizeSub: !!size?.querySelector('.prop-sec-sub'),
       padSub: document.querySelector('#psec-padding .prop-sec-sub')?.textContent ?? null,
-      chain: chain ? [chain.dataset.part, chain.getAttribute('aria-pressed'), chain.closest('.ui-s2-main') === document.getElementById('asset-w-number').closest('.ui-s2-main')] : null,
+      chain: chain ? [chain.dataset.part, chain.getAttribute('aria-pressed'), chain.getAttribute('aria-disabled'), chain.title, chain.closest('.ui-s2-main') === document.getElementById('asset-w-number').closest('.ui-s2-main')] : null,
       cellH: Math.round(document.querySelector('[data-field="layout-w"]')?.getBoundingClientRect().height || 0),
     };
   });
-  expect(o).toEqual({ body: true, sliders: 0, labels: ['Width', 'Height'], w: true, h: true, sizeSub: false, padSub: 'Padding', chain: ['end-slot', 'true', true], cellH: 24 });
+  expect(o).toEqual({ body: true, sliders: 0, labels: ['Width', 'Height'], w: true, h: true, sizeSub: false, padSub: 'Padding', chain: ['end-slot', 'false', 'true', '너비가 줄 폭에 맞춰져 있어 비율을 묶을 수 없어요', true], cellH: 24 });
   expect((await blockWH(page)).lock, '★기본(켬)이면 키를 안 쓴다 — 옛 저장본 바이트 무변').toBe(null);
   expect(errs).toEqual([]);
 });
 
-test('AL2 사슬 켬 — W 430 → H 가 비율대로 · 이력 1 · 끄면 ratioLock "0" · W 바꿔도 H 그대로 · 다시 켜면 키 지움', async ({ page }) => {
+/* 지디 261125 ⒜ — 꽉참(너비 = 줄 폭) 에셋 = 사슬 막힘(aria-disabled + 까닭) · H 를 바꿔도 W 그대로 · 고정 폭이면 사슬 켬(L-3) · 막힘은 저장 안 함 */
+test('AL2 꽉참 = 사슬 막힘 · H 바꿔도 W 그대로 → 고정 폭(430)이 되면 사슬 다시 켬 · W 215 → H 비율대로 · 이력 1 · 끄면 ratioLock "0" · 다시 켜면 키 지움', async ({ page }) => {
   const errs = await assetScene(page);
   const [w0, h0] = await nums(page);
-  await countHistory(page);
+  expect(w0, '전제 — 새 에셋 = 꽉참').toBe(860);
+  const chain = () => page.evaluate(() => { const b = document.getElementById('asset-ratio'); return [b.getAttribute('aria-pressed'), b.getAttribute('aria-disabled'), b.title]; });
+  expect(await chain()).toEqual(['false', 'true', '너비가 줄 폭에 맞춰져 있어 비율을 묶을 수 없어요']);
+  const wcss0 = await page.evaluate((s) => (0, eval)(s).style.width, A);
+  await setNum(page, 'asset-h-number', 500);
+  expect(await nums(page), '★꽉참이면 H 만 바뀐다').toEqual([860, 500]);
+  expect([await page.evaluate((s) => (0, eval)(s).style.width, A), (await blockWH(page)).lock]).toEqual([wcss0, null]);
+  await page.click('#asset-ratio');   // 막힘 = 눌러도 아무 일 없음
+  expect((await blockWH(page)).lock).toBe(null);
   await setNum(page, 'asset-w-number', 430);
-  const want = Math.round(430 * h0 / w0);
-  expect(await nums(page)).toEqual([430, want]);
-  expect(await blockWH(page)).toEqual({ w: 430, h: want, lock: null });
+  expect(await nums(page), '꽉참에서 시작한 편집은 안 따라감').toEqual([430, 500]);
+  expect(await chain(), '★고정 폭 = 사슬 다시 켬(기본)').toEqual(['true', null, '비율 사슬 — 켜면 W 를 바꿀 때 H 가 비율대로(H 도 같다)']);
+  await countHistory(page);
+  await setNum(page, 'asset-w-number', 215);
+  expect(await nums(page)).toEqual([215, 250]);
+  expect(await blockWH(page)).toEqual({ w: 215, h: 250, lock: null });
   expect(await page.evaluate(() => window.__ph), '★W 편집 한 번 = 이력 한 칸(H 따라가도)').toBe(1);
   await page.click('#asset-ratio');
   expect([await page.getAttribute('#asset-ratio', 'aria-pressed'), (await blockWH(page)).lock]).toEqual(['false', '0']);
   await setNum(page, 'asset-w-number', 300);
-  expect(await nums(page)).toEqual([300, want]);
+  expect(await nums(page)).toEqual([300, 250]);
   await page.click('#asset-ratio');
   expect([await page.getAttribute('#asset-ratio', 'aria-pressed'), (await blockWH(page)).lock]).toEqual(['true', null]);
-  /* 다시 켠 뒤 비율 = 지금 모양(300:want) */
-  await setNum(page, 'asset-h-number', want * 2);
-  expect(await nums(page)).toEqual([600, want * 2]);
+  await setNum(page, 'asset-h-number', 500);
+  expect(await nums(page)).toEqual([600, 500]);
   /* 껐을 때 키는 다시 그려도 산다 */
   await page.click('#asset-ratio');
   await page.evaluate((s) => window.showAssetProperties((0, eval)(s)), A);
   expect(await page.getAttribute('#asset-ratio', 'aria-pressed')).toBe('false');
+  expect(h0).toBeGreaterThan(0);
   expect(errs).toEqual([]);
 });
 

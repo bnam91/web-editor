@@ -19,6 +19,10 @@ const LAY_GAP_ICON = _layIcon('<path d="M1.5 2h3v8h-3M10.5 2h-3v8h3"/>');
 const LAY_MODE_ICON = _layIcon('<path d="M1.5 6h9M1.5 3.5v5M10.5 3.5v5"/>');
 export const LAY_CHAIN_WHY = '비율 사슬 — 켜면 W 를 바꿀 때 H 가 비율대로(H 도 같다)';
 export const LAY_AUTO_WHY = '높이는 내용이 정해요(자동) — 비율 사슬 막힘';
+/** 너비 = 줄 폭(100% · 꽉참) 블럭의 사슬 막힘 까닭(지디 261125 ⒜) — 소비자는 chain.blocked 에 이 말(또는 제 까닭)을 준다 */
+export const LAY_FULLW_WHY = '너비가 줄 폭에 맞춰져 있어 비율을 묶을 수 없어요';
+/* 사슬 단추 상태 — 막힘(까닭 있음)이면 aria-disabled + 까닭 툴팁 · 켬 표시 끔(저장 키는 안 건드린다) */
+const _layChainState = (on, why) => ({ pressed: !!on && !why, title: why || LAY_CHAIN_WHY });
 
 /** 비율 사슬 켬? — 키 없으면 기본(dflt) */
 export const ratioLockOn = (block, dflt) => (block.dataset.ratioLock == null ? !!dflt : block.dataset.ratioLock === '1');
@@ -45,7 +49,7 @@ const _layModeCell = (label, m) => (m ? `<div class="ui-s2-cell"><div class="pro
  * @param {{id:string, value:number, min?:number, max:number, mixed?:boolean}} [o.w]
  * @param {{id:string, value:number, min?:number, max:number, mixed?:boolean, auto?:boolean}} [o.h]
  * @param {{id:string, label:string, value:number, min?:number, max:number, mixed?:boolean}} [o.one]  크기 한 칸(정비율 블럭) — 사슬 없음
- * @param {{on:boolean}} [o.chain]
+ * @param {{on:boolean, blocked?:string|null}} [o.chain]  blocked = 막힘 까닭(예 LAY_FULLW_WHY) — 있으면 aria-disabled + 툴팁 · H 를 바꿔도 W 안 따라감
  * @param {{w?:{id,value,options:[string,string][]}, h?:{…}}} [o.mode]
  */
 export function layoutSizeRowHTML({ prefix, w, h, one, chain, mode }) {
@@ -55,12 +59,12 @@ export function layoutSizeRowHTML({ prefix, w, h, one, chain, mode }) {
         <div class="ui-s2-main prop-row">${_layCell(one.label, 'layout-one', LAY_W_ICON, one)}${_layEmpty}${_LAY_SPACER}</div>
       </div>`;
   }
-  const on = !!chain?.on, dis = !!h?.auto;
-  const why = dis ? LAY_AUTO_WHY : LAY_CHAIN_WHY;
+  const st = _layChainState(chain?.on, h?.auto ? LAY_AUTO_WHY : chain?.blocked || null);
+  const on = st.pressed, dis = st.title !== LAY_CHAIN_WHY, why = st.title;
   return `
       <div class="ui-layout" data-part="layout">
         <div class="ui-s2-main prop-row">${w ? _layCell('Width', 'layout-w', LAY_W_ICON, w) : _layEmpty}${h ? _layCell('Height', 'layout-h', LAY_H_ICON, h) : _layEmpty}
-          <button type="button" class="prop-chain-btn${on && !dis ? ' active' : ''}" id="${prefix}-ratio" data-part="end-slot" aria-pressed="${on && !dis}"${dis ? ' aria-disabled="true"' : ''} aria-label="${why}" title="${why}">${LAY_CHAIN_ICON}</button>
+          <button type="button" class="prop-chain-btn${on ? ' active' : ''}" id="${prefix}-ratio" data-part="end-slot" aria-pressed="${on}"${dis ? ' aria-disabled="true"' : ''} aria-label="${why}" title="${why}">${LAY_CHAIN_ICON}</button>
         </div>${mode && (mode.w || mode.h) ? `
         <div class="ui-s2-main prop-row" data-part="layout-mode">${_layModeCell('너비', mode.w)}${_layModeCell('높이', mode.h)}${_LAY_SPACER}</div>` : ''}
       </div>`;
@@ -83,7 +87,9 @@ export function layoutGapSlotHTML({ id, value, min = 0, max, mixed = false }) {
 }
 
 /**
- * 배선 — 축마다 { numberId, min?, max, apply(v), read?() } · chain { id, on, set(on) } · commit?()
+ * 배선 — 축마다 { numberId, min?, max, apply(v), read?() } · chain { id, on, set(on), blocked?() → 까닭|null } · commit?()
+ *   chain.blocked = 지금 막혔나(예: 너비 = 줄 폭) — 편집 «시작» 때 재서 막혔으면 짝 축이 안 따라간다 · 저장 키는 안 쓴다.
+ *   돌려주는 refresh() = 단추 상태를 다시 잰다(블럭 모양이 패널 밖에서 바뀐 뒤 — 핸들·프리셋).
  *   input = 범위 안이면 바로 그림(사슬 켬 → 짝 축도 비율대로) · change = 잘라 그림 + commit 한 번(짝 축 포함 = ⌘Z 한 칸)
  *   빈 칸 change = 편집 전 값으로 되돌림 · commit 0 · 라벨 끌기 = 같은 길(놓을 때 change 한 번)
  *   비율 = 편집 «시작» 때 블럭 값(read)으로 잰다 — 핸들·프리셋이 바꾼 모양도 따라간다.
@@ -92,13 +98,14 @@ export function layoutGapSlotHTML({ id, value, min = 0, max, mixed = false }) {
 export function wireLayoutSection({ w, h, chain = null, commit } = {}) {
   const done = commit || (() => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
   const axes = [w, h].filter(Boolean).map((a) => ({ ...a, min: a.min ?? 0, n: document.getElementById(a.numberId) })).filter((a) => a.n);
-  let on = !!chain?.on, start = null;
+  let on = !!chain?.on, start = null, stopped = false;
   const val = (a) => (a.read ? a.read() : parseFloat(a.n.value));
   const lim = (a, v) => Math.min(a.max, Math.max(a.min, v));
-  const begin = () => { if (!start) start = axes.map(val); };
+  const blockedWhy = () => chain?.blocked?.() || null;
+  const begin = () => { if (!start) { start = axes.map(val); stopped = !!blockedWhy(); } };
   const follow = (a, v) => {
     const i = axes.indexOf(a), o = axes[1 - i];
-    if (!on || !o || o.n.disabled || !(start[i] > 0)) return;
+    if (!on || stopped || !o || o.n.disabled || !(start[i] > 0)) return;
     const ov = lim(o, Math.round(v * start[1 - i] / start[i]));
     o.apply(ov); o.n.value = ov;
   };
@@ -118,15 +125,23 @@ export function wireLayoutSection({ w, h, chain = null, commit } = {}) {
       }
       const v = lim(a, raw);
       a.apply(v); a.n.value = v; start = s; follow(a, v); start = null;
-      done();
+      refresh(); done();
     });
     wireNumberScrub(document.getElementById(`${a.numberId}-scrub`), a.n, { min: a.min, max: a.max });
   }
   const btn = chain && document.getElementById(chain.id);
+  function refresh() {
+    if (!btn || !chain.blocked) return;
+    const why = blockedWhy(), st = _layChainState(on, why);
+    btn.setAttribute('aria-pressed', String(st.pressed)); btn.classList.toggle('active', st.pressed);
+    if (why) btn.setAttribute('aria-disabled', 'true'); else btn.removeAttribute('aria-disabled');
+    btn.title = st.title; btn.setAttribute('aria-label', st.title);
+  }
   btn?.addEventListener('click', () => {
     if (btn.getAttribute('aria-disabled') === 'true') return;
     on = !on;
     btn.setAttribute('aria-pressed', String(on)); btn.classList.toggle('active', on);
     chain.set(on); done();
   });
+  return { refresh };
 }
