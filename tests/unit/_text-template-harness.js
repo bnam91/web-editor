@@ -66,7 +66,7 @@ function loadTextTemplate() {
   const fs = require('node:fs');
   const parts = [stripEsm(readSrc(ROOT, UTILS_REL), UTILS_REL), stripEsm(readSrc(ROOT, HELPERS_REL), HELPERS_REL),
     stripEsm(readSrc(ROOT, SPEC_REL), SPEC_REL), stripEsm(readSrc(ROOT, FRAME_REL), FRAME_REL),
-    stripEsm(readSrc(ROOT, 'js/props/_stroke-section.js'), 'js/props/_stroke-section.js')];   // 표준 Stroke 부품(현빈 261123) — 텍스트 strokeSection 이 부른다 · 색 칸은 부르는 쪽 colorHtml 이라 color-picker 안 올림
+    stripEsm(readSrc(ROOT, 'js/props/_stroke-section.js'), 'js/props/_stroke-section.js'), stripEsm(readSrc(ROOT, 'js/props/_fill-section.js'), 'js/props/_fill-section.js')];   /* ★전제(표준 Fill F4): _typo-section 이 fillSectionHTML 을 부른다 */   // 표준 Stroke 부품(현빈 261123) — 텍스트 strokeSection 이 부른다 · 색 칸은 부르는 쪽 colorHtml 이라 color-picker 안 올림
 
   // _typo-section.js 는 «추출 후»에만 존재한다 — 있으면 올리고, 없으면 (추출 전) 그냥 넘어간다.
   const typoPath = path.join(ROOT, TYPO_REL);
