@@ -250,9 +250,15 @@ test('P5b 잠금 저장 — ⌘Z/⌘⇧Z · 복사-붙여넣기 · ⌘D · 저�
 test('P5c 디바이더 패널 Padding 절 «상하패딩»·«좌우패딩»', async ({ page }) => {
   const errs = await scene(page);
   await open(page, 'divider-block', 'addDividerBlock');
-  const labs = await page.evaluate(() => [...document.querySelectorAll('#panel-right .prop-section[data-sec="padding"] .prop-label')].map((l) => l.textContent.trim()));
-  expect(labs, '★디바이더 패딩 줄 이름').toEqual(expect.arrayContaining(['상하패딩', '좌우패딩']));
-  expect(labs.filter((t) => /상하 패딩|좌우 패딩/.test(t)), '★옛 이름이 남았다').toEqual([]);
+  /* ★기대 바뀜(표준 Layout · 현빈 261124 L-4/7 · C1 73c0063a9 · 탑 통합): 패딩 줄 = 표준 패딩 슬롯(작은 라벨 «Padding» + 가로 ↔ dvd-padx · 세로 ↕ dvd-pady 두 칸) — 옛 줄 이름 «상하패딩/좌우패딩» 은 칸 아이콘이 대신한다 */
+  const o = await page.evaluate(() => {
+    const sec = document.querySelector('#panel-right .prop-section[data-sec="padding"]');
+    const slot = sec?.querySelector('[data-part="layout"][data-slot="pad"]');
+    return { label: slot?.querySelector('.ui-s2-cell > span')?.textContent.trim() ?? null,
+      x: !!slot?.querySelector('[data-field="layout-pad-x"] #dvd-padx-number'), y: !!slot?.querySelector('[data-field="layout-pad-y"] #dvd-pady-number'),
+      old: [...(sec?.querySelectorAll('.prop-label') || [])].map((l) => l.textContent.trim()).filter((t) => /상하 ?패딩|좌우 ?패딩/.test(t)) };
+  });
+  expect(o, '★디바이더 패딩 = 표준 패딩 슬롯 · 옛 줄 이름 0').toEqual({ label: 'Padding', x: true, y: true, old: [] });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
