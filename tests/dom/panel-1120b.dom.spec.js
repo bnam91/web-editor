@@ -310,6 +310,8 @@ test('R2c 형광펜·점·글로우 최근 = 합친 한 줄 · 최근 사용순 
   for (const [k, cls] of [['dot', 'tb-dot'], ['glow', 'tb-glow'], ['hl', 'tb-hl']]) {
     await page.evaluate(() => { const sec = window.__b.closest('.section-block'); window.selectSection(sec); window.addTextBlock('body', { content: '가나' });
       const b = [...sec.querySelectorAll('.text-block')].pop(); window.deselectAll?.(); b.classList.add('selected'); window.showTextProperties(b); window.__c = b; });
+    /* ★기대 바뀜(P-2 SECTION_ORDER v1 · 탑 통합 261125) — Typography 가 패널 아래로 내려가 1000px 창에서 화면 밖(실측 y 1018) → 누르기 전 스크롤 */
+    await page.locator(`#txt-fx-recent-row .ts-chip[data-ts-k="${k}"]`).first().scrollIntoViewIfNeeded();
     const box = await page.locator(`#txt-fx-recent-row .ts-chip[data-ts-k="${k}"]`).first().boundingBox();
     expect(box, `[전제] ${k} 칩이 보인다`).toBeTruthy();
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);

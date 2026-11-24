@@ -559,9 +559,11 @@ async function editSelectTail3(page, sel, id) {
 }
 /* 패널 Fill 글자색 스와치를 마우스로 누르고(편집 blur) 피커 값을 바꾼다 */
 async function panelColor(page, hex, want = 'CCC') {
+  /* ★기대 바뀜(P-2 SECTION_ORDER v1 · 탑 통합 261125) — Typography 가 패널 아래로 내려가 1000px 창에서 화면 밖(실측 y 1018) → 누르기 전 스크롤 */
   const sw = await page.evaluate(() => {
     const e = document.getElementById('grd-typo-color')?.closest('.prop-color-swatch');
     if (!e) return null;
+    e.scrollIntoView({ block: 'center' });
     const b = e.getBoundingClientRect();
     const x = b.x + b.width / 2, y = b.y + b.height / 2;
     const at = document.elementFromPoint(x, y);
@@ -669,7 +671,7 @@ test.describe('LR10 패널 부분 색 — laurel · 같은 길의 주인들', ()
     await page.waitForFunction(() => getSelection().isCollapsed);
     /* ★전제 — «저장 선택»도 비었다(selectionchange 는 비동기라 DOM 선택이 접힌 직후엔 옛 CCC 가 남아 있을 수 있다 — 반복 5회 중 1회 실측) */
     await page.waitForFunction(() => window.__textSelection?.getSavedTextSelection?.() === null);
-    const sw = await page.evaluate(() => { const e = document.getElementById('grd-typo-color').closest('.prop-color-swatch'); const b = e.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; });
+    const sw = await page.evaluate(() => { const e = document.getElementById('grd-typo-color').closest('.prop-color-swatch'); e.scrollIntoView({ block: 'center' }); const b = e.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; });
     await page.mouse.click(sw.x, sw.y);
     await page.evaluate(() => { const p = document.getElementById('grd-typo-color'); p.value = '#ff0000';
       p.dispatchEvent(new Event('input', { bubbles: true })); p.dispatchEvent(new Event('change', { bubbles: true })); });
@@ -730,7 +732,7 @@ test.describe('LR10h·LR10n 부분 색 결함 둘', () => {
     const id = await addBlock(page, 'laurel');
     const sel = KIND.laurel.sel(id);
     await editSelectTail3(page, sel, id);
-    const hx = await page.evaluate(() => { const e = document.getElementById('grd-typo-color-hex'); if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; });
+    const hx = await page.evaluate(() => { const e = document.getElementById('grd-typo-color-hex'); if (!e) return null; e.scrollIntoView({ block: 'center' }); const b = e.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; });
     expect(hx, '전제 — 그 줄 Fill hex 칸').not.toBeNull();
     await page.mouse.click(hx.x, hx.y);
     expect(await page.evaluate(() => document.activeElement?.id), '전제 — hex 칸에 포커스').toBe('grd-typo-color-hex');
@@ -887,7 +889,7 @@ async function keys(page, list) { for (const k of list) await page.keyboard.pres
 const shiftLeft = (n) => Array(n).fill('Shift+ArrowLeft');
 /* hex 칸을 «마우스로» 누르고(편집 blur → 세움) ⌘A → 타이핑(input 마다 적용) → Enter */
 async function hexColor(page, HEX6, want) {
-  const hx = await page.evaluate(() => { const e = document.getElementById('grd-typo-color-hex'); if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; });
+  const hx = await page.evaluate(() => { const e = document.getElementById('grd-typo-color-hex'); if (!e) return null; e.scrollIntoView({ block: 'center' }); const b = e.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; });
   expect(hx, '전제 — Fill hex 칸').not.toBeNull();
   await page.mouse.click(hx.x, hx.y);
   expect(await page.evaluate(() => document.activeElement?.id), '전제 — hex 칸 포커스').toBe('grd-typo-color-hex');
@@ -898,7 +900,7 @@ async function hexColor(page, HEX6, want) {
 }
 /* 스와치를 누르고 피커 input 을 여러 번(스펙트럼 끌기 대용) → change 한 번 */
 async function swatchMulti(page, hexes, want) {
-  const sw = await page.evaluate(() => { const e = document.getElementById('grd-typo-color')?.closest('.prop-color-swatch'); if (!e) return null;
+  const sw = await page.evaluate(() => { const e = document.getElementById('grd-typo-color')?.closest('.prop-color-swatch'); if (!e) return null; e.scrollIntoView({ block: 'center' });
     const b = e.getBoundingClientRect(); const x = b.x + b.width / 2, y = b.y + b.height / 2; const at = document.elementFromPoint(x, y); return { x, y, on: !!(at && (at === e || e.contains(at))) }; });
   expect(sw, '전제 — 스와치').not.toBeNull(); expect(sw.on, '전제 — 누르는 점이 스와치 위').toBe(true);
   await page.mouse.click(sw.x, sw.y);

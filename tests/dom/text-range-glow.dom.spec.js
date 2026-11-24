@@ -63,6 +63,8 @@ async function selectTail(page, id, back, len, want) {
   }, [hs, want]);
 }
 async function clickGlow(page, id, wantSpans) {
+  /* ★기대 바뀜(P-2 SECTION_ORDER v1 · 탑 통합 261125) — Typography 가 패널 아래로 내려가 1000px 창에서 화면 밖(실측 y 1018) → 누르기 전 스크롤 */
+  await page.locator('#txt-glow-btn').first().scrollIntoViewIfNeeded();
   const b = await page.locator('#txt-glow-btn').first().boundingBox();
   if (!b) throw new Error('no box: #txt-glow-btn');
   await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
@@ -209,6 +211,7 @@ test('G7 ★최근 칩 — A 에서 색을 확정하면 glow 큐에 쌓이고, B
   expect(await glowTexts(page, b), '★전제 — B 에 이미 글로우가 있다').toEqual([]);
   /* ★기대 바뀜 1120b R2c(현빈 261121) — 글로우 최근은 합친 «최근 효과» 줄의 글로우 칩 */
   await page.waitForSelector('#txt-fx-recent-row .ts-chip[data-ts-k="glow"]', { state: 'visible' });
+  await page.locator('#txt-fx-recent-row .ts-chip[data-ts-k="glow"]').first().scrollIntoViewIfNeeded();
   const cb = await page.locator('#txt-fx-recent-row .ts-chip[data-ts-k="glow"]').first().boundingBox();
   await page.mouse.click(cb.x + cb.width / 2, cb.y + cb.height / 2);
   await page.waitForFunction((i) => document.querySelectorAll(`#${i} span.tb-glow`).length === 1, b);

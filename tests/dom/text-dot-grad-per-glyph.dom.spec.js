@@ -42,6 +42,8 @@ async function setup(page, { grad = true } = {}) {
 }
 const dotOn = async (page, id) => {
   await page.evaluate((i) => window.showTextProperties(document.getElementById(i)), id);
+  /* ★기대 바뀜(P-2 SECTION_ORDER v1 · 탑 통합 261125) — Typography 가 패널 아래로 내려가 1000px 창에서 화면 밖(실측 y 1018) → 누르기 전 스크롤 */
+  await page.locator('#txt-dot-btn').first().scrollIntoViewIfNeeded();
   const b = await page.locator('#txt-dot-btn').first().boundingBox();
   await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
   await page.waitForFunction(([i, n]) => document.getElementById(i).querySelectorAll('span.tb-dot').length === n, [id, WORD.length]);

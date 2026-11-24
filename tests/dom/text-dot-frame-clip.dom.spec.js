@@ -114,6 +114,8 @@ test('F1 패널로 새로 건 h1 점 — 선택 해제 뒤에도 4개 그려진�
   expect(id).toBeTruthy();
   await page.evaluate((i) => window.showTextProperties(document.getElementById(i)), id);
   await page.waitForSelector('#txt-dot-btn', { state: 'attached' });
+  /* ★기대 바뀜(P-2 SECTION_ORDER v1 · 탑 통합 261125) — Typography 가 패널 아래로 내려가 1000px 창에서 화면 밖(실측 y 1018) → 누르기 전 스크롤 */
+  await page.locator('#txt-dot-btn').first().scrollIntoViewIfNeeded();
   const bb = await page.locator('#txt-dot-btn').first().boundingBox();
   await page.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2);
   await page.waitForFunction((i) => document.getElementById(i).querySelectorAll('span.tb-dot').length === 4, id);
