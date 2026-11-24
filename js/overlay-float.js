@@ -366,7 +366,10 @@ export function enterFloat(posEl) {
   posEl.dataset.overlayReturnAfter  = prevSib ? _ensureId(prevSib) : '';
   /* ★t13D-05 — 흐름 «프레임»은 흐름 끌기(네이티브 HTML5 · draggable=true)를 달고 있다 ⇒ 떠 있는 동안 그대로면 첫 움직임에 dragstart 가 끌기를 가로챈다
      (실측: 일반 프레임 오버레이 끌기 Δ 한 걸음만). 떠 있는 동안 끄고 해제 때 되돌린다(표식은 저장본에도 남아 다시 연 뒤 해제도 맞다). 글 프레임은 무접촉. */
-  if (posEl.matches?.('.frame-block:not([data-text-frame])') && posEl.getAttribute('draggable') === 'true') { posEl.dataset.overlayWasDraggable = '1'; posEl.setAttribute('draggable', 'false'); }
+  /* ★FLOAT-DRAG-NATIVE-DND-SWALLOW-01(0.9.13 · 지디 261123) — 위 t13D-05 를 «종류 무관»으로 넓힌다: 벡터(vector-block.js 가 블럭 자신에 draggable)·글 프레임도 떠 있는 동안 draggable 을 쥐면
+     마우스 끌기가 몇 px 뒤 HTML5 네이티브 끌기로 넘어가 mousemove/mouseup 이 끊긴다(실측 dragstart 1 · mouseup 0) → 떠 있는 끌기 세션이 안 끝나 블럭이 안 옮겨지고
+     다음 아무 클릭의 mouseup 에서 onUp → killClick 이 그 클릭을 삼켰다(패널 단추 첫 클릭 먹통). 되돌림은 exitFloat 의 overlayWasDraggable 그대로 · 시험 tests/dom/float-native-dnd */
+  if (posEl.getAttribute('draggable') === 'true') { posEl.dataset.overlayWasDraggable = '1'; posEl.setAttribute('draggable', 'false'); }
 
   _freezeWidth(posEl);
   /* ★재진입에도 «섹션 폭 밖» 을 유지한다 (T-068 후속, 2026-09-22 실측).
@@ -578,6 +581,32 @@ export function exitFloat(posEl) {
    posEl 자체에 건다 — block-drag.js 의 bindBlock 이 블록 1개당 1회 호출한다(그쪽 참고),
    함수 내부에서 dataset.overlayBlock 을 매번 live로 재확인하므로 오버레이가 아닌 상태에서
    걸어놔도 안전하다(그때는 그냥 조용히 빠진다). */
+/* ★현빈 261123 F(IAL 1회차 S5-2 · S1-5 다름-치명) — 떠 있는 것을 «프레임 위에 놓으면» Figma 처럼 그 프레임 자식(떠 있는 채)이 된다.
+   전엔 끌기 중 «섹션»만 갈아탔다 ⇒ 프레임 위에 놓아도 섹션 자식 · 그룹째 끌어도 프레임에 못 넣음.
+   놓는 자리 아래 «맨 안쪽 일반 프레임»(글 프레임·도형 래퍼·그룹 틀 = 주인 아님 · floatHostOf 와 같은 잣대 + 그룹) → 없으면 그 섹션.
+   화면 자리 그대로 = 옛 주인 원점 − 새 주인 원점(패딩 상자 = rect + clientLeft/Top) 만큼 좌표를 옮긴다. */
+function _dropHostAt(posEl, sec, x, y) {
+  /* 현빈 261123 ⓐ — 커서가 프레임 «안»이면 상자가 걸쳐도 프레임 자식(Clip 이면 잘려 보임 = 의도) · 밖이면 섹션. 섹션 사이는 끌기 중 섹션 넘나들기가 sec 를 이미 커서 아래 섹션으로 바꿔 둔다(프레임을 벗어나면 섹션 끌기로 바뀜 · onMove). */
+  const OK = '.frame-block:not([data-text-frame])';
+  for (const el of document.elementsFromPoint?.(x, y) || []) {
+    if (posEl.contains(el) || !sec.contains(el)) continue;
+    let f = el.closest?.(OK);
+    while (f && (isShapeFrame(f) || f.dataset.group === 'true' || posEl.contains(f))) f = f.parentElement?.closest?.(OK);
+    return (f && sec.contains(f)) ? f : sec;
+  }
+  return sec;
+}
+function _rehost(posEl, host) {
+  const old = floatHostOf(posEl) || posEl.parentElement;
+  if (!host || host === old) return false;
+  const z = _zoom(), o = old.getBoundingClientRect(), n = host.getBoundingClientRect();
+  const x = (parseFloat(posEl.style.left) || 0) + (o.left - n.left) / z + (old.clientLeft || 0) - (host.clientLeft || 0);
+  const y = (parseFloat(posEl.style.top) || 0) + (o.top - n.top) / z + (old.clientTop || 0) - (host.clientTop || 0);
+  host.appendChild(posEl);
+  _applyOverlayPos(posEl, x, y);
+  return true;
+}
+
 export function bindFloatMoveDrag(posEl) {
   if (!posEl || posEl._overlayMoveBound) return;
   posEl._overlayMoveBound = true;
@@ -601,7 +630,8 @@ export function bindFloatMoveDrag(posEl) {
     if (!sec) return;
     /* t13D-06 — 자리 주인(box): 섹션 오버레이 = 섹션(넘나들기 그대로) · 프레임 안 오버레이 = 그 프레임(그 안에서 탄성 · 섹션 넘나들기 없음 · 가이드도 그 프레임 기준) */
     let box = floatHostOf(posEl) || sec;
-    const inFrame = box !== sec;
+    let inFrame = box !== sec;   // ★현빈 261123 ⓐ — 커서가 프레임을 벗어나면 아래 onMove 에서 섹션 끌기로 바뀐다(let)
+    const host0 = box;   // S5-2 — 놓은 뒤 주인이 바뀌었으면 레이어 패널을 다시 짠다
     const zoom = _zoom();
     /* ★2026-09-16h P0(현빈 실측 — "90도 회전 후 좌우 이동이 안 된다") — 회전된 오버레이는
        getBoundingClientRect()가 회전 «후» 화면상 축정렬 bounding box를 돌려준다(T-026과
@@ -668,7 +698,18 @@ export function bindFloatMoveDrag(posEl) {
        통째로 삼켜진다(실측 20px 증발). 직전 자리를 기억해 그 델타를 살린다. */
     let lastClientX = e.clientX, lastClientY = e.clientY;
 
+    /* ★VECTOR-DUP-ID-AFTER-OVERLAY-UNDO-01(0.9.13 125 · 지디 261123 실측) — 끄는 «도중» 캔버스가 통째로 갈리면(⌘Z·⌘⇧Z = restoreSnapshot 의 innerHTML 교체)
+       이 세션은 «떨어져 나간» 옛 posEl·옛 섹션을 쥔 채 남는다 → 다음 움직임에 «커서 아래 라이브 섹션 ≠ 옛 섹션» 이라 아래 hover.appendChild(옛 posEl)
+       = 같은 id 사본이 라이브 섹션에 붙었다(DOM 2 · 저장본 2 · tests/dom/vector-dup-id D1). ⇒ 옛 posEl 이 문서에서 떨어졌으면 세션을 «조용히» 끝낸다
+       (붙이기·쓰기·끝 표본·클릭 삼킴 0 — 캔버스는 이미 되돌린 상태가 정답). */
+    const _endDetached = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      window.SmartGuides?.hideGuides();
+      window.resumeAutoSave?.();
+    };
     const onMove = ev => {
+      if (!posEl.isConnected) { _endDetached(); return; }
       if (!moved) {
         if (Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 3) return;
         moved = true;
@@ -696,6 +737,20 @@ export function bindFloatMoveDrag(posEl) {
         [startLeft, startTop] = trulyFree ? [curL, curT] : _toRawStart(curL, curT);
         startClientX = lastClientX; startClientY = lastClientY;
         freeSpace = trulyFree;
+      }
+      /* ★현빈 261123 ⓐ «커서가 프레임 밖이면 섹션 자식으로 빠짐» — 프레임 안 오버레이는 프레임 상자 안에서 탄성으로 끌리는데(t13D-06), 커서가 프레임을 «벗어나면»
+         상자가 프레임 가장자리에 묶여 커서를 못 따라간다 → 놓으면 섹션 자식이 되어도 자리는 프레임 가장자리(다른 섹션이면 그 섹션 밖 = 잘려 안 보임).
+         ⇒ 커서가 프레임 밖으로 나간 순간 섹션 끌기로 바꾼다(지금 화면 자리 그대로 섹션 기준으로 다시 잡고 섹션 넘나들기도 아래 갈래 그대로). 놓을 때 주인은 _dropHostAt(커서) 이 정한다. */
+      if (inFrame && !trulyFree) {
+        const fr = box.getBoundingClientRect();
+        if (ev.clientX < fr.left || ev.clientX > fr.right || ev.clientY < fr.top || ev.clientY > fr.bottom) {
+          const sr = sec.getBoundingClientRect(), pr = posEl.getBoundingClientRect();
+          const dx = (pr.left - sr.left) / zoom - (parseFloat(posEl.style.left) || 0), dy = (pr.top - sr.top) / zoom - (parseFloat(posEl.style.top) || 0);   // 회전과 무관하게 «지금 보이는 자리»를 섹션 기준으로(옮기기 전 rect 차)
+          const nx = (parseFloat(posEl.style.left) || 0) + dx, ny = (parseFloat(posEl.style.top) || 0) + dy;
+          sec.appendChild(posEl); box = sec; inFrame = false;
+          _applyOverlayPos(posEl, nx, ny);
+          [startLeft, startTop] = freeSpace ? [nx, ny] : _toRawStart(nx, ny); startClientX = ev.clientX; startClientY = ev.clientY;
+        }
       }
       const hover = (!trulyFree && !inFrame && window._findSectionAt) ? window._findSectionAt(ev.clientX, ev.clientY) : null;   // t13D-06 — 프레임 안 오버레이는 섹션을 안 넘나든다
       if (hover && hover !== sec) {
@@ -748,10 +803,13 @@ export function bindFloatMoveDrag(posEl) {
       window.scheduleAutoSave?.();
     };
     const onUp = () => {
+      if (!posEl.isConnected) { _endDetached(); return; }   // 125 — 위 _endDetached 머리말
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       window.SmartGuides?.hideGuides();   // t13D-04
       if (moved) {
+        if (!freeSpace) _rehost(posEl, _dropHostAt(posEl, sec, lastClientX, lastClientY));   // S5-2 · S1-5 — ⌘ = «이 좌표계 그대로»(재부모 안 함 · 끌기 중 섹션 넘나들기와 같은 어휘)
+        if ((floatHostOf(posEl) || sec) !== host0) window.buildLayerPanel?.();   // S5-2 «레이어 패널 갱신 안 됨»
         /* ★«끝 표본» — 시작 표본(_hist.arm)과 짝이다. 둘 다 있어야 앞뒤 어느 이웃
            (push-before 삽입 · push-after 패널)을 만나도 표본이 빈 칸 없이 이어진다. */
         window.pushHistory?.('오버레이 이동');
@@ -822,7 +880,29 @@ export function wireFloatToggle({ block, buttonId, rerender }) {
    ⛔빈 칸을 0 으로 «커밋»하지 않는다 — 백스페이스로 지우는 도중 블록이 (0,0) 으로 튄다
      (T-077 grad-alpha 가 같은 병으로 올라온 카드다). NaN 이면 조용히 무시하고, 확정(change)
      때 비어 있으면 현재 좌표를 도로 써서 칸을 되살린다. */
+/* ★현빈 261123 S1-4 — 떠 있는 블럭 «하나» 정렬 6칸(floatAlignRowHTML)의 배선. 기준 = 자리 주인(floatHostOf — 섹션 · 프레임 안이면 그 프레임)의 패딩 상자(좌표 원점과 같은 상자).
+   회전한 것은 «보이는» 축정렬 상자(rotatedAABB)로 맞춘다(끌기 클램프와 같은 잣대). 한 번 = ⌘Z 한 칸(push-after). 여럿 고름은 다중 선택 «서로 맞춤»(prop-multisel)이 맡는다. */
+export function wireFloatAlign({ block }) {
+  const posEl = posElOf(block);
+  if (!posEl || !isFloat(posEl) || typeof document === 'undefined') return;
+  document.querySelectorAll('#panel-right [data-float-align]').forEach((btn) => btn.addEventListener('click', () => {
+    const host = floatHostOf(posEl) || posEl.parentElement;
+    if (!host) return;
+    const W = host.clientWidth, H = host.clientHeight;
+    const { w, h } = rotatedAABB(posEl.offsetWidth, posEl.offsetHeight, _floatRotationDeg(posEl));
+    const ox = (posEl.offsetWidth - w) / 2, oy = (posEl.offsetHeight - h) / 2;   // left/top(회전 전 상자) ↔ 보이는 상자 왼·위의 차
+    let x = parseInt(posEl.dataset.offsetX, 10) || 0, y = parseInt(posEl.dataset.offsetY, 10) || 0;
+    const k = btn.dataset.floatAlign;
+    if (k === 'l') x = -ox; else if (k === 'c') x = (W - w) / 2 - ox; else if (k === 'r') x = W - w - ox;
+    else if (k === 't') y = -oy; else if (k === 'm') y = (H - h) / 2 - oy; else if (k === 'b') y = H - h - oy;
+    _applyOverlayPos(posEl, x, y);
+    window.pushHistory?.('떠 있는 블럭 정렬');
+    window.scheduleAutoSave?.();
+  }));
+}
+
 export function wireFloatPosition({ block, xId, yId }) {
+  wireFloatAlign({ block });   // S1-4 — X/Y 줄과 한 벌로 그려지는 정렬 6칸
   const xN = document.getElementById(xId);
   const yN = document.getElementById(yId);
   if (!xN && !yN) return;
@@ -854,7 +934,9 @@ export function floatPositionRowHTML({ prefix, posEl }) {
   const y = parseInt(posEl.dataset.offsetY) || 0;
   /* 윗줄 라벨 = 「X / Y」 — ⛔「Position」 이면 틀의 Position 절 제목을 되풀이한다(panel-section-gate 라벨=제목 0).
      라벨 «자리»는 남긴다 — 패널마다 X/Y 줄 앞 형제가 같아야 grid-xy-position P1(에셋 꼴 == 그리드 꼴)이 선다. */
-  return `
+  /* ★현빈 261123 S1-4 — 떠 있으면 «Alignment» 6칸(부모 기준)을 X/Y 위에(시안 8910 floatalign) · 그림 조립은 _helpers.js floatAlignRowHTML(이 파일은 순수 모듈만 import → window) */
+  const _align = (typeof window !== 'undefined' && window.floatAlignRowHTML?.()) || '';
+  return `${_align}
       <span class="prop-field-label">X / Y</span>
       <div class="prop-lhls-row">
         <div class="prop-lhls-col">
@@ -875,7 +957,7 @@ export function floatPositionRowHTML({ prefix, posEl }) {
 /* classic script / 타 모듈용 전역 — 이름은 «옛 이름 그대로» 유지한다(block-drag.js 가 부른다). */
 if (typeof window !== 'undefined') {
   window._bindOverlayMoveDrag = bindFloatMoveDrag;
-  window.OverlayFloat = { posElOf, isFloat, floatHostOf, enterFloat, exitFloat, bindFloatMoveDrag, wireFloatToggle, wireFloatPosition, floatPositionRowHTML };
+  window.OverlayFloat = { posElOf, isFloat, floatHostOf, enterFloat, exitFloat, bindFloatMoveDrag, wireFloatToggle, wireFloatPosition, wireFloatAlign, floatPositionRowHTML };
   /* ★1020t2f3 — 스티커 끌기(classic script js/sticker-select.js)가 오버레이와 «같은 탄성 곡선»을 쓰게 낸다.
      ⛔사본을 만들지 않는다 — 곡선이 둘이면 손맛이 조용히 갈라진다(T-068 이 이동·크기조절을 한 벌로 묶은 까닭과 같다). */
   window.OverlayFloat.elastic = { clamp: _elasticClampToSection, axisInverse: _elasticAxisInverse, zoneScreenPx: OVERLAY_RESIST_ZONE_SCREEN_PX };

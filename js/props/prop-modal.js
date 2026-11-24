@@ -216,9 +216,8 @@ export function showModalProperties(block) {
       </div>
       <button class="prop-action-btn danger" id="mdl-pf-clear" style="margin-top:4px;">프로필 제거</button>` : ''}
 ` : '')),
-      sec('position', `
+      sec('position', `${_mdlFloatRow}${/* 현빈 261123 S1-4 — 시안 8910 floatalign 순서(Alignment 6칸 → X/Y → Rotation) · 옛 .prop-row 감쌈은 공용 줄(라벨+6칸+X/Y)을 한 가로줄에 눌러 6칸이 찌그러졌다(실물 png) */ ''}
       <span class="prop-field-label">Rotation</span>${rotRowHTML({ p: 'mdl', numberId: 'mdl-rot-number', value: parseInt(block.dataset.rotation || '0'), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' })}
-      ${_mdlFloatRow ? `<div class="prop-row">${_mdlFloatRow}</div>` : ''}
 `, { headTools: overlayToggleBtnHTML({ id: 'mdl-float-toggle', active: _mdlIsFloat }) }),
       sec('size', `
       <div class="prop-row">

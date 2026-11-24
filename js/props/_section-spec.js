@@ -36,6 +36,20 @@ export function sectionOrderFor(panel) {
   return Object.freeze(o);
 }
 
+/** ★절별 기본 항목(현빈 G 261123 · 레드팀 2차 ② · 태양 PLAN-ds-parts-state-261123 §4b 표 그대로) — 절 key → 부품(data-part) 목록.
+ *  부품 이름 = PLAN §2 «부품 이름 한 벌»(row·number·slider·toggle·select·color·tip·align-group·chain·end-slot·fx-card·rot). Kind·Content·[Special] 은 블럭마다 달라 «제외».
+ *  지금 읽는 자 = tools/panel-parts(카탈로그 판정기 · 기본 대비 빠짐/남음) · 다음 = §4 fromSpec(태양). 값 = 목표 꼴(데이터만 · 그리는 코드 무변).
+ *  결정 거리(PLAN §7): Layout W/H · Typography 크기의 기본이 number 냐 slider 냐 — 지금은 number. */
+export const SECTION_DEFAULTS = Object.freeze({
+  position: Object.freeze(['align-group', 'number', 'rot']),
+  layout: Object.freeze(['number', 'chain']),
+  fill: Object.freeze(['end-slot', 'color']),
+  stroke: Object.freeze(['end-slot', 'color', 'number', 'select']),
+  appearance: Object.freeze(['slider', 'number', 'toggle']),
+  effects: Object.freeze(['end-slot', 'fx-card']),
+  typography: Object.freeze(['select', 'number', 'align-group']),
+});
+export const PART_NAMES = Object.freeze(['row', 'number', 'slider', 'toggle', 'select', 'color', 'tip', 'align-group', 'chain', 'end-slot', 'fx-card', 'rot']);
 export const SECTION_TITLE = Object.freeze({
   kind: 'Type',
   content: 'Content',

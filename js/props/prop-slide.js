@@ -23,7 +23,7 @@ const _cellBgOn = (c) => !/^(transparent|rgba\(0, 0, 0, 0\))$/.test(_cellBg(c));
 function _setCellBg(c, v) { c.style.backgroundImage = ''; c.style.backgroundColor = v; c.dataset.bg = v; syncFrameBgVars(c); }
 function _cellRowsHTML(block, st, selCell) {
   const cells = slideCells(block), n = cells.length;
-  const rows = cells.map((c, i) => `<div class="prop-row sld-cell-row${c === selCell ? ' active' : ''}" data-idx="${i}">
+  const rows = cells.map((c, i) => `<div class="prop-row prop-row--wide sld-cell-row${c === selCell ? ' active' : ''}" data-idx="${i}">
         <span class="prop-label">칸 ${i + 1}</span>
         <input type="number" class="prop-number sld-cw" min="20" max="100" step="1" value="${c.dataset.w ?? st.layout.cardW}" aria-label="칸 ${i + 1} ${slideAxis(st.fx) === 'y' ? '높이' : '폭'} %">${slideAxis(st.fx) === 'y' ? '' : `
         <input type="number" class="prop-number sld-ch" min="20" max="100" step="1" value="${c.dataset.h ?? 100}" aria-label="칸 ${i + 1} 높이 %">`}

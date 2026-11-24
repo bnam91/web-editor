@@ -171,7 +171,7 @@ export function showQuoteProperties(block) {
   /* ★★⚰️2026-10-17 현빈 1017t1a1 — 1012t1H2 가 「현빈 목록 밖」이라 남겨 둔 두 안내 중 ★하나(부호 y 바로 밑)를 ★이제 지운다.
      ★이번 발주가 ★그 판정을 ★뒤집는다 — 현빈이 이 문구를 ★직접 집어 없애 달라고 했다(ref: 「부호만 위아래로 밀립니다 — 글은 제자리입니다. 한 줄·스택 둘 다 먹습니다.」).
      ★지운 원문(바이트 그대로 — ⛔grep 오염 방지로 class 속성 인용부호는 전각 「"」로 적는다):
-       <div class=”prop-hint” style="padding:2px 8px;line-height:1.5">부호만 위아래로 밀립니다 — <b>글은 제자리</b>입니다. 한 줄·스택 <b>둘 다</b> 먹습니다.</div>
+       <div class="prop-hint" style="padding:2px 8px;line-height:1.5">부호만 위아래로 밀립니다 — <b>글은 제자리</b>입니다. 한 줄·스택 <b>둘 다</b> 먹습니다.</div>
      ★있던 자리: 「부호 y」(`qt-markdy`) 줄 바로 다음, 「간격」(`qt-gap`) 줄 바로 앞.
      ⛔:233(스택 전용 「세로 정렬은 스택에서 쓰지 않습니다…」)은 ★그대로 남는다 — 현빈이 이번에 집은 것은 ★이 문구 하나뿐이다.
      ★되살리는 법: 위 원문 그 줄을 `qt-markdy` pairRow 다음에 그대로 되돌려라. */
@@ -272,8 +272,8 @@ ${layout === 'inline' ? `
         colorHtml: colorFieldHTML({ idPrefix: 'qt-stroke-color', hex: _swatchHex(stroke.color, '#000000'), alpha: parseAlphaFromColor(stroke.color) || 100 }),
       }),
       sec('special', `
-      <div class="prop-row" style="align-items:flex-start">
-        <span class="prop-label">모양</span>
+      <span class="prop-field-label">모양</span>
+      <div class="prop-row">
         <div class="prop-align-group" id="qt-shape-group">${shapeBtns}</div>
       </div>
 ${_pairRow('qt-marksize', '부호 크기', markSize, L.markSize.min, L.markSize.max)}

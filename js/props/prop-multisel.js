@@ -363,6 +363,30 @@ export function getSelectedOverlayUnits() {
   const host = units[0].parentElement;
   return units.every(u => u.parentElement === host) ? units : null;   // 섹션이 다르면 좌표계가 다르다
 }
+/* ★현빈 261123 F(IAL 1회차 S1-4ⓐ · S3-3) — 떠 있는 것 + 흐름 블럭을 «섞어» 고르면 Figma 처럼 «고른 것끼리» 맞춘다:
+   경계 상자는 고른 것 전부(흐름 블럭 포함)로 재고, 움직이는 것은 떠 있는 것만(흐름 블럭은 흐름 자리라 못 움직임).
+   전엔 흐름 패널로 가서 «가운데»가 제목 글자 정렬(text-align)만 바꿨다. 반환 = { units(떠 있는 것 ≥1), anchors(흐름 단위 ≥1) } 또는 null. */
+export function getSelectedMixedUnits() {
+  const sel = [...document.querySelectorAll('#canvas .selected')]
+    .filter(el => !el.classList.contains('section-block') && !el.classList.contains('section-merged-part'));
+  const units = [], anchors = [];
+  for (const el of sel) {
+    const u = _overlayUnitOf(el);
+    if (u) { if (!units.includes(u)) units.push(u); continue; }
+    if (!window.isFlowMultiSelUnit?.(el) || units.some(x => x.contains(el))) continue;   // 그릇·조상으로 켜진 것은 단위가 아니다(editor.js 한 자리)
+    if (!anchors.some(a => a === el || a.contains(el) || el.contains(a))) anchors.push(el);
+  }
+  if (!units.length || !anchors.length) return null;
+  const host = units[0].parentElement;
+  if (!units.every(u => u.parentElement === host) || !anchors.every(a => host.contains(a))) return null;   // 좌표계(섹션)가 하나일 때만
+  return { units, anchors };
+}
+/* 흐름 단위의 자리 = 화면 상자를 호스트(섹션) 모델 좌표로 — 움직이지 않는 기준점이라 측정만 한다 */
+function _anchorGeom(a, host) {
+  const hr = host.getBoundingClientRect(), r = a.getBoundingClientRect(), k = (hr.width / host.offsetWidth) || 1;
+  return { x: (r.left - hr.left) / k, y: (r.top - hr.top) / k, w: r.width / k, h: r.height / k };
+}
+window.getSelectedMixedUnits = getSelectedMixedUnits;
 const _isZoomUnit = (u) => u.classList.contains('zoom-block');
 function _overlayGeom(u) {
   const num = (a, b) => { const v = parseFloat(a); return Number.isFinite(v) ? v : (parseFloat(b) || 0); };
@@ -397,18 +421,19 @@ function _setOverlayPos(u, x, y) {
     u.style.left = u.dataset.offsetX + 'px';  u.style.top = u.dataset.offsetY + 'px';
   }
 }
-function _applyOverlay(units, pos, label) {
+function _applyOverlay(units, pos, label, anchors = []) {
   units.forEach((u, i) => _setOverlayPos(u, pos[i].x, pos[i].y));
-  showOverlayMultiSelPanel(units);             // 패널만 다시 그린다(캔버스 불변) — 기록보다 «먼저»(prop-push-after PA-1)
+  showOverlayMultiSelPanel(units, anchors);             // 패널만 다시 그린다(캔버스 불변) — 기록보다 «먼저»(prop-push-after PA-1)
   window.pushHistory?.(label);                 // push-after (js/CLAUDE.md 히스토리 규약)
 }
-export function showOverlayMultiSelPanel(units = getSelectedOverlayUnits()) {
-  if (!propPanel || !units || units.length < 2) return false;
+export function showOverlayMultiSelPanel(units = getSelectedOverlayUnits(), anchors = []) {
+  if (!propPanel || !units || units.length + anchors.length < 2) return false;
+  const n = units.length + anchors.length;
   renderPanel(null, {
     header: `
       <div class="prop-block-label">
         <div class="prop-block-info">
-          <span class="prop-block-name">${units.length}개 선택됨</span>
+          <span class="prop-block-name">${n}개 선택됨</span>
           <span class="prop-breadcrumb">떠 있는 블럭 — 서로 맞춤</span>
         </div>
       </div>
@@ -429,8 +454,11 @@ export function showOverlayMultiSelPanel(units = getSelectedOverlayUnits()) {
       </div>
 `)],
   });
-  propPanel.querySelectorAll('[data-ov-align]').forEach(b => b.addEventListener('click', () =>
-    _applyOverlay(units, alignPositions(units.map(_overlayGeom), b.dataset.ovAlign), '떠 있는 블럭 정렬')));
+  propPanel.querySelectorAll('[data-ov-align]').forEach(b => b.addEventListener('click', () => {
+    const host = units[0].parentElement;
+    const pos = alignPositions([...units.map(_overlayGeom), ...anchors.map(a => _anchorGeom(a, host))], b.dataset.ovAlign);   // 경계 = 고른 것 전부(흐름 포함)
+    _applyOverlay(units, pos.slice(0, units.length), '떠 있는 블럭 정렬', anchors);   // 움직이는 것 = 떠 있는 것만
+  }));
   propPanel.querySelectorAll('[data-ov-dist]').forEach(b => b.addEventListener('click', () =>
     _applyOverlay(units, distributePositions(units.map(_overlayGeom), b.dataset.ovDist), '떠 있는 블럭 균등분배')));
   return true;

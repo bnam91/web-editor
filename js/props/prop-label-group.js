@@ -87,7 +87,7 @@ function showLabelGroupProperties(block, selectedItem) {
         <button class="prop-action-btn primary" id="lg-preset-name-ok" style="flex:0 0 52px;margin-top:0">확인</button>
         <button class="prop-action-btn secondary" id="lg-preset-name-cancel" style="flex:0 0 52px;margin-top:0">취소</button>
       </div>${selectedItem ? '' : `
-      ${hintHTML('Click a tag to change its color')}`}`),   /* 안 골랐을 땐 Fill 절이 없다(컨트롤 0 절 금지 · 게이트 빈 머리 검사) — 안내는 여기 */
+      ${hintHTML('태그를 눌러 색 바꾸기')}`}`),   /* R8ⓐ(현빈 261123) 한국어 UI 의 유일한 영어 힌트 → 한국어 · 안 골랐을 땐 Fill 절이 없다(컨트롤 0 절 금지 · 게이트 빈 머리 검사) — 안내는 여기 */
       sec('position', !isAbsolute ? '' : `
       <div class="prop-lhls-row">
         <div class="prop-lhls-col">

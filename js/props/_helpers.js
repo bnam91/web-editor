@@ -353,6 +353,25 @@ export function alignBtn(family, key, o = {}) {
   return _iconBtnHtml(icon, o);
 }
 
+/**
+ * ★현빈 261123 S1-4 — 떠 있는 블럭 «하나» = 부모(섹션 · 프레임 안이면 프레임) 기준 정렬 6칸. 정본 시안 = 8910 floatalign(탑 gdragon 1bd9ebe).
+ * 마크업은 시안 그대로(.prop-field-label «Alignment» + .prop-row[data-float-align-row] 안 .prop-align-group 둘 · 단추 = .prop-align-btn) · 새 CSS 0.
+ * ⚠️시안과 다른 한 가지: 그림 = 앱의 alignBtn 그림(object-h · object-v) — 시안은 가로 그림을 90° 돌려 썼다(앱엔 세로 그림이 이미 있다 · 다중 선택 «서로 맞춤»과 같은 그림).
+ * ⛔data-align 금지(prop-text-wireup-align.js 가 data-align 단추를 «글자 정렬»로 잡는다) → data-float-align(l·c·r·t·m·b). 배선 = overlay-float.js wireFloatAlign.
+ * 부르는 자: overlay-float.js floatPositionRowHTML(window 로 — 그 파일은 순수 모듈만 import) · prop-text-template.js(떠 있는 글자 Position 줄).
+ */
+export function floatAlignRowHTML() {
+  const st = 'flex:1 1 0;min-width:0;padding:0';
+  const b = (fam, key, k, lab) => alignBtn(fam, key, { label: `${lab} — 섹션 기준`, title: `${lab} — 섹션(부모) 기준으로 맞춤 · 하나만 골랐을 때`, attrs: { type: 'button', 'data-float-align': k }, style: st });
+  const grp = (lab, inner) => `<div class="prop-align-group" role="group" aria-label="${lab}" style="flex:1 1 0;flex-wrap:nowrap;min-width:0">${inner}</div>`;
+  return `<span class="prop-field-label" title="하나만 골랐을 때 = 섹션(부모) 기준 · 여럿 고르면 고른 것끼리">Alignment</span>`
+    + `<div class="prop-row" data-float-align-row="parent" style="gap:var(--ui-space-1_5)">`
+    + grp('가로 정렬(섹션 기준)', b('object-h', 'left', 'l', '왼쪽') + b('object-h', 'center', 'c', '가로 가운데') + b('object-h', 'right', 'r', '오른쪽'))
+    + grp('세로 정렬(섹션 기준)', b('object-v', 'top', 't', '위') + b('object-v', 'middle', 'm', '세로 가운데') + b('object-v', 'bottom', 'b', '아래'))
+    + `</div>`;
+}
+if (typeof window !== 'undefined') window.floatAlignRowHTML = floatAlignRowHTML;   // overlay-float.js floatPositionRowHTML 이 window 로 부른다
+
 /* ★문자열 조립은 «한 벌» — alignBtn 과 borderBtn 이 같이 쓴다(G17 에서 뽑아냄, 산출 바이트 불변).
  *   ⛔두 헬퍼에 조립을 따로 적지 마라 — 위 「하지 않는 것」 넷이 한쪽에서만 지켜지게 된다. */
 function _iconBtnHtml(icon, o) {

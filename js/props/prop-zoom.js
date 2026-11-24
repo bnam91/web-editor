@@ -129,11 +129,7 @@ export function showZoomProperties(block) {
         </div>
       </div>`),
       sec('content', `
-      <div class="prop-row">
-        <span class="prop-label" style="font-size:10px;color:var(--ui-text-muted);">
-          ${hasImg ? '이미지 — 도형 «안»에 담긴다(모양·기하는 안 바뀐다)' : '이미지를 넣으면 도형 안을 채운다'}
-        </span>
-      </div>
+      <div class="prop-hint">${hasImg ? '이미지 — 도형 «안»에 담긴다(모양·기하는 안 바뀐다)' : '이미지를 넣으면 도형 안을 채운다'}</div>
       <div id="zm-img-drop" style="border:2px dashed var(--ui-border-mid, #444);border-radius:6px;padding:18px 10px;text-align:center;color:var(--ui-text-muted);font-size:11px;cursor:pointer;background:var(--ui-bg-input);">
         ${hasImg ? `<img src="${_esc(st.imgSrc)}" style="max-width:80px;max-height:80px;object-fit:contain;display:block;margin:0 auto 6px;">` : ''}
         <div>이미지 드래그앤드롭<br>또는 클릭해서 선택</div>
