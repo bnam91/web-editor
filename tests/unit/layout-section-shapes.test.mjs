@@ -80,3 +80,44 @@ test('P8 사슬 막힘(꽉참) — aria-disabled + 까닭 · 켬 표시 끔', ()
   const f = L.layoutSizeRowHTML({ prefix: 'b', w: { id: 'b-w', value: 400, max: 860 }, h: { id: 'b-h', value: 300, max: 1600 }, chain: { on: true } });
   assert.deepEqual([attr(f, 'b-ratio', 'aria-pressed'), /id="b-ratio"[^>]*aria-disabled/.test(f)], ['true', false]);
 });
+
+/* ── 배선(C1 261125 버그): read() 없는 축 — 편집 전 값은 «마지막으로 먹은 값» · 빈 칸 되돌림에 NaN 0 · 지우고 치면 사슬 비율은 옛 값 ── */
+function wireRig(axes, chain) {
+  class El { get value() { return this._v; } set value(v) { this._v = String(v); }   // input.value 처럼 늘 문자열
+    constructor(v) { this.value = v; this.l = {}; this.disabled = false; this.attrs = {}; this.classList = { toggle() {} }; }
+    addEventListener(t, f) { (this.l[t] ||= []).push(f); } fire(t) { (this.l[t] || []).forEach((f) => f({})); }
+    getAttribute(k) { return this.attrs[k] ?? null; } setAttribute(k, v) { this.attrs[k] = String(v); } removeAttribute(k) { delete this.attrs[k]; } }
+  const els = Object.fromEntries(axes.map(([id, v]) => [id, new El(v)]));
+  const calls = Object.fromEntries(axes.map(([id]) => [id, []]));
+  let commits = 0;
+  const ctx = { document: { getElementById: (id) => els[id] ?? null }, window: {} };
+  const W = vm.runInNewContext(`${src}\nwireLayoutSection`, ctx);
+  const ax = (id, max) => ({ numberId: id, max, apply: (v) => calls[id].push(v) });
+  W({ commit: () => commits++, w: ax(axes[0][0], 1000), h: axes[1] ? ax(axes[1][0], 1000) : undefined, chain });
+  const type = (id, v) => { els[id].value = String(v); els[id].fire('input'); };
+  const change = (id) => els[id].fire('change');
+  return { els, calls, type, change, commits: () => commits };
+}
+
+test('P9 read 없는 축 — 비우고 change = 옛 값 되돌림 · apply 에 NaN 0 · 이력 0', () => {
+  const r = wireRig([['pd', 24]]);
+  r.type('pd', ''); r.change('pd');
+  assert.equal(r.els.pd.value, '24');
+  assert.ok(r.calls.pd.every(Number.isFinite), `NaN apply: ${r.calls.pd}`);
+  assert.equal(r.commits(), 0);
+  /* 쳐서 바꿨다가(36 그림) 비우고 change → 24 로 되그림 */
+  r.type('pd', 36); r.type('pd', ''); r.change('pd');
+  assert.deepEqual([r.els.pd.value, r.calls.pd.at(-1), r.commits()], ['24', 24, 0]);
+  /* 먹은 값 뒤에는 그 값이 «전 값» */
+  r.type('pd', 40); r.change('pd'); r.type('pd', ''); r.change('pd');
+  assert.deepEqual([r.els.pd.value, r.calls.pd.every(Number.isFinite), r.commits()], ['40', true, 1]);
+});
+
+test('P10 read 없는 축 + 사슬 — 지우고 치면 비율 = 옛 값(200:100) · 끌기처럼 input 여러 번도 같은 비율', () => {
+  const r = wireRig([['w', 200], ['h', 100]], { id: 'none', on: true, set() {} });
+  r.type('w', ''); r.type('w', 3); r.type('w', 30); r.type('w', 300); r.change('w');
+  assert.deepEqual([r.els.w.value, r.els.h.value], ['300', '150']);
+  assert.ok([...r.calls.w, ...r.calls.h].every(Number.isFinite));
+  r.type('w', 301); r.type('w', 302); r.change('w');   // 다음 편집 = 먹은 값(300:150) 기준
+  assert.equal(r.els.h.value, '151');
+});
