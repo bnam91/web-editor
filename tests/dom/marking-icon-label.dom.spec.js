@@ -814,7 +814,8 @@ test('M9c 모서리·라벨 굵기 — 패널에서 바꿀 수 있다(모서리 
   /* U5: 원이면 「모서리」 행은 «없다»(절째 안 그린다) — 빈 Appearance 머리도 없어야 한다 */
   const rowShown = () => page.evaluate(() => { const r = document.getElementById('stk-count-radius-row'); return r ? getComputedStyle(r).display : 'absent'; });
   expect(await rowShown(), '★전제: 원 모양일 때 「모서리」 행은 없다').toBe('absent');
-  expect(await page.locator('#panel-right .prop-section[data-sec="appearance"]').count(), '원: 빈 Appearance 절 머리가 없다').toBe(0);
+  /* ★기대 바뀜(표준 Appearance A4 · C2) — Opacity 는 모든 블럭 몫이라 원에도 Appearance 절이 선다(빈 머리 아님 · Opacity 칸 하나) · 모서리 줄은 여전히 없다 */
+  expect(await page.evaluate(() => { const s = document.querySelector('#panel-right .prop-section[data-sec="appearance"]'); return s ? [!!s.querySelector('#stk-opacity'), !!s.querySelector('[data-field="appearance-radius"], #stk-count-radius-row')] : null; }), '원: Appearance = Opacity 만(모서리 없음)').toEqual([true, false]);
   await page.click('#stk-count-shape [data-count-shape="square"]');
   expect(await rowShown(), '사각이면 「모서리」 행이 보인다').toBe('flex');
   const radii = () => page.evaluate(() => [...document.querySelectorAll('#secA .sticker-block[data-count]')].map((b) => [getComputedStyle(b).borderRadius, b.dataset.countRadius ?? null]));

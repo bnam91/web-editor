@@ -21,10 +21,18 @@ const SRCS = { 'js/props/prop-laurel.js': PANEL, 'js/blocks/laurel-block.js': RE
 /* 바인더 호출 → { slider, number, key, min } */
 const BINDS = [...PANEL.matchAll(/\bbind\w+\(\s*'([\w-]+)'\s*,\s*'([\w-]+)'\s*,\s*'(\w+)'\s*,\s*(-?\d+)\s*,\s*-?\d+\s*\)/g)]
   .map((m) => ({ slider: m[1], number: m[2], key: m[3], min: Number(m[4]) }));
+/* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C2) — 일괄 크기·간격·셀 간격은 부품 배선(wireLayoutSection)으로 옮겼다 ⇒ 그 꼴에서도 키·min 을 뽑는다(⛔손 명부 0 그대로)
+   ⓐ `numberId: '숫자칸', [min: n,] max: m, apply: (v) => applyAll('키', v)` (min 없으면 부품 기본 0) · ⓑ 셀 간격 줄 `['숫자칸', 'grid키']` 짝(min 없음 = 0) */
+for (const m of PANEL.matchAll(/numberId:\s*'([\w-]+)'\s*,\s*(?:min:\s*(-?\d+)\s*,\s*)?max:\s*\d+\s*,\s*apply:\s*\(v\)\s*=>\s*applyAll\('(\w+)'/g))
+  BINDS.push({ slider: null, number: m[1], key: m[3], min: m[2] == null ? 0 : Number(m[2]) });
+for (const m of PANEL.matchAll(/\[\s*'([\w-]+-num)'\s*,\s*'(grid\w+)'\s*\]/g))
+  BINDS.push({ slider: null, number: m[1], key: m[2], min: 0 });
 /* 센서스 — min ≤ 0 인 입력 칸(id 또는 class 토큰) */
 const ZERO_INPUTS = [...PANEL.matchAll(/<input\b[^>]*type="(?:number|range)"[^>]*>/g)].map((m) => m[0])
   .filter((t) => { const mn = /\bmin="(-?[\d.]+)"/.exec(t); return mn && Number(mn[1]) <= 0; })
   .map((t) => ((/\bid="([\w-]+)"/.exec(t) || [])[1]) || ((/\bclass="([^"]+)"/.exec(t) || [])[1] || '').split(/\s+/).find((c) => c.startsWith('lrl-')));
+/* ★기대 바뀜(C2) — 부품(layout*HTML)이 찍는 칸은 소스에 <input> 글자로 없다 ⇒ 부품 인자 `id/xId/yId: '숫자칸'` 중 그 객체에 min ≥ 1 이 없는 것(부품 기본 min 0)도 센다 */
+ZERO_INPUTS.push(...[...PANEL.matchAll(/\b(?:id|xId|yId):\s*(?:\w+\s*>\s*1\s*\?\s*)?'(lrl-[\w-]+-num)'(?![^}]*\bmin:\s*[1-9])/g)].map((m) => m[1]));
 const zeroKeys = [...new Set(BINDS.filter((b) => b.min <= 0).map((b) => b.key))];
 const posKeys = [...new Set(BINDS.filter((b) => b.min > 0).map((b) => b.key))].filter((k) => !zeroKeys.includes(k));
 

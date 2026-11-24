@@ -7,6 +7,8 @@ import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast } from './_fill-section.js';
 
+import { layoutPadSlotHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(C2)
+
 export function showInnerCardProperties(block) {
   let lines = [];
   try { lines = JSON.parse(block.dataset.lines || '[]'); } catch (_) {}
@@ -34,14 +36,9 @@ export function showInnerCardProperties(block) {
         <input type="text" class="prop-input icd-line-input" data-line="${li}" value="${_esc(l.text || '')}" style="flex:1;min-width:0">
       </div>`).join('')}
       <div class="prop-hint">줄 더하기·빼기는 아직 패널에 없습니다 — 글은 위 칸이나 캔버스에서 고칩니다</div>`),
-      sec('padding', `
-      <div class="prop-row">
-        <span class="prop-label">패딩</span>
-        <input type="range" class="prop-slider" id="icd-pad-slider" min="0" max="120" step="4" value="${padding}">
-        <input type="number" class="prop-number" id="icd-pad-number" min="0" max="120" value="${padding}">
-      </div>`),
+      sec('padding', layoutPadSlotHTML({ allId: 'icd-pad-number', all: padding, max: 120 })),   // ★표준 Layout(C2) — 네 면 한 값 한 칸 · 옛 슬라이더 icd-pad-slider 걷음 · 숫자 칸 id·범위·dataset.padding 무변
       sec('appearance', `
-      ${appearanceSectionHTML({ prefix: 'icd', radius: { numberId: 'icd-radius-number', value: radius, max: 60 } })}   <!-- ★표준 Appearance A2(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·dataset.radius·범위 무변 -->`, { headTools: appearanceHeadToolsHTML({ prefix: 'icd' }) }),
+      ${appearanceSectionHTML({ prefix: 'icd', op: { value: window.readBlockOpacity?.(block) ?? 100 }, radius: { numberId: 'icd-radius-number', value: radius, max: 60 } })}   <!-- ★표준 Appearance A2(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·dataset.radius·범위 무변 -->`, { headTools: appearanceHeadToolsHTML({ prefix: 'icd' }) }),
       sec('fill', fillSectionHTML({ prefix: 'icd-fill', on: bg !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'icd-bg', hex: bg, alpha: parseAlphaFromColor(bg) }) }),
         { headTools: fillHeadToolsHTML({ prefix: 'icd-fill', on: bg !== 'transparent' }) }),   // 표준 Fill F2 — 없음 = bg 'transparent'(블럭 색 검사가 이미 받는 값)
       sec('effects', `
@@ -70,22 +67,8 @@ export function showInnerCardProperties(block) {
     none: () => { fillLast.set(block.id, bg); block.dataset.bg = 'transparent'; window.renderInnerCardBlock?.(block); window.scheduleAutoSave?.(); showInnerCardProperties(block); },
     add: () => { block.dataset.bg = fillLast.get(block.id, '#ffffff'); window.renderInnerCardBlock?.(block); window.scheduleAutoSave?.(); showInnerCardProperties(block); },
     commit: () => window.pushHistory?.() } });
-  const wireNum = (prefix, key, min, max) => {
-    const s = document.getElementById(`icd-${prefix}-slider`);
-    const n = document.getElementById(`icd-${prefix}-number`);
-    if (!s) return;
-    const apply = (v) => {
-      v = Math.min(max, Math.max(min, v || 0));
-      block.dataset[key] = String(v);
-      window.renderInnerCardBlock?.(block);
-      s.value = v; n.value = v;
-    };
-    s.addEventListener('input', () => apply(parseInt(s.value)));
-    s.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
-    n.addEventListener('change', () => { apply(parseInt(n.value)); window.pushHistory?.(); window.scheduleAutoSave?.(); });
-  };
-  wireAppearanceSection({ radius: { numberId: 'icd-radius-number', max: 60, apply: (v) => { block.dataset.radius = String(v); window.renderInnerCardBlock?.(block); } } });   // 표준 Appearance A2 — 옛 wireNum('radius') 자리(슬라이더 걷음)
-  wireNum('pad', 'padding', 0, 120);
+  wireAppearanceSection({ op: { numberId: 'icd-opacity', apply: (v) => window.setBlockOpacity?.(block, v) }, radius: { numberId: 'icd-radius-number', max: 60, apply: (v) => { block.dataset.radius = String(v); window.renderInnerCardBlock?.(block); } } });   // 표준 Appearance A2 — 옛 wireNum('radius') 자리(슬라이더 걷음)
+  wireLayoutSection({ w: { numberId: 'icd-pad-number', max: 120, apply: (v) => { block.dataset.padding = String(v); window.renderInnerCardBlock?.(block); } } });   // ★표준 Layout(C2) — 옛 wireNum('pad') 자리
 
   propPanel.querySelectorAll('[data-sh]').forEach(btn => btn.addEventListener('click', () => {
     block.dataset.shadow = btn.dataset.sh;

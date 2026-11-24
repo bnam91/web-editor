@@ -18,7 +18,7 @@ test('S1 일괄 줄과 칸 카드의 같은 속성이 서로 다른 범위로 �
     const b = [...sec.querySelectorAll('.laurel-block')].find((x) => !before.has(x)); if (!b) return { err: 'no laurel' };
     window.deselectAll?.(); b.classList.add('selected'); window.showLaurelProperties(b);
     const P = document.querySelector('#panel-right .panel-body');
-    const rowsOf = (secKey) => [...P.querySelectorAll(`.prop-section[data-sec="${secKey}"] .prop-label`)].map((l) => ({ t: l.textContent.trim(), title: l.title || '', scope: l.closest('[data-scope]')?.dataset.scope || null, cut: l.scrollWidth > l.clientWidth, inCard: !!l.closest('.prop-cell-card, [data-sec-item], [data-card-index]') }));
+    const rowsOf = (secKey) => [...P.querySelectorAll(`.prop-section[data-sec="${secKey}"] .prop-label`)].map((l) => ({ t: l.textContent.trim(), title: l.title || l.closest('[data-scope]')?.title || '',   /* ★기대 바뀜(표준 Layout C2 · 현빈 L-4) — 일괄 크기·간격 = 블럭 슬롯(숫자 + 라벨 끌기) · 전문 title 은 줄(data-scope) 감싸개 */ scope: l.closest('[data-scope]')?.dataset.scope || null, cut: l.scrollWidth > l.clientWidth, inCard: !!l.closest('.prop-cell-card, [data-sec-item], [data-card-index]') }));
     const content = rowsOf('content').filter((x) => x.inCard);
     const bulk = [...rowsOf('size'), ...rowsOf('layout'), ...rowsOf('fill')];
     const out = {};

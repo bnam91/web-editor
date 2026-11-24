@@ -1,7 +1,7 @@
 /* t13c-05-coupon-admin-entry — t13C-05: 컴포넌트 메뉴의 «Coupon» 넣기 입구는 관리자만.
  *   판정 = js/feature-flags.js animGifVisible(서버 role ∨ 앱 관리자 · 모르면 «아님») 재사용 — 공개 범위일 뿐 접근통제 아님.
  *   장면: 일반 계정(__admin._forceState isAdmin:false) → 메뉴 펼침 → Coupon 안 보임(Comparison 은 보임 = 전제) ·
- *         이미 든 쿠폰은 저장→다시 열기 뒤에도 보이고 눌러 패널(#cpn-width-slider)이 뜬다 →
+ *         이미 든 쿠폰은 저장→다시 열기 뒤에도 보이고 눌러 패널(#cpn-width-number · 옛 #cpn-width-slider)이 뜬다 →
  *         관리자(isAdmin:true)로 바꿔 다시 펼치면 Coupon 이 보이고 눌러 쿠폰이 생긴다.
  * ⛔고정 대기 0(조건 대기).
  * 양성대조(CTL _patches/t13c-05-coupon-gate-ctl.patch): toggleFpDropdown 의 _applyAdminEntryGate('fp-add-coupon') 호출(t13F-01 에서 이름만 일반화) 줄을 지우면
@@ -41,7 +41,8 @@ test('C1 일반 계정엔 Coupon 입구 없음·기존 쿠폰은 열리고 고�
   await expect(el, '다시 열어도 쿠폰이 보인다').toBeVisible();
   await el.scrollIntoViewIfNeeded();
   await el.click();
-  await expect.poll(() => page.evaluate(() => !!document.getElementById('cpn-width-slider')), { timeout: 4000 }).toBe(true);
+  /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 패널 판정 = 폭 숫자 칸(옛 #cpn-width-slider) */
+  await expect.poll(() => page.evaluate(() => !!document.getElementById('cpn-width-number')), { timeout: 4000 }).toBe(true);
 
   /* 관리자 — 입구 보이고 눌러 쿠폰이 하나 더 생긴다 */
   await page.evaluate(() => window.__admin._forceState({ ok: true, isAdmin: true }));

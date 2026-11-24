@@ -119,7 +119,8 @@ test('PA-2 ★음성대조 — 이 검사가 «옛 모양»을 실제로 잡는�
 test('PA-3 세 자리가 «지금 모양»으로 남아 있다 (고침이 되돌려지면 빨강)', () => {
   const want = [
     ['prop-mockup.js',  /applyWidth\(parseInt\(wNumber\.value\)\);\s*window\.pushHistory\?\.\(\)/],
-    ['prop-iconify.js', /applySize\(parseInt\(sNumber\.value\)\);\s*window\.pushHistory\?\.\(\)/],
+    /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C2) — 크기 칸은 부품 배선: wireLayoutSection 의 change 가 «apply → commit» 순서를 한 자리에서 지킨다(js/props/_layout-section.js) ⇒ 여기선 그 부품에 applySize·pushHistory 를 넘기는지 잠근다 */
+    ['prop-iconify.js', /wireLayoutSection\(\{\s*commit:\s*\(\)\s*=>\s*window\.pushHistory\?\.\(\)\s*,\s*w:\s*\{\s*numberId:\s*'icn-size-number'[^}]*apply:\s*applySize\s*\}/],
     ['prop-asset.js',   /applyAlign\(btn\.dataset\.align\);\s*window\.pushHistory\?\.\(\)/],
   ];
   const all = sources();

@@ -32,6 +32,8 @@ import {
 import { couponPresetChipsHTML } from '../blocks/coupon-presets.js';
 import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A2)
 
+import { layoutSizeRowHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(C2)
+
 const L = COUPON_LIMITS;
 
 /** 스와치가 보여 줄 hex — prop-modal._swatchHex 와 같은 규칙(변수·rgba 를 hex 로 풀어 보여 준다). */
@@ -177,10 +179,12 @@ export function showCouponProperties(block, slotKey) {
         <br>⛔「스텁/머리 글자」가 <b>들어갈 자리가 없습니다</b> — 분할이나 절취선을 켜십시오.`}</div>
 ${_slotListHTML(block, openKey)}
 ${openKey ? _slotPanelHTML(block, openKey) : ''}`),
-      sec('size', `
-${_pairRow('cpn-width', '폭', width, L.width.min, L.width.max)}
-      <div class="prop-row" title="비율 16:9 를 블럭이 스스로 지킵니다 (비율 고르기는 2단계)"><span class="prop-label">높이</span><span class="prop-value-text">${boxH}px · 16:9</span></div>`),
-      sec('appearance', appearanceSectionHTML({ prefix: 'cpn', radius: { numberId: 'cpn-radius-number', value: radius, min: L.radius.min, max: L.radius.max } }), { headTools: appearanceHeadToolsHTML({ prefix: 'cpn' }) }),   // ★표준 Appearance A2 — 옛 _pairRow 슬라이더 걷음 · 숫자 칸 id·dataset.radius·L.radius 무변
+      /* ★표준 Layout(C2 · 꼴 ⓒ) — 옛 _pairRow 슬라이더 cpn-width-slider 걷음 · 숫자 칸 id·dataset.width·L.width 무변 · 높이 = 블럭이 16:9 로 정함(자동 칸 막힘) */
+      sec('size', `${layoutSizeRowHTML({ prefix: 'cpn',
+        w: { id: 'cpn-width-number', min: L.width.min, max: L.width.max, value: width },
+        h: { id: 'cpn-height-auto', max: 0, value: 0, auto: true } })}
+      <div class="prop-row" title="비율 16:9 를 블럭이 스스로 지킵니다 (비율 고르기는 2단계)"><span class="prop-label">비율</span><span class="prop-value-text">16:9 · 높이 ${boxH}px</span></div>`),   // 옛 «높이» 값 줄 꼴 그대로(⛔prop-hint 로 두면 칸 열림 때 패널 안내가 3개 → 게이트 «prop-hint > 2»)
+      sec('appearance', appearanceSectionHTML({ prefix: 'cpn', op: { value: window.readBlockOpacity?.(block) ?? 100 }, radius: { numberId: 'cpn-radius-number', value: radius, min: L.radius.min, max: L.radius.max } }), { headTools: appearanceHeadToolsHTML({ prefix: 'cpn' }) }),   // ★표준 Appearance A2 — 옛 _pairRow 슬라이더 걷음 · 숫자 칸 id·dataset.radius·L.radius 무변
       sec('fill', `
       <div class="prop-row">
         <span class="prop-label">본체색</span>
@@ -218,9 +222,10 @@ ${_pairRow('cpn-width', '폭', width, L.width.min, L.width.max)}
   };
   /* ★폭이 바뀌면 ★높이 안내와 ★「지금 화면 크기」가 같이 바뀐다 ⇒ 패널을 다시 그린다.
      ⛔슬라이더 input 마다 다시 그리면 손잡이가 손에서 떨어진다 ⇒ change(손을 뗄 때)에만. */
-  wireNum('cpn-width', 'width', L.width.min, L.width.max);
-  document.getElementById('cpn-width-slider')?.addEventListener('change', reopen);
-  wireAppearanceSection({ radius: { numberId: 'cpn-radius-number', min: L.radius.min, max: L.radius.max, apply: (v) => { block.dataset.radius = String(v); rerender(); }, commit } });   // 표준 Appearance A2 — 옛 wireNum('cpn-radius') 자리
+  /* ★표준 Layout(C2) — 폭 칸은 부품(input = 범위 안이면 바로 · change = 잘라 + commit 한 번 · 빈 칸 = 옛 값) · change 뒤 패널을 다시 그려 높이 안내를 맞춘다(옛 슬라이더 change → reopen 과 같은 몫) */
+  wireLayoutSection({ commit: () => { commit(); reopen(); },
+    w: { numberId: 'cpn-width-number', min: L.width.min, max: L.width.max, apply: (v) => { block.dataset.width = String(v); rerender(); } } });
+  wireAppearanceSection({ op: { numberId: 'cpn-opacity', apply: (v) => window.setBlockOpacity?.(block, v), commit }, radius: { numberId: 'cpn-radius-number', min: L.radius.min, max: L.radius.max, apply: (v) => { block.dataset.radius = String(v); rerender(); }, commit } });   // 표준 Appearance A2 — 옛 wireNum('cpn-radius') 자리
 
   // ── 색 (raw input[type=color] 금지 — 공용 컴포넌트) ──
   const wireColor = (prefix, key) => {
