@@ -287,3 +287,22 @@ test('G2 non-scaling-stroke 고리 → 속성 빼고 굵기 viewBox 단위(60px 
   const plain = render([stk({ width: 60, height: 60, svg: BURST })]).cmds.find((c) => c.cmd === 'create_node_from_svg').params.svg;
   assert.equal(plain.replace(/^<svg[^>]*>/, ''), BURST.replace(/^<svg[^>]*>/, ''), '[지킴] vector-effect 없는 svg 몸이 바뀌었다');
 });
+
+/* ── 81행 ②(지디 261125 «고친다») — 캔버스 레이어 모드 배경(card-grid layersBg) → 겉 프레임 칠 · 숨김 = 그 칠만 눈 끔 · [지킴] layersBg 없으면 옛 투명
+ * 양성대조: _patches/l81-CTL-renderer.patch(옛 렌더러) → L1 빨강 */
+const CG = { type: 'card-grid', id: 'cv', cards: [], gridCols: 1, cardGap: 10, canvasW: 360, canvasH: 300, radius: 16, imgRatio: 75, cardMode: 'simple', textBg: '#cccccc', labelPos: 'below', height: 300 };
+test('L1 레이어 모드 배경 → card-grid 겉 프레임 칠 · 둥글기 · 숨김 = 그 칠만', () => {
+  const on = render([{ ...CG, layersBg: '#12ab34', layersRadius: 12 }]).cmds;
+  const wr = on.find((c) => c.cmd === 'create_frame' && c.params.name === 'card-grid_cv');
+  assert.ok(on.some((c) => c.cmd === 'set_fill_color' && c.params.nodeId === wr.id && isG(c.params.color)), '겉 프레임에 배경 칠이 없다');
+  assert.ok(on.some((c) => c.cmd === 'set_corner_radius' && c.params.nodeId === wr.id && c.params.radius === 12), '둥글기 없음');
+  const hid = render([{ ...CG, layersBg: '#12ab34', layersBgHidden: true }]).cmds;
+  const wr2 = hid.find((c) => c.cmd === 'create_frame' && c.params.name === 'card-grid_cv');
+  assert.deepEqual(hid.filter((c) => c.cmd === 'set_node_properties' && c.params.fillsVisible === false).map((c) => c.params.nodeId), [wr2.id], '숨김이 겉 프레임 칠 하나가 아니다');
+});
+test('L2 [지킴] layersBg 없으면 겉 프레임 옛 투명 · 둥글기·숨김 명령 0', () => {
+  const { cmds } = render([CG]);
+  const wr = cmds.find((c) => c.cmd === 'create_frame' && c.params.name === 'card-grid_cv');
+  assert.deepEqual(cmds.filter((c) => c.cmd === 'set_fill_color' && c.params.nodeId === wr.id).map((c) => c.params.color), [{ r: 1, g: 1, b: 1, a: 0 }]);
+  assert.equal(cmds.filter((c) => (c.cmd === 'set_corner_radius' || c.cmd === 'set_node_properties') && c.params.nodeId === wr.id).length, 0);
+});

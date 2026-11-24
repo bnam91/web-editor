@@ -849,6 +849,12 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         textAlign: el.dataset.textAlign || 'center',
         padX:      ps?.padX || 0,
         height:    Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 400),
+        /* 81행 ②(지디 261125) — 레이어 모드(cardMode 없음)의 캔버스 배경(dataset.bg) = 예전 Figma 로 0 · 심플 모드 키와 안 섞이게 따로 이름(layersBg*) · transparent·없음 = 키 0(옛 바이트)
+           ⚠레이어 «내용»(dataset.layers 글·도형·그림)은 여전히 안 실린다 — 따로 보고(범위 큼) */
+        ...(() => { if ((el.dataset.cardMode || '') === 'simple') return {}; const b = el.dataset.bg; if (!b || b === 'transparent') return {};
+          const o = { layersBg: b, layersRadius: parseInt(el.dataset.radius) || 0, ...(el.dataset.fillHidden === '1' ? { layersBgHidden: true } : {}) };   // 둥글기 = 레이어 렌더와 같은 셈(없으면 0 · 위 radius 의 기본 16 은 카드 몫)
+          if (/gradient\s*\(/i.test(b)) { const g = parseGradient(b); if (g && Array.isArray(g.stops) && g.stops.length >= 2) o.layersBgGradient = { type: g.type, angle: g.angle, stops: g.stops }; }
+          return o; })(),
       };
     }
     if (el.classList.contains('chat-block')) {

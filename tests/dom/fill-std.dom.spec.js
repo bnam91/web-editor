@@ -907,3 +907,30 @@ test('D36 쿠폰·스티커 글 꼴 — Figma JSON 크기·색·굵기·자리 =
   expect(res[0].texts[0].align, '★스티커 글 가운데').toBe('CENTER');
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* 81행 ②(지디 261125 «고친다») — D37 캔버스 레이어 모드 배경 → Figma JSON(card-grid 항목에 layersBg · 그라데이션 · 숨김 키)
+ *   예전: 레이어 모드도 card-grid(cards·textBg 만) → 배경 0 = Figma 칠 없음 · 곁 실측 로그 [D37 레이어 내용] = 레이어(글·도형)가 JSON 에 실리나
+ *   ★layersBg = bg · 숨기면 layersBgHidden · 색 그대로 · [지킴] 심플 카드 모드 = layersBg 키 0(옛 바이트)
+ * 양성대조: 고치기 전 판 0ccaa12a0 에서 D37 빨강 */
+test('D37 캔버스 레이어 모드 배경 — Figma JSON layersBg · 숨김 키 · [지킴] 심플 카드 키 0', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const ids = await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    const sec = await window.addSection(); const out = [];
+    for (const opts of [{ bg: '#12ab34', canvasW: 360, canvasH: 300, layers: [{ type: 'shape', x: 20, y: 20, w: 120, h: 80, color: '#ff0000', radius: 8 }, { type: 'text', x: 30, y: 150, w: 260, h: 40, content: '레이어 글', fontSize: 28, color: '#000000' }] }, {}]) {
+      window.deselectAll(); window.selectSection(sec); const before = new Set(sec.querySelectorAll('.canvas-block')); window.addCanvasBlock(opts);
+      out.push([...sec.querySelectorAll('.canvas-block')].find((x) => !before.has(x)).id); }
+    return out; });
+  const entry = (id) => page.evaluate((id) => { const j = window.buildFigmaExportJSON(null); let hit = null;
+    (function walk(o) { if (!o || typeof o !== 'object' || hit) return; if (o.id === id && o.type) { hit = o; return; } Object.values(o).forEach(walk); })(j); return hit ? JSON.parse(JSON.stringify(hit)) : null; }, id);
+  const L = await entry(ids[0]), S = await entry(ids[1]);
+  console.log('[D37 레이어 내용]', JSON.stringify({ type: L?.type, cardMode: L?.cardMode, cards: (L?.cards || []).length, hasLayers: 'layers' in (L || {}), keys: Object.keys(L || {}).filter((k) => /layer|svg|text/i.test(k)) }));
+  expect([L?.type, await page.evaluate((id) => document.getElementById(id).dataset.cardMode || '', ids[0])], '[전제] 레이어 모드(cardMode 없음) → card-grid').toEqual(['card-grid', '']);
+  expect(String(L.layersBg || '').toLowerCase(), '★레이어 모드 배경이 Figma JSON 으로').toBe('#12ab34');
+  expect('layersBgHidden' in L, '안 숨기면 키 0').toBe(false);
+  expect(['layersBg' in S, 'layersBgHidden' in S], '[지킴] 심플 카드 모드 = 키 0').toEqual([false, false]);
+  await page.evaluate(async (id) => { const m = await import('/js/props/_fill-section.js'); const it = m.fillKindOf(document.getElementById(id)); m.fillSetHidden(it.block, it.k, true); }, ids[0]);
+  const L1 = await entry(ids[0]);
+  expect([L1.layersBgHidden, String(L1.layersBg).toLowerCase()], '★숨기면 layersBgHidden · 색 그대로').toEqual([true, '#12ab34']);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

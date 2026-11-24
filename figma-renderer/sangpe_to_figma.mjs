@@ -903,7 +903,9 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     // 래퍼 프레임 (투명)
     const wrapper = run('create_frame', { x: x + padX, y, width: effectiveW, height: cardH, name: `card-grid_${block.id}`, parentId });
     if (!wrapper) return cardH;
-    run('set_fill_color', { nodeId: wrapper.id, color: { r: 1, g: 1, b: 1, a: 0 } });
+    run('set_fill_color', { nodeId: wrapper.id, color: (block.layersBg && !block.layersBgGradient) ? hex(block.layersBg) : { r: 1, g: 1, b: 1, a: 0 } });   // 81행 ② 레이어 모드 배경(없으면 옛 투명)
+    if (block.layersBgGradient) { const _gp = cssGradientToFigmaPaint(block.layersBgGradient, effectiveW, cardH); if (_gp) run('set_gradient', { nodeId: wrapper.id, ..._gp }); }
+    if (block.layersBg) { if (block.layersRadius) run('set_corner_radius', { nodeId: wrapper.id, radius: block.layersRadius }); if (block.layersBgHidden) _hideFills(wrapper.id); }
 
     const gridRows = Math.ceil(cards.length / gridCols);
     const rowH = Math.floor(cardH / gridRows);
