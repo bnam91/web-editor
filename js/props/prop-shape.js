@@ -1,7 +1,7 @@
 import { propPanel } from '../globals.js';
 import { checkerBgBigColors, checkerSvgFills } from '../checker-tokens.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, setFillKindName } from './_fill-section.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, setFillKindName, fillLast } from './_fill-section.js';
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_POP_WHY, STROKE_STYLES_SVG, endsSlotHTML, wireEnds } from './_stroke-section.js';
 import { readLook, writeLook, svgLook, derivedDash, hasSides, readSides, writeSides, sidesMixed } from '../stroke-look.js';
 import { svgStopRemap } from './gradient-model.js';
@@ -641,12 +641,12 @@ export function showShapeProperties(block) {
   wireFillSection({ prefix: 'shape-fill', adapter: {
     none: () => {
       if (!block.dataset.shapeStrokeColor) block.dataset.shapeStrokeColor = strokeColor;
-      _SHAPE_FILL_LAST.set(block.id, color);
+      fillLast.set(block.id, color);
       if (block.dataset.shapeFill) _clearShapeImage(block);
       if (block.dataset.shapeGradient) { _clearShapeGradient(block); window.hideGradientLine?.(block); }
       block.dataset.shapeColor = 'transparent'; if (svg) svg.style.color = 'transparent';
       window.scheduleAutoSave?.(); showShapeProperties(block); },
-    add: () => { _applyShapeSolidFill(block, _SHAPE_FILL_LAST.get(block.id) || '#d9d9d9'); showShapeProperties(block); },
+    add: () => { _applyShapeSolidFill(block, fillLast.get(block.id, '#d9d9d9')); showShapeProperties(block); },
     commit: () => window.pushHistory?.() } });
 
   /* 단계 5 — 선·화살표 끝점(키 strokeStart/strokeEnd = 그 종류 기본과 다를 때만 · 그림 = block-factory refreshShapeInnerSVG) */
@@ -1285,7 +1285,6 @@ function _gradIdFor(block) {
   return `grad-${base}`;
 }
 
-const _SHAPE_FILL_LAST = new Map();   // 블럭 id → 지운 색(⌘Z/⇧⌘Z 가 요소를 새로 만들어 요소 열쇠는 잃는다 · 실측 D3) · shortcut: 세션 안에서만(저장 키 0) — 다시 열어서도 원하면 dataset 키로 올림
 /* 도형 칠 쓰기 — 패널(applyColor·applyGradient)과 Effects «홀로그램»이 같이 쓴다(FX-GRADIENT-GAZE-01 v3 · 현빈 261121 «별도 이펙트») */
 function _applyShapeSolidFill(block, hex) {
   const svg = block?.querySelector('svg');

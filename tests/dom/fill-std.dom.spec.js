@@ -58,3 +58,55 @@ test('D4 [음성] 옛 알파 0 도형 = «켬·0%» · 내보내기 color 바이
   expect(out, '★내보내기 color = 저장값 그대로').toBe('rgba(255, 0, 0, 0)');
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* F2-1 — 단색 블럭 묶음(프레임·모달·인너카드·브릿지) · 없음 = 그 블럭 색 키 'transparent'(도형 (ㄱ)과 같은 결 · 각 블럭 색 검사가 이미 받는 값) · 옛 id 그대로
+ * D5 − = 키 transparent · 패널 «칠 없음» + 머리 ＋ · ⌘Z 한 칸 = 옛 색 · ＋ = 지난 색 · D6 새 프레임 = 칠 켬(#EFEFEF · 실측 — block-factory 의 bg transparent 는 텍스트 프레임만) · 저장 bg transparent = 칠 없음 · 알파 0 rgba 프레임 = 켬·0%
+ * 양성대조: _patches/fill-f2-1-CTL.patch(프레임 어댑터 none 이 bg 를 안 씀) ⇒ D5 frame 빨강 */
+const F2 = {
+  frame:     { make: 'window.addFrameBlock()', sel: '.frame-block:not([data-text-frame])', show: 'showFrameProperties', p: 'ss-fill', hex: 'ss-bg-hex', key: 'bg', seed: '#ff0000' },
+  modal:     { make: 'window.addModalBlock()', sel: '.modal-block', show: 'showModalProperties', p: 'mdl-fill', hex: 'mdl-bg-hex', key: 'bg', seed: '#ff0000' },
+  innercard: { make: 'window.addInnerCardBlock()', sel: '.innercard-block', show: 'showInnerCardProperties', p: 'icd-fill', hex: 'icd-bg-hex', key: 'bg', seed: '#ff0000' },
+  bridge:    { make: 'window.addBridgeBlock()', sel: '.bridge-block', show: 'showBridgeProperties', p: 'brg-fill', hex: 'brg-hex', key: 'bridgeColor', seed: '#ff0000' },
+};
+async function scene2(page, K, seed) {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const id = await page.evaluate(async ([make, sel, show, key, seed]) => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); const sec = await window.addSection(); window.deselectAll(); window.selectSection(sec); await eval(make); const b = sec.querySelector(sel); b.id = b.id || 'f2B'; if (seed) { b.dataset[key] = seed; if (key === 'bg' && b.classList.contains('frame-block')) { b.style.backgroundColor = seed; } window.renderModalBlock?.(b); window.renderInnerCardBlock?.(b); } window.selectBlock?.(b.id); window[show](b); window.clearHistory?.(); return b.id; }, [K.make, K.sel, K.show, K.key, seed]);
+  await page.waitForSelector('#panel-right .prop-section[data-sec="fill"] [data-part="fill"]', { state: 'attached' });
+  return { errs, id };
+}
+const st2 = (page, id, K) => page.evaluate(([id, key, p, hex]) => { const b = document.getElementById(id), f = document.querySelector('#panel-right .prop-section[data-sec="fill"]');
+  return { v: b.dataset[key] ?? null, layers: f ? f.querySelectorAll('.ui-fill[data-part="fill"] > .ui-fill-layer[data-fill-index="0"]').length : -1, add: !!document.getElementById(`${p}-add`), hex: document.getElementById(hex)?.value ?? null }; }, [id, K.key, K.p, K.hex]);
+for (const [kind, K] of Object.entries(F2)) {
+  test(`D5 ${kind} — − = ${K.key} transparent · ⌘Z 한 칸 · ＋ = 지난 색 · 옛 id`, async ({ page }) => {
+    const { errs, id } = await scene2(page, K, K.seed);
+    const s0 = await st2(page, id, K);
+    expect([s0.layers, s0.add, s0.hex], '[전제] 칠 있음 · 옛 색 칸 id(HEX) 그대로').toEqual([1, false, 'FF0000']);
+    await page.click(`#${K.p}-remove`); await raf(page);
+    const s1 = await st2(page, id, K);
+    expect([s1.v, s1.layers, s1.add], '★− = 키 transparent · «칠 없음» · 머리 ＋').toEqual(['transparent', 0, true]);
+    await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z'); await raf(page);
+    const v2 = await page.evaluate(([id, key]) => document.getElementById(id)?.dataset[key] ?? null, [id, K.key]);
+    expect(v2, '★⌘Z 한 칸 = 지우기 전 색').toBe('#ff0000');
+    await page.keyboard.press('Meta+Shift+z'); await raf(page);
+    await page.evaluate(([id, show]) => { const b = document.getElementById(id); window.selectBlock?.(id); window[show](b); }, [id, K.show]);
+    await page.click(`#${K.p}-add`); await raf(page);
+    const s3 = await st2(page, id, K);
+    expect([s3.v, s3.layers, s3.add], '★＋ = 지난 색 · 겹 줄 돌아옴').toEqual(['#ff0000', 1, false]);
+    expect(errs, errs.join(' | ')).toEqual([]);
+  });
+}
+test('D6 새 프레임 = 칠 켬 · 저장 bg transparent = 칠 없음 · 알파 0 rgba 프레임 = 켬·0%', async ({ page }) => {
+  const K = F2.frame;
+  const { errs, id } = await scene2(page, K, null);
+  const s0 = await st2(page, id, K);
+  expect([s0.v, s0.layers, s0.add], '[전제] 새 프레임 = 칠 켬(#EFEFEF · 머리 ＋ 없음)').toEqual(['#EFEFEF', 1, false]);
+  await page.evaluate(([id, show]) => { const b = document.getElementById(id); b.dataset.bg = 'transparent'; b.style.backgroundColor = 'transparent'; window[show](b); }, [id, K.show]);
+  const sT = await st2(page, id, K);
+  expect([sT.layers, sT.add], '★저장 bg transparent(옛 프레임 · 텍스트 프레임 기본 값) = «칠 없음» + 머리 ＋').toEqual([0, true]);
+  await page.evaluate(([id, show]) => { const b = document.getElementById(id); b.dataset.bg = 'rgba(255, 0, 0, 0)'; b.style.backgroundColor = 'rgba(255, 0, 0, 0)'; window[show](b); }, [id, K.show]);
+  const s1 = await st2(page, id, K);
+  const a1 = await page.evaluate(() => document.getElementById('ss-bg-alpha')?.value ?? null);
+  expect([s1.layers, s1.add, a1, s1.v], '★알파 0 = 켬·0% · 키 바이트 그대로').toEqual([1, false, '0', 'rgba(255, 0, 0, 0)']);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

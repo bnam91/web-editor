@@ -13,6 +13,12 @@ const MINUS = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" strok
 const PLUS = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 2v8M2 6h8"/></svg>';
 export const FILL_KIND_NAME = Object.freeze({ linear: 'Linear', radial: 'Radial', conic: 'Angular', image: 'Image' });   // conic = Figma GRADIENT_ANGULAR(옛 홀로그램 칠 · 새로 고르는 종류 아님)
 
+/** 지난 색(＋ 로 되살림) — 블럭 id 열쇠(⌘Z/⇧⌘Z 가 요소를 새로 만들어 요소 열쇠는 잃는다 · F1 D3 실측) · shortcut: 세션 안에서만(저장 키 0) — 다시 열어서도 원하면 dataset 키로 */
+const _LAST = new Map();
+export const fillLast = { set: (id, c) => { if (id && c && c !== 'transparent') _LAST.set(id, c); }, get: (id, dflt) => _LAST.get(id) || dflt };
+/** CSS 칠 문자열 → 이름칸 종류(그라데이션 아니면 'solid') */
+export const fillKindOfCss = (css) => { const m = /(linear|radial|conic)-gradient\s*\(/i.exec(css || ''); return m ? m[1].toLowerCase() : 'solid'; };
+
 /** 이름칸 즉시 맞춤(피커 탭을 바꾼 뒤 · 패널 재그리기 없이) — 단색이면 읽기 전용 풀고 HEX 는 피커가 채운다 */
 export function setFillKindName(hexEl, kind) {
   if (!hexEl) return;
