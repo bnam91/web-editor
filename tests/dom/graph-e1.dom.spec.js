@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 ①②③ · 태양 §2c check) — 바뀐 칸의 토글 스위치(label.prop-toggle · .prop-toggle-track) → check 부품(label.ui-check · input.ui-check-box) */
 /* graph-e1.dom.spec.js — 묶음 E1 그래프 둘 (태양 lane-e1-plus 2026-10-05)
  *   H1 세로·비교 막대 두께 상한 = «그 막대가 선 칸의 폭»(GRAPH_LIMITS.BAR_THICKNESS_V_MAX 'column') — 옛: 60.
  *     실측(실앱 d1f642ff, $S/e1/real/h1.json): 5항목 860 블럭 칸 127 · 두께 120→막대 120 · 200→127 · 1000→127(렌더 max-width:100%) · 넘침·겹침 0.
@@ -67,8 +68,8 @@ test('T4 지킴 — 가로 막대 두께 상한 60 그대로', async ({ page }) 
 });
 
 async function gridOn(page) {
-  const r = await waitStableRect(page, '#grb-show-grid + .prop-toggle-track');
-  await clickAt(page, r.cx, r.cy, { sel: '.prop-toggle' }, { label: '격자선 켜기' });
+  const r = await waitStableRect(page, 'label.ui-check:has(#grb-show-grid)');
+  await clickAt(page, r.cx, r.cy, { sel: '.ui-check' }, { label: '격자선 켜기' });
   await page.waitForFunction(() => document.getElementById('grb-show-grid').checked, null, { timeout: 3000 });
 }
 const gridLine = (page, id) => page.evaluate((id) => { const l = document.querySelector(`#${id} .grb-ov-grid`); return l && { stroke: l.getAttribute('stroke'), op: l.getAttribute('stroke-opacity'), key: document.getElementById(id).dataset.gridColor ?? null }; }, id);

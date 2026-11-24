@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 ①②③ · 태양 §2c check) — 바뀐 칸의 토글 스위치(label.prop-toggle · .prop-toggle-track) → check 부품(label.ui-check · input.ui-check-box) */
 /* checker-asset-tone.dom.spec.js — t4-15 «체커 어둡게»를 ★에셋블럭에도 (현빈 ④ 확정 · 2026-10-22 · 지디 발주)
  *   현빈 원문: 「배경이미지 체크패턴 어둡게 옵션이 있던데, 일반 에셋블럭도 넣어줘」
  *   ⇒ 「있던데」 = 섹션 체커(tests/dom/checker-section-tone.dom.spec.js · v0.9.7~). 요구는 «에셋블럭 쪽» 이다.
@@ -60,7 +61,7 @@ const bgOf = (page, id) => page.evaluate((i) => getComputedStyle(document.getEle
 /* 켜는 문이 없으면 30초 기다리지 않고 «없다»로 멈춘다(고치기 전 판의 빨강이 이 한 줄에서 서게) */
 const clickTone = async (page) => {
   expect(await page.locator('#asset-checker-tone-on').count(), '★전제 — 에셋 패널에 «체커 어둡게» 토글이 없다').toBe(1);
-  await page.click('label.prop-toggle:has(#asset-checker-tone-on)');   /* 1120b A5 — 라디오 → 토글(겉 label 을 누른다 · 내용 자르기와 같은 꼴) */
+  await page.click('label.ui-check:has(#asset-checker-tone-on)');   /* 1120b A5 — 라디오 → 토글(겉 label 을 누른다 · 내용 자르기와 같은 꼴) */
 };
 const openAsset = async (page, id) => {
   await page.evaluate((i) => window.showAssetProperties(document.getElementById(i)), id);
@@ -87,7 +88,7 @@ test('T1 ⑴ 양성 — 에셋 라디오 켬 → 그 에셋 배경만 #7c7c7c·#
   expect(r.a).toContain(RGB(DARK_B));
   expect(r.b, '★안 켠 에셋까지 어두워졌다').toContain(RGB(LIGHT_A));
   expect(r.rootA, '★:root 큰 쌍이 바뀌었다 — 에셋 범위가 아니라 전역이다').toBe(LIGHT_A);
-  await page.click('label.prop-toggle:has(#asset-checker-tone-on)');   // 1120b A5 — 같은 토글을 다시 눌러 끔
+  await page.click('label.ui-check:has(#asset-checker-tone-on)');   // 1120b A5 — 같은 토글을 다시 눌러 끔
   expect(await page.evaluate(() => document.getElementById('akA').dataset.checkerTone ?? null)).toBeNull();
   expect(await bgOf(page, 'akA')).toContain(RGB(LIGHT_A));
   expect(errs).toEqual([]);
@@ -130,24 +131,20 @@ test('T3 ⑶ ★덮기 음성대조 — 어둡게 켠 에셋 «안»의 빈 카�
 test('T4 ⑷ 라디오 그룹 — 섹션 토글과 에셋 토글이 한 문서에 같이 있어도 서로를 안 끈다', async ({ page }) => {
   const errs = await bootApp(page);
   await buildFixture(page);
-  /* 실제 섹션 패널이 그린 라디오 줄을 패널 «밖»으로 옮겨 둔다(같은 문서 · 같은 form 없음 = name 그룹이 문서 단위로 묶이는 판) */
+  /* ★기대 바뀜(PRS-04 · 현빈 GO 261122 · 섹션 보강 261123) — 섹션 체크 배경 = [라이트 | 다크] 세그먼트(옛 «체크 배경으로 두기» 단추 + «체커 어둡게» 켬/끔 라디오 걷음) — 섹션 쪽엔 라디오 그룹이 없다(단추) ⇒ «name 그룹 섞임»이 날 자리가 없다. 남은 단언 = 에셋 켬이 섹션 톤(dataset)을 안 바꾼다 */
   await page.evaluate(() => window.showSectionProperties(document.getElementById('akS2')));
-  await page.waitForSelector('#sec-checker-tone-on', { state: 'attached' });
-  await page.evaluate(() => {
-    const row = document.getElementById('sec-checker-tone-on').closest('.prop-row');
-    const hold = document.createElement('div'); hold.id = '__ak-hold'; hold.appendChild(row); document.body.appendChild(hold);
-    document.getElementById('sec-checker-tone-on').checked = true;
-  });
+  await page.waitForSelector('#sec-bg-chk-dark', { state: 'attached' });
+  await page.click('#sec-bg-chk-dark');
   await openAsset(page, 'akA');
   await clickTone(page);
   const r = await page.evaluate(() => {
-    const s = document.getElementById('sec-checker-tone-on'), a = document.getElementById('asset-checker-tone-on');
-    return { secName: s?.name, assetName: a?.name, secOn: s?.checked, assetOn: a?.checked,
-             both: !!document.getElementById('__ak-hold')?.contains(s) && !!a };
+    const a = document.getElementById('asset-checker-tone-on');
+    return { secRadio: document.querySelectorAll('input[name="sec-checker-tone"]').length, assetName: a?.name, assetOn: a?.checked,
+             secTone: document.getElementById('akS2').dataset.checkerTone ?? null };
   });
-  expect(r.both, '★전제 — 두 라디오가 한 문서에 같이 있다').toBe(true);
+  expect(r.secRadio, '★섹션 톤 라디오가 되살아났다').toBe(0);
   expect(r.assetOn).toBe(true);
-  expect(r.secOn, '★에셋 «켬»이 섹션 «켬»을 껐다').toBe(true);
+  expect(r.secTone, '★에셋 «켬»이 섹션 톤을 바꿨다').toBe('dark');
   expect(r.assetName, '1120b A5 — 에셋은 토글 체크박스(name 없음 · 그룹 없음)').toBeFalsy();
   expect(errs).toEqual([]);
 });
@@ -160,7 +157,7 @@ test('T5 입구 — 빈 에셋엔 조건 없는 줄 하나 · 이미지 있는 �
     n: document.querySelectorAll('#asset-checker-tone-on').length,
     nOff: document.querySelectorAll('#asset-checker-tone-off').length,   // 1120b A5 — 끔 라디오 없음(토글 하나)
     offChecked: document.getElementById('asset-checker-tone-on')?.checked === false,
-    label: document.getElementById('asset-checker-tone-on')?.closest('.prop-row')?.querySelector('.prop-label')?.textContent.trim() ?? null,
+    label: document.getElementById('asset-checker-tone-on')?.closest('.ui-check')?.querySelector('.ui-check-label')?.textContent.trim() ?? null,   // ★기대 바뀜(check 이관) — 이름 = 체크 옆 글
   }));
   expect(empty).toEqual({ n: 1, nOff: 0, offChecked: true, label: '체커 어둡게' });
   await page.evaluate(() => { const ab = document.getElementById('akB'); ab.classList.add('has-image'); window.showAssetProperties(ab); });

@@ -600,8 +600,7 @@ function enhanceLinerPropPanel(block) {
       </div>
       <div class="prop-hint" id="lnr-radius-hint"${cfg.preset === 'round' || ((cfg.preset === 'arc-up' || cfg.preset === 'arc-down') && cfg.radius > 0) ? '' : ' hidden'}><span class="lnr-hint-nums">${linerRadiusHintNums(block)}</span><span class="lnr-hint-auto"${cfg.preset === 'round' ? '' : ' hidden'}> · 반지름을 비우면 글 길이 기준으로 자동(글을 고치면 따라감)</span></div>
       <div class="prop-row" id="lnr-flip-row"${cfg.preset === 'circle' || cfg.preset === 'round' || ((cfg.preset === 'arc-up' || cfg.preset === 'arc-down') && cfg.radius > 0) ? '' : ' hidden'}>
-        <span class="prop-label">안쪽 뒤집기</span>
-        <label class="prop-toggle"><input type="checkbox" id="lnr-flip"${cfg.flip ? ' checked' : ''}><span class="prop-toggle-track"></span></label>
+        ${window.checkHTML({ id: 'lnr-flip', label: '안쪽 뒤집기', checked: !!cfg.flip })}   <!-- 현빈 261123 «온/오프 = 체크» -->
       </div>
       <div class="prop-row" data-own="special:Curve">   <!-- 절 정체 = special:<제목>(게이트 explicitOwnOf · prop-annotation 꼴) — 옛 «special» 은 없는 절이라 빨강(V6 · Electron 전수 261122) -->
         <span class="prop-label">외곽선</span>

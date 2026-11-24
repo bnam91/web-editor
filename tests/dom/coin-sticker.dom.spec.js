@@ -196,6 +196,7 @@ test('K1 메뉴 「Coin」 — 누르면 코인 스티커 1개가 생기고 골�
   expect(errs).toEqual([]);
 });
 
+/* ★기대 바뀜(현빈 261123 ①②③ · 태양 §2c) — 각도 잠금 = 토글 스위치 → check 부품(누르는 자리 = label.ui-check) */
 test('K2 패널 구성 — 행 순서 · 기본 절과 Shape 는 숨고 · 크기/회전/뿌리기 행은 없다', async ({ page }) => {
   await bootApp(page);
   await setup(page);
@@ -204,7 +205,7 @@ test('K2 패널 구성 — 행 순서 · 기본 절과 Shape 는 숨고 · 크�
   const r = await page.evaluate(() => {
     const vis = (el) => !!el && getComputedStyle(el).display !== 'none';
     const sec = document.getElementById('stk-coin-section');
-    const nameOf = (row) => row.querySelector('.prop-label')?.textContent.trim() || (row.querySelector('#stk-coin-glyphs') ? '(각인 칩)' : row.querySelector('button')?.textContent.trim());
+    const nameOf = (row) => (row.querySelector('.prop-label') || row.querySelector('.ui-check-label'))?.textContent.trim() ||   /* ★기대 바뀜(현빈 261123 ①②③ check) — «각도 잠금» 이름은 체크 옆 글(.ui-check-label) */ (row.querySelector('#stk-coin-glyphs') ? '(각인 칩)' : row.querySelector('button')?.textContent.trim());
     const rows = [...sec.querySelectorAll(':scope > .prop-row')].filter(vis).map(nameOf);
     const all = [...sec.querySelectorAll(':scope > .prop-row')].map(nameOf);
     const chips = [...sec.querySelectorAll('#stk-coin-glyphs [data-coin-glyph]')];
@@ -395,7 +396,7 @@ test('K7 각도 잠금 — 켜면 다시뽑기·무늬번호가 이 코인을 �
   const ctl = () => page.evaluate(() => ({ reroll: document.getElementById('stk-coin-reroll').disabled, seed: document.getElementById('stk-coin-seed').disabled, lock: document.getElementById('stk-coin-lock').checked }));
   expect(await ctl(), '★전제: 안 잠겼다').toEqual({ reroll: false, seed: false, lock: false });
 
-  await page.click('#stk-coin-section .prop-toggle');
+  await page.click('#stk-coin-section label.ui-check:has(#stk-coin-lock)');
   await expect.poll(async () => (await read(page, id)).d.coinLock, '토글을 켰는데 data-coin-lock 이 안 붙었다').toBe('1');
   expect(await ctl(), '잠그면 단추·칸이 둘 다 disabled').toEqual({ reroll: true, seed: true, lock: true });
   /* 꺼진 단추는 흐리게 보인다 — 값은 토큰(--ui-disabled-opacity) */
@@ -429,7 +430,7 @@ test('K7 각도 잠금 — 켜면 다시뽑기·무늬번호가 이 코인을 �
   await pick(page, id);
   expect(await ctl(), '다시 골랐을 때 잠금 표시').toEqual({ reroll: true, seed: true, lock: true });
 
-  await page.click('#stk-coin-section .prop-toggle');
+  await page.click('#stk-coin-section label.ui-check:has(#stk-coin-lock)');
   await expect.poll(async () => (await read(page, id)).d.coinLock, '끄면 속성을 지운다').toBeUndefined();
   expect(await ctl()).toEqual({ reroll: false, seed: false, lock: false });
   expect((await look()).opacity, '풀면 단추가 원래대로 보인다').toBe(1);
@@ -442,7 +443,7 @@ test('K8 ★저장 → 새 페이지에서 다시 열기 — 같은 그림 · �
   await setup(page);
   const id = await make(page, { seed: 199, coinMetal: 'custom', coinFace: '#3366ff', coinSide: '#112244', coinGlyph: '₩', coinK: 30, coinGloss: 60, rotation: 25, sizeW: 160, sizeH: 160, x: 200, y: 90 });
   await pick(page, id);
-  await page.click('#stk-coin-section .prop-toggle');
+  await page.click('#stk-coin-section label.ui-check:has(#stk-coin-lock)');
   await expect.poll(async () => (await read(page, id)).d.coinLock).toBe('1');
   const before = await read(page, id);
   expect([before.d.coinTilt, before.d.coinDir, before.ids.length], '★전제: 무늬번호 199 → 74 · 5, 그림이 있다').toEqual(['74', '5', 8]);
@@ -504,7 +505,7 @@ test('K9 ★⌘Z / ⇧⌘Z — 패널 조작 한 번 = 한 칸, 되돌리면 그
   await one('재질(커스텀)', () => page.click('#stk-coin-metal [data-coin-metal="custom"]'), (d) => d.coinMetal === 'custom');
   await one('앞면 색', () => typeInto(page, '#stk-coin-face-hex', '3366FF'), (d) => d.coinFace === '#3366ff');
   await one('옆면 색', () => typeInto(page, '#stk-coin-side-hex', '112244'), (d) => d.coinSide === '#112244');
-  await one('각도 잠금', () => page.click('#stk-coin-section .prop-toggle'), (d) => d.coinLock === '1');
+  await one('각도 잠금', () => page.click('#stk-coin-section label.ui-check:has(#stk-coin-lock)'), (d) => d.coinLock === '1');
   const end = await read(page, id);
   expect([end.d.coinMetal, end.d.coinGlyph, end.d.coinK, end.d.coinGloss, end.d.seed, end.d.coinFace, end.d.coinSide, end.d.coinLock], '열한 조작이 다 다시 실행된 채다')
     .toEqual(['custom', 'AB', '35', '60', '225', '#3366ff', '#112244', '1']);
@@ -796,7 +797,7 @@ test('K15 일반 「Sticker」 단추는 코인을 안 낳는다 · 다음 Coin 
   const first = await addByMenu(page);
   await page.click('#stk-coin-metal [data-coin-metal="silver"]');
   await page.click('#stk-coin-glyphs [data-coin-glyph=""]');
-  await page.click('#stk-coin-section .prop-toggle');
+  await page.click('#stk-coin-section label.ui-check:has(#stk-coin-lock)');
   await expect.poll(async () => (await read(page, first)).d.coinLock, '★전제: 첫 코인을 은 · 각인 없음 · 잠금으로').toBe('1');
 
   /* 펜 메뉴 「Sticker」(shape 미지정) — 마지막에 쓴 모양을 다시 만든다. 코인이면 안 된다. */

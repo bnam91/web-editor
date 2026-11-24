@@ -168,6 +168,8 @@ const RENAME = [[/placeholder="auto"( aria-label="밑줄 (?:두께|위치)")/, '
   [/^(<input type="number" class="prop-number" id="txt-width-number" min="80" max="860" value="[^"]*")>$/, '$1 aria-label="너비">'],
   /* 1120b B5 후속(지디 261121) — 스타일 번호 칸 placeholder «형광펜/점/밑줄 번호 붙여넣기» → «번호 붙여넣기»(이름은 줄 라벨로 · 잘림 없게) */
   [/ placeholder="(?:형광펜|점|밑줄) 번호 붙여넣기"/, ' placeholder="번호 붙여넣기"'],
+  /* IAL-01(0.9.13 186행 · 현빈 승인 261122) — 띄우기 단추 이름 «Ignore Auto Layout»: aria-label 더함 · 툴팁 = IAL_TITLE(아이콘 svg 는 컨트롤 태그 밖) */
+  [/^(<button type="button" class="prop-chain-btn prop-chain-btn--overlay(?: active)?" id="txt-overlay-toggle" aria-pressed="(?:true|false)")( title=")[^"]*(">)$/, '$1 aria-label="Ignore Auto Layout"$2Ignore Auto Layout — 자동배치에서 빼서 그 자리에 둔다(옛 «오버레이»). 다시 누르면 원래 자리로 돌아간다.$3'],
   /* ★1120b 기준으로 다시 세움(지디 261121 · 판정기 빨강 9줄 = 1120b 앞 커밋들의 의도된 변화 · 항목마다 한 줄) */
   [/^(<input type="checkbox" id="txt-shadow-on"(?: checked)?)>$/, '$1 aria-label="Shadow">'],   /* B3 b338d175c — Effects 머리 토글 → «＋»(이름 = aria-label) */
   [/^(<input type="number" class="prop-number" id="bubble-w-number" [^>]*")>$/, '$1 aria-label="말풍선 너비">'],   /* B4 0e362728a — Size 절 두 칸(칸 안 라벨 · 이름 aria-label) */

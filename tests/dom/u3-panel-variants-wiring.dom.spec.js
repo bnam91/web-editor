@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 «온/오프 = 고디터 커스텀 체크 하나» — 옛 켬/끔 라디오 쌍 대체) — 끄기 = 그 체크를 끈다(끔 라디오 없음) */
 /* u3-panel-variants-wiring.dom.spec.js — U3(right-panel-unify) 패널을 «기본 아닌 변형»까지 열어 배선이 끝까지 도는가.
  * ★왜(U5 평가자 교차 지적 2026-11-13): 틀로 옮기며 «그려 놓고 숨기던» 절을 «안 그리는» 절로 바꾸면, 그 안 컨트롤을 null 가드 없이
  *   집는 배선이 던져 나머지 배선이 통째로 죽는다 — 기본 패널만 여는 게이트(panel-section-gate)는 못 본다.
@@ -79,9 +80,10 @@ test('V-page — 페이지 패널 · 패딩 비주얼 끔이 쓴다', async ({ p
   const errs = await scene(page);
   const r = await run(page, () => {
     window.deselectAll?.(); window.showPageProperties();
-    document.getElementById('page-pad-hint-on').click();
+    const cb = document.getElementById('page-pad-hint-on'), set = (v) => { cb.checked = v; cb.dispatchEvent(new Event('change', { bubbles: true })); };
+    set(true);
     const on = window.readPadHintOn();
-    document.getElementById('page-pad-hint-off').click();
+    set(false);
     return { on, off: window.readPadHintOn() };
   });
   expect([r.on, r.off]).toEqual([true, false]);

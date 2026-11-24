@@ -435,7 +435,7 @@ function bindSectionDropZone(sec) {
     /* G19 — 그리드 «밑» 자리면 그 그리드의 자식으로 넣는다. 아니면 임시 띠만 걷고 종전 그대로(js/grid-children.js). */
     if (window.gridChildDrop?.(e, inner, dragState.dragSrc)) { dragState.dragSrc = null; return; }
     /* G9 — 글자 블럭을 «그리드 칸» 위에 놓았으면 칸의 한 줄로 받는다(prop-grid.js grdDropTextBlockOnCell — 거짓이면 종전 그대로). */
-    if (window.grdDropTextBlockOnCell?.(e, dragState.dragSrc)) {
+    if (window.grdDropTextBlockOnCell?.(e, dragState.dragSrc) || window.grdDropAssetOnCell?.(e, dragState.dragSrc)) {   // 203 — 에셋도 칸의 그림 줄로
       clearDropIndicators();
       dragState.dragSrc = null;
       return;

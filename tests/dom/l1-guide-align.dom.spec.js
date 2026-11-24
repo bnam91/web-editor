@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 «온/오프 = 고디터 커스텀 체크 하나» — 옛 켬/끔 라디오 쌍 대체) — 끄기 = 그 체크를 끈다(끔 라디오 없음) */
 /* l1-guide-align.dom.spec.js — L1 「그리드 가이드 켜고 섹션 조절하면 칼럼 어긋남 · 섹션별로도」 (지디 승인 안 ②)
  *
  * «맞음»: 섹션마다 가이드 칼럼 n 개가 «그 섹션 .section-inner 내용 상자»(좌우 패딩 안쪽)를 채운다 —
@@ -32,7 +33,7 @@ async function setup(page, zoom, ids = ['sA', 'sB']) {
   return errs;
 }
 const gridOn = (page, on) => page.evaluate((on) => { window.deselectAll?.(); window.showPageProperties();
-  const el = document.getElementById(on ? 'page-grid-on' : 'page-grid-off'); el.checked = true; el.dispatchEvent(new Event('change', { bubbles: true })); }, on);
+  const el = document.getElementById('page-grid-on'); el.checked = on; el.dispatchEvent(new Event('change', { bubbles: true })); }, on);
 const setPagePadX = (page, v) => page.evaluate((v) => { window.deselectAll?.(); window.showPageProperties();
   const s = document.getElementById('page-padx-slider'); s.value = v; s.dispatchEvent(new Event('input', { bubbles: true })); }, v);
 const setSecPadX = (page, id, v) => page.evaluate(async ([id, v]) => { await window.showSectionProperties(document.getElementById(id));

@@ -30,6 +30,13 @@
  *   · ★스크래치패드 안의 ⌘[] = `BRACKET-IN-SCRATCHPAD-UNMEASURED-01` (★별 표면 · 별 코드)
  *   · ★실제 ⌘ 키 조합을 ★OS 수준으로 보내는 축 — ★여기선 `keydown` 을 ★디스패치한다
  *
+ * ★★★2026-11-24 기대 바뀜 — IAL-02(0.9.13 187행 · cfc351d23 · b972bcea5): 손 열거 명부 + `if (!freeFrame) return;` 핸들러
+ *   (`(e.key === '[' || e.key === ']')`)를 ★걷었다. 실제 키(⌘[ ⌘])는 그 앞 metaKey 블록의 `e.code === 'BracketLeft/Right'` 갈래가
+ *   먼저 잡아 moveSelectedBlocks(direction, toEnd) 로 가고 ★return 했다 ⇒ 걷은 핸들러는 «code 없이 key 만 실은 합성 keydown»(이 파일 B2·B3)만 닿았다.
+ *   ⇒ B0·B1 = 그 핸들러·명부가 ★없고 무덤 주석이 있다 · B2·B3 = 실제 키처럼 code 를 실어 «산 길»이 진입(preventDefault)함을 잰다 ·
+ *     B3 끝에 «key 만 = 이제 아무도 안 받음»(옛 B3 빨강의 까닭)을 같이 박는다. 순서 결과는 grad-layer-order-t305 · bracket-reorder-units-j4468b 가 잰다.
+ *   열차 전수 빨강(train/0913-c e958f2ab8 · 지디 261124) — 표적 grep 이 «소스 읽는 spec» 을 못 잡았다(readFileSync editor.js 도 표적에 넣는다).
+ *
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js bracket-reorder-roster
  */
 const { test, expect } = require('@playwright/test');
@@ -39,35 +46,22 @@ const { bootApp, ROOT } = require('./_root-harness.js');
 
 const src = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
-test('B0 ★대상 명부를 ★정의 자리에서 센다 — ★손 열거이고 ★그 둘이 ★없다', () => {
+test('B0 ★IAL-02 뒤 — 손 열거 명부 ⌘[] 핸들러가 없다 · 무덤 주석이 남았다 · 산 길 = e.code → moveSelectedBlocks', () => {
   const code = src('js/editor.js');
-  const i = code.indexOf("(e.key === '[' || e.key === ']')");
-  expect(i, '★⌘[] 핸들러를 못 찾았다 — 조건식이 바뀌었나').toBeGreaterThan(0);
-  const seg = code.slice(i, i + 1600);
-  const sels = [...seg.matchAll(/\.([a-z0-9-]+)-block\.selected/g)].map(m => `.${m[1]}-block`);
-  const uniq = [...new Set(sels)];
-  console.log('[B0]', JSON.stringify({ n: uniq.length, hasGradient: uniq.includes('.gradient-block'), hasAnnotation: uniq.includes('.annotation-block'), sample: uniq.slice(0, 6) }));
-  /* ★★전제 — ★명부가 ★실재하고 ★여러 종을 ★손으로 적었다(⛔0 이면 파서가 헛돌았다) */
-  expect(uniq.length, '★명부에서 블럭 종류를 하나도 못 읽었다 — 파서가 헛돌았다').toBeGreaterThan(10);
-  /* ★★★수를 박는다 — ★이 둘이 ★들어오면 ★이 칸이 ★빨개진다 = ★그때 닫아라 */
-  expect(uniq.includes('.gradient-block'), '★.gradient-block 이 명부에 들어왔다 — t3-05 를 다시 재라').toBe(false);
-  expect(uniq.includes('.annotation-block'), '★.annotation-block 이 명부에 들어왔다 — 1020t2 를 다시 재라').toBe(false);
+  expect(code.indexOf("(e.key === '[' || e.key === ']')"), '★옛 key 핸들러가 되살아났다 — 명부 둘(손 열거 vs moveSelectedBlocks)이 다시 생긴다').toBe(-1);
+  expect(/⚰️옛 «Cmd\/Ctrl \+ \[ \/ \]» 핸들러/.test(code), '★무덤 주석(걷은 까닭)이 사라졌다').toBe(true);
+  expect(/if \(e\.code === 'BracketLeft'\) \{[\s\S]{0,400}moveSelectedBlocks\('up', e\.shiftKey\)/.test(code), '★산 길 ⌘[ = moveSelectedBlocks(up, ⇧)').toBe(true);
+  expect(/if \(e\.code === 'BracketRight'\) \{[\s\S]{0,400}moveSelectedBlocks\('down', e\.shiftKey\)/.test(code), '★산 길 ⌘] = moveSelectedBlocks(down, ⇧)').toBe(true);
 });
 
-test('B1 ★★둘째 까닭 — ★`freeFrame` 밖이면 ★명부에 ★있어도 ★안 돈다', () => {
+test('B1 ★둘째 까닭(freeFrame 전용 return)도 함께 없다 · 화살표키 절 «성질로 고른다» 주석은 그대로', () => {
   const code = src('js/editor.js');
-  const i = code.indexOf("(e.key === '[' || e.key === ']')");
-  const seg = code.slice(i, i + 1600);
-  expect(/const freeFrame = sel\.closest\('\.frame-block\[data-free-layout\]'\)/.test(seg),
-    '★freeFrame 를 찾는 줄이 사라졌다 — 둘째 까닭이 바뀌었다').toBe(true);
-  expect(/if \(!freeFrame\) return;/.test(seg),
-    '★freeFrame 없으면 return 하는 줄이 사라졌다 — 둘째 까닭이 바뀌었다').toBe(true);
-  /* ★★★처방이 ★같은 파일 안에 ★이미 있다 — ★화살표키 절은 ★★성질로 고른다 */
+  expect(/if \(!freeFrame\) return;/.test(code), '★freeFrame 전용 return 이 다시 생겼다 — ⌘[] 가 프레임 밖에서 또 막힌다').toBe(false);
   expect(/블럭 «종류 명부»를 새로 적지 않는다/.test(code),
     '★화살표키 절의 「성질로 고른다」 주석이 사라졌다 — 처방의 근거가 죽었다').toBe(true);
 });
 
-test('B2 ★★행위로 — ★그라데를 ★고르고 ⌘] 를 ★눌러도 ★순서가 ★안 바뀐다 (`t3-05`)', async ({ page }) => {
+test('B2 ★행위로 — 섹션 직속 그라데(freeFrame 밖)를 고르고 ⌘] ⌘[ = 산 길이 진입한다(IAL-02 기대 바뀜 · 옛 = 안 돎 t3-05)', async ({ page }) => {
   await bootApp(page);
   const r = await page.evaluate(async () => {
     const canvas = document.getElementById('canvas');
@@ -90,7 +84,7 @@ test('B2 ★★행위로 — ★그라데를 ★고르고 ⌘] 를 ★눌러도 
        ⇒ ★순서가 ★안 바뀐 까닭이 ★★「걸렸다」인지 ★「돌았는데 바뀔 게 없다」인지 ★가른다. */
     const prevented = [];
     for (const key of [']', '[']) {
-      const ev = new KeyboardEvent('keydown', { key, metaKey: true, bubbles: true, cancelable: true });
+      const ev = new KeyboardEvent('keydown', { key, code: key === ']' ? 'BracketRight' : 'BracketLeft', metaKey: true, bubbles: true, cancelable: true });   /* ★IAL-02 기대 바뀜 — 실제 키처럼 code 를 싣는다 */
       document.dispatchEvent(ev);
       prevented.push(ev.defaultPrevented);
     }
@@ -103,12 +97,9 @@ test('B2 ★★행위로 — ★그라데를 ★고르고 ⌘] 를 ★눌러도 
   expect(r.selected, '★그라데가 선택되지 않았다 — ⌘] 가 애초에 대상을 못 찾는다').toBe(true);
   /* ★★★까닭 ⒝ 도 ★행위로 — ★그라데는 ★freeFrame ★밖이다 */
   expect(r.inFreeFrame, '★그라데가 free-layout 프레임 안이다 — 둘째 까닭이 틀렸다').toBe(false);
-  /* ★★★수를 박는다 — ★안 바뀐다. ★이 칸이 ★빨개지면 = ★★고쳐진 것이다 ⇒ ★닫아라 */
-  expect(r.after, `★순서가 바뀌었다 — ★t3-05 가 ★고쳐졌다면 ★이 칸을 뒤집어라 (${r.before} → ${r.after})`)
-    .toBe(r.before);
-  /* ★★★그리고 ★★«걸렸다»를 ★직접 잰다 — ⛔「순서 불변」만으로는 ★「돌았는데 바뀔 게 없다」와 ★구분이 안 된다 */
-  expect(r.prevented, `★preventDefault 가 돌았다 — 핸들러가 ★진입했다는 뜻이다 (${JSON.stringify(r.prevented)})`)
-    .toEqual([false, false]);
+  /* ★IAL-02 기대 바뀜 — freeFrame 밖이어도 산 길(moveSelectedBlocks 흐름 갈래)이 진입한다. B 는 이미 끝이라 ⌘] = 그대로 · ⌘[ = 한 칸 뒤 ⇒ BA. */
+  expect(r.prevented, `★⌘] ⌘[ 가 산 길에 진입(preventDefault) (${JSON.stringify(r.prevented)})`).toEqual([true, true]);
+  expect(r.after, `★⌘](끝이라 그대로) 뒤 ⌘[ = 한 칸 뒤 (${r.before} → ${r.after})`).toBe('BA');
 });
 
 test('B3 ★★★양성대조 — ★명부에 ★있고 ★freeFrame ★안이면 ★★핸들러가 ★진입한다 (`preventDefault`)', async ({ page }) => {
@@ -144,11 +135,13 @@ test('B3 ★★★양성대조 — ★명부에 ★있고 ★freeFrame ★안이
       if (!b) return { fail: 'addShapeBlock 뒤에 .shape-block 이 없다' };
       const ff = b.closest('.frame-block[data-free-layout]');
       if (!b.classList.contains('selected')) window.selectShapeBlock?.(b);
-      const ev = new KeyboardEvent('keydown', { key: ']', metaKey: true, bubbles: true, cancelable: true });
+      const ev = new KeyboardEvent('keydown', { key: ']', code: 'BracketRight', metaKey: true, bubbles: true, cancelable: true });   /* ★IAL-02 기대 바뀜 — code 를 싣는다 */
       document.dispatchEvent(ev);
+      const bare = new KeyboardEvent('keydown', { key: ']', metaKey: true, bubbles: true, cancelable: true });   /* key 만(code 없음) = 걷은 옛 핸들러만 받던 꼴 */
+      document.dispatchEvent(bare);
       return {
         inFreeFrame: !!ff, selected: b.classList.contains('selected'),
-        prevented: ev.defaultPrevented,
+        prevented: ev.defaultPrevented, barePrevented: bare.defaultPrevented,
       };
     });
     tries.push(r);
@@ -166,5 +159,6 @@ test('B3 ★★★양성대조 — ★명부에 ★있고 ★freeFrame ★안이
     `★★⌘] 가 ★3 회 ★다 ★안 돈다(명부에 있는 종류·freeFrame 안인데도) — ★B2 가 뜻을 잃는다 ${JSON.stringify(tries)}`
   ).toBe(true);
   /* ★★흔들림에 ★수를 붙인다 — ★몇 번째에 섰나(1 이면 안정 · 2~3 이면 흔들렸다) */
+  expect(ok.barePrevented, '★code 없는 key 만 합성 keydown 이 아직 어딘가에 잡힌다 — 걷은 옛 핸들러가 되살아났나').toBe(false);
   console.log('[B3-attempt]', tries.findIndex(t => t.prevented) + 1, '/', tries.length);
 });

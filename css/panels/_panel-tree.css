@@ -144,8 +144,8 @@
   transition: color 0.15s;
 }
 .file-panel-section-header:hover { color: var(--ui-text-muted); }
-.tpl-browser-trigger:hover { color: var(--ui-accent) !important; background: rgba(45,111,232,0.06); }
-.tpl-browser-trigger.browser-open { color: var(--ui-accent); background: rgba(45,111,232,0.1); }
+.tpl-browser-trigger:hover { color: var(--ui-sel-neutral-on-text) !important; background: var(--ui-sel-neutral-on-bg); }
+.tpl-browser-trigger.browser-open { color: var(--ui-sel-neutral-on-text); background: var(--ui-sel-neutral-on-bg); }
 .file-section-chevron {
   /* SVG 속성(width=10)에 기대지 않고 토큰으로 못 박는다 — 마크업이 바뀌어도 안 흔들리게 */
   width: var(--ui-chevron); height: var(--ui-chevron);
@@ -230,7 +230,7 @@
 }
 .tpl-card:hover .tpl-card-actions { opacity: 1; }
 .tpl-delete-btn:hover { background: var(--ui-danger-bg); color: var(--ui-danger); }
-.tpl-edit-btn:hover { background: #1a2a40; color: var(--ui-accent); }
+.tpl-edit-btn:hover { background: var(--ui-sel-neutral-on-bg); color: var(--ui-sel-neutral-on-text); }
 
 /* ── Template Folder (P2) ── */
 .tpl-folder { margin-bottom: 2px; }
@@ -690,7 +690,7 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
 }
 #branch-indicator:hover { background: var(--ui-border); color: #fff; border-color: var(--ui-divider); }
 #branch-indicator svg { opacity: 0.7; flex-shrink: 0; }
-#branch-name { font-weight: var(--ui-fw-semibold); color: var(--ui-accent); }
+#branch-name { font-weight: var(--ui-fw-semibold); color: var(--ui-text); }
 .branch-dd-chevron { transition: transform 0.15s; }
 #branch-dropdown-wrap.open .branch-dd-chevron { transform: rotate(180deg); }
 
@@ -711,12 +711,12 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
   transition: background 0.1s;
 }
 .branch-dd-item:hover { background: var(--ui-border); color: #fff; }
-.branch-dd-item.current { color: var(--ui-accent); }
+.branch-dd-item.current { color: var(--ui-sel-neutral-on-text); }
 .branch-dd-item-dot {
   width: 6px; height: 6px; border-radius: 50%;
   background: var(--ui-border-strong); flex-shrink: 0;
 }
-.branch-dd-item.current .branch-dd-item-dot { background: var(--ui-accent-primary); }
+.branch-dd-item.current .branch-dd-item-dot { background: var(--ui-sel-neutral-on-text); }
 .branch-dd-divider { height: 1px; background: var(--ui-border); margin: 4px 0; }
 .branch-dd-manage {
   display: flex; align-items: center; gap: 7px;
@@ -789,11 +789,11 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
   border: 1px solid transparent;
 }
 .branch-item:hover { background: var(--ui-bg-card); }
-.branch-item.current { background: #1a2a3a; border-color: var(--ui-accent-primary); }
+.branch-item.current { background: var(--ui-sel-neutral-on-bg); border-color: var(--ui-sel-neutral-on-border); }
 .branch-item-icon { opacity: 0.5; flex-shrink: 0; }
-.branch-item.current .branch-item-icon { opacity: 1; color: var(--ui-accent); }
+.branch-item.current .branch-item-icon { opacity: 1; color: var(--ui-sel-neutral-on-text); }
 .branch-item-name { flex: 1; font-size: var(--ui-fs-base); font-weight: var(--ui-fw-semibold); color: #ccc; }
-.branch-item.current .branch-item-name { color: var(--ui-accent); }
+.branch-item.current .branch-item-name { color: var(--ui-sel-neutral-on-text); }
 .branch-item-badge {
   font-size: var(--ui-fs-9); font-weight: var(--ui-fw-bold); letter-spacing: 0.06em; text-transform: uppercase;
   padding: 2px 5px; border-radius: 3px;
@@ -846,7 +846,7 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
   display: inline-flex; align-items: center; gap: 3px;
   padding: 2px 6px; border-radius: 3px;
   background: #1a2840; border: 1px solid #2d4a70;
-  color: var(--ui-accent); font-size: var(--ui-fs-10); font-weight: var(--ui-fw-semibold);
+  color: var(--ui-text-sub); font-size: var(--ui-fs-10); font-weight: var(--ui-fw-semibold);
 }
 .branch-scope-remove {
   background: none; border: none; color: var(--ui-accent);
@@ -859,7 +859,7 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
   background: transparent; border: 1px dashed #2d4a70;
   color: #4a7ab8; font-size: var(--ui-fs-10); cursor: pointer;
 }
-.branch-scope-add:hover { border-color: var(--ui-accent); color: var(--ui-accent); }
+.branch-scope-add:hover { border-color: var(--ui-sel-neutral-on-border); color: var(--ui-sel-neutral-on-text); }
 
 /* ── Focus Mode Bar ── */
 #focus-mode-bar {

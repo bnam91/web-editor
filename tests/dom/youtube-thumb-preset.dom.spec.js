@@ -1,13 +1,14 @@
-/* youtube-thumb-preset.dom.spec.js — t13C-03 ② 유튜브 썸네일 프리셋 입구(관리자만) (261119 · 태양)
- *   꼴(현빈 Q1·Q2·Q3·Q8 권장안): 컴포넌트 메뉴 «YouTube 썸네일» 한 줄 → 새 섹션 + 높이 484 핀 + data-thumb="youtube".
- *   노출 = feature-flags.js animGifVisible(true, __admin.state()) — Slides 와 같은 판정(모르면 «아님»).
+/* youtube-thumb-preset.dom.spec.js — t13C-03 ② 유튜브 썸네일 프리셋 입구 — ★261123 입구 = 섹션 이름 «ytb_» 이스터에그(아래 ★기대 바뀜) (261119 · 태양)
+ *   꼴(현빈 Q1·Q2·Q3·Q8 권장안 · 261123 입구 바뀜): 섹션 이름을 «ytb_» 로 시작하게 → 핀 484 + data-thumb="youtube"(addYoutubeThumbSection 과 같은 표시).
+ *   게이트 = 다른 이스터에그와 같은 isEasterEggEnabled('youtubeThumb')(기본 켬) · 옛 메뉴 입구 #fp-add-yt-thumb 은 걷었다.
  *
- *   T1 ★관리자 아님 = 입구 숨김 · 관리자 = 보임 → 한 번 → 섹션 +1 · 핀 484 · 표시 · 패널 기본 1280 / JPG
- *   T2 ★⌘Z 한 번에 썸네일 섹션째 사라진다
+ *   T1 ★메뉴 입구 없음(관리자여도) · 이름 ytb_ → 핀 484 · 표시 · 패널 기본 1280 / JPG
+ *   T2 ★⌘Z 한 번에 «이름 + 썸네일»이 같이 되돌아간다
  *   T3 ★저장→새 앱에 싣기 — 핀 484·표시 그대로
  *   T4 «지키는» 칸 — 보통 섹션 추가(+)는 표시·핀 없음 · 패널 기본 860 / PNG
+ *   끄기(접두어 떼기 = 켜기 전 높이로) · 옛 메뉴 썸네일 지킴 · 설정에서 끄면 무동작 = tests/dom/youtube-thumb-name.dom.spec.js
  *
- * ★양성대조: _patches/yt-thumb-2-gate.patch (js/block-factory.js syncYoutubeThumbMenu 가 늘 보이게) ⇒ T1 «관리자 아닌데 보인다» 빨강.
+ * ★양성대조: _patches/ytb-CTL.patch (layer-panel.js 의 applyYoutubeThumbName 부름 걷음) ⇒ T1·T2·T3 빨강.
  * 실행: NODE_PRESERVE_SYMLINKS=1 node --preserve-symlinks-main node_modules/@playwright/test/cli.js test \
  *        --config=tests/dom/playwright.dom.config.js --retries=0 --workers=1 tests/dom/youtube-thumb-preset.dom.spec.js
  */
@@ -24,46 +25,54 @@ async function scene(page) {
   await page.setViewportSize({ width: 1500, height: 1100 });
   return bootApp(page);
 }
-async function addThumbAsAdmin(page) {
-  await page.evaluate(() => { window.__admin = { state: () => ({ isAdmin: true }) }; });
-  await menu(page);
-  await expect(page.locator('#fp-add-yt-thumb'), '[전제] 관리자 = 입구 보임').toBeVisible();
-  await page.click('#fp-add-yt-thumb');
-  await expect.poll(() => thumbInfo(page), { message: '썸네일 섹션이 안 생겼다' }).not.toBeNull();
+/* ★기대 바뀜(현빈 261123 «ytb_» 이스터에그 · 0.9.14 탭 47행 ytb_t1-01 → 0.9.13): 입구 = 컴포넌트 메뉴 «YouTube 썸네일» → 섹션(레이어) 이름 «ytb_» 접두어.
+ *   메뉴 항목 #fp-add-yt-thumb 은 걷었다(관리자여도 없음). 사람 길 = 레이어 패널 섹션 이름 두 번 눌러 고쳐 Enter.
+ * ★양성대조: _patches/ytb-CTL.patch(layer-panel.js 의 applyYoutubeThumbName 부름 걷음) ⇒ T1·T2·T3 빨강. */
+async function renameSection(page, secId, name) {
+  await page.evaluate(() => window.buildLayerPanel?.());
+  const nm = page.locator(`.layer-section[data-sec-id="${secId}"] .layer-section-name`).first();
+  await nm.scrollIntoViewIfNeeded(); await nm.dblclick();
+  await page.keyboard.press('Meta+a'); await page.keyboard.type(name); await page.keyboard.press('Enter');
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+}
+async function addThumbByName(page) {
+  const id = await page.evaluate(() => { window.__admin = { state: () => ({ isAdmin: true }) }; window.deselectAll?.(); const s = window.addSection(); s.id = s.id || 'secYt'; return s.id; });   // 관리자만(지디 261123)
+  await renameSection(page, id, 'ytb_썸네일');
+  await expect.poll(() => thumbInfo(page), { message: '이름 ytb_ 로 바꿨는데 썸네일 섹션이 안 됐다' }).not.toBeNull();
+  return id;
 }
 
-test('T1 ★관리자만 보임 · 한 번 → 섹션 +1 · 핀 484 · 표시 · 패널 기본 1280/JPG', async ({ page }) => {
+test('T1 ★메뉴 입구 없음(관리자여도) · 섹션 이름 ytb_ → 핀 484 · 표시 · 패널 기본 1280/JPG', async ({ page }) => {
   const errs = await scene(page);
+  await page.evaluate(() => { window.__admin = { state: () => ({ isAdmin: true }) }; });
   await menu(page);
-  await expect(page.locator('#fp-add-yt-thumb'), '★관리자 아닌데 YouTube 썸네일 입구가 보인다').toBeHidden();
+  expect(await page.locator('#fp-add-yt-thumb').count(), '★컴포넌트 메뉴에 YouTube 썸네일 입구가 남아 있다(이스터에그로만)').toBe(0);
   await menu(page);   // 닫기
   const n0 = await page.locator(SECS).count();
-  await addThumbAsAdmin(page);
-  await expect(page.locator(SECS), '섹션 +1').toHaveCount(n0 + 1);
+  const id = await addThumbByName(page);
+  await expect(page.locator(SECS), '섹션 +1(addSection 한 번 · 이름 바꾸기는 섹션을 안 늘림)').toHaveCount(n0 + 1);
   await expect(page.locator('#canvas .section-block[data-thumb]'), '썸네일 섹션은 한 장').toHaveCount(1);
   expect(await thumbInfo(page)).toEqual({ thumb: 'youtube', pin: 'true', h: 484, styleH: '484px' });
+  await page.evaluate((id) => window.selectSection?.(document.getElementById(id)), id);
   await expect.poll(() => page.evaluate(() => ({
     w: document.getElementById('sec-export-width')?.value ?? null, f: document.getElementById('sec-export-format')?.value ?? null,
-    sel: document.querySelector('#canvas .section-block.selected')?.dataset.thumb ?? null,
-  })), { message: '새 썸네일 섹션이 골라지고 패널 기본이 1280 / JPG' }).toEqual({ w: '1280', f: 'jpg', sel: 'youtube' });
+  })), { message: '썸네일 섹션 패널 기본이 1280 / JPG' }).toEqual({ w: '1280', f: 'jpg' });
   expect(errs, errs.join('\n')).toEqual([]);
 });
 
-test('T2 ★⌘Z 한 번에 썸네일 섹션째 사라진다', async ({ page }) => {
+test('T2 ★⌘Z 한 번에 «이름 + 썸네일»이 같이 되돌아간다', async ({ page }) => {
   const errs = await scene(page);
-  const n0 = await page.locator(SECS).count();
-  await addThumbAsAdmin(page);
-  await expect(page.locator(SECS)).toHaveCount(n0 + 1);
-  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));   // 규약 ⑤ 끝 표본 갱신(한 프레임 뒤) 지나서
+  const id = await addThumbByName(page);
   await page.evaluate(() => window.undo());
-  await expect(page.locator(SECS), '⌘Z 한 번 뒤 섹션 수').toHaveCount(n0);
-  await expect(page.locator('#canvas .section-block[data-thumb]'), '⌘Z 한 번 뒤 썸네일이 남았다').toHaveCount(0);
+  const u = await page.evaluate((id) => { const s = document.getElementById(id); return { thumb: s?.dataset.thumb ?? null, name: s?.dataset.name ?? null, pin: s?.dataset.heightPin ?? null }; }, id);
+  expect(u.thumb, '⌘Z 한 번 뒤 썸네일 표시가 남았다').toBe(null);
+  expect(/^ytb_/i.test(u.name || ''), '⌘Z 한 번 뒤 이름도 옛것').toBe(false);
   expect(errs, errs.join('\n')).toEqual([]);
 });
 
 test('T3 ★저장→새 앱에 싣기 — 핀 484·표시 그대로', async ({ page, browser }) => {
   const errs = await scene(page);
-  await addThumbAsAdmin(page);
+  await addThumbByName(page);
   const saved = await page.evaluate(() => window.getSerializedCanvas());
   expect(saved, '저장본에 표시').toContain('data-thumb="youtube"');
   await page.close();

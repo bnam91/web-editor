@@ -343,6 +343,24 @@ function _unfreezeWidth(posEl) {
    posEl 바깥 첫 일반 프레임(글 프레임·도형 래퍼 아님)이 같은 섹션 안에 있으면 그 프레임, 없으면 섹션.
    프레임 주인이면 좌표(dataset.offsetX/Y · left/top)는 그 프레임 기준이고 DOM 도 그 프레임 자식이다 ⇒ 프레임을 끌거나 순서를 바꾸면 같이 간다.
    ⛔섹션 오버레이는 무변(주인 = 섹션 · 섹션 넘나들기 그대로). */
+/* ★IAL-03 ①(0.9.13 188행 · 지디 실키 재현 gepsa) — 떠 있는 상자가 섹션 직속이 아니라 .section-inner(또는 합친 몸) «흐름 줄 사이»에 끼어 있으면
+   ⌘[ / ⌘] 겹침 순서(moveSelectedBlocks ㈎ = 섹션 직속만)가 그 상자를 지나쳤다. srv 재현(⌘D · ⌘C⌘V · ⌘↑↓ · 끌기 · ⌘Z/⇧⌘Z)으론 새는 길 0 —
+   옛 판에서 생긴 데이터로 보고 «쓰기 전에 바로잡는» 방어를 둔다: 화면 자리 그대로 섹션 직속으로 옮긴다(프레임 안 떠 있음 t13D-06 은 정당 — 손 안 댐).
+   돌려주는 값 = 옮겼으면 true. */
+export function rehomeStrayFloat(posEl) {
+  if (!isFloat(posEl)) return false;
+  const p = posEl.parentElement;
+  if (!p || !(p.classList.contains('section-inner') || p.classList.contains('section-merged-part'))) return false;
+  const sec = posEl.closest('.section-block');
+  if (!sec) return false;
+  const zoom = (window.currentZoom || 100) / 100;
+  const sr = sec.getBoundingClientRect(), er = posEl.getBoundingClientRect();
+  const x = Math.round((er.left - sr.left) / zoom), y = Math.round((er.top - sr.top) / zoom);
+  sec.appendChild(posEl);
+  _applyOverlayPos(posEl, x, y);
+  return true;
+}
+
 export function floatHostOf(posEl) {
   const sec = posEl?.closest?.('.section-block');
   if (!sec) return null;
@@ -652,7 +670,7 @@ export function bindFloatMoveDrag(posEl) {
     /* ★히스토리는 «양쪽 끝»을 찍는다(js/drag-history.js). 옛 판은 시작만 찍어서
        ⑴뒤에 우측패널(push-after)이 오면 ⌘Z 한 번이 둘을 같이 먹고 ⑵undo→redo 로
        이동이 영영 사라졌다. 형제 제스처(T-068 리사이즈)는 이미 이 규약이다. */
-    const _hist = window.beginDragHistory?.('오버레이 이동');
+    const _hist = window.beginDragHistory?.('Ignore Auto Layout 이동');
 
     /* ★2026-09-16i P0(현빈 실측 — "움직임 범위에도 한정되어 있다") — _clampToSection에
        posEl.offsetWidth/offsetHeight(회전 «전» 크기)를 그대로 넘겨서, 예를 들어 가로로
@@ -812,7 +830,7 @@ export function bindFloatMoveDrag(posEl) {
         if ((floatHostOf(posEl) || sec) !== host0) window.buildLayerPanel?.();   // S5-2 «레이어 패널 갱신 안 됨»
         /* ★«끝 표본» — 시작 표본(_hist.arm)과 짝이다. 둘 다 있어야 앞뒤 어느 이웃
            (push-before 삽입 · push-after 패널)을 만나도 표본이 빈 칸 없이 이어진다. */
-        window.pushHistory?.('오버레이 이동');
+        window.pushHistory?.('Ignore Auto Layout 이동');
         window.triggerAutoSave?.();
         /* ★끌고 난 «뒤»의 합성 click 을 삼킨다 (2026-09-21 수리공 유닛 ②)
            브라우저는 누름·놓음의 «공통 조상»에서 click 을 새로 만든다. 오버레이는
@@ -853,7 +871,7 @@ export function wireFloatToggle({ block, buttonId, rerender }) {
     const posEl = posElOf(block);
     if (!posEl) return;
     const wasOverlay = isFloat(posEl);
-    const label = wasOverlay ? '오버레이 해제' : '오버레이로 전환';
+    const label = wasOverlay ? 'Ignore Auto Layout 끔' : 'Ignore Auto Layout 켬';   // IAL-01 이름
     /* ★토글도 «양쪽 끝»을 찍는다(드래그와 같은 규약 — js/drag-history.js 머리말).
        옛 판은 «전»만 찍어서, 토글 뒤에 우측패널(push-after) 동작이 오면 그 사이에 표본이
        없어 ⌘Z 한 번이 둘을 같이 먹었다(실측: 에셋 오버레이 ON → radius 0→24 → ⌘Z =
@@ -957,7 +975,7 @@ export function floatPositionRowHTML({ prefix, posEl }) {
 /* classic script / 타 모듈용 전역 — 이름은 «옛 이름 그대로» 유지한다(block-drag.js 가 부른다). */
 if (typeof window !== 'undefined') {
   window._bindOverlayMoveDrag = bindFloatMoveDrag;
-  window.OverlayFloat = { posElOf, isFloat, floatHostOf, enterFloat, exitFloat, bindFloatMoveDrag, wireFloatToggle, wireFloatPosition, wireFloatAlign, floatPositionRowHTML };
+  window.OverlayFloat = { posElOf, isFloat, floatHostOf, rehomeStrayFloat, enterFloat, exitFloat, bindFloatMoveDrag, wireFloatToggle, wireFloatPosition, wireFloatAlign, floatPositionRowHTML };
   /* ★1020t2f3 — 스티커 끌기(classic script js/sticker-select.js)가 오버레이와 «같은 탄성 곡선»을 쓰게 낸다.
      ⛔사본을 만들지 않는다 — 곡선이 둘이면 손맛이 조용히 갈라진다(T-068 이 이동·크기조절을 한 벌로 묶은 까닭과 같다). */
   window.OverlayFloat.elastic = { clamp: _elasticClampToSection, axisInverse: _elasticAxisInverse, zoneScreenPx: OVERLAY_RESIST_ZONE_SCREEN_PX };

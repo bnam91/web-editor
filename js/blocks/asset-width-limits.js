@@ -28,4 +28,14 @@
  */
 export const ASSET_W_MIN = 60;
 
-if (typeof window !== 'undefined') { window.ASSET_W_MIN = ASSET_W_MIN; }
+/* ★t13F-03(현빈 261122 · 0.9.13 179행) — 에셋 모서리 radius 상한 = «블럭 짧은 변의 절반».
+ *   그보다 큰 border-radius 는 CSS 가 짧은 변 절반으로 깎아 그린다(더 둥글어지지 않는다) ⇒ 그게 자연 상한.
+ *   단 옛 상한 120 밑으로는 안 내린다(작은 블럭에서 옛 저장값 100~120 이 칸 밖으로 밀려나지 않게).
+ *   쓰는 자리 셋 = 패널 슬라이더 max · 숫자칸 max/clamp(props/prop-asset.js) · 캔버스 모서리 손잡이 clamp(overlay-handles.js). */
+export const ASSET_RADIUS_FLOOR = 120;
+export function assetRadiusMax(w, h) {
+  const half = Math.floor(Math.min(Number(w) || 0, Number(h) || 0) / 2);
+  return Math.max(ASSET_RADIUS_FLOOR, half);
+}
+
+if (typeof window !== 'undefined') { window.ASSET_W_MIN = ASSET_W_MIN; window.assetRadiusMax = assetRadiusMax; }

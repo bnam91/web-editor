@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 «온/오프 = 고디터 커스텀 체크 하나» — 옛 켬/끔 라디오 쌍 대체) — 끄기 = 그 체크를 끈다(끔 라디오 없음) */
 /* pad-hint-bottom.dom.spec.js — ★아래 패딩 띠 ＋ 띠·그리드 «색 피커» (2026-10-07 현빈 ①②)
  *
  * ★왜 필요한가
@@ -159,8 +160,8 @@ test('B2 ★「패딩 비주얼 끔」이면 아래 띠도 안 뜬다 (게이트
   /* 끈다 */
   await openPage(page);
   await page.evaluate(() => {
-    const off = document.getElementById('page-pad-hint-off');
-    off.checked = true;
+    const off = document.getElementById('page-pad-hint-on');
+    off.checked = false;
     off.dispatchEvent(new Event('change', { bubbles: true }));
   });
   expect(await page.evaluate(() => window.readPadHintOn()), '★끔이 저장되지 않았다').toBe(false);
@@ -289,15 +290,16 @@ test('B5 ★그리드 색을 고르면 그리드만 바뀌고 ★패딩 띠는 �
  *   (두 자를 ★같이 건다 — ㉠은 «눌렸나», ㉡은 «쪼개졌나»로 ★다른 것을 잰다.
  *    지디 2026-10-07: 쿠폰 레인이 이 자를 두 번 갈아 얻은 값이다.)
  */
-test('B6 ★스와치를 넣어도 ⛔라디오가 눌리지 않고 ⛔글자가 쪼개지지 않는다 (자 둘)', async ({ page }) => {
+/* ★기대 바뀜(현빈 261123 «온/오프 = 고디터 커스텀 체크 하나» — 옛 켬/끔 라디오 쌍 대체) — 로우 = [☐ 이름 | 스와치] · 자 둘(눌림 · 쪼개짐)은 그대로 체크에 건다 */
+test('B6 ★스와치를 넣어도 ⛔체크가 눌리지 않고 ⛔글자가 쪼개지지 않는다 (자 둘)', async ({ page }) => {
   const errs = await boot(page);
   await openPage(page);
 
   const row = (labelText) => page.evaluate((t) => {
-    const lab = [...document.querySelectorAll('.prop-label')].find(e => e.textContent.trim() === t);
+    const lab = [...document.querySelectorAll('.prop-label, .ui-check-label')].find(e => e.textContent.trim() === t);
     if (!lab) return { found: false };
     const r = lab.closest('.prop-row');
-    const grp = r.querySelector('.prop-radio-group');
+    const grp = r.querySelector('.prop-radio-group, .ui-check');
     const sw = r.querySelector('.prop-color-swatch');
     /* ★그룹의 «자연폭» — flex:1 을 잠깐 꺼서 내용이 요구하는 폭을 잰다. 바로 되돌린다.
        ⛔row.scrollWidth 로 재지 마라: flex:1 이 남는 폭을 흡수해 ★언제나 clientWidth 와 같다
@@ -312,7 +314,7 @@ test('B6 ★스와치를 넣어도 ⛔라디오가 눌리지 않고 ⛔글자가
       grpNatural: natural, grpNow: Math.round(grp.getBoundingClientRect().width),
       swW: sw ? Math.round(sw.getBoundingClientRect().width) : 0,
       swH: sw ? Math.round(sw.getBoundingClientRect().height) : 0,
-      radios: [...r.querySelectorAll('.prop-radio')].map(e => Math.round(e.getBoundingClientRect().width)),
+      radios: [...r.querySelectorAll('.prop-radio, .ui-check-box')].map(e => Math.round(e.getBoundingClientRect().width)),
       /* ★자 ㉡ — «구별되는 y» 의 수. 로우 안 ★모든 텍스트 노드를 돈다(라벨 ＋ 켬/끔 글자).
          ⛔scrollWidth 도, getClientRects().length 도 아니다(위 머리말 함정 ③). */
       texts: (() => {
@@ -343,7 +345,7 @@ test('B6 ★스와치를 넣어도 ⛔라디오가 눌리지 않고 ⛔글자가
   for (const t of ['그리드 가이드', '패딩 비주얼']) {
     const m = await row(t);
     expect(m.found, `★전제 — 「${t}」 로우를 못 찾았다`).toBe(true);
-    expect(m.radios.length, `★전제 — 「${t}」 라디오가 2개가 아니다`).toBe(2);
+    expect(m.radios.length, `★전제 — 「${t}」 체크가 1개가 아니다`).toBe(1);
     expect(m.swW, `★「${t}」 로우에 색 스와치가 없다(폭 0) — 현빈 ② 가 안 들어갔다`).toBe(24);
     expect(m.swH, `★「${t}」 스와치가 세로로 눌렸다 — ${JSON.stringify(m.kids)}`).toBe(24);
 
@@ -353,7 +355,7 @@ test('B6 ★스와치를 넣어도 ⛔라디오가 눌리지 않고 ⛔글자가
       .toBeGreaterThanOrEqual(m.grpNatural);
 
     /* ★자 ㉡ — 로우 안 ★모든 글자가 ★한 줄에 담긴다(쪼개지면 lines > 1) */
-    expect(m.texts.length, `★전제 — 「${t}」 로우에서 읽을 글자를 못 찾았다(자 ㉡ 이 공회전)`).toBeGreaterThanOrEqual(3);
+    expect(m.texts.length, `★전제 — 「${t}」 로우에서 읽을 글자를 못 찾았다(자 ㉡ 이 공회전)`).toBeGreaterThanOrEqual(1);   // 옛 3 = 이름 + 켬 + 끔 → 이제 이름 하나
     const split = m.texts.filter(x => x.lines !== 1);
     expect(split, `⛔「${t}」: 글자가 줄로 쪼개졌다 — ${JSON.stringify(split)} (전체: ${JSON.stringify(m.texts)})`)
       .toEqual([]);

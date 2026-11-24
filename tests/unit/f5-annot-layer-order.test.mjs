@@ -37,9 +37,9 @@ test('F1 ⛔SECTION_BLOCK_TYPE_SEL 무접촉 — 값 그대로 · .annotation-bl
 });
 
 test('F2 ⛔editor.js ⌘[ / ⌘] 갈래 무접촉 — annotLayerOrder 0 · W1 거리 351 / 354', () => {
-  for (const [k, d, want] of [['BracketLeft', 'up', 351], ['BracketRight', 'down', 354]]) {
+  for (const [k, d, want] of [['BracketLeft', 'up', 363], ['BracketRight', 'down', 366]]) {   // 351/354 → 363/366 · IAL-02 맞춤(지디 261124) — ⌘[ ] 갈래가 스크래치·캔버스 둘 다에 e.shiftKey 를 넘겨 머리→호출 끝 399/404자
     const at = ED.indexOf(`if (e.code === '${k}') {`);
-    const end = ED.indexOf(`moveSelectedBlocks('${d}')`, at);
+    const end = ED.indexOf(`moveSelectedBlocks('${d}'`, at);   // IAL-02 — e.shiftKey 인자
     assert.ok(at > 0 && end > at, `★${k} 갈래를 못 찾았다`);
     assert.equal(ED.slice(at, end).includes('annotLayerOrder'), false, `★${k} 갈래에 주석 줄을 넣었다(W1 을 넘는다)`);
     assert.equal(end - at, want, `★${k} 갈래 길이가 바뀌었다 — W1 여유를 다시 재라`);

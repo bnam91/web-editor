@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 ①②③ · 태양 §2c check) — 바뀐 칸의 토글 스위치(label.prop-toggle · .prop-toggle-track) → check 부품(label.ui-check · input.ui-check-box) */
 /* grid-block-bg.dom.spec.js — G12 그리드 «블럭 배경»(현빈 안 ㄴ: 「배경 여백」만큼 바깥까지 · 지디 GO 2026-10-04).
  *
  * ★재는 것: 렌더된 `.grd-bg` 층의 «사각형»(그리드 바깥 상자 ± 여백)·«픽셀»(띠·프레임 안·칸 배경·칸 테두리·G19 자식 영역)·
@@ -285,7 +286,7 @@ test('B1 ★토글(진짜 마우스) — 끄면 제목 한 줄뿐 · 켜면 줄�
   const snap = () => page.evaluate(() => { const g = document.getElementById('gG'); return { st: g.getAttribute('style'), html: g.innerHTML }; });
   await selectGrid(page);
   const a = await snap();
-  const t0 = await page.evaluate(() => { const s = document.getElementById('grd-bbg-section'); return s && { title: s.querySelector('.prop-section-title').textContent.trim(), n: s.querySelectorAll('.prop-row, .prop-color-row').length,
+  const t0 = await page.evaluate(() => { const s = document.getElementById('grd-bbg-section'); return s && { title: [...s.querySelector('.prop-section-title').childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').trim(),   /* ★기대 바뀜(check 이관 ②ⓒ) — 머리 체크 옆 «켜기» 글은 제목이 아니다 */ n: s.querySelectorAll('.prop-row, .prop-color-row').length,
     sec: s.closest('.prop-section[data-sec]')?.dataset.sec ?? null, outlineSec: document.getElementById('grd-outline-group')?.closest('.prop-section[data-sec]')?.dataset.sec ?? null }; });
   expect(t0, '「블럭 배경」 절이 있다').not.toBeNull();
   expect(t0.title).toBe('블럭 배경');
@@ -294,7 +295,7 @@ test('B1 ★토글(진짜 마우스) — 끄면 제목 한 줄뿐 · 켜면 줄�
      되돌리면 빨강: _grdBlockBgSectionHtml 을 sec('stroke' 로 되돌리면 sec 'stroke' · 외곽선을 Fill 로 옮기면 outlineSec 'fill'. */
   expect([t0.sec, t0.outlineSec], '자리 = 블럭 배경 Fill 절 · 블럭 외곽선 Stroke 절').toEqual(['fill', 'stroke']);
   expect(await rowsShown(page)).toEqual([]);
-  await clickEl(page, '#grd-bbg-section .prop-toggle');
+  await clickEl(page, '#grd-bbg-section .ui-check');
   expect(await page.evaluate(() => document.getElementById('gG').dataset.blockBgOn)).toBe('1');
   expect(await rowsShown(page), '켜면 줄들이 생긴다').toEqual(['grd-bbg-color', 'grd-bbg-img-btn', 'grd-bbg-op-slider', 'grd-bbg-pady-slider', 'grd-bbg-padx-slider']);
   expect(await page.evaluate(() => !!document.querySelector('#gG > .grd-bg'))).toBe(true);
@@ -304,7 +305,7 @@ test('B1 ★토글(진짜 마우스) — 끄면 제목 한 줄뿐 · 켜면 줄�
   const over = await page.evaluate(() => { const s = document.getElementById('grd-bbg-section'); const body = s.closest('#panel-right') || document.body; const br = body.getBoundingClientRect();
     return [...s.querySelectorAll('input,button')].filter(e => e.offsetParent && e.getBoundingClientRect().right > br.right + 0.5).map(e => e.id); });
   expect(over, '패널 오른쪽 밖으로 나가는 칸이 없다').toEqual([]);
-  await clickEl(page, '#grd-bbg-section .prop-toggle');
+  await clickEl(page, '#grd-bbg-section .ui-check');
   expect(await rowsShown(page), '끄면 줄이 사라진다').toEqual([]);
   expect(await snap(), '끄면 블럭 바이트가 켜기 전과 같다').toEqual(a);
   expect(errs).toEqual([]);
@@ -341,7 +342,7 @@ test('B5 위치 단추 — ALIGN_ICONS(object-h/object-v) 그림 그대로 · da
 test('B7 ★⌘Z 한 걸음 — 토글 · 위치 단추 · 여백 슬라이더 끌기 각각 하나씩 되돌린다', async ({ page }) => {
   await setup(page); await selectGrid(page);
   const ds = () => page.evaluate(() => { const d = document.getElementById('gG').dataset; return { on: d.blockBgOn ?? null, padX: d.blockBgPadX ?? null }; });
-  await clickEl(page, '#grd-bbg-section .prop-toggle');
+  await clickEl(page, '#grd-bbg-section .ui-check');
   expect(await ds()).toEqual({ on: '1', padX: null });
   // 좌우 슬라이더를 진짜 마우스로 끈다
   const s = await page.evaluate(() => { const e = document.getElementById('grd-bbg-padx-slider'); e.scrollIntoView({ block: 'center' }); const r = e.getBoundingClientRect(); return { l: r.left, r: r.right, y: r.top + r.height / 2 }; });

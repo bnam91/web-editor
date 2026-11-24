@@ -139,7 +139,7 @@ test('R1 패널 — Effects 드롭다운에 「블러」 · 고르면 Effects �
   expect([out.rsType, out.rsMin, out.rsMax]).toEqual(['range', '0', '100']);
   expect([out.rnType, out.rnMin, out.rnMax]).toEqual(['number', '0', '100']);
   expect(out.sameSliderCls && out.sameNumberCls && out.sameRowCls, '공용 줄 꼴(prop-row · prop-slider · prop-number)과 클래스가 다르다').toBe(true);
-  expect(out.label).toBe('강도');
+  expect(out.label).toBe('가림 정도');   // ★기대 바뀜(현빈·지디 261123 · 0.9.13 172 t13E-06 «가림/흐림 차이» = 툴팁 보류 → 라벨 이름으로 구분: 가림 «강도» → «가림 정도» · 흐림 «Blur» → «흐림 정도»)
   expect(out.rowInline, '강도 줄에 인라인 style 이 생겼다(디자인시스템)').toBe(0);
 
   /* 그림 없는 에셋 — 「블러」 항목이 없다(전제: 패널은 열렸다) */

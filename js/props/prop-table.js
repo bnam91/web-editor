@@ -1,6 +1,6 @@
 import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { parseRatio, parseRatioStrict, noticeRatioRejected, blockHeaderHTML, disclosureSectionHtml, discSecOpen, discSecToggle } from './_helpers.js';
+import { parseRatio, parseRatioStrict, noticeRatioRejected, blockHeaderHTML, disclosureSectionHtml, discSecOpen, discSecToggle, checkHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { withTextSelection, spanExactlyCovering } from './_text-selection.js';
 import { panelRenderedPx } from './_panel-rendered.js';
@@ -370,11 +370,7 @@ export function showTableProperties(block) {
 `),
       sec('content', `
       <div class="prop-row">
-        <span class="prop-label">헤더</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="tbl-show-header" ${curShowHeader ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'tbl-show-header', label: '헤더', checked: curShowHeader })}
       </div>
       <div class="prop-hint">셀을 더블클릭하면 텍스트를 편집할 수 있습니다.</div>`),
       sec('size', `    ${(() => {
@@ -515,35 +511,19 @@ export function showTableProperties(block) {
       `).join('')}
       </div>` : ''}`),
       sec('stroke', `
-      <div class="prop-toggle-grid">
+      <div class="ui-check-grid">
         <div class="prop-row">
-          <span class="prop-label">세로선</span>
-          <label class="prop-toggle">
-            <input type="checkbox" id="tbl-show-vlines" ${curShowVLines ? 'checked' : ''}>
-            <span class="prop-toggle-track"></span>
-          </label>
-        </div>
+        ${checkHTML({ id: 'tbl-show-vlines', label: '세로선', checked: curShowVLines })}
+      </div>
         <div class="prop-row">
-          <span class="prop-label">수평선</span>
-          <label class="prop-toggle">
-            <input type="checkbox" id="tbl-show-hlines" ${curShowHLines ? 'checked' : ''}>
-            <span class="prop-toggle-track"></span>
-          </label>
-        </div>
+        ${checkHTML({ id: 'tbl-show-hlines', label: '수평선', checked: curShowHLines })}
+      </div>
         <div class="prop-row">
-          <span class="prop-label">외곽 좌우</span>
-          <label class="prop-toggle">
-            <input type="checkbox" id="tbl-show-outerx" ${curShowOuterX ? 'checked' : ''}>
-            <span class="prop-toggle-track"></span>
-          </label>
-        </div>
+        ${checkHTML({ id: 'tbl-show-outerx', label: '외곽 좌우', checked: curShowOuterX })}
+      </div>
         <div class="prop-row">
-          <span class="prop-label">외곽 상하</span>
-          <label class="prop-toggle">
-            <input type="checkbox" id="tbl-show-outery" ${curShowOuterY ? 'checked' : ''}>
-            <span class="prop-toggle-track"></span>
-          </label>
-        </div>
+        ${checkHTML({ id: 'tbl-show-outery', label: '외곽 상하', checked: curShowOuterY })}
+      </div>
       </div>
       <div class="prop-row">
         <span class="prop-label">외곽두께</span>

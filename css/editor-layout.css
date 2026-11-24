@@ -64,7 +64,7 @@
 /* VISUAL-17(261119): 아래 둘 = panels/_panel-tree.css 에서 옮김(화면 변화 0 · !important 그대로 — 빼면 우선순위가 바뀐다) */
 /* ── Section Toolbar: A/B Variation Button ── */
 .st-ab-btn { color: var(--ui-accent-primary) !important; }
-.st-ab-btn:hover { color: var(--ui-accent) !important; background: #1a2840 !important; }
+.st-ab-btn:hover { color: var(--ui-sel-neutral-on-text) !important; background: var(--ui-sel-neutral-on-bg) !important; }
 
 /* ── Section Toolbar: AI Fill Button ── */
 .st-ai-fill-btn { color: var(--ui-sel-ai) !important; }

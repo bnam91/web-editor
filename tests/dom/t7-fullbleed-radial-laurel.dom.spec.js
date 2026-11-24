@@ -58,7 +58,8 @@ async function pick(page, id) {
 
 /** 패널의 「패딩 제외」 토글 input(없으면 null) — 라벨 글자로 찾는다(블럭마다 id 가 다르다). */
 const toggleSel = (page) => page.evaluate(() => {
-  const row = [...document.querySelectorAll('#panel-right .prop-row')].find((r) => r.querySelector('.prop-label')?.textContent.trim() === '패딩 제외');
+  /* ★2026-11-24 기대 바뀜 — 체크 부품 이관(tp/0913-check · checkHTML): 라벨이 .prop-row .prop-label → label.ui-check .ui-check-label · 둘 다 찾는다(열차 train/0913-c 전수 빨강) */
+  const row = [...document.querySelectorAll('#panel-right .prop-row, #panel-right label.ui-check')].find((r) => (r.querySelector('.prop-label, .ui-check-label')?.textContent || '').trim() === '패딩 제외');
   const cb = row?.querySelector('input[type=checkbox]');
   if (!cb) return null;
   if (!cb.id) cb.id = '__fb_probe';

@@ -253,18 +253,17 @@ test('Z14 ★패널 — 켬/끔·정렬·크기·색이 있고 ★배선이 «�
   const p = read('js/props/prop-zoom.js');
   // U4(right-panel-unify): 옛 「Text」 절 → 틀의 Typography 절(켬/끔 라디오가 그 안 첫 줄). 양성대조: sec('typography' 를 지우면 빨강
   // 다음 sec( 를 넘지 않는다 — 켬/끔 라디오가 «Typography 절 안»에 있어야 한다(다른 절로 옮기면 빨강)
-  assert.match(p, /sec\('typography',(?:(?!\n\s*sec\()[\s\S])*?name="zm-tx"/, 'Typography(옛 Text) 절에 켬/끔 라디오가 없다');
-  for (const [id, 이름] of [['zm-tx-group', '켬/끔'], ['zm-txa-group', '정렬'],
+  /* ★기대 바뀜(현빈 261123 온/오프=체크 · chku 1–3 GO · ③ⓐ 세그먼트 — 옛 ‹라디오로› 결정 대체) — 켬/끔 = check 부품 */
+  assert.match(p, /sec\('typography',(?:(?!\n\s*sec\()[\s\S])*?id: 'zm-tx-on'/, 'Typography(옛 Text) 절에 켬/끔 체크가 없다');
+  for (const [id, 이름] of [['zm-tx-on', '켬/끔'], ['zm-txa-group', '정렬'],
                             ['zm-txs', '크기'], ['zm-txc', '색']]) {
     assert.ok(p.includes(id), `${이름}(${id}) 컨트롤이 패널에 없다`);
   }
   // ★마크업만 있고 배선이 없으면 «칸은 서는데 아무 일도 안 난다»(prop-quote 가 그 교훈을 적어 뒀다)
-  assert.match(p, /bindRadio\('zm-tx',\s*'tx'/, '켬/끔 배선이 없다');
+  assert.match(p, /bindCheck\('zm-tx-on',\s*'tx'/, '켬/끔 배선이 없다');
   assert.match(p, /bindPair\('zm-txs',\s*'txs'/, '크기 배선이 없다');
   assert.match(p, /wireColorField\('zm-txc'/, '색 배선이 없다');
   assert.match(p, /#zm-txa-group \.prop-align-btn/, '정렬 배선이 없다');
-  /* ⛔체크박스를 쓰지 않았다 — 현빈이 「라디오버튼으로」라고 못박은 것(zoom-block.test ⓑ-14 와 같은 자리) */
-  assert.equal(/type="checkbox"/.test(p), false, '체크박스가 생겼다');
   /* ⛔«내용» 입력칸은 두지 않는다 — 모달에도 없고, 인용구는 현빈이 걷게 했다(1011t1a-2) */
   assert.equal(/<textarea/.test(p), false,
     '내용 입력칸이 생겼다 — 글은 캔버스 더블클릭으로 넣는다(prop-quote.js 의 ⚰️ 1011t1a-2 참조)');

@@ -288,7 +288,8 @@ test('C3-a 「번짐」 행 — 광택 다음 · 섹션 파티클의 「번짐�
   await pick(page, id);
   const coin = await rowSig('#stk-coin-blur-num');
   expect(coin, '코인 「번짐」 행이 파티클 「번짐」 행과 꼴이 다르다').toEqual(part);
-  const order = await page.evaluate(() => [...document.querySelectorAll('#stk-coin-section > .prop-row')].map((r) => r.querySelector('.prop-label')?.textContent.trim()).filter(Boolean));
+  /* ★2026-11-24 기대 바뀜 — 「각도 잠금」 = 체크 부품(checkHTML · label.ui-check .ui-check-label) · 열차 train/0913-c 전수 빨강 · 순서 단언은 그대로 */
+  const order = await page.evaluate(() => [...document.querySelectorAll('#stk-coin-section > .prop-row, #stk-coin-section > label.ui-check')].map((r) => r.querySelector('.prop-label, .ui-check-label')?.textContent.trim()).filter(Boolean));
   expect(order.slice(-3), '번짐은 광택 다음 · 각도 잠금 앞').toEqual(['광택', '번짐', '각도 잠금']);
   expect([await page.inputValue('#stk-coin-blur'), await page.inputValue('#stk-coin-blur-num')], '새 코인은 번짐 0').toEqual(['0', '0']);
 });

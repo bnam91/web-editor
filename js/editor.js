@@ -1794,6 +1794,12 @@ function copySelected() {
 
 /* 붙여넣기 후 블록 이벤트 재바인딩 공통 함수 */
 function _bindPastedEl(el) {
+  /* ★t13G-01 ② — 그리드 그림 줄 복사분(data-paste-ratio)은 «붙은 뒤» 실제 폭으로 높이를 세운다(정방형 방지 · 한 번 쓰고 지움) */
+  [el, ...(el.querySelectorAll?.('.asset-block[data-paste-ratio]') || [])].forEach((a) => {
+    if (!a.classList?.contains('asset-block') || !a.dataset.pasteRatio) return;
+    const ratio = parseFloat(a.dataset.pasteRatio), w = a.offsetWidth; delete a.dataset.pasteRatio;
+    if (ratio > 0 && w > 0) { const h = Math.round(w * ratio); a.style.height = h + 'px'; a.dataset.baseHeight = String(h); }
+  });
   /* ★NEW-현빈QA-ASSET-OVERLAY-COPY-PASTE-01 — 에셋 오버레이 글(.overlay-tb)은 «그 막 위»에서만 흰 글자·흰 점선이다(editor-layout.css).
      막 밖(섹션)에 붙으면 흰 바탕 위 흰 글자라 «붙여넣기가 안 된 듯» 보였다 ⇒ 막 밖에 놓인 것만 보통 글로. 사본 에셋 «안»의 막 글은 그대로. */
   [el, ...el.querySelectorAll('.overlay-tb')].forEach(n => { if (n.classList?.contains('overlay-tb') && !n.closest('.asset-overlay')) n.classList.remove('overlay-tb'); });
@@ -2233,11 +2239,56 @@ function _copyGridImgLineAsAsset() {
   if (line?.type !== 'image' || !line.imgSrc || typeof window.makeAssetBlock !== 'function') return false;
   const { row, block } = window.makeAssetBlock();
   window.setAssetImageFromSrc?.(block, line.imgSrc);
+  /* ★t13G-01 ②(현빈 261122) — 섹션에 붙인 에셋이 정방형으로 들어갔다(makeAssetBlock 기본 크기) ⇒ 그림 «원래 비율»을 실어 두고
+     붙인 뒤(_bindPastedEl) 실제 폭에 맞춰 높이를 세운다. 비율 = 그리드에 이미 그려진 그 그림의 natural 크기(같은 src). */
+  const _im = g.querySelector(`.grd-img-frame[data-r="${sel[0].r}"][data-c="${sel[0].c}"][data-line="${sel[0].li}"] img`) || [...g.querySelectorAll('img')].find((x) => x.getAttribute('src') === line.imgSrc);
+  if (_im && _im.naturalWidth > 0 && _im.naturalHeight > 0) block.dataset.pasteRatio = (_im.naturalHeight / _im.naturalWidth).toFixed(5);
   clipboard = { type: 'block', html: row.outerHTML };
   /* 줄 클립도 «같이» 든다(티켓⑤ 그리드 줄 복사 무변) — ⌘V 가 자리로 가른다: 그리드 줄 선택 = grdPasteLines(그림 줄) · 그 밖 = 에셋. OS 선언·토스트도 그쪽. */
   if (!window.grdCopySelectedLines?.()) claimInternalClipboard('고디터 그림 1개');
   return true;
 }
+/* ★t13G-01 ③(미카사 재현 261123) — 메뉴 «편집›복사/붙여넣기»(Electron role copy/paste)는 keydown 없이 «네이티브 copy/paste 사건»만 쏜다
+   ⇒ 옛 판은 그 사건을 아무도 안 받아 클립보드 빈 값 · 붙여넣기 무변이었다. 키 길(⌘C/⌘V keydown)과 «같은 함수 한 벌»을 두 길이 부른다.
+   키 길도 네이티브 사건을 뒤따라 쏘므로(메뉴 accelerator) — 방금 keydown 이 했으면(_keyCopyAt/_keyPasteAt 500ms) 사건 쪽은 건너뛴다.
+   글 고침·입력칸·글 선택(네이티브 글 복사)은 손 안 댐. */
+let _keyCopyAt = 0, _keyPasteAt = 0;
+function _appCopy() {
+  if (window.grdCopyRange?.()) return;   // ★t3-04 U2b — 칸 범위가 있을 때만 참(prop-grid.js)
+  if (_copyGridImgLineAsAsset()) return;   // ★t13A-01 — 그림 줄 하나 = 에셋 클립 + 줄 클립
+  if (window.grdCopySelectedLines?.()) return;
+  copySelected();
+  _markImgEditCopy();
+}
+function _appPaste(e) {
+  if (window.grdPasteRange?.(e)) return;   // ★t3-04 U2b — 범위 클립이 최신일 때만 참(prop-grid.js · e = 맥 Control+v 무장 0 판정)
+  if (window.grdPasteLines?.()) return;
+  /* ★누가 최신인지는 여기(keydown)서 못 정한다 — OS 클립보드 «내용»은 뒤따르는 paste 이벤트에만 실려 온다.
+     그래서 언제나 paste 이벤트에 양보하고(scratch-pad 가 clipboardPrefersInternal 로 가른다),
+     그쪽이 이미지를 안 받았을 때만 고디터 안 붙여넣기를 한다. (옛 판: 시각만 보고 여기서 바로 붙였다) */
+  setTimeout(() => {
+    if (window._scratchJustHandledPaste) { window._scratchJustHandledPaste = false; return; }
+    pasteClipboard();
+  }, 30);
+}
+const _nativeClipSkip = () => {
+  const t = document.activeElement;
+  if (document.querySelector('.text-block.editing')) return true;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return true;
+  const ws = window.getSelection?.(); if (ws && !ws.isCollapsed && String(ws).trim()) return true;   // 글을 골라 둔 복사 = 네이티브 글 복사
+  return false;
+};
+document.addEventListener('copy', (e) => {
+  if (e.defaultPrevented || Date.now() - _keyCopyAt < 500 || _nativeClipSkip()) return;
+  if (!document.querySelector('#canvas .selected')) return;
+  e.preventDefault();
+  _appCopy();
+});
+document.addEventListener('paste', (e) => {
+  if (Date.now() - _keyPasteAt < 500 || _nativeClipSkip()) return;
+  /* 다른 처리기(벡터 SVG 글 · 스크래치 이미지 등)가 이 사건을 «먹었으면» 고디터 붙여넣기를 덧붙이지 않는다 — 한 틱 뒤에 본다(듣는 순서 무관) */
+  setTimeout(() => { if (e.defaultPrevented) return; _appPaste(e); }, 0);
+});
 function pasteClipboard() {
   const _dup = _copyForDuplicate; _copyForDuplicate = false;
   if (!clipboard) { window.showToast?.('복사한 것이 없어요'); return; }
@@ -2674,6 +2725,24 @@ function _selectFlowSibling(sel, dir) {
   if (!units.length) return false;
   const i = unit ? units.indexOf(unit) : -1;
   const next = units[((i < 0 ? (dir > 0 ? -1 : 0) : i) + dir + units.length) % units.length];
+  /* ★HBQA 198(현빈 9510 QA 4-b · 0.9.13) — 이웃이 «프레임»이면 selectBlock 이 못 고른다(getBlockById 가 프레임을 블럭으로 안 봄 → 무동작).
+     ⇒ 프레임은 레이어 패널 프레임 줄 누름(js/panels/layer-panel-items.js makeLayerFrameItem)과 같은 길로 고른다: 도형 래퍼 = 안 도형(selectShapeBlock) · 그 밖 = 프레임 고르기. */
+  if (next.matches('.frame-block:not([data-text-frame])')) {
+    const sb = isShapeFrame(next) ? next.querySelector(':scope > .shape-block') : null;
+    if (sb) { if (!window.selectShapeBlock?.(sb)) return false; }
+    else {
+      window.deselectAll?.();
+      const ps = next.closest('.section-block');
+      if (ps) { ps.classList.add('selected'); window.syncLayerActive?.(ps); }
+      next.classList.add('selected');
+      window._activeFrame = next;
+      window.highlightBlock?.(next, next._layerItem);
+      window.showFrameProperties?.(next);
+      window.showFrameHandles?.(next);
+    }
+    (sb || next).scrollIntoView?.({ block: 'nearest' });
+    return true;
+  }
   /* 단위 → 고를 블럭: 텍스트 프레임은 글자 블럭 · row 는 첫 블럭 · 갭·프레임·그 밖은 단위 자신 */
   const leaf = next.matches('.frame-block[data-text-frame]') ? (next.querySelector('.text-block') || next)
     : next.classList.contains('row') ? ([...next.querySelectorAll('[id]')].find((x) => !x.classList.contains('col') && x.closest('.row') === next) || next)
@@ -2927,11 +2996,8 @@ document.addEventListener('keydown', e => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       /* ★그리드 «줄» 복사 (티켓 ⑤) — 그리드 블럭 하나만 골라져 있고 그 안에 줄 선택이 있을
          때만 참을 돌려준다. 그 밖엔 거짓이라 아래 블록 복사가 종전대로 돈다(판정은 prop-grid.js). */
-      if (window.grdCopyRange?.()) return;   // ★t3-04 U2b — 칸 범위가 있을 때만 참(prop-grid.js)
-      if (_copyGridImgLineAsAsset()) return;   // ★t13A-01 — 그림 줄 하나 = 에셋 클립 + 줄 클립
-      if (window.grdCopySelectedLines?.()) return;
-      copySelected();
-      _markImgEditCopy();
+      _keyCopyAt = Date.now();   // ★t13G-01 ③ — 뒤따르는 네이티브 copy(메뉴 role)가 «한 번 더» 안 하게
+      _appCopy();
       return;
     }
     if (e.key === 'v') {
@@ -2939,15 +3005,8 @@ document.addEventListener('keydown', e => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       /* ★그리드 «줄» 붙여넣기 (티켓 ⑤) — 줄 클립보드가 비어 있거나 대상이 아니면 거짓이라
          아래 섹션/스크래치 붙여넣기가 종전대로 돈다. */
-      if (window.grdPasteRange?.(e)) return;   // ★t3-04 U2b — 범위 클립이 최신일 때만 참(prop-grid.js · e = 맥 Control+v 무장 0 판정)
-      if (window.grdPasteLines?.()) return;
-      /* ★누가 최신인지는 여기(keydown)서 못 정한다 — OS 클립보드 «내용»은 뒤따르는 paste 이벤트에만 실려 온다.
-         그래서 언제나 paste 이벤트에 양보하고(scratch-pad 가 clipboardPrefersInternal 로 가른다),
-         그쪽이 이미지를 안 받았을 때만 고디터 안 붙여넣기를 한다. (옛 판: 시각만 보고 여기서 바로 붙였다) */
-      setTimeout(() => {
-        if (window._scratchJustHandledPaste) { window._scratchJustHandledPaste = false; return; }
-        pasteClipboard();
-      }, 30);
+      _keyPasteAt = Date.now();   // ★t13G-01 ③ — 뒤따르는 네이티브 paste 는 아래 처리기가 «한 번 더» 안 붙인다
+      _appPaste(e);
       return;
     }
     if (e.key === 'x' && !e.shiftKey) {
@@ -2981,17 +3040,17 @@ document.addEventListener('keydown', e => {
     if (e.code === 'BracketLeft') {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
-      if (window.scratchLayerOrder?.('up')) { e.preventDefault(); return; }
+      if (window.scratchLayerOrder?.('up', e.shiftKey)) { e.preventDefault(); return; }
       e.preventDefault();
-      moveSelectedBlocks('up');
+      moveSelectedBlocks('up', e.shiftKey);
       return;
     }
     if (e.code === 'BracketRight') {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
-      if (window.scratchLayerOrder?.('down')) { e.preventDefault(); return; }
+      if (window.scratchLayerOrder?.('down', e.shiftKey)) { e.preventDefault(); return; }
       e.preventDefault();
-      moveSelectedBlocks('down');
+      moveSelectedBlocks('down', e.shiftKey);
       return;
     }
     // wrapInFrame (기본: ⌘⌥G, IME 처리로 e.key === '©' 도 매칭)
@@ -3289,45 +3348,7 @@ document.addEventListener('keydown', e => {
     deselectAll();
   }
 
-  /* ⚠️이 갈래는 도달하지 않는다 — :2510 metaKey 블록의 :2631/:2639 가 먼저 잡고 return 한다.
-     행위 증거: 히스토리 '레이어 순서'가 앱에서 0회. 실제 이름은 '뒤로 보내기/앞으로 가져오기'.
-     261021 — 지디가 이 갈래를 «살아 있다»고 읽어 a2 발주서 전제를 틀렸다. ⛔지우는 것은 별건(도달 불가 전수 미측정). */
-  // Cmd/Ctrl + [ / ] : free 모드 frame 안의 selected 블록 z-order 변경
-  // Shift 조합 시 맨 앞/뒤로. stack(flow) 모드는 영향 X (free 자식만).
-  if ((e.metaKey || e.ctrlKey) && (e.key === '[' || e.key === ']')) {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
-    const sel = document.querySelector(
-      '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
-      '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-      '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, .qa-block.selected, ' +
-      '.icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, ' +
-      '.icon-block.selected, .vector-block.selected, .step-block.selected, .shape-block.selected'
-    );
-    if (!sel) return;
-    // selected의 z-order 단위 = free frame의 직속 자식까지 거슬러 올라간 wrapper
-    const freeFrame = sel.closest('.frame-block[data-free-layout]');
-    if (!freeFrame) return;
-    let wrapper = sel.closest('.row') || sel;
-    while (wrapper && wrapper.parentElement !== freeFrame) wrapper = wrapper.parentElement;
-    if (!wrapper) return;
-
-    e.preventDefault();
-    window.pushHistory?.('레이어 순서');
-    const forward = e.key === ']';
-    const toEnd = e.shiftKey;
-    if (forward && toEnd) {
-      freeFrame.appendChild(wrapper);                      // 맨 위로
-    } else if (!forward && toEnd) {
-      freeFrame.insertBefore(wrapper, freeFrame.firstChild); // 맨 아래로
-    } else if (forward && wrapper.nextElementSibling) {
-      freeFrame.insertBefore(wrapper.nextElementSibling, wrapper); // 한 단계 위
-    } else if (!forward && wrapper.previousElementSibling) {
-      freeFrame.insertBefore(wrapper, wrapper.previousElementSibling); // 한 단계 아래
-    }
-    window.scheduleAutoSave?.();
-    window.buildLayerPanel?.();
-    return;
-  }
+  /* ⚰️옛 «Cmd/Ctrl + [ / ]» 핸들러(⇧ = 맨 앞/뒤 · 자유 프레임 자식만) — 앞 metaKey 블록이 먼저 잡아 도달 불가였다. IAL-02(0.9.13 187행)에서 걷고 ⇧ 뜻은 moveSelectedBlocks(direction, toEnd) 로 옮겼다. */
 
   /* ★T-102 — 화살표키는 «고른 블럭» 것이다. 예전엔 이 자리가 비어 있어서
      브라우저 기본동작이 #canvas-wrap 을 밀었다 — 방금 고른 것이 화면 밖으로 나갔다.
@@ -4635,7 +4656,9 @@ function deselectAll() {
    블록 순서 이동 — Cmd+[ (위) / Cmd+] (아래)
    이동 단위: section-inner 또는 frame-block 직속 .row / .gap-block
 ═══════════════════════════════════ */
-function moveSelectedBlocks(direction) {
+function moveSelectedBlocks(direction, toEnd = false) {
+  /* ★IAL-02(0.9.13 187행 · 현빈 승인 261122) — toEnd(⇧⌘[ / ⇧⌘]) = 한 칸이 아니라 «끝까지»(맨 뒤로 보내기 / 맨 앞으로 가져오기 · Figma 같은 키).
+     옛 ⇧ 갈래(아래 «도달 불가» 핸들러)는 이 앞 갈래가 먼저 잡아 한 번도 안 돌았다 ⇒ 걷고 이 살아 있는 길 세 갈래(㈎㈏ · 프레임 · 흐름)에 같은 뜻으로. */
   /* ★«겹친 것들»의 레이어 순서 — 현빈 2026-09-30 「겹친 요소 간 레이어 순서 변경(⌘[ , ⌘])」.
    * ══ 왜 여기가 «맨 앞»인가 ════════════════════════════════════════════════
    *   겹치는 블록은 흐름에 없다. 둘 중 하나다 —
@@ -4673,6 +4696,8 @@ function moveSelectedBlocks(direction) {
     }
     return null;
   };
+  /* ★IAL-03 ① — 흐름 사이에 낀 떠 있는 상자는 겹침 순서를 바꾸기 «전»에 섹션 직속으로(화면 자리 그대로 · overlay-float rehomeStrayFloat) */
+  document.querySelectorAll('.selected').forEach(el => { const pe = window.OverlayFloat?.posElOf?.(el); if (pe) window.OverlayFloat.rehomeStrayFloat?.(pe); });
   const _stackUnits = [];
   document.querySelectorAll('.selected').forEach(el => {
     if (el.querySelector('.selected')) return;   // ② 안쪽에 더 깊은 선택이 있다 — 바깥(부모 프레임·섹션)은 단위가 아니다
@@ -4684,24 +4709,25 @@ function moveSelectedBlocks(direction) {
     // 섞여 있으면(다른 섹션 · 그룹 안팎) 아무것도 하지 않는다 — 흐름 갈래와 같은 규칙
     if (!fContainer || !_stackUnits.every(u => u.parentElement === fContainer)) return;
     const fSibs = [...fContainer.children].filter(c => !!_stackUnitOf(c));
-    if (fSibs.length < 2) return;                    // 혼자면 겹칠 상대가 없다
+    if (fSibs.length < 2) { window.showToast?.('겹친 상대가 없어 순서를 바꿀 수 없어요'); return; }   // 혼자면 겹칠 상대가 없다 · IAL-03 ③ 알림
     _stackUnits.sort((a, b) => fSibs.indexOf(a) - fSibs.indexOf(b));
     const fIds = _stackUnits.map(u => u.id).filter(Boolean);
     if (direction === 'up') {
       const firstIdx = fSibs.indexOf(_stackUnits[0]);
-      if (firstIdx <= 0) return;                     // 이미 맨 뒤(가장 아래)
+      if (firstIdx <= 0) { window.showToast?.('이미 맨 뒤예요'); return; }   // 이미 맨 뒤(가장 아래) · IAL-03 ③
       window.ensureHistoryCheckpoint?.('이동 전');
-      fSibs[firstIdx - 1].before(..._stackUnits);
+      (toEnd ? fSibs[0] : fSibs[firstIdx - 1]).before(..._stackUnits);
     } else {
       const lastIdx = fSibs.indexOf(_stackUnits[_stackUnits.length - 1]);
-      if (lastIdx >= fSibs.length - 1) return;        // 이미 맨 앞(가장 위)
+      if (lastIdx >= fSibs.length - 1) { window.showToast?.('이미 맨 앞이에요'); return; }   // 이미 맨 앞(가장 위) · IAL-03 ③
       window.ensureHistoryCheckpoint?.('이동 전');
       const marker = document.createComment('mv-stack');
-      fSibs[lastIdx + 1].after(marker);
+      (toEnd ? fSibs[fSibs.length - 1] : fSibs[lastIdx + 1]).after(marker);
       _stackUnits.forEach(u => marker.before(u));
       marker.remove();
     }
-    pushHistory(direction === 'up' ? '뒤로 보내기' : '앞으로 가져오기');
+    if (!toEnd) pushHistory(direction === 'up' ? '뒤로 보내기' : '앞으로 가져오기');   // 한 칸 이름 = 스크래치 갈래 이름(scratch-layer-order U5 가 이 꼴을 읽는다)
+    else pushHistory(direction === 'up' ? '맨 뒤로 보내기' : '맨 앞으로 가져오기');   // IAL-02 ⇧
     window.buildLayerPanel?.();
     // buildLayerPanel 이 패널을 다시 그린다 — 선택을 되살린다(흐름 갈래와 같은 뒷정리)
     fIds.forEach(id => {
@@ -4737,11 +4763,11 @@ function moveSelectedBlocks(direction) {
     if (direction === 'up') {
       if (idx <= 0) return;
       window.ensureHistoryCheckpoint?.('이동 전');
-      containerItems[idx - 1].before(selFrame);
+      (toEnd ? containerItems[0] : containerItems[idx - 1]).before(selFrame);
     } else {
       if (idx >= containerItems.length - 1) return;
       window.ensureHistoryCheckpoint?.('이동 전');
-      containerItems[idx + 1].after(selFrame);
+      (toEnd ? containerItems[containerItems.length - 1] : containerItems[idx + 1]).after(selFrame);
     }
     pushHistory(direction === 'up' ? '프레임 위로 이동' : '프레임 아래로 이동');
     window.buildLayerPanel?.();
@@ -4797,13 +4823,13 @@ function moveSelectedBlocks(direction) {
     const firstIdx = containerItems.indexOf(units[0]);
     if (firstIdx <= 0) return; // 이미 맨 위
     window.ensureHistoryCheckpoint?.('이동 전');
-    const pivot = containerItems[firstIdx - 1]; // 선택 그룹 바로 위 아이템
+    const pivot = toEnd ? containerItems[0] : containerItems[firstIdx - 1]; // 선택 그룹 바로 위 아이템(⇧ = 맨 위)
     pivot.before(...units); // pivot 앞에 units 통째로 삽입 (순서 유지)
   } else {
     const lastIdx = containerItems.indexOf(units[units.length - 1]);
     if (lastIdx >= containerItems.length - 1) return; // 이미 맨 아래
     window.ensureHistoryCheckpoint?.('이동 전');
-    const pivot = containerItems[lastIdx + 1]; // 선택 그룹 바로 아래 아이템
+    const pivot = toEnd ? containerItems[containerItems.length - 1] : containerItems[lastIdx + 1]; // 선택 그룹 바로 아래 아이템(⇧ = 맨 아래)
     // pivot 뒤에 units 순서 유지하며 삽입: 마커로 삽입 위치 고정
     const marker = document.createComment('mv');
     pivot.after(marker);
@@ -4914,14 +4940,39 @@ document.querySelectorAll('.section-block').forEach(sec => {
 const _EMPTY_CLICK_IDS = ['canvas-wrap', 'canvas-scaler', 'canvas'];
 let _canvasDownTarget = null, _clickStartedOffEmpty = false;
 const _canvasWrapEl = document.getElementById('canvas-wrap');
-_canvasWrapEl.addEventListener('mousedown', e => { _canvasDownTarget = e.target; }, true);
+let _canvasDownXY = null;
+_canvasWrapEl.addEventListener('mousedown', e => { _canvasDownTarget = e.target; _canvasDownXY = [e.clientX, e.clientY]; }, true);
 _canvasWrapEl.addEventListener('click', () => {
   _clickStartedOffEmpty = !!_canvasDownTarget && !_EMPTY_CLICK_IDS.includes(_canvasDownTarget.id);
   _canvasDownTarget = null;
 }, true);
+/* SEC-SELECT-HITSTRIP-01(0.9.13 208행 · 현빈 GO 261123) — 섹션 «바깥» 경계 띠(화면 px)를 누르면 그 섹션을 고른다(위·아래·왼·오른).
+   좌우 패딩 0 섹션은 블럭이 가장자리까지라 안쪽엔 섹션을 집을 곳이 없다 ⇒ 캔버스 여백 쪽에서 집는다.
+   ★«빈 곳 클릭»일 때만 본다 — 섹션 안 클릭은 이 길에 안 온다(블럭·섹션 바인더가 먼저 받는다) ⇒ 안쪽은 늘 블럭이 이긴다 · 블럭 클릭·끌기 무변.
+   ⛔CSS 띠(의사요소)로 안 한 까닭: 섹션마다 z-index 2 쌓임 맥락이라 아래 섹션의 띠가 위 섹션 «안쪽» 아래 가장자리 블럭을 덮는다. */
+const SEC_HITSTRIP_PX = 8;      // 경계 밖 과녁 폭(화면 px · 줌 무관)
+const SEC_HITSTRIP_MOVE = 4;    // 누른 뒤 이만큼 넘게 움직였으면 클릭이 아니라 끌기
+function sectionAtHitStrip(x, y) {
+  let best = null, bestD = Infinity;
+  for (const sec of document.querySelectorAll('#canvas > .section-block')) {
+    const r = sec.getBoundingClientRect();
+    if (!r.width || !r.height) continue;
+    const dx = x < r.left ? r.left - x : x > r.right ? x - r.right : 0;
+    const dy = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0;
+    const d = Math.max(dx, dy);
+    if (d > 0 && d <= SEC_HITSTRIP_PX && d < bestD) { best = sec; bestD = d; }
+  }
+  return best;
+}
+window.sectionAtHitStrip = sectionAtHitStrip;
 _canvasWrapEl.addEventListener('click', e => {
   if (_clickStartedOffEmpty) return;
-  if (_EMPTY_CLICK_IDS.includes(e.target.id)) deselectAll();
+  if (!_EMPTY_CLICK_IDS.includes(e.target.id)) return;
+  const moved = _canvasDownXY && Math.hypot(e.clientX - _canvasDownXY[0], e.clientY - _canvasDownXY[1]) > SEC_HITSTRIP_MOVE;
+  _canvasDownXY = null;
+  const sec = !moved && !document.body.classList.contains('preview-mode') ? sectionAtHitStrip(e.clientX, e.clientY) : null;
+  if (sec) { selectSectionWithModifier(sec, e); return; }
+  deselectAll();
 });
 
 /* ── 트랙패드 제스쳐: 핀치(ctrl+wheel)=줌, 두손가락 드래그(wheel)=팬 ── */

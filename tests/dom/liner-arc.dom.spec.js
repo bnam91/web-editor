@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 ①②③ · 태양 §2c check) — 바뀐 칸의 토글 스위치(label.prop-toggle · .prop-toggle-track) → check 부품(label.ui-check · input.ui-check-box) */
 /* liner-arc — LINETEXT-ARC-RESEARCH-01(현빈 261121 발주2 #4 · 비교표 handoff/LINER-ARC-COMPARE-261121.md): 라이너 빈 곳 4 + 끝 글자 잘림
  * 고침: js/liner-transform.js — 반지름 px(arc-up/down 이 그 원 위에 글 길이만큼 · 반원 넘는 호) · 원 안쪽 뒤집기 · 외곽선(stroke · paint-order) · 가로 지킴이
  * R1 패널 «반지름» 82 → dataset radius 82 · 글이 원을 216°±12 돈다(피그마 ARC Bend 60 과 같은 «글 기준» 휨) · 글자 상자 안(잘림 0)
@@ -158,7 +159,7 @@ test('R8 아치 반지름 49 + 안쪽 뒤집기 — 윗변 겹침 수 · 안내 
   await openPanel(page);
   await page.fill('#lnr-radius', '49'); await page.press('#lnr-radius', 'Enter'); await raf(page);
   const plain = await topOverlap(page);
-  await page.click('#lnr-flip-row .prop-toggle'); await raf(page);
+  await page.click('#lnr-flip-row .ui-check'); await raf(page);
   expect(await page.evaluate(() => JSON.parse(document.getElementById('lnL').dataset.liner).flip), '[전제] 뒤집기 켜짐').toBe(true);
   const flip = await topOverlap(page);
   if (process.env.SHOT_LINER) await page.locator('#lnL').screenshot({ path: process.env.SHOT_LINER });
@@ -178,13 +179,13 @@ test('R9 뒤집기 + 반지름 27→49 — 꼴이 반지름을 따른다 · 윗�
   const setR = async (r) => { await page.fill('#lnr-radius', String(r)); await page.press('#lnr-radius', 'Enter'); await raf(page); };
   const hint = () => page.evaluate(() => { const h = document.getElementById('lnr-radius-hint'); return h && !h.hidden ? h.textContent.trim() : null; });
   await setR(27); const p27 = await geo(page);
-  await page.click('#lnr-flip-row .prop-toggle'); await raf(page);
+  await page.click('#lnr-flip-row .ui-check'); await raf(page);
   expect(await page.evaluate(() => JSON.parse(document.getElementById('lnL').dataset.liner).flip), '[전제] 뒤집기 켜짐').toBe(true);
   const f27 = await geo(page), o27 = await topOverlap(page), h27 = await hint();
   if (process.env.SHOT_LINER) await page.locator('#lnL').screenshot({ path: process.env.SHOT_LINER.replace(/\.png$/, '-r27.png') });
   await setR(49); const f49 = await geo(page), o49 = await topOverlap(page), h49 = await hint();
   if (process.env.SHOT_LINER) await page.locator('#lnL').screenshot({ path: process.env.SHOT_LINER.replace(/\.png$/, '-r49.png') });
-  await page.click('#lnr-flip-row .prop-toggle'); await raf(page); const p49 = await geo(page);
+  await page.click('#lnr-flip-row .ui-check'); await raf(page); const p49 = await geo(page);
   const t = (g) => +g.turn.toFixed(1);
   console.log(`[R9 실측] 돈 각 — 바로 r27 ${t(p27)}° · 뒤집기 r27 ${t(f27)}° · 뒤집기 r49 ${t(f49)}° · 바로 r49 ${t(p49)}° · 윗변 겹침 r27 ${o27.sum}px · r49 ${o49.sum}px · 안내 «${h27}» → «${h49}»`);
   expect(f27.turn / f49.turn > 1.5, `★(다) 뒤집기에서 반지름 27→49 가 꼴을 바꾼다(49/27=1.81) ${t(f27)}° → ${t(f49)}°`).toBe(true);

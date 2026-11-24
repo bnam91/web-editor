@@ -33,7 +33,7 @@ import { _applyOverlayPos, posElOf as _posElOf, _elasticAxis, OVERLAY_RESIST_ZON
 /* ★에셋 폭 하한도 «패널과 같은 수»를 본다 — 여기 100 을 다시 적으면 패널만 60 으로 내려가고
    핸들은 100 에서 막아, 60px 블럭을 1px 만 끌어도 다시 100 으로 올라앉는다(T-075 ㉠).
    asset-width-limits.js 는 import 가 없는 «잎» 모듈이라 순환 걱정도 없다. */
-import { ASSET_W_MIN } from './blocks/asset-width-limits.js';
+import { ASSET_W_MIN, assetRadiusMax } from './blocks/asset-width-limits.js';
 import { CVB_H_MIN, CVB_H_MAX } from './blocks/card-limits.js';   // t5-16 카드 행 끌기 clamp = updateCanvasBlock 의 자(⛔그리드 행 높이와 다른 물건)
 
 /* ═══════════════════════════════════
@@ -967,7 +967,7 @@ function _onAssetRadiusHandleMouseDown(e, ab, dir) {
                 : dir === 'ne' ? (-dx + dy) / 2
                 : dir === 'sw' ? (dx - dy) / 2
                 : (-dx - dy) / 2;
-    const newR = Math.min(120, Math.max(0, Math.round(startRadius + delta)));
+    const newR = Math.min(assetRadiusMax(ab.offsetWidth, ab.offsetHeight), Math.max(0, Math.round(startRadius + delta)));   // t13F-03 — 패널과 한 자
     ab.style[oneCorner ? cornerProp : 'borderRadius'] = newR + 'px';
     // 프로퍼티 패널 동기화
     const slider = document.getElementById('asset-r-slider');
@@ -4686,7 +4686,7 @@ function hideTextBoxResizeHandles() {
 function _onTextBoxResizeMouseDown(e, el, dir) {
   if (e.button !== 0) return;
   e.stopPropagation(); e.preventDefault();
-  const isGap = el.classList.contains('gap-block'), floating = el.dataset.overlayBlock === 'true';
+  const isGap = el.classList.contains('gap-block'), floating = el.dataset.overlayBlock === 'true';   // shortcut: 갭 갈래는 지금 부르는 자 0(현빈 261123 t13G-02 ⓐ로 갭 손잡이 거둠 · showHandlesFor) — 되살리면 그 자리 한 줄
   const sx = dir.includes('e') ? 1 : dir.includes('w') ? -1 : 0, sy = dir.includes('s') ? 1 : dir.includes('n') ? -1 : 0;
   const startW = el.offsetWidth, startH = el.offsetHeight, X0 = e.clientX, Y0 = e.clientY;
   let contentH = startH;   // «최소 높이» 바닥 = 키 없을 때 높이(내용)
@@ -5152,7 +5152,7 @@ function showHandlesFor(block) {
     if (posEl.dataset.overlayBlock === 'true' || posEl._textScale) { showTextOverlayResizeHandles(posEl); if (boxOk) showTextBoxResizeHandles(posEl, TBX_EDGES); else hideTextBoxResizeHandles(); }   // ★t13A-08 K 모드면 흐름 텍스트에도 · t13D-10 변 넷(크기만)
     else { hideTextOverlayResizeHandles(); if (boxOk) showTextBoxResizeHandles(posEl, TBX_ALL); else hideTextBoxResizeHandles(); }   // t13D-10 — 흐름 텍스트도 모서리+변(폭·최소 높이)
   } else if (block.classList.contains('gap-block')) {
-    showTextBoxResizeHandles(block, ['s']);   // t13D-10 — 갭 = 아래 변 하나(높이)
+    hideTextBoxResizeHandles();   // ★현빈 261123 t13G-02 ⓐ «갭 블럭 캔버스 리사이즈 손잡이 없게» — 높이는 «H» 라벨로만(t13D-10 의 갭 아래 변 손잡이 거둠 · 텍스트 손잡이는 그대로)
   } else if (block.classList.contains('grid-block')) {
     /* ★G2-b — 떠 있는 그리드에만 «폭» 손잡이였다(흐름 그리드는 패널 너비 줄로).
        ★K3 ⒜(2026-10-05 지디 · lane-f-grid) — 흐름 그리드에도 같은 «폭» 손잡이. 자리 = gridVisualBox(K2 선택 선과 같은 상자) · ⛔높이 안 씀. */

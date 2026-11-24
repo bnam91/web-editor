@@ -12,7 +12,7 @@
  *   F6 절 머리 = 제목 글자만(쉐브론·role=button·aria-expanded 없음) · 몸 hidden 없음
  *   F7 disclosureSectionHtml(하위 접기) 산출은 바이트 그대로(그리드 골든 보호) — 4인자 «틀 판» 갈래는 걷었다
  *   F10 렌더된 틀 마크업(머리·껍데기)에 색·px·rem·em 리터럴 0 — check-design-tokens.sh 하드게이트와 같은 정규식
- *   F11 docs/styleguide.html 정적 14행 표 == SECTION_ORDER · SECTION_TITLE (문서 순서 기계검사)
+ *   F11 docs/styleguide.html 정적 15행 표 == SECTION_ORDER · SECTION_TITLE (문서 순서 기계검사 · ★15 = selection 더함 · 현빈 261123 섹션 보강)
  *   N2 ★양성대조 — 그 표의 두 행을 맞바꾼 판이면 F11 판정이 빨강
  *   F12 소유 규칙 ownerOf/controlIdent — 컨트롤 id·data·«색이다» 표식 → 있어야 할 절(게이트의 본 칼날) · class 는 안 본다 · 표의 절 key 는 정본에 있다
  *   F14 unwrapSection — 절 통째 → 몸 · 몸통만 → 그대로(U0c ⑨ · shortcut — U6 에서 걷는다)
@@ -79,16 +79,17 @@ test('F1 정렬 — SECTION_ORDER 순 · special 은 선언순', () => {
   assert.match(r.html, /id="psec-special-0"[\s\S]*First[\s\S]*id="psec-special-1"[\s\S]*Second/, '★special id 가 선언순으로 안 붙는다');
 });
 
-test('F1b 순서 예외 — panel 이름이 SECTION_ORDER_EXCEPT 에 있으면 그 first 가 맨 앞(섹션 = 현빈 261118 D5 ①) · 없으면 전역 · data-order 표식', () => {
+test('F1b 순서 예외 — panel 이름이 SECTION_ORDER_EXCEPT 에 있으면 그 예외(before)대로 · 없으면 전역 · data-order 표식', () => {
+  /* ★기대 바뀜(현빈 261123 «섹션도 예외없이 일단 layout 다음 fill») — 섹션 예외 first(fill 맨 앞 · 11-18 D5 ①) 걷음 · 남은 섹션 예외 = before(layout 이 size 앞 · 섹션 보강 v117a) */
   const F = loadFrame();
-  const mk = (panel) => F.buildPanelHTML({ panel, sections: [F.sec('kind', 'k'), F.sec('size', 's'), F.sec('fill', 'f')] });
+  const mk = (panel) => F.buildPanelHTML({ panel, sections: [F.sec('kind', 'k'), F.sec('size', 's'), F.sec('layout', 'l'), F.sec('fill', 'f')] });
   /* ★기대 바뀜(Q2 · 현빈 GO 261120) — kind 는 순서와 상관없이 이름표 아래 띠(맨 앞) · 나머지가 예외 순서 */
-  const want = ['kind', ...[...F.sectionOrderFor('section')].filter((k) => ['size', 'fill'].includes(k))];   // 기대는 예외표에서 — 순서를 여기 박지 않는다 · [...] = vm(다른 realm) 배열을 이 realm 배열로(assert/strict 는 프로토타입까지 견준다 — 이 파일의 [...F.SECTION_ORDER] 꼴)
+  const want = ['kind', ...[...F.sectionOrderFor('section')].filter((k) => ['size', 'layout', 'fill'].includes(k))];   // 기대는 예외표에서 — 순서를 여기 박지 않는다 · [...] = vm(다른 realm) 배열을 이 realm 배열로
   assert.deepEqual(secsOf(mk('section')), want);
-  assert.equal(want[1], F.SECTION_ORDER_EXCEPT.section.first[0], '★예외 first 가 (띠 다음) 맨 앞이 아니다');
-  assert.notDeepEqual(want, ['kind', 'size', 'fill'], '[전제] 예외가 전역 순서와 실제로 다르다');
+  assert.deepEqual(want, ['kind', 'layout', 'size', 'fill'], '★섹션 = Layout(정렬) → Size → Fill(예외 first 없음)');
+  assert.equal(F.SECTION_ORDER_EXCEPT.section.first, undefined, '★섹션 «Fill 맨 앞» 예외가 되살아났다(현빈 261123 걷음)');
   assert.match(mk('section'), /data-order="section"/);
-  for (const p of ['', 'nope']) { assert.deepEqual(secsOf(mk(p)), ['kind', 'size', 'fill'], `★예외 없는 패널(${p || '없음'})이 전역 순서가 아니다`); assert.doesNotMatch(mk(p), /data-order/); }
+  for (const p of ['', 'nope']) { assert.deepEqual(secsOf(mk(p)), ['kind', 'size', 'layout', 'fill'], `★예외 없는 패널(${p || '없음'})이 전역 순서가 아니다`); assert.doesNotMatch(mk(p), /data-order/); }
 });
 
 test('F2 중복 — 같은 key 두 번 · 같은 special 제목 두 번 → throw', () => {
@@ -195,10 +196,10 @@ const styleguideMismatch = (rows, F) => {
   return JSON.stringify(rows) === JSON.stringify(want) ? null : { rows, want };
 };
 
-test('F11 docs/styleguide.html 정적 14행 표 == SECTION_ORDER · SECTION_TITLE', () => {
+test('F11 docs/styleguide.html 정적 15행 표 == SECTION_ORDER · SECTION_TITLE', () => {
   const F = loadFrame();
   const rows = styleguideRows(readSrc(ROOT, 'docs/styleguide.html'));
-  assert.equal(rows.length, 14, `[전제] 표 ${rows.length}행`);
+  assert.equal(rows.length, 15, `[전제] 표 ${rows.length}행`);   // ★기대 바뀜 14→15 — selection(Selection Colors · 현빈 261123 섹션 보강)
   assert.equal(styleguideMismatch(rows, F), null, '★문서 표가 정본과 갈렸다 — docs/styleguide.html 패널 절 표를 고쳐라');
 });
 
@@ -211,14 +212,14 @@ test('N2 ★양성대조 — 문서 표 두 행을 맞바꾸면 F11 판정이 �
 
 test('F8 정본 표 — ORDER 와 TITLE 이 special 외 1:1 · 모든 제목이 규칙을 지킨다', () => {
   const F = loadFrame();
-  assert.equal(F.SECTION_ORDER.length, 14);
+  assert.equal(F.SECTION_ORDER.length, 15);   // ★기대 바뀜 14→15 — selection(현빈 261123 섹션 보강 · 지디 261123 «Selection Colors» Title Case)
   assert.deepEqual([...F.SECTION_ORDER].filter((k) => k !== 'special').sort(), Object.keys(F.SECTION_TITLE).sort());
   for (const [k, t] of Object.entries(F.SECTION_TITLE)) assert.ok(F.isValidSectionTitle(t), `${k}: ${t}`);
   /* ★현빈 확정 라벨(2026-11-13 Q1 정정 · 지디 확정값) — 바꾸려면 현빈 결정이 먼저다 */
   assert.deepEqual({ ...F.SECTION_TITLE }, { kind: 'Type', content: 'Content', position: 'Position', size: 'Size', layout: 'Layout',
     padding: 'Padding', appearance: 'Appearance', typography: 'Typography', fill: 'Fill', stroke: 'Stroke', effects: 'Effects',
-    export: 'Export', template: 'Template' });
-  assert.equal(new Set(Object.values(F.SECTION_TITLE)).size, 13, '★제목이 겹친다');
+    selection: 'Selection Colors', export: 'Export', template: 'Template' });   // ★selection 더함 — 현빈 261123 섹션 보강(근거 8910 v117a 상태 70 · 지디 261123 이름 판정)
+  assert.equal(new Set(Object.values(F.SECTION_TITLE)).size, 14, '★제목이 겹친다');
 });
 
 test('F9 파일럿 — prop-gap.js · prop-bridge.js 는 renderPanel 을 쓰고 propPanel.innerHTML 을 안 쓴다', () => {
@@ -233,7 +234,7 @@ test('F9 파일럿 — prop-gap.js · prop-bridge.js 는 renderPanel 을 쓰고 
 });
 
 test('N1 ★양성대조 — SECTION_ORDER 를 뒤집은 판이면 F1 의 기대가 깨진다', () => {
-  const ANCHOR = "'kind', 'content', 'position', 'size', 'layout', 'padding', 'appearance',\n  'typography', 'fill', 'stroke', 'effects', 'template', 'export', 'special',";
+  const ANCHOR = "'kind', 'content', 'position', 'size', 'layout', 'padding', 'appearance',\n  'typography', 'fill', 'stroke', 'effects', 'selection', 'template', 'export', 'special',";   // ★닻 바뀜 — selection(현빈 261123 섹션 보강)
   const src = readSrc(ROOT, 'js/props/_section-spec.js');
   assert.ok(src.includes(ANCHOR), '★변이 닻을 못 찾았다 — 이 양성대조는 «안 재고» 있다');
   const rev = ANCHOR.replace(/\n/, ' ').split(',').map((s) => s.trim()).filter(Boolean).reverse().join(', ') + ',';

@@ -1,5 +1,5 @@
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML } from './_helpers.js';
+import { blockHeaderHTML, checkHTML } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { buildTypographySectionHtml } from './_typo-section.js';   // ⛔글자 크기 칸을 «손으로» 만들지 마라 — 정본은 여기 하나다(tests/unit/typo-section-ssot.test.mjs T2)
@@ -116,10 +116,7 @@ export function showChatProperties(block) {
       const starsPreview = '★'.repeat(starsVal) + '☆'.repeat(5 - starsVal);
       const starsRowHtml = `
         <div class="chb-prop-stars-row" data-idx="${i}" style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:11px;white-space:nowrap">
-          <label style="display:inline-flex;align-items:center;gap:3px;cursor:pointer;color:#aaa;flex-shrink:0" title="말풍선 상단에 별점 표시">
-            <input type="checkbox" class="chb-stars-toggle" data-idx="${i}" ${hasStars ? 'checked' : ''}>
-            <span>별점</span>
-          </label>
+          ${checkHTML({ label: '별점', checked: hasStars, cls: 'chb-stars-toggle', attrs: `data-idx="${i}" title="말풍선 상단에 별점 표시"` })}
           <input type="number" class="chb-stars-num prop-number" data-idx="${i}" min="0" max="5" value="${starsVal}" ${hasStars ? '' : 'disabled'} style="width:48px">
           <span class="chb-stars-preview" data-idx="${i}" style="color:${STAR_FILL_ON};letter-spacing:1px;${hasStars ? '' : 'opacity:0.3'}">${starsPreview}</span>
         </div>`;
@@ -129,10 +126,7 @@ export function showChatProperties(block) {
             style="width:28px;height:28px;border-radius:50%;background:${pImg ? `url('${pImg}') center/cover` : 'linear-gradient(135deg,#666,#888)'};border:1px solid #444;cursor:pointer;flex-shrink:0"></div>
           <input type="text" class="chb-profile-name-input" data-idx="${i}" placeholder="프로필 이름"
             style="flex:1;min-width:0;width:auto;max-width:none;min-height:24px;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:3px;color:#ccc;font-size:11px;padding:2px 6px">
-          <label style="display:inline-flex;align-items:center;gap:3px;cursor:pointer;color:#aaa;flex-shrink:0;white-space:nowrap" title="이 메시지만 프로필 숨김(공간 유지 → 들여쓰기 효과)">
-            <input type="checkbox" class="chb-hide-profile" data-idx="${i}" ${hideThisProfile ? 'checked' : ''}>
-            <span>숨김</span>
-          </label>
+          ${checkHTML({ label: '숨김', checked: hideThisProfile, cls: 'chb-hide-profile', attrs: `data-idx="${i}" title="이 메시지만 프로필 숨김(공간 유지 → 들여쓰기 효과)"` })}
           <input type="file" class="chb-profile-file" data-idx="${i}" accept="image/*" style="display:none">
         </div>` : '';
       return `
@@ -175,14 +169,8 @@ export function showChatProperties(block) {
     sections: [
       sec('content', `
       <div class="prop-row" style="gap:12px;flex-wrap:wrap">
-        <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer">
-          <input type="checkbox" id="chb-show-profile" ${showProfile ? 'checked' : ''}>
-          <span>프로필 이미지</span>
-        </label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer">
-          <input type="checkbox" id="chb-show-name" ${showName ? 'checked' : ''}>
-          <span>이름 표시</span>
-        </label>
+        ${checkHTML({ id: 'chb-show-profile', label: '프로필 이미지', checked: showProfile })}   <!-- 현빈 261123 «온/오프 = 체크» -->
+        ${checkHTML({ id: 'chb-show-name', label: '이름 표시' })}   <!-- 켬 여부는 배선이 .checked 로(이름 축 철자 dataset.showName 을 템플릿에 안 둠 · name-axes X5) -->
       </div>
       <div id="chb-msg-list">${msgListHtml()}</div>
       <button class="prop-btn-full" id="chb-add-msg" style="margin-top:6px">+ 대화 추가하기</button>`),
@@ -233,11 +221,7 @@ export function showChatProperties(block) {
         <input type="number" class="prop-number" id="chb-bubble-padding-val" min="${B.bubblePadding.min}" max="${B.bubblePadding.max}" value="${bubblePadding}" style="width:54px">
       </div>
       <div class="prop-row">
-        <span class="prop-label">패딩 제외</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="chb-fullbleed-toggle" ${fullBleed ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'chb-fullbleed-toggle', label: '패딩 제외', checked: fullBleed })}
       </div>
 `),
       sec('appearance', `
@@ -293,6 +277,7 @@ export function showChatProperties(block) {
     rerender();
     rebindMsgList();
   });
+  { const nm = propPanel.querySelector('#chb-show-name'); if (nm) nm.checked = showName; }
   propPanel.querySelector('#chb-show-name')?.addEventListener('change', e => {
     block.dataset.showName = e.target.checked ? '1' : '0';
     window.pushHistory?.('이름 토글');

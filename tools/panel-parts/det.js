@@ -1,6 +1,6 @@
 /* tools/panel-parts/det.js — 우측패널 부품 판정기(카탈로그 v2 · 탑 261123). 브라우저 쪽 한 벌 — 앱(DOM 하네스)·시안(8910 시안 파일) 둘 다 이 코드를 그대로 싣는다.
  * window.__partsDet(panelBody, defaults) → [{ sec, key, parts: { <data-part>: 'ok' | 'var:까닭' | n }, ownerless: [..], missing: [..], extra: [..], unnamed }]
- * 부품 이름 = 태양 PLAN-ds-parts-state-261123 §2 «부품 이름 한 벌»(data-part 값과 한 낱말): row · number · slider · toggle · select · color · tip · align-group · chain · end-slot · fx-card · rot.
+ * 부품 이름 = 태양 PLAN-ds-parts-state-261123 §2 «부품 이름 한 벌»(data-part 값과 한 낱말): row · number · slider · check · select · color · tip · align-group · chain · end-slot · fx-card · rot.
  * ★주인 없는 컨트롤 = 보이는 input/select/textarea/button 가운데 어느 부품 셀렉터에도 안 걸린 것(레드팀 2차 ① — 앱 Fill 9곳이 색 칸 0 으로 «사라지던» 것을 드러냄).
  * ★이름 없는 절(머리 글 0 · kind 아님) = unnamed true → 카탈로그에서 빨강. defaults = _section-spec.js SECTION_DEFAULTS(절 key → 부품 목록). */
 window.__partsDet = function (body, defaults) {
@@ -13,7 +13,7 @@ window.__partsDet = function (body, defaults) {
     color: '.prop-color-field, .prop-color-row input[type=color], .cv-chips, .cv-chip',
     number: '.prop-icon-input, input.prop-number',
     slider: 'input.prop-slider',
-    toggle: 'label.prop-toggle, label.ui-check',   // ui-check = 태양 부품 check(현빈 261123 온/오프 = 커스텀 체크박스) · 부품 키 이름 toggle→check 는 태양 PART_NAMES 바뀔 때 같이
+    check: 'label.prop-toggle, label.ui-check',   // ui-check = 태양 부품 check(현빈 261123 온/오프 = 커스텀 체크박스) · 부품 키 이름 toggle→check 는 태양 PART_NAMES 바뀔 때 같이
     select: 'select.prop-select',
     'align-group': '.prop-align-group, .prop-style-group',
     chain: '.prop-chain-btn:not(.prop-chain-btn--overlay):not([data-pop-open])',
@@ -47,7 +47,7 @@ window.__partsDet = function (body, defaults) {
     if (sl.length) { present.add('slider'); const lone = sl.filter((x) => !(x.closest('.prop-row') && x.closest('.prop-row').querySelector('input[type=number]'))); P.slider = lone.length ? 'var:숫자 짝 없음 ' + lone.length + '/' + sl.length : 'ok'; }
     // toggle(P3) — 규칙: 이진 = 토글 · 상호배타 = select(글)/align-group(아이콘) · 목록 = 체크박스
     const tg = inS('label.prop-toggle, label.ui-check'), cb = inS('input[type=checkbox]').filter((c) => !c.closest('label.prop-toggle, label.ui-check') && !c.closest('.prop-sec-head') && !c.closest('[data-sec-item]')), rad = inS('input[type=radio]');
-    if (tg.length || cb.length || rad.length) { present.add('toggle'); const why = []; if (cb.length) why.push('이진인데 체크박스 ' + cb.length); const g = {}; rad.forEach((r) => { g[r.name || 'x'] = (g[r.name || 'x'] || 0) + 1; }); const bin = Object.values(g).filter((n) => n === 2).length; if (bin) why.push('켬/끔 라디오 ' + bin); P.toggle = why.length ? 'var:' + why.join(' · ') : 'ok'; }
+    if (tg.length || cb.length || rad.length) { present.add('check'); const why = []; if (cb.length) why.push('이진인데 체크박스 ' + cb.length); const g = {}; rad.forEach((r) => { g[r.name || 'x'] = (g[r.name || 'x'] || 0) + 1; }); const bin = Object.values(g).filter((n) => n === 2).length; if (bin) why.push('켬/끔 라디오 ' + bin); P.check = why.length ? 'var:' + why.join(' · ') : 'ok'; }
     // select(P4)
     // ★Stroke 의 select = «위치»(태양 §4b·§4c · 지디 261123 «위치/스타일 갈라 세라») — 값이 안쪽/가운데/바깥(내부/중앙/외부)인 것만 select 로 셈 · 실선/점선 같은 스타일 select 는 따로(P['select-style'])
     const POS = /^(안쪽|가운데|바깥|내부|중앙|외부|inside|center|outside)$/i, isPos = (x) => x.dataset.field === 'stroke-align' || (x.dataset.field !== 'stroke-style' && [...x.options].some((o) => POS.test(o.textContent.trim())));   // 태양 §4c: data-field 로 가름(stroke-align = 위치 · stroke-style = 스타일 · 특수 슬롯) · data-field 없는 옛 꼴은 값으로

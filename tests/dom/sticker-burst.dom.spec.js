@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 ①②③ · 태양 §2c check) — 바뀐 칸의 토글 스위치(label.prop-toggle · .prop-toggle-track) → check 부품(label.ui-check · input.ui-check-box) */
 /* sticker-burst.dom.spec.js — 톱니(버스트) 스탬프 = 스티커 모양 burst (B2 · 현빈 261114 «BEST 처럼 톱니모양 마크»)
  *   진짜 길: 펜 ▾ «Sticker» → 우측 패널 Shape «톱니» · Burst 절(톱니 수·깊이·끝 둥글기·안쪽 링)
  *   Z1 ★뒤집음(현빈 QA 261116 NEW-현빈QA-STICKER-BURST-NO-SEPARATE-MENU-ROUNDNESS-01): 옛 Z1 «메뉴 BEST 스탬프로 만든다» → 펜 ▾ 에 «BEST 스탬프»(#fp-add-burst) 없음 ·
@@ -76,7 +77,7 @@ test('Z2 패널 — 톱니 수·깊이·링', async ({ page }) => {
   await page.fill('#stk-burst-teeth-num', '12'); await page.dispatchEvent('#stk-burst-teeth-num', 'change');
   await page.fill('#stk-burst-depth-num', '30'); await page.dispatchEvent('#stk-burst-depth-num', 'change');
   // 체크박스는 .prop-toggle 안에 숨어 있다(css/editor-props.css:242 opacity 0 · width 0) — 다른 스펙처럼 라벨을 누른다
-  await page.click('label.prop-toggle:has(#stk-burst-ring)');
+  await page.click('label.ui-check:has(#stk-burst-ring)');
   await expect(page.locator('#stk-burst-ring')).not.toBeChecked();
   const r = await read(page, id);
   expect([r.n, r.valley, r.ring]).toEqual([24, 35, 0]);

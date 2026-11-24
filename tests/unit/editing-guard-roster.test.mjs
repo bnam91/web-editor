@@ -83,7 +83,7 @@ const KNOWN = {
                                 `if (document.querySelector('.text-block.editing, .label-group-block.editing')) return false;` 한 줄.
                                 files 는 9 그대로(이미 명부에 있는 파일). 받침 = 아래 `js/editor.js` 칸 — Tab 갈래는 keydown 핸들러 첫 문장(B1) «뒤»라
                                 편집 중(contentEditable 초점)의 Tab(⌘ 없음)은 B1 이 먼저 막고, 함수 첫 줄이 activeElement 일반검사(INPUT·TEXTAREA·SELECT·캔버스 밖)다. */
-  sites: 47,
+  sites: 48,   // +1 t13G-01(탑 261124) — editor.js _nativeClipSkip: 메뉴 «편집›복사/붙여넣기» 네이티브 사건 길도 ⌘C/⌘V keydown 과 같은 «글 고침 중이면 손 안 댐» 관문(같은 파일 · 같은 합집합)
   files: 9,
   union: ['asset', 'grid', 'icon-text', 'label-group', 'liner', 'modal', 'quote', 'text'],
 };

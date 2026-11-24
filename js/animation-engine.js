@@ -148,7 +148,7 @@ const REVEAL_LIST = [
 ];
 /* 움직임 블럭 종류 표 — 엔진의 갈래 자리(열기·미리보기·캔버스 재생·GIF 저장·빈 판정)는 이 표 한 줄만 본다(텍스트 길은 무변). */
 const _MK = {
-  slide: { cls: 'slide-block', list: SLIDE_LIST, prepare: (b) => window.slidePrepare?.(b), plan: (b, a, fx) => window.slidePlan(b, a, fx), read: (b) => window.readSlideState(b),
+  slide: { cls: 'slide-block', list: SLIDE_LIST, prepare: (b, o) => window.slidePrepare?.(b, o), plan: (b, a, fx) => window.slidePlan(b, a, fx), read: (b) => window.readSlideState(b),
     save: (b, a) => !!window.setSlideAnim?.(b, a), has: (b) => !!window.slideHasPhotos?.(b), emptyTitle: '사진이 없어 GIF 를 만들 수 없습니다 — 오른쪽 패널에서 사진을 넣으세요' },
   step:  { cls: 'grid-block', list: STEP_LIST, prepare: (b) => window.stepPrepare?.(b), plan: (b, a, fx) => window.stepPlan(b, a, fx), read: (b) => window.readStepState(b),
     save: (b, a) => !!window.setStepAnim?.(b, a), has: (b) => !!window.stepHasCells?.(b), emptyTitle: '칸이 없어 GIF 를 만들 수 없습니다' },
@@ -238,7 +238,7 @@ function _startSlidePreview() {
   const canvas = document.getElementById('anim-preview-canvas'), tb = _animTb, token = ++_slidePrevToken;
   const mk = _MK[_animKind];
   if (!canvas || !tb || !mk) return;
-  Promise.resolve(mk.prepare(tb)).then(() => {
+  Promise.resolve(mk.prepare(tb, { preview: true })).then(() => {   // 199 — 미리보기 = 비네이티브(번쩍 없음)
     if (token !== _slidePrevToken || _animTb !== tb) return;
     const bW = Math.max(tb.offsetWidth, 1), bH = Math.max(tb.offsetHeight, 1);
     canvas.width = 480; canvas.height = Math.max(40, Math.round(480 * bH / bW));
@@ -450,7 +450,7 @@ function playAnimOnCanvas() {
     const tb = _animTb, anim = _slideAnimNow(), fx = _animType;
     closeAnimModal();
     const mk = _MK[_mkOf(tb)];
-    Promise.resolve(mk.prepare(tb)).then(() => { if (tb.isConnected) _startCanvasPlay(tb, mk.plan(tb, anim, fx), _slideBgStyle(tb)); });
+    Promise.resolve(mk.prepare(tb, { preview: true })).then(() => { if (tb.isConnected) _startCanvasPlay(tb, mk.plan(tb, anim, fx), _slideBgStyle(tb)); });   // 199
     return;
   }
   const tb = _animTb, style = _getTextStyle(tb);
@@ -465,7 +465,7 @@ function toggleAnimOnCanvas(tb) {
   if (_onCanvas && _onCanvas.tb === tb) { stopAnimOnCanvas(); return; }
   if (_isEmptyText(tb)) return;
   const mk = _MK[_mkOf(tb)];
-  if (mk) { Promise.resolve(mk.prepare(tb)).then(() => { if (tb.isConnected) _startCanvasPlay(tb, mk.plan(tb), _slideBgStyle(tb)); }); return; }
+  if (mk) { Promise.resolve(mk.prepare(tb, { preview: true })).then(() => { if (tb.isConnected) _startCanvasPlay(tb, mk.plan(tb), _slideBgStyle(tb)); }); return; }   // 199
   const style = _getTextStyle(tb), st = _savedState(tb);
   _startCanvasPlay(tb, _planOf(st, style, st.speed, _PLAY_K), style);
 }

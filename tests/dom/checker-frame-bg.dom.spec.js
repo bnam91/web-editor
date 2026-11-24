@@ -109,9 +109,9 @@ test('N1 [대조] 섹션 체크 배경·톤은 그대로 — 프레임 라디오
   await bootApp(page);
   await build(page);
   await page.evaluate(() => window.showSectionProperties(document.getElementById('S2')));
-  await page.waitForSelector('#sec-checker-tone-on', { state: 'attached' });
+  await page.waitForSelector('#sec-bg-chk-dark', { state: 'attached' });   // ★기대 바뀜(PRS-04 · 현빈 GO 261122 · 섹션 보강 261123) — 섹션 체크 배경 = [라이트 | 다크] 세그먼트(옛 «체크 배경으로 두기» 단추 + «체커 어둡게» 켬/끔 라디오 걷음)
   expect(await bg(page, 'S2')).toContain(DARK);
-  const names = await page.evaluate(() => [document.getElementById('sec-checker-tone-on')?.name]);
+  const names = ['sec-checker-tone'];   // 섹션은 이제 단추(라디오 name 없음) — 프레임 라디오가 옛 섹션 이름을 다시 쓰지 않는지만 본다
   await open(page, 'G');
   await click(page, '#ss-bg-img-empty');
   names.push(await page.evaluate(() => document.getElementById('ss-checker-tone-on')?.name));

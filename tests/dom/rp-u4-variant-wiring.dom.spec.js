@@ -23,7 +23,7 @@ const V = [
   { name: 'shape 원', make: `return add('shape-block', () => window.addShapeBlock('ellipse'));`, open: 'showShapeProperties', ctl: { id: 'shape-ellipse-count-slider', value: '2' } },
   { name: 'shape 별', make: `return add('shape-block', () => window.addShapeBlock('star'));`, open: 'showShapeProperties', ctl: { id: 'shape-star-count-slider', value: '3' } },
   { name: 'shape 가림막', make: `return add('shape-block', () => window.addShapeBlock('rectangle'));`, open: 'showShapeProperties', ctl: { id: 'shape-redact-toggle', click: true } },
-  { name: 'zoom', make: `return add('zoom-block', () => window.addZoomBlock());`, open: 'showZoomProperties', ctl: { sel: 'input[name="zm-bd"][value="on"]', click: true } },
+  { name: 'zoom', make: `return add('zoom-block', () => window.addZoomBlock());`, open: 'showZoomProperties', ctl: { sel: '#zm-bd-on', click: true } },
   { name: 'annotation 일반', make: `return annot({});`, open: 'showAnnotationProperties', ctl: { id: 'annot-stroke-w', value: '3' } },
   { name: 'annotation 치수선', make: `return annot({ annotKind: 'dim' });`, open: 'showAnnotationProperties', ctl: { id: 'annot-stroke-w', value: '3' } },
   { name: 'annotation 이미지 라벨', make: `const b = annot({}); b.dataset.labelMode = 'image'; return b;`, open: 'showAnnotationProperties', ctl: { id: 'annot-stroke-w', value: '3' } },

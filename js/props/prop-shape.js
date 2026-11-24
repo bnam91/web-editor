@@ -2,7 +2,7 @@ import { propPanel } from '../globals.js';
 import { checkerBgBigColors, checkerSvgFills } from '../checker-tokens.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { svgStopRemap } from './gradient-model.js';
-import { overlayToggleBtnHTML, blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
+import { overlayToggleBtnHTML, blockHeaderHTML, rotRowHTML, wireRotRow, checkHTML } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
 import { starPoints, starClipPath, clampStarN, STAR_MIN, STAR_MAX,
          starPointsList, starViewBox, clampStarCount, STAR_COUNT_MIN, STAR_COUNT_MAX,
@@ -193,10 +193,7 @@ export function showShapeProperties(block) {
              ★아래 ★까닭 줄이 ★나타난다 — ★★«잠겼다»를 ★겉모습으로 ★말한다(t2cmdl ㉣).
            ★끄면 ★잠금이 ★풀린다(되돌릴 수 있게 · 지디 판정 ⑤). -->
       <div class="prop-row" id="shape-star-rating-row" style="gap:6px;font-size:11px;white-space:nowrap">
-        <label style="display:inline-flex;align-items:center;gap:3px;cursor:pointer;color:#aaa;flex-shrink:0" title="별 도형을 평점으로 — 채운 별과 빈 별을 색으로 가른다">
-          <input type="checkbox" id="shape-star-rating-toggle" ${ratingOn ? 'checked' : ''}>
-          <span>별점</span>
-        </label>
+        ${checkHTML({ id: 'shape-star-rating-toggle', label: '별점', checked: ratingOn, attrs: 'title="별 도형을 평점으로 — 채운 별과 빈 별을 색으로 가른다"' })}   <!-- 현빈 261123 «온/오프 = 체크» -->
         <input type="number" class="prop-number" id="shape-star-rating-num" min="${STAR_RATING_MIN}" max="${STAR_RATING_MAX}" value="${starRating ?? STAR_RATING_MAX}" ${ratingOn ? '' : 'disabled'} style="width:48px">
         <span id="shape-star-rating-preview" style="color:${ratingOnColor};letter-spacing:1px;${ratingOn ? '' : 'opacity:0.3'}">${starRatingPreview(starRating)}</span>
       </div>` : ''),
@@ -254,11 +251,7 @@ export function showShapeProperties(block) {
              (2026-09-20 실측 sw60/cw56, 실물 앱은 더 잘림). 이 줄은 «라벨 하나 + 남는 폭을 쓰는 컨트롤»
              이라 앱 관례인 내용폭 라벨을 쓴다(css/editor-props.css:32, prop-page.js 「그리드 가이드」 선례).
              ⛔전역 .prop-label 의 56px 은 내리지도 올리지도 마라 — 패널 세로 정렬의 출처다. -->
-        <span class="prop-label prop-label--auto">블러로 가리기</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="shape-redact-toggle" ${isRedact ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'shape-redact-toggle', label: '블러로 가리기', checked: isRedact })}
       </div>
       <div id="shape-redact-controls" style="${isRedact ? '' : 'display:none'}">
         <div class="prop-row" style="margin-top:8px;">
@@ -348,12 +341,8 @@ export function showShapeProperties(block) {
       sec('effects', `${isEllipse && !isRedact ? `
         <div id="shape-ellipse-shadow-wrap">
         <div class="prop-row" style="margin-top:8px;">
-          <span class="prop-label prop-label--auto">이너 그림자</span>
-          <label class="prop-toggle">
-            <input type="checkbox" id="shape-ellipse-shadow-toggle" ${ellShadow !== null ? 'checked' : ''}>
-            <span class="prop-toggle-track"></span>
-          </label>
-        </div>
+        ${checkHTML({ id: 'shape-ellipse-shadow-toggle', label: 'Inner shadow', checked: ellShadow !== null })}
+      </div>
         ${ellShadow !== null ? `<div class="prop-row">
           <span class="prop-label">세기</span>
           <input type="range" class="prop-slider" id="shape-ellipse-shadow-slider" min="${ELLIPSE_SHADOW_MIN}" max="${ELLIPSE_SHADOW_MAX}" step="1" value="${ellShadow}">
@@ -1141,7 +1130,7 @@ export function showShapeProperties(block) {
         if (ellShToggle.checked) block.dataset.ellipseShadow = String(ELLIPSE_SHADOW_ON_DEFAULT);
         else delete block.dataset.ellipseShadow;
         _ellRedraw();
-        window.pushHistory?.('이너 그림자');
+        window.pushHistory?.('Inner shadow');
         window.scheduleAutoSave?.();
         showShapeProperties(block);   // 세기 줄이 생기고/사라진다
       });
@@ -1560,4 +1549,5 @@ function _applyShapeImage(block, src, fit) {
 
 _ensureShapeCheckerDefs();
 window._clearShapeImage = _clearShapeImage;
+window._applyShapeImage = _applyShapeImage;   // 207행 — 에셋 → 사각형 바꾸기(block-factory convertAssetToRect)가 그림을 이 칠로 옮긴다
 window._syncShapeImageClip = _syncShapeImageClip;

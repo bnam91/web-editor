@@ -1,7 +1,7 @@
 // prop-annotation.js — 어노테이션 우측 속성 패널
 // 프리셋 / 선 / 시작점 / 라벨 (디자인 시스템 공용 컴포넌트 사용)
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML, escHtml } from './_helpers.js';
+import { blockHeaderHTML, escHtml, checkHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 /* ★1017t1h3 — 「고른 글자만」 한 벌. ⛔선택을 여기서 따로 저장하지 않는다(_text-selection.js 머리말 ⛔). */
@@ -424,7 +424,7 @@ export function showAnnotationProperties(block) {
           <input type="number" class="prop-number" id="annot-dim-slide-num" min="-200" max="200" step="1" value="${st.dimSlide}">
         </div>
         <div class="prop-row">
-          <label class="prop-label" style="cursor:pointer"><input type="checkbox" id="annot-dim-ext" ${st.dimShowExt ? 'checked' : ''}> 보조선</label>
+          ${checkHTML({ id: 'annot-dim-ext', label: '보조선', checked: st.dimShowExt })}   <!-- 현빈 261123 «온/오프 = 체크» -->
           <select class="prop-select" id="annot-dim-extstyle">
             ${[['solid', '실선'], ['dashed', '대시'], ['dotted', '점선']].map(([v, n]) => `<option value="${v}"${st.dimExtStyle === v ? ' selected' : ''}>${n}</option>`).join('')}
           </select>

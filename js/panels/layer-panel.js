@@ -4,6 +4,7 @@
 ═══════════════════════════════════ */
 import { makeIndents, layerIcons, addLayerRename, makeLayerBlockItem, makeLayerGroupItem, makeLayerGridItem, layerHasKidsBox,
          makeLayerFrameItem, makeLayerAssetItem } from './layer-panel-items.js';
+import { posElOf, isFloat } from '../overlay-float.js';   // IAL-05 — 떠 있음 판정 정본
 
 // LP-COLLAPSE-DEFAULT (2026-05): 신규 row-group은 collapsed로 시작.
 // 사용자가 chevron을 직접 펼쳐야 _expandedRowGroupIds 에 등록되고, 이후 빌드에서도 펼침 유지.
@@ -28,6 +29,23 @@ export function buildLayerPanel() {
 
   document.querySelectorAll('.section-block:not([data-ghost])').forEach((sec, si) => buildLayerSectionRow(sec, si, panel, collapsedSections));
   _buildLayerPanelTail(panel, collapsedSections);
+  _markIalLayerIcons(panel);
+}
+
+/* ★IAL-05(0.9.13 189행 · 현빈 261122 · 시안 8910 «ial» 열 레이어 띠) — Ignore Auto Layout 켠 블럭·프레임의 레이어 아이콘 = 그 아이콘 + 네 모서리 괄호(Figma «#» ↔ «# + 괄호»).
+   판정 = 떠 있음의 정본(overlay-float posElOf + isFloat) — 텍스트·도형·에셋·프레임 모두 같은 규칙. 아이템마다 따로 안 고치고 다 그린 뒤 한 번 훑는다(아이콘 표 무변). */
+const IAL_BRACKETS = '<path class="layer-ial-brackets" d="M.5 2.5V.5h2M9.5 .5h2v2M11.5 9.5v2h-2M2.5 11.5h-2v-2" fill="none" stroke="currentColor" stroke-width="1"></path>';
+function _markIalLayerIcons(panel) {
+  panel.querySelectorAll('.layer-item, .layer-row-header').forEach((item) => {
+    const t = item._dragTarget || item.parentElement?._dragTarget;
+    const pe = t ? posElOf(t) : null;
+    if (!pe || !isFloat(pe)) return;
+    const ic = item.querySelector(':scope > svg, :scope > .layer-item-icon, :scope svg.layer-item-icon');
+    if (!ic || ic.dataset.ial) return;
+    ic.dataset.ial = '1';
+    ic.innerHTML = IAL_BRACKETS + '<g transform="translate(1.5 1.5) scale(.75)">' + ic.innerHTML + '</g>';
+    item.setAttribute('data-ial', '1');
+  });
 }
 
 // GAP-003: per-section 레이어행 1개를 build+append. buildLayerPanel 전체루프와 appendLayerSection이 공용(본문 동일).
@@ -166,6 +184,7 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
             window.transformSectionToBadge?.(sec, newName.replace(/^\*\*badge_/i, '').trim() || '정품인증');
             window.buildLayerPanel?.();   // BADGE-SECTION-LAYER-TREE-STALE-01: inner 를 통째로 갈았다 — 트리가 옛 자식(Gap/Heading…)을 그대로 보였다
           }
+          window.applyYoutubeThumbName?.(sec, prevName);   // ★«ytb_» 이스터에그(현빈 261123) — 이름이 ytb_ 로 시작하면 썸네일 섹션 · 떼면 원상복구 · 아래 pushHistory «앞» = ⌘Z 한 칸
           window.pushHistory?.('섹션명 변경');
           window.scheduleAutoSave?.(); // FIX-LP-01: 이름 변경 후 저장 보장
         } else {

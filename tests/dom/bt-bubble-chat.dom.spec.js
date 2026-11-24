@@ -47,7 +47,7 @@ async function selectBubble(page, id) {
 
 /* 패널 토글로 발신자 이름 켜기(실제 클릭 — 숨은 checkbox 대신 보이는 트랙을 누른다) */
 async function turnSenderOn(page, id) {
-  await page.locator('#bubble-show-sender + .prop-toggle-track').click();
+  await page.locator('label.ui-check:has(#bubble-show-sender)').click();   /* ★기대 바뀜(현빈 261123 ①②③ · check 부품) — 토글 트랙 → check 라벨 */
   await expect(page.locator('#bubble-show-sender'), '전제: 토글이 켜졌다').toBeChecked();
   expect(await page.evaluate((i) => document.getElementById(i).dataset.showSender, id), '전제: dataset.showSender').toBe('true');
   await expect(page.locator(`#${id} .tb-sender-name`), '전제: 캔버스 이름표가 보인다').toBeVisible();
@@ -84,7 +84,7 @@ test('BT1-1 발신자 이름을 켜도 우측 패널에 이름 입력칸(placeho
   await expect(page.locator('#bubble-sender-name-input')).toHaveCount(0);
   await expect(page.locator('#bubble-sender-name-row')).toHaveCount(0);
   // 끄기도 그대로 된다
-  await page.locator('#bubble-show-sender + .prop-toggle-track').click();
+  await page.locator('label.ui-check:has(#bubble-show-sender)').click();   /* ★기대 바뀜(현빈 261123 ①②③ · check 부품) — 토글 트랙 → check 라벨 */
   await expect(page.locator(`#${id} .tb-sender-name`)).toBeHidden();
 });
 

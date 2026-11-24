@@ -33,8 +33,8 @@ test('W1 ★⌘[ / ⌘] 가 «메타 갈래 안»에서 moveSelectedBlocks 로 �
   const br = ED.indexOf("if (e.code === 'BracketRight') {");
   assert.ok(meta > 0 && bl > meta && br > bl,
     '★대괄호 갈래가 ⌘/Ctrl 갈래 «밖»으로 나갔다 — 그러면 맨 대괄호가 블록을 옮긴다');
-  assert.match(ED.slice(bl, bl + 400), /moveSelectedBlocks\('up'\)/, '★⌘[ 가 up 으로 안 간다');
-  assert.match(ED.slice(br, br + 400), /moveSelectedBlocks\('down'\)/, '★⌘] 가 down 으로 안 간다');
+  assert.match(ED.slice(bl, bl + 440), /moveSelectedBlocks\('up'(, e\.shiftKey)?\)/, '★⌘[ 가 up 으로 안 간다');   // 창 400→440 · IAL-02 맞춤(지디 261124) — ⌘[ ] 갈래가 스크래치·캔버스 둘 다에 e.shiftKey 를 넘겨 머리→호출 끝 399/404자
+  assert.match(ED.slice(br, br + 440), /moveSelectedBlocks\('down'(, e\.shiftKey)?\)/, '★⌘] 가 down 으로 안 간다');
 });
 
 test('W2 ★⌘G 가 groupSelectedBlocks → wrapSelectedBlocksInFrame({asGroup:true}) 로 간다', () => {

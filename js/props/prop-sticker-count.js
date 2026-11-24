@@ -21,6 +21,7 @@
  */
 
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { checkHTML } from './_helpers.js';   // check 부품(현빈 261123 · 태양 §2c)
 
 const SIZE_MIN = 10, SIZE_MAX = 600;
 const FS_MIN = 6, FS_MAX = 150;      // 코너 드래그(js/sticker-select.js)와 같은 범위
@@ -218,11 +219,8 @@ export function countSections(block) {
         ${colorFieldHTML({ idPrefix: 'stk-clabel', hex: labelColor, alpha: parseAlphaFromColor(labelColor) })}
       </div>`,
     special: [['Marking', `
-      <div class="prop-row"><span class="prop-label">섹션 전체</span>
-        <label class="prop-toggle" title="켜면 모양·크기·폰트·색이 이 섹션의 마킹 전부에 적용된다 (끄면 고른 것만)">
-          <input type="checkbox" id="stk-count-group" aria-label="섹션 전체에 적용"${_groupOn ? ' checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+      <div class="prop-row" title="켜면 모양·크기·폰트·색이 이 섹션의 마킹 전부에 적용된다 (끄면 고른 것만)">
+        ${checkHTML({ id: 'stk-count-group', label: '섹션 전체', checked: _groupOn, attrs: 'aria-label="섹션 전체에 적용" title="켜면 모양·크기·폰트·색이 이 섹션의 마킹 전부에 적용된다 (끄면 고른 것만)"' })}
       </div>
       <div class="prop-row" id="stk-count-start-row" style="display:${isIcon ? 'none' : 'flex'};"><span class="prop-label">시작 번호</span>
         <input type="number" class="prop-number" id="stk-count-start" min="${START_MIN}" max="${START_MAX}" step="1" value="${start}" title="이 섹션의 첫 번호 (알파벳 표기에서는 1 = A)">

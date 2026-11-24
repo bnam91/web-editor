@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 ①②③ · 태양 §2c check) — 바뀐 칸의 토글 스위치(label.prop-toggle · .prop-toggle-track) → check 부품(label.ui-check · input.ui-check-box) */
 /* frame-clip-toggle — ★★프레임 「★내용 자르기」 ★★토글을 ★★«사람이 누르는 길»로 잰다 (2026-10-10)
  *
  * ★★★왜 이 파일이 ★있나 — ★★공백이 ★있었다. ★★그리고 ★그 공백은 ★현빈 결정의 ★자리였다.
@@ -37,7 +38,7 @@ const TOGGLE = '#ss-clip-toggle';
    ★★실측(2026-10-10 ★1차 회차): ★input bbox ★★0x0 · ★그 점의 요소 ★`label.prop-toggle` · ★`isSelf true`
      ⇒ ★★`isSelf` 가 ★★그걸 말한다 — ★그 점의 요소가 ★그 input 을 ★★품은 ★라벨이다
    ⇒ ★★⛔그래서 ★input 의 ★면적을 ★요구하지 ★않는다. ★★라벨의 ★면적을 ★잰다 */
-const TOGGLE_LABEL = 'label.prop-toggle:has(#ss-clip-toggle)';
+const TOGGLE_LABEL = 'label.ui-check:has(#ss-clip-toggle)';
 
 /* ★장면 — ★`frame-clip-drag.dom.spec.js` ★`scene()` 과 ★★같은 앱 길이다(★그 파일이 ★정본).
    ⛔앱 밖에서 ★DOM 을 ★손으로 ★짓지 ★않는다 — ★그러면 ★«앱에서 ★이 꼴이 ★생기나»를 ★안 잰 것이 된다. */

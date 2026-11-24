@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 ①②③ · 태양 §2c check) — 바뀐 칸의 토글 스위치(label.prop-toggle · .prop-toggle-track) → check 부품(label.ui-check · input.ui-check-box) */
 /* shape-ellipse-multi.dom.spec.js — 1013t2A1 원(ellipse) 도형 «갯수·간격·원마다 색·이너 그림자»
  * 현빈 원문: 「Ellipse 블럭 : 별모양 블럭처럼 갯수 선택하면 늘릴 수 있고, 각 원 모양마다 각각의 색을
  *            입력할 수 있다. 살짝 이너 그림자 느낌도 줄 수 있다.」 (그림 ref/1013t2-img01.png — 원 6개 한 줄)
@@ -93,7 +94,7 @@ const look = (page) => page.evaluate(() => {
 async function setToggle(page, id, want) {
   const cur = await page.evaluate((id) => document.getElementById(id)?.checked ?? null, id);
   expect(cur, '전제 — #' + id + ' 가 있다').not.toBe(null);
-  if (cur !== want) await page.locator('label.prop-toggle:has(#' + id + ')').click();
+  if (cur !== want) await page.locator('label.ui-check:has(#' + id + ')').click();
   await expect.poll(() => page.evaluate((id) => document.getElementById(id)?.checked ?? null, id)).toBe(want);
 }
 
