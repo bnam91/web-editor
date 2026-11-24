@@ -1228,6 +1228,7 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
   transition: background 0.1s, color 0.1s, border-color 0.1s;
 }
 .prop-icon-btn[aria-pressed="true"] { color: var(--ui-accent-primary); border-color: var(--ui-accent-primary); }   /* ⑦ 📌 켬 */
+.prop-icon-btn[aria-pressed="mixed"] { color: var(--ui-accent-primary); border-color: var(--ui-accent-primary); border-style: dashed; }   /* F6-3 여러 고름 눈 «일부만» — 눌림과 같은 파랑 · 점선으로 가름(새 값 0) */
 .prop-icon-btn:hover {
   background: var(--ui-bg-hover);
   color: var(--ui-danger);
@@ -1395,3 +1396,5 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
 .ui-fill .ui-f-row > .prop-color-field { flex: 1 1 auto; max-width: none; } .ui-fill-layer[data-hidden="1"] .prop-color-field { opacity: var(--ui-disabled-opacity); }   /* F6 숨김 줄 흐림(시안 ① «숨김» 상태 · 눈 눌림 = .prop-icon-btn[aria-pressed]) */ .ui-fill-none { font-size: var(--ui-fs-10); color: var(--ui-hint-color); text-align: center; padding: var(--ui-space-2) var(--ui-space-3) var(--ui-space-1); letter-spacing: 0.02em; } .ui-fill-slot[data-slot="below"] { border-top: thin dashed var(--ui-border-mid); padding-top: var(--ui-space-1_5); margin-top: var(--ui-space-1_5); } .ui-fill .prop-color-hex[data-fill-kind] { text-transform: none; cursor: pointer; } .ui-fill-btn[aria-disabled="true"] { opacity: var(--ui-disabled-opacity, 0.5); cursor: not-allowed; }   /* 표준 Fill(F1 · 시안 #mkp-fillstd) — 이름칸 «Linear» 대소문자 그대로 · 눈 막힘(F6 전) */
 /* 절 끝 여백 = --ui-sec-body-pb 하나(⑯ 규칙은 몸 아래 두 겹까지만 본다 — 부품 줄은 세 겹째: 몸 › .ui-stroke2 › 묶음 › 줄) · 슬롯이 뒤에 오면 표준 묶음 끝 줄 여백은 슬롯과의 사이로 남는다 (prop-section-bottom-gap B1 실측 22 → 16) */
 .ui-stroke2 > :last-child > :last-child { margin-bottom: 0; }
+.ui-fill .prop-color-swatch.ui-fill-mixed { background: repeating-linear-gradient(45deg, var(--ui-border-mid) 0 var(--ui-space-0_5), transparent var(--ui-space-0_5) var(--ui-space-1_5)) !important; }   /* F6-3 여러 고름 색 섞임 = 빗금 견본(옛 인라인 색은 --mixed-was 로 비킴) */
+.ui-fill .prop-color-field[aria-disabled="true"] { opacity: var(--ui-disabled-opacity); pointer-events: none; }   /* F6-3 그라데이션·이미지 섞임 = 색 칸 막힘 */

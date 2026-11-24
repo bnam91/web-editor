@@ -5,6 +5,8 @@ import { renderPanel, sec } from './_panel-frame.js';
    ★선례: ★`prop-text-wireup-align.js:50`(★단일선택) · ★`prop-page.js:683`(★페이지 일괄) ★둘이 ★이미 ★이렇게 ★쓴다. */
 import { applyBubbleSenderAlign } from './prop-text-wireup-align.js';
 import { detectMix } from './prop-text-mix-detect.js';
+import { colorFieldHTML, wireColorField } from './color-picker.js';
+import { fillSectionHTML, wireFillSection, fillKindOf, fillHiddenOf, fillSetHidden } from './_fill-section.js';   // F6-3 여러 고름 Fill
 import { isStickerUnit as _isStickerUnit, overlayUnitOf as _overlayUnitOf } from '../overlay-unit.js';   /* 248 — 단위 명부 한 벌 */
 
 /* ═══════════════════════════════════
@@ -212,11 +214,39 @@ function _applyDimension(wrappers, field, value) {
 /**
  * freeLayout 멀티셀렉 패널 렌더링 (메인 export)
  */
+
+/* ★F6-3 여러 고름 Fill(지디 261124 · 표준 부품 · 종류 표 = _fill-section FILL_KINDS)
+ *   고른 단위가 «전부» 표 안 종류일 때만 절이 선다(글·Fill 없는 블럭이 섞이면 절 없음 — 단일 패널에서도 눈·색 표준 줄이 아닌 것들)
+ *   색: 다 같으면 그 색 · 다르면 Mix(빈 값 + placeholder «Mix» + 빗금 견본 = 글자 크기 Mix 칸과 같은 꼴) · 고르면 전부 그 색(종류별 paint = 단일 패널 onApply 와 같은 쓰기) · 이력 한 칸
+ *   그라데이션·이미지가 하나라도 있으면 색 칸 막힘(v1 · 까닭 툴팁) · − 막힘(v1)
+ *   눈: 다 숨김 = 눌림 · 일부 = aria-pressed=mixed · 누르면 «하나라도 보이면 다 숨김, 다 숨김이면 다 보임»(Figma) · 이력 한 칸 */
+function _fillMulti(units) {
+  const its = (units || []).map(fillKindOf);
+  if (its.length < 2 || its.some((x) => !x)) return null;
+  const cols = its.map(({ block, k }) => k.get(block));
+  const same = cols.every((c) => c === cols[0]);
+  const hidN = its.filter(({ block }) => fillHiddenOf(block)).length;
+  const hidden = hidN === 0 ? false : hidN === its.length ? true : 'mixed';
+  const solid = its.every(({ block, k }) => k.solid(block));
+  let colorHtml = colorFieldHTML({ idPrefix: 'msp-fill', hex: same && /^#[0-9a-f]{6}$/i.test(cols[0]) ? cols[0] : '#000000' });
+  if (!same) colorHtml = colorHtml.replace('class="prop-color-swatch" style="background:', 'class="prop-color-swatch ui-fill-mixed" data-mixed="1" style="--mixed-was:')
+    .replace(/(id="msp-fill-hex" )value="[^"]*"/, '$1value="" placeholder="Mix" data-empty="invalid"');
+  if (!solid) colorHtml = colorHtml.replace('<div class="prop-color-field">', '<div class="prop-color-field" aria-disabled="true" title="그라데이션·이미지 칠이 섞여 있어 여러 개를 한 번에 못 바꿔요 — 하나씩 고르세요">');
+  return {
+    html: fillSectionHTML({ prefix: 'msp-fill', hiddenWhy: '', hidden, colorHtml, removeWhy: '여러 블럭의 칠 지우기는 아직 — 하나씩 고르세요' }),
+    wire() {
+      wireFillSection({ prefix: 'msp-fill', adapter: { add() {}, none() {}, hide: (on) => its.forEach(({ block, k }) => fillSetHidden(block, k, on)), commit: () => { window.pushHistory?.(); window.scheduleAutoSave?.(); } } });
+      if (solid) wireColorField('msp-fill', { onApply: (c) => its.forEach(({ block, k }) => k.paint(block, c)), onCommit: () => { window.pushHistory?.(); window.scheduleAutoSave?.(); } });
+    },
+  };
+}
+
 export function showFreeLayoutMultiSelPanel() {
   if (!propPanel) return;
 
   const wrappers = _getSelectedFrameWrappers();
   if (wrappers.length < 2) return;
+  const _fm = _fillMulti(wrappers);
 
   const geoms = wrappers.map(_getGeometry);
 
@@ -287,8 +317,10 @@ export function showFreeLayoutMultiSelPanel() {
         ${alignBtn('object-v', 'bottom', { label: '아래쪽 정렬', title: '아래쪽 정렬', attrs: { 'data-align': 'bottom' }, base: 'msp-align-btn' })}
       </div>
 `),
+      sec('fill', _fm ? _fm.html : ''),   // F6-3 여러 고름 Fill
     ],
   });
+  _fm?.wire();
 
   // X/Y/W/H 입력 이벤트
   ['x', 'y', 'w', 'h'].forEach(field => {
@@ -404,6 +436,7 @@ function _applyOverlay(units, pos, label) {
 }
 export function showOverlayMultiSelPanel(units = getSelectedOverlayUnits()) {
   if (!propPanel || !units || units.length < 2) return false;
+  const _fm = _fillMulti(units);
   renderPanel(null, {
     header: `
       <div class="prop-block-label">
@@ -427,8 +460,9 @@ export function showOverlayMultiSelPanel(units = getSelectedOverlayUnits()) {
         <button class="prop-btn-sm" data-ov-dist="h" title="가로 간격 균등 (셋 이상)" style="flex:1;"${units.length < 3 ? ' disabled' : ''}>가로 균등</button>
         <button class="prop-btn-sm" data-ov-dist="v" title="세로 간격 균등 (셋 이상)" style="flex:1;"${units.length < 3 ? ' disabled' : ''}>세로 균등</button>
       </div>
-`)],
+`), sec('fill', _fm ? _fm.html : '')],   // F6-3
   });
+  _fm?.wire();
   propPanel.querySelectorAll('[data-ov-align]').forEach(b => b.addEventListener('click', () =>
     _applyOverlay(units, alignPositions(units.map(_overlayGeom), b.dataset.ovAlign), '떠 있는 블럭 정렬')));
   propPanel.querySelectorAll('[data-ov-dist]').forEach(b => b.addEventListener('click', () =>
@@ -646,6 +680,7 @@ export function showFlowMultiSelPanel() {
      같음 ⇒ 그 값. 판독 불가(글자 0) ⇒ 옛 꼴 그대로(빈 칸 + 'px'). */
   const fsVal = fsMix.mixed || fsMix.value == null ? '' : String(fsMix.value);
   const fsPh = fsMix.mixed ? 'Mix' : 'px';
+  const _fm = _fillMulti(blocks);
 
   /* ★U3(right-panel-unify) — 정렬·분배 = Layout · 글자 크기 = Typography(텍스트가 있을 때만 — 옛 display:none 절 대신 «없는 절»). */
   renderPanel(null, {
@@ -680,8 +715,10 @@ export function showFlowMultiSelPanel() {
         <button class="prop-btn-sm msp-fontsize-btn" id="msp-font-size-apply" title="선택한 텍스트 블록에 일괄 적용">적용</button>
       </div>
 ` : ''),
+      sec('fill', _fm ? _fm.html : ''),   // F6-3 여러 고름 Fill(종류 표 밖이 섞이면 절 없음)
     ],
   });
+  _fm?.wire();
 
   propPanel.querySelectorAll('.prop-align-btn[data-align]').forEach(btn => {
     btn.addEventListener('click', () => _applyFlowAlign(blocks, btn.dataset.align));

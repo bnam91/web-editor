@@ -42,7 +42,7 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
  * @param {boolean} [o.on]        false = 칠 없음(겹 줄 대신 «칠 없음» 줄 · 머리 ＋)
  * @param {string} [o.kind]       'solid' | 'linear' | 'radial' | 'image' — 이름칸(단색이면 옛 HEX 그대로)
  * @param {string} [o.hiddenWhy]  눈 막힘 까닭(기본 «곧 지원») · '' 면 산다(F6 · 어댑터 hide 필요)
- * @param {boolean} [o.hidden]    숨김 중(눈 눌림 · 줄 흐림 · fillHiddenOf(block))
+ * @param {boolean|'mixed'} [o.hidden] 숨김 중(눈 눌림 · 줄 흐림 · fillHiddenOf(block)) · 'mixed' = 여러 고름에서 일부만(눈 aria-pressed=mixed · 누르면 전부 숨김)
  * @param {string} [o.slotsBelow] 블럭 슬롯(.ui-stroke-slot 꼴)
  * @param {string} [o.removeWhy]  − 막힘 까닭(칠을 못 지우는 블럭 · 예: 그라데이션 블럭) · '' 면 산다
  */
@@ -50,9 +50,10 @@ export function fillSectionHTML({ prefix, colorHtml, on = true, kind = 'solid', 
   let field = String(colorHtml || '').replace('class="prop-color-field"', 'class="prop-color-field" data-part="color" data-field="fill-color"');
   if (FILL_KIND_NAME[kind]) field = field.replace(/(<input type="text" class="prop-color-hex"[^>]*?) value="([^"]*)"/, `$1 value="${FILL_KIND_NAME[kind]}" data-fill-kind="${kind}" data-fill-hex="$2"`);
   const eyeDis = hiddenWhy ? ` aria-disabled="true" tabindex="0" title="${hiddenWhy}"` : '';
-  const hid = !hiddenWhy && hidden;
+  const hid = !hiddenWhy && hidden === true;
+  const pressed = !hiddenWhy && hidden === 'mixed' ? 'mixed' : String(hid);   // F6-3 여러 고름 — 일부만 숨김 = mixed
   const layer = `<div class="ui-fill-layer" data-fill-index="0"${hid ? ' data-hidden="1"' : ''}>
-          <div class="prop-color-row ui-f-row">${field}<button type="button" class="prop-icon-btn ui-fill-btn" id="${prefix}-eye" aria-label="${hid ? '보이기' : '숨기기'}" aria-pressed="${hid}"${eyeDis}>${hid ? EYE_OFF : EYE}</button><button type="button" class="prop-icon-btn ui-fill-btn" id="${prefix}-remove" aria-label="칠 지우기" title="${removeWhy || '칠 지우기'}"${removeWhy ? ' aria-disabled="true"' : ''}>${MINUS}</button></div>
+          <div class="prop-color-row ui-f-row">${field}<button type="button" class="prop-icon-btn ui-fill-btn" id="${prefix}-eye" aria-label="${hid ? '보이기' : '숨기기'}" aria-pressed="${pressed}"${eyeDis}>${hid ? EYE_OFF : EYE}</button><button type="button" class="prop-icon-btn ui-fill-btn" id="${prefix}-remove" aria-label="칠 지우기" title="${removeWhy || '칠 지우기'}"${removeWhy ? ' aria-disabled="true"' : ''}>${MINUS}</button></div>
         </div>`;
   return `
       <div class="ui-fill" data-part="fill"${on ? '' : ' data-empty="1"'}>
@@ -85,3 +86,47 @@ export function wireFillSection({ prefix, adapter }) {
     eye.addEventListener('keydown', (e) => { if (e.key !== 'Tab') e.preventDefault(); });
   }
 }
+
+/* ── F6-3 여러 고름 — 종류 표(지디 261124 · 단색 일괄 v1) ─────────────────────────────────────────────
+ * 단일 패널 어댑터엔 color() 가 없다(색은 각 패널이 wireColorField onApply 로 속에서 칠함) ⇒ 그 onApply 와 «같은 쓰기»를 종류마다 한 줄로 둔다.
+ *   paint = 그 패널 onApply 의 블럭 쓰기 그대로(패널 UI 손질 줄은 뺌) · get = 그 색 키 · hide = 숨김 키 뒤 다시 그리기(단일 어댑터 hide 와 같은 렌더러)
+ *   ⛔두 길(단일 패널 / 이 표)이 갈라질 수 있다 → fill-std D28 «두 길 같은 바이트»(종류 15 · 복제본 둘)가 잰다 — 패널 onApply 를 바꾸면 여기도.
+ *   그라데이션·이미지(solid=false)가 섞이면 여러 고름 색 칸은 막힘(v1). */
+const _r = (fn) => (b) => window[fn]?.(b);
+const _grad = (v) => /gradient\s*\(/i.test(v || '');
+export const FILL_KINDS = [
+  { kind: 'shape', match: (b) => b.classList.contains('shape-block'), get: (b) => b.dataset.shapeColor || '#cccccc',
+    solid: (b) => !b.dataset.shapeGradient && !b.dataset.shapeFill && !_grad(b.dataset.shapeColor),
+    paint: (b, c) => window._applyShapeSolidFill?.(b, c), hide: (b, on) => { const s = b.querySelector('svg'); if (s) s.style.fillOpacity = on ? '0' : ''; } },
+  { kind: 'frame', match: (b) => b.classList.contains('frame-block') && !b.dataset.textFrame && !b.dataset.group && !b.dataset.bannerPreset && !b.querySelector(':scope > .shape-block'),
+    get: (b) => b.dataset.bg || '', solid: (b) => !_grad(b.dataset.bg),
+    paint: (b, c) => { b.style.backgroundImage = ''; b.style.backgroundColor = c; b.dataset.bg = c; window.syncFrameBgVars?.(b); } },
+  { kind: 'asset', match: (b) => b.classList.contains('asset-block'), get: (b) => b.dataset.bgColor || '#a0a0a0', solid: (b) => !_grad(b.dataset.bgColor),
+    paint: (b, c) => { b.style.background = ''; b.dataset.bgColor = c; b.style.backgroundColor = c; } },
+  { kind: 'icon-circle', match: (b) => b.classList.contains('icon-circle-block'), get: (b) => b.dataset.bgColor || '', solid: () => true,
+    paint: (b, c) => { b.dataset.bgColor = c; const ci = b.querySelector('.icb-circle'); if (ci) ci.style.backgroundColor = c; } },
+  { kind: 'bridge', match: (b) => b.classList.contains('bridge-block'), get: (b) => b.dataset.bridgeColor || '#cccccc', solid: () => true,
+    paint: (b, c) => { b.dataset.bridgeColor = c; b.querySelector('svg path')?.setAttribute('fill', c); }, hide: _r('renderBridgeBlock') },
+  { kind: 'canvas', match: (b) => b.classList.contains('canvas-block'), get: (b) => (b.dataset.cardMode === 'simple' ? b.dataset.textBg : b.dataset.bg) || '',
+    solid: (b) => !_grad(b.dataset.cardMode === 'simple' ? b.dataset.textBg : b.dataset.bg),
+    paint: (b, c) => { if (b.dataset.cardMode === 'simple') { b.dataset.textBgLast = c; b.dataset.textBg = c; } else b.dataset.bg = c; window.renderCanvas?.(b); }, hide: _r('renderCanvas') },
+  { kind: 'modal', match: (b) => b.classList.contains('modal-block'), get: (b) => b.dataset.bg || '', solid: () => true, paint: (b, c) => { b.dataset.bg = c; window.renderModalBlock?.(b); }, hide: _r('renderModalBlock') },
+  { kind: 'innercard', match: (b) => b.classList.contains('innercard-block'), get: (b) => b.dataset.bg || '', solid: () => true, paint: (b, c) => { b.dataset.bg = c; window.renderInnerCardBlock?.(b); }, hide: _r('renderInnerCardBlock') },
+  { kind: 'banner02', match: (b) => b.classList.contains('banner02-block'), get: (b) => b.dataset.bg || '', solid: (b) => !_grad(b.dataset.bg), paint: (b, c) => { b.dataset.bg = c; window.renderBanner02?.(b); }, hide: _r('renderBanner02') },
+  { kind: 'step', match: (b) => b.classList.contains('step-block') && b.dataset.stepStyle === 'card', get: (b) => b.dataset.stepCardBg || '', solid: () => true, paint: (b, c) => { b.dataset.stepCardBg = c; window.renderStepBlock?.(b); }, hide: _r('renderStepBlock') },
+  { kind: 'sticker-text', match: (b) => b.classList.contains('sticker-block') && b.dataset.shape === 'text', get: (b) => b.dataset.bgColor || '', solid: () => true,
+    paint: (b, c) => { b.dataset.bgColor = (/rgba?\([^)]*?,\s*0\s*\)/.test(c) || /,\s*0\s*\)/.test(c)) ? 'transparent' : c; window.renderStickerBlock?.(b); window.rememberStickerStyle?.(b); }, hide: _r('renderStickerBlock') },
+  { kind: 'radial', match: (b) => b.classList.contains('radial-block'), get: (b) => b.dataset.bg || '', solid: () => true, paint: (b, c) => { b.dataset.bg = c; window.renderRadialBlock?.(b); }, hide: _r('renderRadialBlock') },
+  { kind: 'coupon', match: (b) => b.classList.contains('coupon-block'), get: (b) => b.dataset.bodyCol || '', solid: () => true, paint: (b, c) => { b.dataset.bodyCol = c; window.renderCouponBlock?.(b); }, hide: _r('renderCouponBlock') },
+  { kind: 'zoom', match: (b) => b.classList.contains('zoom-block'), get: (b) => b.dataset.fill || '', solid: () => true, paint: (b, c) => { b.dataset.fill = c; window.renderZoomBlock?.(b); }, hide: _r('renderZoomBlock') },
+];
+/** 고른 단위(래퍼일 수 있음) → { block, k } · 도형 래퍼 = 안의 도형 · 글 프레임 = 글(표준 눈 막힘 = 표 밖) · 없으면 null */
+export function fillKindOf(unit) {
+  if (!unit) return null;
+  const inner = unit.classList?.contains('frame-block') ? unit.querySelector(':scope > .shape-block') : null;
+  const block = inner || unit;
+  const k = FILL_KINDS.find((x) => x.match(block));
+  return k ? { block, k } : null;
+}
+/** 숨김 켬/끔 — 키(한 곳) + 그 종류 다시 그리기 */
+export function fillSetHidden(block, k, on) { setFillHiddenKey(block, on); k.hide?.(block, on); }

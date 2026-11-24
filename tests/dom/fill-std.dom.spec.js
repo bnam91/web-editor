@@ -615,3 +615,95 @@ for (const [name, make, sel, show, px, hex] of F62B) {
     expect(errs, errs.join(' | ')).toEqual([]);
   });
 }
+
+/* F6-3 여러 고름 Fill(지디 261124) — 종류 표(_fill-section FILL_KINDS)
+ * D28 «두 길 같은 결과»(지디 조건) — 종류 15(캔버스 = 레이어/심플 두 모드 = 16칸): 같은 꼴 블럭 둘 · (가) 단일 패널 색 칸(hex Enter = 그 패널 onApply) (나) 표 paint
+ *   → 두 블럭 outerHTML 바이트 같음(블럭 id → BID · .selected 뺌) · 한 칸이라도 다르면 = 표가 키·렌더러를 잘못 앎
+ * 양성대조: _patches/fill-f6-3-CTL-parity.patch(표 한 종류(modal)의 색 키를 틀리게) ⇒ D28 modal 만 빨강 */
+const F63 = [
+  ['shape', "window.addShapeBlock('rectangle')", '.shape-block', 'showShapeProperties', 'shape-fill', 'shape-color-hex', {}],
+  ['frame', 'window.addFrameBlock()', '.frame-block:not([data-text-frame])', 'showFrameProperties', 'ss-fill', 'ss-bg-hex', {}],
+  ['asset', 'window.addAssetBlock()', '.asset-block', 'showAssetProperties', 'asset-fill', 'asset-bg-hex', {}],
+  ['icon-circle', 'window.addIconCircleBlock()', '.icon-circle-block', 'showIconCircleProperties', 'icb-fill', 'icb-bg-hex', {}],
+  ['bridge', 'window.addBridgeBlock()', '.bridge-block', 'showBridgeProperties', 'brg-fill', 'brg-hex', {}],
+  ['canvas', 'window.addCanvasBlock()', '.canvas-block', 'showCanvasProperties', 'cvb-fill', 'cvb-bg-hex', { cardMode: 'layers', layers: JSON.stringify([{ type: 'text', content: 'T', color: '#000000', fontSize: 16 }]) }],
+  ['simple-card', 'window.addCanvasBlock()', '.canvas-block', 'showCanvasProperties', 'cvb-textbg-fill', 'cvb-textbg-hex', {}],
+  ['modal', 'window.addModalBlock()', '.modal-block', 'showModalProperties', 'mdl-fill', 'mdl-bg-hex', {}],
+  ['innercard', 'window.addInnerCardBlock()', '.innercard-block', 'showInnerCardProperties', 'icd-fill', 'icd-bg-hex', {}],
+  ['banner02', 'window.addBanner02Block()', '.banner02-block', 'showBanner02Properties', 'bn2-fill', 'bn2-bg-hex', {}],
+  ['step', 'window.addStepBlock()', '.step-block', 'showStepProperties', 'stb-fill', 'stb-card-bg-hex', { stepStyle: 'card' }],
+  ['sticker-text', "window.addStickerBlock({ shape: 'text' })", '.sticker-block', 'showStickerProperties', 'stk-t-fill', 'stk-t-bg-hex', {}],
+  ['radial', 'window.addRadialBlock()', '.radial-block', 'showRadialProperties', 'rdl-fill', 'rdl-bg-hex', {}],
+  ['coupon', 'window.addCouponBlock()', '.coupon-block', 'showCouponProperties', 'cpn-fill', 'cpn-body-hex', {}],
+  ['zoom', 'window.addZoomBlock()', '.zoom-block', 'showZoomProperties', 'zm-fillstd', 'zm-fill-hex', {}],
+];
+const RENDER_OF = { canvas: 'renderCanvas', 'simple-card': 'renderCanvas', modal: 'renderModalBlock', innercard: 'renderInnerCardBlock', banner02: 'renderBanner02', step: 'renderStepBlock', 'sticker-text': 'renderStickerBlock', radial: 'renderRadialBlock', coupon: 'renderCouponBlock', zoom: 'renderZoomBlock', bridge: 'renderBridgeBlock' };
+async function twoBlocks(page, make, sel, prep, render) {
+  return page.evaluate(async ([make, sel, prep, render]) => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    const sec = await window.addSection(); window.deselectAll(); window.selectSection(sec); await eval(make);
+    const a = sec.querySelector(sel); Object.assign(a.dataset, prep); if (render) window[render]?.(a);
+    /* B = A 의 «복제본»(지디 «같은 블럭 복제본 둘») — 섹션 바로 아래 단위째 복제 · id 는 앞에 q(블럭 id 로 접두하는 속 id 는 paint 가 다시 그림) */
+    const unit = [...sec.querySelectorAll('*')].find((e) => e.contains(a) && e.parentElement?.classList.contains('section-inner')) || a;
+    const dup = unit.cloneNode(true); [dup, ...dup.querySelectorAll('[id]')].forEach((e) => { if (e.id) e.id = 'q' + e.id; }); unit.after(dup); window.rebindAll?.();
+    return { ids: [a.id, 'q' + a.id], sec: sec.id }; }, [make, sel, prep, render]);
+}
+const openPanel = (page, id, show) => page.evaluate(([id, show]) => { window.deselectAll(); const b = document.getElementById(id); window.selectBlock(id); window[show](b); }, [id, show]);
+for (const [name, make, sel, show, px, hex, prep] of F63) {
+  test(`D28 ${name} — 두 길(단일 패널 / 여러 고름 표) 같은 바이트`, async ({ page }) => {
+    await page.setViewportSize({ width: 1500, height: 1100 });
+    const errs = await bootApp(page);
+    const { ids } = await twoBlocks(page, make, sel, prep, RENDER_OF[name]);
+    for (const id of ids) { await openPanel(page, id, show); if (!(await page.$(`#${hex}`)) && (await page.$(`#${px}-add`))) { await page.click(`#${px}-add`); await raf(page); } }
+    await openPanel(page, ids[0], show);
+    await page.fill(`#${hex}`, '#12ab34'); await page.press(`#${hex}`, 'Enter'); await raf(page);
+    await page.evaluate(async ([id]) => { const m = await import('/js/props/_fill-section.js'); const b = document.getElementById(id); const it = m.fillKindOf(b); it.k.paint(it.block, '#12ab34'); }, [ids[1]]);
+    await page.evaluate(() => window.deselectAll()); await raf(page);
+    const [a, b] = await page.evaluate((ids) => ids.map((id) => { const el = document.getElementById(id).cloneNode(true); [el, ...el.querySelectorAll('*')].forEach((e) => e.classList?.remove('selected'));
+      return el.outerHTML.split(id).join('BID').replace(/ class=""/g, ''); }), ids);   // 빈 class="" = 패널 선택 표식(스텝 고른 칸)을 뗀 자국 · 그림 아님
+    expect(a.includes('12ab34') || a.includes('18, 171, 52') || /12AB34/.test(a), '[전제] 단일 패널 길이 실제로 그 색을 썼다').toBe(true);
+    expect(b, `★두 길 같은 바이트(${name})`).toBe(a);
+    expect(errs, errs.join(' | ')).toEqual([]);
+  });
+}
+
+/* D29 여러 고름 Fill 동작(흐름 여러 고름 패널 · 프레임 둘 + 에셋 하나 = 종류 섞임)
+ *   색 같음 = 그 색 · 다름 = Mix(빈 값·placeholder Mix·빗금) · 색 고름 = 셋 다 · ⌘Z «한 번» = 셋 다 되돌림 · 눈 = 일부 숨김 mixed → 누름 = 다 숨김 → 누름 = 다 보임
+ *   그라데이션 섞임 = 색 칸 막힘 · 표 밖(글)이 섞이면 Fill 절 없음
+ * 양성대조: _patches/fill-f6-3-CTL-multi.patch(여러 고름 색 onApply 가 첫 블럭만 칠함) ⇒ D29 빨강 */
+test('D29 여러 고름 Fill — Mix · 색 일괄 · ⌘Z 한 번 전부 · 눈 세 상태 · 그라데이션 막힘 · 글 섞이면 절 없음', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const ids = await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    const sec = await window.addSection(); const out = [];
+    for (const mk of ['addFrameBlock', 'addFrameBlock', 'addAssetBlock']) { window.deselectAll(); window.selectSection(sec); const before = new Set(sec.querySelectorAll('.frame-block:not([data-text-frame]), .asset-block')); await window[mk]();
+      out.push([...sec.querySelectorAll('.frame-block:not([data-text-frame]), .asset-block')].find((x) => !before.has(x)).id); }
+    return out; });
+  const paint = (cols) => page.evaluate(async ([ids, cols]) => { const m = await import('/js/props/_fill-section.js'); ids.forEach((id, i) => { const it = m.fillKindOf(document.getElementById(id)); it.k.paint(it.block, cols[i]); }); }, [ids, cols]);
+  const open = (extra) => page.evaluate(([ids, extra]) => { window.deselectAll(); ids.forEach((id) => document.getElementById(id).classList.add('selected')); if (extra) extra.forEach((id) => document.getElementById(id).classList.add('selected')); window.showFlowMultiSelPanel(); }, [ids, extra || null]);
+  const ui = () => page.evaluate(() => { const f = document.querySelector('#panel-right .prop-section[data-sec="fill"]'), hx = document.getElementById('msp-fill-hex'), eye = document.getElementById('msp-fill-eye');
+    return { fill: !!f, mixed: !!f?.querySelector('.ui-fill-mixed'), hex: hx?.value ?? null, ph: hx?.getAttribute('placeholder') ?? null, eye: eye?.getAttribute('aria-pressed') ?? null, dis: f?.querySelector('.prop-color-field')?.getAttribute('aria-disabled') ?? null }; });
+  const cols = () => page.evaluate(async (ids) => { const m = await import('/js/props/_fill-section.js'); return ids.map((id) => { const it = m.fillKindOf(document.getElementById(id)); return it.k.get(it.block); }); }, ids);
+  const keys = () => page.evaluate((ids) => ids.map((id) => document.getElementById(id).getAttribute('data-fill-hidden')), ids);
+  await paint(['#111111', '#111111', '#111111']); await open();
+  expect(await ui(), '★색 같음 = 그 색 · Mix 아님 · 눈 안 눌림').toEqual({ fill: true, mixed: false, hex: '111111', ph: null, eye: 'false', dis: null });
+  await paint(['#111111', '#111111', '#222222']); await open();
+  expect(await ui(), '★색 다름 = Mix(빈 값 · placeholder Mix · 빗금)').toEqual({ fill: true, mixed: true, hex: '', ph: 'Mix', eye: 'false', dis: null });
+  await page.evaluate(() => window.pushHistory?.());
+  await page.fill('#msp-fill-hex', '#12ab34'); await page.press('#msp-fill-hex', 'Enter'); await raf(page);
+  expect((await cols()).map((c) => String(c).toLowerCase()), '★색 고름 = 셋 다 그 색(종류 섞여도)').toEqual(['#12ab34', '#12ab34', '#12ab34']);
+  await page.evaluate(() => { window.deselectAll(); document.activeElement?.blur?.(); }); await page.keyboard.press('Meta+z'); await raf(page);
+  expect(await cols(), '★⌘Z «한 번» = 셋 다 되돌림').toEqual(['#111111', '#111111', '#222222']);
+  await page.evaluate(async (id) => { const m = await import('/js/props/_fill-section.js'); const it = m.fillKindOf(document.getElementById(id)); m.fillSetHidden(it.block, it.k, true); }, ids[2]);
+  await open();
+  expect((await ui()).eye, '★일부 숨김 = 눈 mixed').toBe('mixed');
+  await page.click('#msp-fill-eye'); await raf(page);
+  expect([await keys(), (await ui()).eye], '★mixed 에서 누름 = 다 숨김').toEqual([['1', '1', '1'], 'true']);
+  await page.click('#msp-fill-eye'); await raf(page);
+  expect([await keys(), (await ui()).eye], '★다 숨김에서 누름 = 다 보임(키 없음)').toEqual([[null, null, null], 'false']);
+  await page.evaluate((id) => { const b = document.getElementById(id); b.dataset.bg = 'linear-gradient(90deg, #ff0000, #0000ff)'; }, ids[0]); await open();
+  expect((await ui()).dis, '★그라데이션 섞임 = 색 칸 막힘').toBe('true');
+  const tid = await page.evaluate(async () => { const sec = document.querySelector('.section-block'); window.deselectAll(); window.selectSection(sec); await window.addTextBlock('body'); return [...sec.querySelectorAll('.text-block')].pop().id; });
+  await open([tid]);
+  expect((await ui()).fill, '★표 밖(글)이 섞이면 Fill 절 없음').toBe(false);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
