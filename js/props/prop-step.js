@@ -3,6 +3,9 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-pic
 import { alignBtn, blockHeaderHTML, checkHTML } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
 
+import { layoutSizeRowHTML, layoutPadSlotHTML, layoutGapSlotHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(C2)
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance A4(C2)
+
 function _stepToken(name, fallback) {
   if (typeof getComputedStyle !== 'function') return fallback;
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -120,12 +123,9 @@ export function showStepProperties(block, activeIdxArg) {
       <div id="stb-steps-list">${stepsHtml()}</div>`, {
         headTools: `<button class="prop-btn" id="stb-add-step" style="padding:3px 6px;line-height:0" title="스텝 추가"><svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="5.5" y1="1" x2="5.5" y2="10"/><line x1="1" y1="5.5" x2="10" y2="5.5"/></svg></button>`,
       }),
-      sec('size', `
-      <div class="prop-row">
-        <span class="prop-label">배지</span>
-        <input type="range" class="prop-slider" id="stb-num-size-slider" min="20" max="80" step="2" value="${numSize}">
-        <input type="number" class="prop-number" id="stb-num-size-number" min="20" max="80" value="${numSize}">
-      </div>`),
+      /* ★표준 Layout(C2) — 옛 슬라이더 stb-num-size/gap/badge-gap/padl/padr 걷음 · 숫자 칸 id·범위·저장 키 무변 */
+      sec('size', layoutSizeRowHTML({ prefix: 'stb', one: { id: 'stb-num-size-number', label: 'Badge', icon: 'px', min: 20, max: 80, value: numSize } })),
+      sec('appearance', appearanceSectionHTML({ prefix: 'stb', op: { value: window.readBlockOpacity?.(block) ?? 100 } }), { headTools: appearanceHeadToolsHTML({ prefix: 'stb' }) }),   // ★표준 Appearance A4(C2) — Opacity 만
       sec('layout', `
       <div class="prop-align-group" id="stb-align-group">
         ${alignBtn('arrow-h', 'left',   { label: '왼쪽 정렬',   active: stepAlign === 'left',   attrs: { 'data-align': 'left'   }, style: 'flex:1' })}
@@ -133,16 +133,8 @@ export function showStepProperties(block, activeIdxArg) {
         ${alignBtn('arrow-h', 'right',  { label: '오른쪽 정렬', active: stepAlign === 'right',  attrs: { 'data-align': 'right'  }, style: 'flex:1' })}
         ${alignBtn('arrow-h', 'stack',  { label: '세로로 쌓기', active: stepAlign === 'stack',  attrs: { 'data-align': 'stack'  }, style: 'flex:1' })}
       </div>
-      <div class="prop-row">
-        <span class="prop-label">간격</span>
-        <input type="range" class="prop-slider" id="stb-gap-slider" min="8" max="200" step="4" value="${gap}">
-        <input type="number" class="prop-number" id="stb-gap-number" min="8" max="200" value="${gap}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">배지 간격</span>
-        <input type="range" class="prop-slider" id="stb-badge-gap-slider" min="4" max="200" step="4" value="${badgeGap}">
-        <input type="number" class="prop-number" id="stb-badge-gap-number" min="4" max="200" value="${badgeGap}">
-      </div>
+      ${layoutGapSlotHTML({ id: 'stb-gap-number', value: gap, min: 8, max: 200 })}
+      ${layoutGapSlotHTML({ id: 'stb-badge-gap-number', label: 'Badge gap', value: badgeGap, min: 4, max: 200 })}
       <div class="prop-row">
         ${checkHTML({ id: 'stb-connector', label: '연결선', checked: connector })}
       </div>
@@ -154,21 +146,8 @@ export function showStepProperties(block, activeIdxArg) {
           <option value="divider" ${connectorStyle === 'divider' ? 'selected' : ''}>가로 구분선</option>
         </select>
       </div>`),
-      sec('padding', `
-      <div class="prop-row">
-        <span class="prop-label">좌측패딩</span>
-        <input type="range" class="prop-slider" id="stb-padl-slider" min="0" max="300" step="4" value="${stepPadL}">
-        <input type="number" class="prop-number" id="stb-padl-number" min="0" max="300" value="${stepPadL}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">우측패딩</span>
-        <input type="range" class="prop-slider" id="stb-padr-slider" min="0" max="300" step="4" value="${stepPadR}">
-        <input type="number" class="prop-number" id="stb-padr-number" min="0" max="300" value="${stepPadR}">
-      </div>`, {
-        headTools: `<button class="prop-chain-btn${stepPadL === stepPadR ? ' active' : ''}" id="stb-ph-chain" title="좌우 잠금/풂">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="0.5" y="3.5" width="4" height="5" rx="2"/><rect x="7.5" y="3.5" width="4" height="5" rx="2"/><line x1="4.5" y1="6" x2="7.5" y2="6" stroke-linecap="round"/></svg>
-        </button>`,
-      }),
+      sec('padding', layoutPadSlotHTML({ lId: 'stb-padl-number', rId: 'stb-padr-number', l: stepPadL, r: stepPadR, max: 300,
+        chainId: 'stb-ph-chain', chainOn: stepPadL === stepPadR, chainWhy: '좌우 잠금/풂' })),   // 옛 머리 사슬 stb-ph-chain 은 슬롯 끝 칸으로(id 무변)
       sec('typography', `
       <div class="prop-row">
         <span class="prop-label">제목 크기</span>
@@ -288,46 +267,43 @@ export function showStepProperties(block, activeIdxArg) {
     slider.addEventListener('change', () => window.pushHistory?.());
   }
 
-  bindSlider('stb-num-size-slider',   'stb-num-size-number',   20, 80, 'numSize');
   bindSlider('stb-title-size-slider', 'stb-title-size-number', 12, 80, 'titleSize');
   bindSlider('stb-desc-size-slider',  'stb-desc-size-number',  10, 64, 'descSize');
-  bindSlider('stb-gap-slider',        'stb-gap-number',         8, 200, 'gap');
+  /* ★표준 Layout(C2) — 칸 배선은 부품(input = 범위 안이면 바로 · change = 잘라 그린 «뒤» 이력 한 번 · 빈 칸 = 옛 값) · 옛 bindSlider 와 같은 키·범위 */
+  const wireOne = (numberId, min, max, key) => wireLayoutSection({ commit: () => window.pushHistory?.(), w: { numberId, min, max, apply: (v) => { block.dataset[key] = v; rerender(); } } });
+  wireOne('stb-num-size-number', 20, 80, 'numSize');
+  wireOne('stb-gap-number', 8, 200, 'gap');
+  wireOne('stb-badge-gap-number', 4, 200, 'badgeGap');
+  wireAppearanceSection({ op: { numberId: 'stb-opacity', apply: (v) => window.setBlockOpacity?.(block, v) } });   // ★표준 Appearance A4(C2)
   // ── 좌우 패딩 체인 ──
   {
-    const CHAIN_LINKED = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="0.5" y="3.5" width="4" height="5" rx="2"/><rect x="7.5" y="3.5" width="4" height="5" rx="2"/><line x1="4.5" y1="6" x2="7.5" y2="6" stroke-linecap="round"/></svg>`;
-    const CHAIN_BROKEN = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="0.5" y="3.5" width="4" height="5" rx="2"/><rect x="7.5" y="3.5" width="4" height="5" rx="2"/><line x1="5.2" y1="4.8" x2="6.8" y2="7.2" stroke-linecap="round"/></svg>`;
     let padLinked = stepPadL === stepPadR;
     const chainBtn = propPanel.querySelector('#stb-ph-chain');
-    const plSlider = propPanel.querySelector('#stb-padl-slider');
     const plNum    = propPanel.querySelector('#stb-padl-number');
-    const prSlider = propPanel.querySelector('#stb-padr-slider');
     const prNum    = propPanel.querySelector('#stb-padr-number');
     chainBtn.addEventListener('click', () => {
       padLinked = !padLinked;
       chainBtn.classList.toggle('active', padLinked);
-      chainBtn.innerHTML = padLinked ? CHAIN_LINKED : CHAIN_BROKEN;
+      chainBtn.setAttribute('aria-pressed', String(padLinked));
       if (padLinked) {
-        const v = parseInt(plSlider.value);
-        block.dataset.stepPadR = v; prSlider.value = v; prNum.value = v;
+        const v = parseInt(plNum.value);
+        block.dataset.stepPadR = v; prNum.value = v;
         rerender();
       }
     });
     const setL = v => {
-      block.dataset.stepPadL = v; plSlider.value = v; plNum.value = v;
-      if (padLinked) { block.dataset.stepPadR = v; prSlider.value = v; prNum.value = v; }
+      block.dataset.stepPadL = v;
+      if (padLinked) { block.dataset.stepPadR = v; prNum.value = v; }
       rerender();
     };
     const setR = v => {
-      block.dataset.stepPadR = v; prSlider.value = v; prNum.value = v;
-      if (padLinked) { block.dataset.stepPadL = v; plSlider.value = v; plNum.value = v; }
+      block.dataset.stepPadR = v;
+      if (padLinked) { block.dataset.stepPadL = v; plNum.value = v; }
       rerender();
     };
-    plSlider.addEventListener('input',  () => setL(parseInt(plSlider.value)));
-    plNum.addEventListener('change',    () => { setL(Math.min(300, Math.max(0, parseInt(plNum.value) || 0))); window.pushHistory?.(); });
-    plSlider.addEventListener('change', () => window.pushHistory?.());
-    prSlider.addEventListener('input',  () => setR(parseInt(prSlider.value)));
-    prNum.addEventListener('change',    () => { setR(Math.min(300, Math.max(0, parseInt(prNum.value) || 0))); window.pushHistory?.(); });
-    prSlider.addEventListener('change', () => window.pushHistory?.());
+    /* ★표준 Layout(C2) — 왼·오 칸 = 부품(잠금이면 짝 칸도 같은 값 · 이력 한 번 · 빈 칸 = 옛 값) */
+    wireLayoutSection({ commit: () => window.pushHistory?.(), w: { numberId: 'stb-padl-number', max: 300, apply: setL } });
+    wireLayoutSection({ commit: () => window.pushHistory?.(), w: { numberId: 'stb-padr-number', max: 300, apply: setR } });
   }
 
   // ── 배지 형식 ──
@@ -337,7 +313,6 @@ export function showStepProperties(block, activeIdxArg) {
     window.pushHistory?.();
   });
 
-  bindSlider('stb-badge-gap-slider', 'stb-badge-gap-number', 4, 200, 'badgeGap');
 
   // ── 시작 번호 (이 step-block 첫 번호) ──
   const startNumInput = propPanel.querySelector('#stb-start-number');
