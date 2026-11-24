@@ -140,6 +140,7 @@ test('S-5 ★가드 — 목업·캔버스 블럭의 하한 100 은 그대로다 
   assert.ok(canvasBody.includes('Math.max(100,'),
     '★캔버스 블럭 핸들의 하한 100 이 사라졌다 — 이 카드의 범위가 아니다');
 
-  assert.ok(/Math\.max\(\s*100\s*,/.test(SRC.mockupP),
+  // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C3): 목업 폭 = 부품 wireLayoutSection 의 min: 100(잘라 넣기는 부품)
+  assert.ok(/id: 'mkp-width-number'[^\n]*min: 100\b/.test(SRC.mockupP) && /numberId: 'mkp-width-number', min: 100\b/.test(SRC.mockupP),
     '★prop-mockup.js 의 하한 100 이 사라졌다 — 목업 패널은 이 카드의 범위가 아니다');
 });

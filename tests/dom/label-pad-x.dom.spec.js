@@ -55,16 +55,15 @@ const measure = (page, id) => page.evaluate((i) => {
 const panelEqualsReal = async (page, id) => {
   const shown = Number(await page.locator('#txt-label-padx-number').inputValue());
   expect(shown).toBe((await measure(page, id)).padL);
-  expect(Number(await page.locator('#txt-label-padx-slider').inputValue())).toBe(shown);
+  // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 슬라이더 없음 · 칸 == 실제 만 잰다
 };
-const row = (page) => page.locator('.prop-row', { has: page.locator('#txt-label-padx-slider') });
+const row = (page) => page.locator('[data-part="layout"]', { has: page.locator('#txt-label-padx-number') });   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 줄 = 부품 한 칸
 
 test('L1 패널에 「좌우 패딩」 줄이 있다(섹션과 같은 말·같은 꼴)', async ({ page }) => {
   const errs = await boot(page, HARNESS);
   await open(page, 'tb1');
-  await expect(row(page).locator('.prop-label')).toHaveText('태그 좌우');   // ★기대 바뀜(패널 재설계 1차 ⑤ Q24 «태그 좌우패딩» · 시안 v9 짧은 라벨 — 이름 전체는 title)
-  await expect(row(page).locator('.prop-label')).toHaveAttribute('title', '태그 좌우패딩');
-  expect(await row(page).locator('input[type=range]').getAttribute('step')).toBe('2');
+  await expect(row(page).locator('.ui-s2-cell > span').first()).toHaveText('태그 좌우');   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 부품 칸 작은 라벨(짧은 라벨 «태그 좌우» 그대로 · 슬라이더 step 검사 걷음)
+  await expect(row(page).locator('input[type=range]')).toHaveCount(0);
   expect(await page.locator('#txt-label-padx-number').getAttribute('max')).toBe('100');   // 섹션·프레임과 같은 0~100
   expect(await page.locator('#txt-label-padx-number').inputValue()).toBe('36');   // 기본값 = 지금 그려진 36px
   expect(errs).toEqual([]);
@@ -84,13 +83,13 @@ test('L2 값을 넣으면 알약 «안쪽» padding·알약 폭·글자 위치�
   expect(a.padT).toBe(b.padT);             // 위아래는 그대로
   expect(a.tbPadL).toBe(b.tbPadL);         // 바깥(L/R 줄)은 건드리지 않는다
   expect(await page.evaluate(() => window.__hist)).toBe(1);
-  expect(await page.locator('#txt-label-padx-slider').inputValue()).toBe('60');
+  // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 슬라이더 동기 검사 걷음
 });
 
-test('L3 슬라이더도 같다 + 저장 왕복(직렬화→다시 열기)', async ({ page }) => {
+test('L3 칸 입력 + 저장 왕복(직렬화→다시 열기)', async ({ page }) => {
   await boot(page, HARNESS);
   await open(page, 'tb1');
-  await page.locator('#txt-label-padx-slider').fill('10');
+  await page.locator('#txt-label-padx-number').fill('10');   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 슬라이더 → 칸(input = 범위 안 즉시)
   expect((await measure(page, 'tb1')).padL).toBe(10);
   // 저장 왕복: outerHTML → 새 노드 → 패널
   await page.evaluate(() => {

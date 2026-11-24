@@ -7,6 +7,8 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML, sliderRowHTML, escHtml, animGifBtnHTML, wireAnimGifBtn, checkHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
+import { appearanceSectionHTML, wireAppearanceSection } from './_appearance-section.js';   // A4 Opacity(C3)
+import { layoutSizeRowHTML, layoutGapSlotHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(L2·L3 · C3)
 import { colorFieldHTML, wireColorField } from './color-picker.js';
 import { grdPickImageFile } from './prop-grid.js';
 import { syncFrameBgVars } from '../frame-bg.js';
@@ -40,8 +42,9 @@ function _cellRowsHTML(block, st, selCell) {
 function _cellPartsHTML(c, k, st) {
   /* 142(ⓐ) — 코너·배경색·투명도·이미지·테두리·정렬·간격·패딩은 «칸의 프레임 패널»이 일반 프레임 부품 그대로 맡는다 ⇒ 여기는 칸만의 넷: 폭%·높이%(트랙 몫) · 배경 켜기(102 원문) · 슬라이드로 */
   const vert = slideAxis(st.fx) === 'y';
-  return `${sliderRowHTML(vert ? '높이 %' : '폭 %', 'sld-cell-w-slider', 'sld-cell-w-number', { min: 20, max: 100, step: 1, value: c.dataset.w ?? st.layout.cardW })}${vert ? '' : `
-      ${sliderRowHTML('높이 %', 'sld-cell-h-slider', 'sld-cell-h-number', { min: 20, max: 100, step: 1, value: c.dataset.h ?? 100 })}`}
+  /* ★표준 Layout(C3 · 현빈 261124 L-4/7) — 칸 폭%·높이% 슬라이더 걷음 → 한 칸씩(% 축이라 사슬 없음) · id·키·범위 무변 */
+  return `${layoutSizeRowHTML({ prefix: 'sld-cell-w', one: { id: 'sld-cell-w-number', label: vert ? '높이 %' : '폭 %', icon: vert ? 'h' : 'w', min: 20, max: 100, value: c.dataset.w ?? st.layout.cardW } })}${vert ? '' : `
+      ${layoutSizeRowHTML({ prefix: 'sld-cell-h', one: { id: 'sld-cell-h-number', label: '높이 %', icon: 'h', min: 20, max: 100, value: c.dataset.h ?? 100 } })}`}
       <div class="prop-row">${checkHTML({ id: 'sld-cell-bg-on', label: '배경', checked: _cellBgOn(c), attrs: `aria-label="칸 ${k + 1} 배경"` })}</div>
       <div class="prop-row"><button class="prop-btn" id="sld-cell-back" style="width:100%">슬라이드 전체 설정</button></div>`;
 }
@@ -90,12 +93,7 @@ function _wireCellSection(block, st, selCell) {
   const cellNum = (v, lo, hi, dflt) => Math.max(lo, Math.min(hi, Math.round(+v || dflt)));
   const setCellW = (v) => { const c = selCell; if (!c) return; c.dataset.w = String(cellNum(v, 20, 100, st.layout.cardW)); renderSlideBlock(block); };
   const setCellH = (v) => { const c = selCell; if (!c) return; const h = cellNum(v, 20, 100, 100); if (h === 100) delete c.dataset.h; else c.dataset.h = String(h); renderSlideBlock(block); };
-  for (const [sid, nid, fn] of [['sld-cell-w-slider', 'sld-cell-w-number', setCellW], ['sld-cell-h-slider', 'sld-cell-h-number', setCellH]]) {
-    const sl = $(sid), nu = $(nid);
-    sl?.addEventListener('input', () => { if (nu) nu.value = sl.value; fn(sl.value); });
-    sl?.addEventListener('change', commit);
-    nu?.addEventListener('change', () => { if (sl) sl.value = nu.value; fn(nu.value); commit(); });
-  }
+  for (const [nid, fn] of [['sld-cell-w-number', setCellW], ['sld-cell-h-number', setCellH]]) wireLayoutSection({ commit, w: { numberId: nid, min: 20, max: 100, apply: fn } });   // C3 — 슬라이더 걷음
   $('sld-cell-bg-on')?.addEventListener('change', (e) => { const c = selCell; if (!c) return; _setCellBg(c, e.target.checked ? '#ffffff' : 'transparent'); commit(); reopen(); });
   $('sld-cell-shadow')?.addEventListener('change', (e) => { const c = selCell; if (!c) return; if (e.target.value) c.dataset.shadow = e.target.value; else delete c.dataset.shadow; renderSlideBlock(block); commit(); });
   $('sld-cell-back')?.addEventListener('click', () => { window.deselectAll?.(); window.selectBlock?.(block.id); showSlideProperties(block); });   // 142 칸 패널 → 슬라이드 전체 설정
@@ -130,13 +128,13 @@ export function showSlideProperties(block, opts = {}) {
       <div class="prop-row"><button class="prop-btn" id="sld-to-frame" style="width:100%">프레임으로 바꾸기</button></div>
       `),
       sec('size', `
-      ${sliderRowHTML(slideAxis(st.fx) === 'y' ? '카드 높이 %' : '카드 폭 %', 'sld-cardw-slider', 'sld-cardw-number', { min: 20, max: 100, step: 1, value: st.layout.cardW })}
-      ${sliderRowHTML('높이', 'sld-h-slider', 'sld-h-number', { min: 120, max: 1200, step: 10, value: st.layout.h })}`),
+      ${layoutSizeRowHTML({ prefix: 'sld-cardw', one: { id: 'sld-cardw-number', label: slideAxis(st.fx) === 'y' ? '카드 높이 %' : '카드 폭 %', icon: slideAxis(st.fx) === 'y' ? 'h' : 'w', min: 20, max: 100, value: st.layout.cardW } })}
+      ${layoutSizeRowHTML({ prefix: 'sld-h', one: { id: 'sld-h-number', label: 'Height', icon: 'h', min: 120, max: 1200, value: st.layout.h } })}`),   /* ★표준 Layout(C3) — 슬라이더 둘 걷음 · 카드 %는 블럭 높이와 짝이 아니라 한 칸씩 */
       sec('layout', `
       <div class="prop-row"><span class="prop-label">레이아웃</span><select class="prop-select" id="sld-mode">
         ${[['row', '기본'], ['center', '가운데 캐러셀'], ['single', '단일 컷']].map(([v, t]) => `<option value="${v}"${st.layout.mode === v ? ' selected' : ''}>${t}</option>`).join('')}
       </select></div>
-      ${sliderRowHTML('간격', 'sld-gap-slider', 'sld-gap-number', { min: -80, max: 80, step: 1, value: st.layout.gap })}${slideAxis(st.fx) === 'y' ? '' : `
+      ${layoutGapSlotHTML({ id: 'sld-gap-number', label: '간격', value: st.layout.gap, min: -80, max: 80 })}${slideAxis(st.fx) === 'y' ? '' : `
       ${_dotsRowsHTML(st.layout)}
       <div class="prop-row">
         ${checkHTML({ id: 'sld-scroll-fix', label: '스크롤 고정', checked: block.dataset.scrollX })}
@@ -146,6 +144,7 @@ export function showSlideProperties(block, opts = {}) {
       <div class="prop-row">
         ${checkHTML({ id: 'sld-fullbleed', label: '패딩 제외', checked: block.dataset.fullBleed === 'true' })}
       </div>` : ''),
+      sec('appearance', appearanceSectionHTML({ prefix: 'sld', op: { value: window.readBlockOpacity?.(block) ?? 100 } })),   // A4 Opacity(블럭)
       sec('export', animGifBtnHTML(), { id: 'sld-anim-section' }),
     ],
   });
@@ -179,12 +178,10 @@ export function showSlideProperties(block, opts = {}) {
   $('sld-to-frame')?.addEventListener('click', () => { if (convertSlideToFrames(block)) { commit(); reopen(null); } });
   /* 프레임 모드 칸 줄 — 순서·빼기 = 칸 요소째 옮김/뺌(자식 통째 · ⌘Z 가 DOM 표본으로 되돌림) · 폭 = 칸 data-w(%) */
   if (frame) _wireCellSection(block, st, selCell);
-  for (const [id, key] of [['sld-cardw', 'cardW'], ['sld-gap', 'gap'], ['sld-h', 'h']]) {
-    const sl = $(`${id}-slider`), nu = $(`${id}-number`);
-    sl?.addEventListener('input', () => { nu.value = sl.value; setSlideLayout(block, { [key]: +sl.value }); });
-    sl?.addEventListener('change', commit);
-    nu?.addEventListener('change', () => { sl.value = nu.value; setSlideLayout(block, { [key]: +nu.value }); commit(); });
+  for (const [id, key, min, max] of [['sld-cardw', 'cardW', 20, 100], ['sld-gap', 'gap', -80, 80], ['sld-h', 'h', 120, 1200]]) {
+    wireLayoutSection({ commit, w: { numberId: `${id}-number`, min, max, apply: (v) => setSlideLayout(block, { [key]: v }) } });   // C3 — 슬라이더 걷음
   }
+  wireAppearanceSection({ op: { numberId: 'sld-opacity', apply: (v) => window.setBlockOpacity?.(block, v), commit } });
 
   /* 패딩 제외 — 켜기는 renderSlideBlock 의 applyBlockFullBleed 가 매 렌더 씌운다 · 끄기는 흔적 지우기 먼저(인증서·월계수와 같은 순서) */
   $('sld-fullbleed')?.addEventListener('change', (e) => {

@@ -51,8 +51,7 @@ export function wireTypeSection({ tb, propPanel, ctx, rerender }) {
       if (_pxWrap) _pxWrap.style.display = cls === 'tb-label' && contentEl.dataset.shape !== 'circle' ? 'block' : 'none';
       if (_pxWrap && cls === 'tb-label') {
         const _pxv = Math.round(parseFloat(getComputedStyle(contentEl).paddingLeft) || 0);
-        document.getElementById('txt-label-padx-slider').value = _pxv;
-        document.getElementById('txt-label-padx-number').value = _pxv;
+        const _pxn = document.getElementById('txt-label-padx-number'); if (_pxn) _pxn.value = _pxv;   // C3 — 슬라이더 걷음
       }
 
       // label로 전환 시 기본 스타일 적용, 다른 타입으로 전환 시 초기화

@@ -105,11 +105,12 @@ test('PA-1 ★속성 패널에 «새» push-before 가 안 생긴다 (js/props �
 
 test('PA-2 ★음성대조 — 이 검사가 «옛 모양»을 실제로 잡는가', () => {
   /* 화석을 안 베낀다 — 지금 소스에서 옛 모양으로 되돌린 변형본을 만든다. */
-  const f = sources().find(s => s.rel.endsWith('prop-mockup.js'));
-  assert.ok(f, '★prop-mockup.js 를 못 찾았다 — 이 검사가 «안 돈» 것이지 통과가 아니다');
+  /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음): 목업(C3)·iconify(C2) 둘 다 부품 배선이 돼 옛 모양 표본이 사라짐 → 표준 절 갈래 밖 prop-infocard.js 숫자 칸(applyNum → pushHistory)을 표본으로(탑 통합 · C2·C3 병합 충돌 풀이) */
+  const f = sources().find(s => s.rel.endsWith('prop-infocard.js'));
+  assert.ok(f, '★prop-infocard.js 를 못 찾았다 — 이 검사가 «안 돈» 것이지 통과가 아니다');
   const mutated = f.code.replace(
-    /applyWidth\(parseInt\(wNumber\.value\)\);\s*window\.pushHistory\?\.\(\);/,
-    'window.pushHistory?.(); applyWidth(parseInt(wNumber.value));');
+    /applyNum\(parseInt\(nN\.value\)\);\s*window\.pushHistory\?\.\(\);/,
+    'window.pushHistory?.(); applyNum(parseInt(nN.value));');
   assert.notEqual(mutated, f.code, '★변환이 늙었다 — 폭 숫자칸 배선을 못 찾았다');
   const found = [...mutated.matchAll(PUSH_BEFORE)].filter(m => !BENIGN.has(m[1]));
   assert.ok(found.length > 0,
@@ -118,7 +119,7 @@ test('PA-2 ★음성대조 — 이 검사가 «옛 모양»을 실제로 잡는�
 
 test('PA-3 세 자리가 «지금 모양»으로 남아 있다 (고침이 되돌려지면 빨강)', () => {
   const want = [
-    ['prop-mockup.js',  /applyWidth\(parseInt\(wNumber\.value\)\);\s*window\.pushHistory\?\.\(\)/],
+    ['prop-mockup.js',  /wireLayoutSection\(\{ commit: \(\) => window\.pushHistory\?\.\(\), w: \{ numberId: 'mkp-width-number'/],   // ★기대 바뀜(C3 · 슬라이더 걷음) — 폭 칸 = 부품(change: apply → commit)
     /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C2) — 크기 칸은 부품 배선: wireLayoutSection 의 change 가 «apply → commit» 순서를 한 자리에서 지킨다(js/props/_layout-section.js) ⇒ 여기선 그 부품에 applySize·pushHistory 를 넘기는지 잠근다 */
     ['prop-iconify.js', /wireLayoutSection\(\{\s*commit:\s*\(\)\s*=>\s*window\.pushHistory\?\.\(\)\s*,\s*w:\s*\{\s*numberId:\s*'icn-size-number'[^}]*apply:\s*applySize\s*\}/],
     ['prop-asset.js',   /applyAlign\(btn\.dataset\.align\);\s*window\.pushHistory\?\.\(\)/],

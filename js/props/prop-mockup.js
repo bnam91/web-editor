@@ -4,6 +4,8 @@ import { propPanel } from '../globals.js';
 import { blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
 import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from './_position-section.js';   // 표준 Position P3
 import { renderPanel, sec } from './_panel-frame.js';
+import { layoutSizeRowHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(L2 · C3)
+import { appearanceSectionHTML, wireAppearanceSection } from './_appearance-section.js';   // A4 Opacity
 import { checkerBg } from '../checker-tokens.js';
 import { captureSectionImage } from '../io/capture-safety.js';
 
@@ -36,14 +38,8 @@ export function showMockupProperties(block) {
           style="width:auto;height:auto;padding:3px 8px;font-size:10px;">변경</button>
       </div>`),
       // 너비
-      sec('size', `
-      <div class="prop-row">
-        <span class="prop-label">Width</span>
-        <input type="range"  class="prop-slider" id="mkp-width-slider" min="100" max="860" step="10"
-          value="${parseInt(block.style.width) || parseInt(block.dataset.width) || 360}">
-        <input type="number" class="prop-number" id="mkp-width-number" min="100" max="860"
-          value="${parseInt(block.style.width) || parseInt(block.dataset.width) || 360}">
-      </div>`),
+      /* ★표준 Layout(현빈 261124 L-4/7 · C3) — 옛 슬라이더 걷음 · 높이 = 기기 비율이 정함 → 너비 한 칸(사슬 없음) · id·범위 무변 */
+      sec('size', layoutSizeRowHTML({ prefix: 'mkp', one: { id: 'mkp-width-number', label: 'Width', min: 100, max: 860, value: parseInt(block.style.width) || parseInt(block.dataset.width) || 360 } })),
       sec('position', positionSectionHTML({ prefix: 'mkp', posEl: null, xy: false, rot: { p: 'mkp', numberId: 'mkp-rot-number', value: parseInt(block.dataset.rotation || '0'), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' } }),
         { headTools: positionHeadToolsHTML({ prefix: 'mkp' }) })   /* 표준 Position P3(0.9.14 73행) — 머리 [슬라이드 모드] · 회전 = 옛 줄 + 슬라이드 모드 슬라이더 · id·키 무변 */,
       // 화면 이미지(옛 「Screen Image」)
@@ -70,6 +66,7 @@ export function showMockupProperties(block) {
         <button class="prop-btn-full" id="mkp-upload-btn">이미지 파일 업로드</button>
         ${imgSrc ? `<div style="font-size:10px;color:#888;text-align:center;">이미지 등록됨 ✓</div>` : ''}
       </div>`),
+      sec('appearance', appearanceSectionHTML({ prefix: 'mkp', op: { value: window.readBlockOpacity?.(block) ?? 100 } })),   // A4 Opacity
       // 그림자
       sec('effects', `
       <div class="prop-align-group" id="mkp-shadow-group">
@@ -86,25 +83,18 @@ export function showMockupProperties(block) {
   });
 
   // 너비
-  const wSlider = propPanel.querySelector('#mkp-width-slider');
-  const wNumber = propPanel.querySelector('#mkp-width-number');
   const applyWidth = v => {
-    v = Math.min(860, Math.max(100, v));
     block.dataset.width = v;
     block.style.width   = v + 'px';
     window.renderMockupBlock?.(block);
-    wSlider.value = v;
-    wNumber.value = v;
   };
-  wSlider.addEventListener('mousedown', () => window.pushHistory?.());
-  wSlider.addEventListener('input',  () => applyWidth(parseInt(wSlider.value)));
-  wSlider.addEventListener('change', () => window.pushHistory?.());
   /* ★[2026-09-21] 순서를 뒤집었다 — 전엔 «찍고 나서» 바꿨다(push-before).
      그러면 앞 편집이 push-after 였을 때 이 pushHistory 가 꼭대기와 같은 상태를 찍어 «버려지고»,
      폭 변경이 자기 칸을 못 가져 ⌘Z 한 번에 «앞 편집과 같이» 사라졌다(실측 A).
      ⛔이웃들은 원래 맞았다 — 슬라이더(:117~:119)는 양쪽 끝, 회전(:130~:133)은 push-after.
         숫자칸 «하나»만 뒤집혀 있었다. */
-  wNumber.addEventListener('change', () => { applyWidth(parseInt(wNumber.value)); window.pushHistory?.(); });
+  wireLayoutSection({ commit: () => window.pushHistory?.(), w: { numberId: 'mkp-width-number', min: 100, max: 860, apply: applyWidth } });   // 부품도 push-after(change 뒤 한 번)
+  wireAppearanceSection({ op: { numberId: 'mkp-opacity', apply: (v) => window.setBlockOpacity?.(block, v) } });
 
   // 회전 — 공유 헬퍼(applyRotationDeg, dataset.rotation)로 핫존(asset-rotate.js)과 동기
   const mRotS = propPanel.querySelector('#mkp-rot-slider');

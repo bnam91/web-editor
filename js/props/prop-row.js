@@ -6,6 +6,7 @@ import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A3)
+import { layoutSizeRowHTML, layoutGapSlotHTML, layoutPadSlotHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(L2~L4 · C3)
 
 function showRowProperties(rowEl) {
   const layout = rowEl.dataset.layout || 'stack';
@@ -58,11 +59,7 @@ function showRowProperties(rowEl) {
 
   /* 자식 일괄 — 높이는 Layout 절(Child Blocks) · radius 는 Appearance 절(Q2 모서리 = 모양) */
   const childBatchHTML = hasChildren ? `
-      <div class="prop-row">
-        <span class="prop-label">자식 높이</span>
-        <input type="range" class="prop-slider" id="row-child-h-slider" min="0" max="600" step="4" value="${childHeightVal || 0}">
-        <input type="number" class="prop-number" id="row-child-h-number" min="0" max="600" value="${childHeightVal}" placeholder="자동">
-      </div>` : '';
+      ${layoutSizeRowHTML({ prefix: 'row-child-h', one: { id: 'row-child-h-number', label: '자식 높이', icon: 'h', min: 0, max: 600, value: childHeightVal, mixed: childHeightVal === '' } })}` : '';   /* 0 = 자동(옛 뜻 그대로) · 자식 높이가 서로 다르면 Mixed(옛 빈 칸과 같은 뜻) */
   const childRadiusHTML = allCards ? `
       ${appearanceSectionHTML({ prefix: 'row-child', radius: { numberId: 'row-child-r-number', value: childRadiusVal, max: 40, mixed: childRadiusVal === '' } })}   <!-- ★표준 Appearance A3(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·키·범위 무변 -->` : '';   /* 자식 카드 값이 서로 다르면 Mixed(옛 빈 칸과 같은 뜻) */
 
@@ -104,25 +101,12 @@ function showRowProperties(rowEl) {
       id: rowEl.id,
     }),
     sections: [
-      sec('size', `
-      <div class="prop-row">
-        <span class="prop-label">높이</span>
-        <input type="range" class="prop-slider" id="row-height-slider" min="${minRowHeight}" max="1200" step="8" value="${rowHeight}">
-        <input type="number" class="prop-number" id="row-height-number" min="${minRowHeight}" max="1200" value="${rowHeight || ''}" placeholder="자동">
-      </div>`),
-      sec('layout', (layout !== 'stack' ? colRatioHTML + `
-      <div class="prop-row">
-        <span class="prop-label">gap</span>
-        <input type="range" class="prop-slider" id="row-gap-slider" min="0" max="80" step="4" value="${currentGap}">
-        <input type="number" class="prop-number" id="row-gap-number" min="0" max="80" value="${currentGap}">
-      </div>` : '') + childBatchHTML),
-      sec('padding', `
-      <div class="prop-row">
-        <span class="prop-label">좌우패딩</span>
-        <input type="range" class="prop-slider" id="row-padx-slider" min="0" max="80" step="4" value="${padX}">
-        <input type="number" class="prop-number" id="row-padx-number" min="0" max="80" value="${padX}">
-      </div>`),
-      sec('appearance', childRadiusHTML, childRadiusHTML ? { headTools: appearanceHeadToolsHTML({ prefix: 'row-child' }) } : {}),
+      /* ★표준 Layout(현빈 261124 L-4/7 · C3) — 옛 슬라이더 걷음 · 숫자 칸 id·범위 무변.
+         너비 = 줄 폭(전폭)인데 너비 칸 자체가 없다(옛 패널도 높이만) ⇒ 높이 한 칸(↕) · 사슬 없음 = 막힐 짝이 없다. */
+      sec('size', layoutSizeRowHTML({ prefix: 'row', one: { id: 'row-height-number', label: 'Height', icon: 'h', min: minRowHeight, max: 1200, value: rowHeight } })),
+      sec('layout', (layout !== 'stack' ? colRatioHTML + layoutGapSlotHTML({ id: 'row-gap-number', value: currentGap, max: 80 }) : '') + childBatchHTML),
+      sec('padding', layoutPadSlotHTML({ xId: 'row-padx-number', x: padX, max: 80 })),   /* 패딩 슬롯 좌우만(상하 없음 · P 1baa53b8f) */
+      sec('appearance', appearanceSectionHTML({ prefix: 'row', op: { value: window.readBlockOpacity?.(rowEl) ?? 100 } }) + childRadiusHTML, childRadiusHTML ? { headTools: appearanceHeadToolsHTML({ prefix: 'row-child' }) } : {}),
     ],
   });
 
@@ -149,14 +133,9 @@ function showRowProperties(rowEl) {
       rowEl.style.minHeight = v ? v + 'px' : '';
     }
     rowEl.dataset.rowHeight = v || '';
-    const s = document.getElementById('row-height-slider');
-    const n = document.getElementById('row-height-number');
-    if (s) s.value = v;
-    if (n) n.value = v || '';
   };
-  document.getElementById('row-height-slider')?.addEventListener('input',  e => applyRowHeight(parseInt(e.target.value)));
-  document.getElementById('row-height-number')?.addEventListener('change', e => { applyRowHeight(parseInt(e.target.value)); window.pushHistory(); });
-  document.getElementById('row-height-slider')?.addEventListener('change', () => window.pushHistory());
+  wireLayoutSection({ commit: () => window.pushHistory(), w: { numberId: 'row-height-number', min: minRowHeight, max: 1200, apply: applyRowHeight } });
+  wireAppearanceSection({ op: { numberId: 'row-opacity', apply: (v) => window.setBlockOpacity?.(rowEl, v) } });   // A4 Opacity(블럭)
 
   /* ── 좌우 패딩 ── */
   const applyPadX = v => {
@@ -178,28 +157,16 @@ function showRowProperties(rowEl) {
         if (!ab.style.width || ab.style.width.includes('calc')) ab.style.width = '';
       }
     });
-    const s = document.getElementById('row-padx-slider');
-    const n = document.getElementById('row-padx-number');
-    if (s) s.value = v;
-    if (n) n.value = v;
   };
-  document.getElementById('row-padx-slider')?.addEventListener('input',  e => applyPadX(parseInt(e.target.value)));
-  document.getElementById('row-padx-number')?.addEventListener('change', e => { applyPadX(parseInt(e.target.value)); window.pushHistory(); });
-  document.getElementById('row-padx-slider')?.addEventListener('change', () => window.pushHistory());
+  wireLayoutSection({ commit: () => window.pushHistory(), w: { numberId: 'row-padx-number', max: 80, apply: applyPadX } });
 
   /* ── 자식 블록 일괄: 높이 ── */
   if (hasChildren) {
     const applyChildHeight = v => {
       if (isNaN(v) || v < 0) v = 0;
       childBlocks.forEach(b => { b.style.minHeight = v ? v + 'px' : ''; });
-      const s = document.getElementById('row-child-h-slider');
-      const n = document.getElementById('row-child-h-number');
-      if (s) s.value = v;
-      if (n) n.value = v || '';
     };
-    document.getElementById('row-child-h-slider').addEventListener('input',  e => applyChildHeight(parseInt(e.target.value)));
-    document.getElementById('row-child-h-number').addEventListener('change', e => { applyChildHeight(parseInt(e.target.value)); window.pushHistory(); });
-    document.getElementById('row-child-h-slider').addEventListener('change', () => window.pushHistory());
+    wireLayoutSection({ commit: () => window.pushHistory(), w: { numberId: 'row-child-h-number', max: 600, apply: applyChildHeight } });
 
     /* ── 자식 블록 일괄: radius (card 전용) ── */
     if (allCards) {
@@ -215,14 +182,8 @@ function showRowProperties(rowEl) {
     v = Math.min(80, Math.max(0, v));
     rowEl.style.gap = v + 'px';
     rowEl.dataset.gap = v;
-    const s = document.getElementById('row-gap-slider');
-    const n = document.getElementById('row-gap-number');
-    if (s) s.value = v;
-    if (n) n.value = v;
   };
-  document.getElementById('row-gap-slider').addEventListener('input',  e => applyGap(parseInt(e.target.value)));
-  document.getElementById('row-gap-number').addEventListener('change', e => { applyGap(parseInt(e.target.value)); window.pushHistory(); });
-  document.getElementById('row-gap-slider').addEventListener('change', () => window.pushHistory());
+  wireLayoutSection({ commit: () => window.pushHistory(), w: { numberId: 'row-gap-number', max: 80, apply: applyGap } });
 
   /* ── Flex / Grid: 컬럼 비율 입력 (2:8 형식) ── */
   if (layout === 'flex' || layout === 'grid') {

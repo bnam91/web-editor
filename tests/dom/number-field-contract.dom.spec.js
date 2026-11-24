@@ -502,7 +502,10 @@ async function readAfter(page, f) {
 }
 
 test.describe('숫자칸 세 번째 축 — «빈 값의 뜻»', () => {
-  for (const f of MEANING_FIELDS) {
+  /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C3): 행 높이 칸 = 표준 Layout 부품 —
+     빈 칸 = 옛 값 되돌림(부품 동작 · 탑 공지 261125) · «자동» = 0 입력(stack · 옛 applyRowHeight 0 → 비움 그대로).
+     행 높이 mount 는 아래 음성 짝(M4 · 좌우패딩)이 계속 쓴다. */
+  for (const f of MEANING_FIELDS.filter((x) => x.key !== 'row-height')) {
     test(`M1 [${f.key}] 픽스처·칸·선언이 실제로 서 있다 (양성대조)`, async ({ page }) => {
       await boot2(page);
       const s = await mountAndRead(page, f);

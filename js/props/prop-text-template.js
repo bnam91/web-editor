@@ -7,6 +7,7 @@ import { sectionOrderFor, sectionRank } from './_section-spec.js';
 /* T7 — 글머리 명부·판정은 ★한 자리(text-type-class.js). 패널과 배선이 ★같은 하나를 본다. */
 import { BULLET_LIST_STYLES, bulletListStyleOf } from './text-type-class.js';
 import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A3)
+import { layoutSizeRowHTML, layoutGapSlotHTML } from './_layout-section.js';   // 표준 Layout(L2~L4 · C3)
 
 export function buildTextPanelSpec(state) {
   const {
@@ -169,53 +170,31 @@ export function buildTextPanelSpec(state) {
         <input type="range" class="prop-slider" id="itb-dy-slider" min="${window.iconTextDyRange?.(tb).min ?? -60}" max="${window.iconTextDyRange?.(tb).max ?? 60}" step="0.1" value="${window.iconTextDyOf?.(tb) ?? 0}">
         <input type="number" class="prop-number" id="itb-dy-number" min="${window.iconTextDyRange?.(tb).min ?? -60}" max="${window.iconTextDyRange?.(tb).max ?? 60}" step="0.1" value="${window.iconTextDyOf?.(tb) ?? 0}">
       </div>`}
-      <div class="prop-row">
-        <span class="prop-label">아이콘-텍스트 간격</span>
-        <input type="range" class="prop-slider" id="itb-gap-slider" min="0" max="80" step="4" value="${currentItbGap}">
-        <input type="number" class="prop-number" id="itb-gap-number" min="0" max="80" value="${currentItbGap}">
-      </div>`;
+      ${layoutGapSlotHTML({ id: 'itb-gap-number', value: currentItbGap, max: 80 })}`;   /* ★표준 Layout Gap 슬롯(C3) — 옛 슬라이더 걷음 · id·범위 무변. ⛔아이콘 세로(itb-dy) 슬라이더는 남김 — 0.1 단위(부품 = 정수) */
 
   /* 재설계 1차 ⑥ — 너비 = 숫자 칸(칸 안 라벨 · 라벨 좌우 끌기) + 같은 줄 높이 칸. 텍스트 블럭은 높이가 없다(내용에 맞춤) ⇒ 꺼진 칸 «auto» */
-  const _sizeHtml = (isOverlayTb ? '' : `
-      <div class="prop-lhls-row">
-        <div class="prop-lhls-col">
-          <div class="prop-icon-input">
-            <span class="prop-xy-label prop-xy-label--scrub" id="txt-width-scrub" title="좌우로 끌면 값이 바뀐다">너비</span>
-            <input type="number" class="prop-number" id="txt-width-number" min="80" max="860" value="${currentW}" aria-label="너비">
-          </div>
-        </div>
-        <div class="prop-lhls-col">
-          <div class="prop-icon-input" title="텍스트 블럭은 높이를 정하지 않는다(내용에 맞춤)">
-            <span class="prop-xy-label">높이</span>
-            <input type="number" id="txt-height-number" disabled placeholder="auto" data-empty="invalid" aria-label="높이(텍스트 블럭은 없음)">
-          </div>
-        </div>
-      </div>`) + (!isLabel ? '' : `
-      <div class="prop-row">
-        <span class="prop-label">높이</span>
-        <input type="range" class="prop-slider" id="label-pill-height-slider" min="0" max="120" step="2" value="${labelPillH}">
-        <input type="number" class="prop-number" id="label-pill-height-number" min="0" max="120" value="${labelPillH}">
-      </div>`) + (!isIconText ? '' : `
-      <div class="prop-row">
-        <span class="prop-label">아이콘 크기</span>
-        <input type="range" class="prop-slider" id="itb-icon-size-slider" min="${window.ITB_ICON_SIZE?.min ?? 16}" max="${window.ITB_ICON_SIZE?.max ?? 200}" step="2" value="${window.iconTextIconSizeOf?.(tb) ?? 40}">
-        <input type="number" class="prop-number" id="itb-icon-size-number" min="${window.ITB_ICON_SIZE?.min ?? 16}" max="${window.ITB_ICON_SIZE?.max ?? 200}" value="${window.iconTextIconSizeOf?.(tb) ?? 40}">
-      </div>`);
+  /* ★표준 Layout(현빈 261124 L-4/7 · C3) — W 숫자 + 라벨 끌기 · 높이 = 자동(막힌 칸 · 사슬 막힘) · 태그 높이·아이콘 크기 = 한 칸(옛 슬라이더 걷음 · id·범위 무변) */
+  const _sizeHtml = (isOverlayTb ? '' : layoutSizeRowHTML({ prefix: 'txt',
+      w: { id: 'txt-width-number', min: 80, max: 860, value: currentW },
+      h: { id: 'txt-height-number', auto: true } }))
+    + (!isLabel ? '' : layoutSizeRowHTML({ prefix: 'label-pill-h', one: { id: 'label-pill-height-number', label: '태그 높이', icon: 'h', min: 0, max: 120, value: labelPillH } }))
+    + (!isIconText ? '' : layoutSizeRowHTML({ prefix: 'itb-icon-size', one: { id: 'itb-icon-size-number', label: '아이콘 크기', icon: 'px', min: window.ITB_ICON_SIZE?.min ?? 16, max: window.ITB_ICON_SIZE?.max ?? 200, value: window.iconTextIconSizeOf?.(tb) ?? 40 } }));
 
   const _paddingHtml = isOverlayTb ? '' : `
       <div id="txt-label-padx-wrap" style="display:${isLabel && !labelIsCircle ? 'block' : 'none'}">
-      ${sliderRowHTML('태그 좌우', 'txt-label-padx-slider', 'txt-label-padx-number', { min: 0, max: 100, step: 2, value: labelPadX }).replace('<span class="prop-label">', '<span class="prop-label" title="태그 좌우패딩">')}
+      ${layoutSizeRowHTML({ prefix: 'txt-label-padx', one: { id: 'txt-label-padx-number', label: '태그 좌우', min: 0, max: 100, value: labelPadX } })}
       </div>
       <div class="prop-row">
         <span class="prop-label">상하패딩</span>
-        <input type="range" class="prop-slider" id="txt-pv-slider" min="0" max="120" step="4" value="${currentPadT}"${isSpeechBubble ? ' disabled style="opacity:var(--ui-disabled-opacity);cursor:not-allowed"' : ''}>
+        <span class="prop-row-fill" style="flex:1" aria-hidden="true"></span>   <!-- C3 — 걷은 슬라이더 자리(숫자 끝 = 옵션 칼럼 앞 · 사슬 = 칼럼 끝 · P8 꼴 그대로) -->
         <input type="number" class="prop-number" id="txt-pv-number" min="0" max="120" value="${currentPadT}"${isSpeechBubble ? ' disabled style="opacity:var(--ui-disabled-opacity);cursor:not-allowed"' : ''}>
       </div>${/* ★⑷㉣ 현빈 sb_ts0he_4lus8he — 말풍선 꼬리는 블럭 기준 absolute 라 상하 여백을 주면 몸통에서 떨어진다 ⇒ 칸은 «숨기지 않고» 막는다.
          1120b B1(현빈 261120) — 까닭 힌트 줄(#txt-pv-bubble-hint)은 걷음(막힌 칸 그대로). */ ''}
+      <!-- ★표준 Layout(C3) — 패딩 슬라이더 넷 걷음(숫자 칸 · 잠금 사슬 · 줄 id 그대로 — 좌·우 따로 칸은 부품 슬롯(두 칸 고정)에 없어 옛 줄 꼴 유지) -->
       <!-- 재설계 1차 ⑤ — 잠금 = «좌우패딩» 한 줄(둘을 같이) · 풂 = 그 줄(라벨·사슬만 · 슬라이더 자리 비움) + 좌측패딩 + 우측패딩. 사슬은 늘 같은 자리(줄 끝) -->
       <div class="prop-row" id="txt-ph-row">
         <span class="prop-label">좌우패딩</span>
-        <input type="range" class="prop-slider" id="txt-ph-slider" min="0" max="120" step="4" value="${currentPadL}"${phLinked ? '' : ' style="visibility:hidden"'}>
+        <span class="prop-row-fill" style="flex:1" aria-hidden="true"></span>
         <input type="number" class="prop-number" id="txt-ph-number" min="0" max="120" value="${currentPadL}"${phLinked ? '' : ' style="visibility:hidden"'}>
         <button class="prop-chain-btn${phLinked ? ' active' : ''}" id="txt-ph-chain" title="좌우 잠금/풂" aria-pressed="${phLinked ? 'true' : 'false'}">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
@@ -227,12 +206,12 @@ export function buildTextPanelSpec(state) {
       </div>
       <div class="prop-row" id="txt-pl-row"${phLinked ? ' hidden' : ''}>
         <span class="prop-label">좌측패딩</span>
-        <input type="range" class="prop-slider" id="txt-pl-slider" min="0" max="120" step="4" value="${currentPadL}">
+        <span class="prop-row-fill" style="flex:1" aria-hidden="true"></span>
         <input type="number" class="prop-number" id="txt-pl-number" min="0" max="120" value="${currentPadL}">
       </div>
       <div class="prop-row" id="txt-pr-row"${phLinked ? ' hidden' : ''}>
         <span class="prop-label">우측패딩</span>
-        <input type="range" class="prop-slider" id="txt-pr-slider" min="0" max="120" step="4" value="${currentPadR}">
+        <span class="prop-row-fill" style="flex:1" aria-hidden="true"></span>
         <input type="number" class="prop-number" id="txt-pr-number" min="0" max="120" value="${currentPadR}">
       </div>`;
 
@@ -383,7 +362,7 @@ export function buildTextPanelSpec(state) {
       sec('size', _sizeHtml),
       sec('layout', _alignBtns + _itbLayout),
       sec('padding', _paddingHtml),
-      sec('appearance', _tagRadius, _tagRadius ? { headTools: appearanceHeadToolsHTML({ prefix: 'label' }) } : {}),
+      sec('appearance', appearanceSectionHTML({ prefix: 'txt', op: { value: window.readBlockOpacity?.(tb) ?? 100 } }) + _tagRadius, _tagRadius ? { headTools: appearanceHeadToolsHTML({ prefix: 'label' }) } : {}),   /* A4 Opacity(블럭 · C3) — 배선 = prop-text-wireup-align.js */
       sec('typography', _typo + _tagShape),
       sec('fill', _fill + (_tagBg && `<div class="ui-fill-slot" data-slot="below" data-slot-kind="tag-bg">${_tagBg}</div>`)),   // 표준 Fill F4 — 태그 배경 = Fill 슬롯(below · tag-bg) · 쓰는 자리에서 감쌈(_tagBg 줄 무변 = dev «체크» 이관 b74749fbc 와 안 겹침 · 탑 261124)
       /* ★1012t1E1/E1 — Stroke(글자 윤곽선 — §8 「Stroke 절 안 행」) · Effects. 대상 밖 = 말풍선·태그·아이콘텍스트(+liner 는 Stroke 만). */
