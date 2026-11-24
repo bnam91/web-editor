@@ -9,6 +9,8 @@ import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast } from '.
 
 /* G14 「＋ 블럭 넣기 ▾」 종류·이름표 — 정본은 js/icb-children.js(ICB_CHILD_KIND_LABELS · t5-12ⓑ 그리드 원 줄 패널과 한 벌). */
 import { ICB_CHILD_KIND_LABELS as _ICB_KID_KINDS } from '../icb-children.js';
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance A4(Opacity 만)
+import { layoutSizeRowHTML, layoutPadSlotHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout L4(한 칸) · L3(패딩 슬롯)
 
 export function showIconCircleProperties(block) {
   const circle   = block.querySelector('.icb-circle');
@@ -53,18 +55,11 @@ export function showIconCircleProperties(block) {
       id: block.id,
     }),
     sections: [
-      sec('size', `
-      <div class="prop-row">
-        <span class="prop-label">지름</span>
-        <input type="range" class="prop-slider" id="icb-size-slider" min="40" max="860" step="4" value="${size}">
-        <input type="number" class="prop-number"  id="icb-size-number" min="40" max="860" value="${size}">
-      </div>`),
+      /* ★표준 Layout L4(현빈 261124 L-4 · 시안 #mkp-layoutstd «크기 한 칸») — 지름 = 정비율 한 칸 · 좌우패딩 = 패딩 슬롯(좌우만) · 슬라이더 걷음 · 숫자 칸 id·범위·키 무변 */
+      sec('size', layoutSizeRowHTML({ prefix: 'icb', one: { id: 'icb-size-number', label: 'Size', value: size, min: 40, max: 860 } })),
       sec('padding', `
-      <div class="prop-row" style="${_padXOff}"${_padXTitle}>
-        <span class="prop-label">좌우패딩</span>
-        <input type="range" class="prop-slider" id="icb-padx-slider" min="0" max="200" step="4" value="${padX}">
-        <input type="number" class="prop-number" id="icb-padx-number" min="0" max="200" value="${padX}">
-      </div>`),
+      <div style="${_padXOff}"${_padXTitle}>${layoutPadSlotHTML({ xId: 'icb-padx-number', x: padX, min: 0, max: 200 })}</div>`),
+      sec('appearance', appearanceSectionHTML({ prefix: 'icb', op: { value: window.readBlockOpacity?.(block) ?? 100 } }), { headTools: appearanceHeadToolsHTML({ prefix: 'icb' }) }),   // 표준 Appearance A4 — Opacity 만(새 절 · 원 전체 = 옛 주석의 ㉡ «원 전체 투명도» 자리)
       sec('position', positionSectionHTML({ prefix: 'icb', posEl: null, xy: false, rot: { p: 'icb', numberId: 'icb-rot-number', value: parseInt(block.dataset.rotation || '0'), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' } }),
         { headTools: positionHeadToolsHTML({ prefix: 'icb', ialId: 'icb-float-toggle', ialOn: block.dataset.overlayBlock === 'true' }) })   /* 표준 Position P3(0.9.14 73행) — 머리 [슬라이드 모드][IAL] · 회전 = 옛 줄 + 슬라이드 모드 슬라이더 · id·키 무변 */,   // 플로팅 = Position(§2-1)
       // 옛 「Image」 절 + 원 안 블럭 넣기 = Content
@@ -124,24 +119,17 @@ export function showIconCircleProperties(block) {
     circle.style.width     = v + 'px';
     circle.style.height    = v + 'px';   // height는 항상 width와 동일 — 단일 차원 경로 방어
     circle.style.aspectRatio = '1 / 1';  // 런타임 가드 — 부모 flex stretch로 squash되는 케이스 차단
-    propPanel.querySelector('#icb-size-slider').value = v;
-    propPanel.querySelector('#icb-size-number').value = v;
   };
-  propPanel.querySelector('#icb-size-slider').addEventListener('input',  e => applySize(parseInt(e.target.value)));
-  propPanel.querySelector('#icb-size-number').addEventListener('change', e => { applySize(parseInt(e.target.value)); window.pushHistory(); });
-  propPanel.querySelector('#icb-size-slider').addEventListener('change', () => window.pushHistory());
-
   const applyPadX = v => {
     v = Math.min(200, Math.max(0, v));
     block.dataset.padX         = v;
     block.style.paddingLeft    = v + 'px';
     block.style.paddingRight   = v + 'px';
-    propPanel.querySelector('#icb-padx-slider').value = v;
-    propPanel.querySelector('#icb-padx-number').value = v;
   };
-  propPanel.querySelector('#icb-padx-slider').addEventListener('input',  e => applyPadX(parseInt(e.target.value)));
-  propPanel.querySelector('#icb-padx-number').addEventListener('change', e => { applyPadX(parseInt(e.target.value)); window.pushHistory(); });
-  propPanel.querySelector('#icb-padx-slider').addEventListener('change', () => window.pushHistory());
+  /* 표준 Layout — 부품 배선(input = 바로 · change = 잘라 + 이력 한 번 · 빈 칸 = 되돌림 · 라벨 끌기) · read = 블럭(핸들이 바꾼 지름도 따라감) */
+  wireLayoutSection({ commit: () => window.pushHistory(), w: { numberId: 'icb-size-number', min: 40, max: 860, apply: applySize, read: () => parseInt(block.dataset.size) || size } });
+  wireLayoutSection({ commit: () => window.pushHistory(), w: { numberId: 'icb-padx-number', min: 0, max: 200, apply: applyPadX, read: () => parseInt(block.dataset.padX) || 0 } });
+  wireAppearanceSection({ op: { numberId: 'icb-opacity', apply: (v) => window.setBlockOpacity?.(block, v), commit: () => { window.pushHistory(); window.scheduleAutoSave?.(); } } });   // A4 — 계약(갈래 E) 없으면 그리기 0
 
   // 회전 — 공유 헬퍼(applyRotationDeg, dataset.rotation)로 핫존(asset-rotate.js)과 동기
   const _icbRot = (v, typing) => {

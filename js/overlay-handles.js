@@ -1649,10 +1649,8 @@ function showIconCircleResizeHandle(block) {
       const circle = block.querySelector('.icb-circle');
       if (circle) { circle.style.width = newSize + 'px'; circle.style.height = newSize + 'px'; }
       block.dataset.size = newSize;
-      // prop panel sync
-      const sl = document.getElementById('icb-size-slider');
+      // prop panel sync — 숫자 칸만(표준 Layout L4 · 슬라이더 걷음)
       const nb = document.getElementById('icb-size-number');
-      if (sl) sl.value = newSize;
       if (nb) nb.value = newSize;
       window.scheduleAutoSave?.();
     }
