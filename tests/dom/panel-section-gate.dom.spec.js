@@ -97,7 +97,7 @@ test('G2 ★내장 양성대조 — 뒤집은 순서·틀린 제목 표로 재�
   const panel = await readPanel(page);
   /* ★기대 바뀜(RP-PRD-PREEXIST-FAIL-01 · 261121) — ⑴ '__group' = 읽개(readPanel)가 Layout 묶음 머리에 붙이는 표식(750b9fae6 · 판정기도 절에서 뺀다) ⇒ 여기서도 뺀다
      ⑵ 블록 «Template» 절(c5686f5a7 · Q37 · 현빈 GO 261120)이 모든 블럭 패널 끝에 붙는다 */
-  expect(panel.secs.filter((s) => s.sec && s.sec !== '__group').map((s) => s.sec), '[전제] 브릿지 = Size·Fill·Tail·Template').toEqual(['size', 'fill', 'template', 'special']);   // ★기대 바뀜(지디 261123 ⑶ⓑ · 정본 v1 꼬리 Templates → [Special])
+  expect(panel.secs.filter((s) => s.sec && s.sec !== '__group').map((s) => s.sec), '[전제] 브릿지 = Size·Appearance·Fill·Tail·Template').toEqual(['size', 'appearance', 'fill', 'template', 'special']);   // ★기대 바뀜(표준 Appearance A4 C1 · 현빈 261124) — 브릿지 Opacity 새 절 = 정본 순서 자리(appearance 는 Fill 앞)   // ★기대 바뀜(지디 261123 ⑶ⓑ · 정본 v1 꼬리 Templates → [Special])
   expect(judgePanel(panel, SPEC), '[전제] 정본으론 통과').toEqual([]);
   expect(judgePanel(panel, SPEC, [...SPEC.SECTION_ORDER].reverse()).join(' | '), '★뒤집은 순서를 못 잡는다').toContain('순서 위반');
   const wrongTitles = { ...SPEC, SECTION_TITLE: { ...SPEC.SECTION_TITLE, size: 'Dimensions' } };
