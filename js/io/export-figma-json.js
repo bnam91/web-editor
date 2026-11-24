@@ -663,6 +663,11 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         })(),
       };
       { const _bd = _strokeBorderOut(el.dataset, parseInt(el.dataset.strokeWidth) || 0, el.dataset.strokeColor || '#000000', 'solid'); if (_bd) _assetOut.border = _bd; }   // 표준 Stroke 4-3 — 에셋 테두리(굵기 0 = 안 실음 = 옛 바이트)
+      { const _abg = el.dataset.bgColor;   // F8 ①(시트 81행 · 지디 261125): 배경색 = 빈 칸·투명 PNG 사이로 캔버스에 보인다(D33) · 키 없음·transparent = 안 실음 = 옛 바이트
+        if (_abg && _abg !== 'transparent') {
+          Object.assign(_assetOut, { bg: _abg }, _fh(el));
+          if (/gradient\s*\(/i.test(_abg)) { const g = parseGradient(_abg); if (g && Array.isArray(g.stops) && g.stops.length >= 2) _assetOut.bgGradient = { type: g.type, angle: g.angle, stops: g.stops }; }
+        } }
       if (!el.dataset.collab && !_assetOut.halftone) Object.assign(_assetOut, _assetFigmaClipCrop(el));   // FIGMA-ASSET-CLIP-OFF-AND-CROP-MISMATCH-01 — 단일 그림만 clip·crop(묶음은 아래 콜라보 갈래 그대로)
       return el.dataset.collab ? _assetCollabFigmaFrame(el, _assetOut) : _assetOut;   // ★1013t2A2
     }

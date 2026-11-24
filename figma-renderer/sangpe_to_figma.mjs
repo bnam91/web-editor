@@ -787,6 +787,14 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       clipsContent: block.clip !== false,   // ★FIGMA-ASSET-CLIP-OFF-AND-CROP-MISMATCH-01 — «내용 자르기» 끔 = false · 늘 명시(Figma 기본값 true 에 기대지 않는다)
     });
     if (node) applyBorder(node.id, block.border);   // 표준 Stroke 4-3 — 에셋 테두리
+    /* F8 ①(시트 81행 · 지디 261125) — 에셋 배경색 = 프레임 자기 칠(빈 칸·투명 PNG 사이로 보이는 그 색 · D33) · 숨김 = 이 칠만 눈 끔
+       bg 없으면(키 없음·transparent) 이 갈래 0 = 옛 명령 그대로 */
+    const _abg = node && !block.redact && (block.bg || '').trim();
+    const _paintAssetBg = () => {
+      if (block.bgGradient) { run('set_fill_color', { nodeId: node.id, color: { r: 1, g: 1, b: 1, a: 0 } }); const _gp = cssGradientToFigmaPaint(block.bgGradient, imgW, imgH); if (_gp) run('set_gradient', { nodeId: node.id, ..._gp }); }
+      else run('set_fill_color', { nodeId: node.id, color: hex(_abg) });
+      if (block.fillHidden) _hideFills(node.id);
+    };
     if (node) {
       if (block.redact) {
         // ★블러(Redact, 1012t1 C1) — 에디터가 원본 src 를 안 싣는다. 불투명 덮개 색으로만 칠한다(도형 가림막과 같은 원칙).
@@ -808,10 +816,16 @@ function renderBlock(block, parentId, x, y, availableWidth) {
         const _cr = block.crop;
         let _fillId = node.id;
         if (_cr && ['x', 'y', 'w', 'h'].every((k) => Number.isFinite(_cr[k])) && _cr.w > 0 && _cr.h > 0) {
-          run('set_fill_color', { nodeId: node.id, color: { r: 1, g: 1, b: 1, a: 0 } });
+          if (_abg) _paintAssetBg(); else run('set_fill_color', { nodeId: node.id, color: { r: 1, g: 1, b: 1, a: 0 } });   // F8 ① 크롭 자식이 이미 있으면 부모 칠 = 배경(자식 하나 더 안 만듦)
           const _cf = run('create_frame', { x: Math.round(_cr.x * imgW), y: Math.round(_cr.y * imgH), width: Math.max(1, Math.round(_cr.w * imgW)), height: Math.max(1, Math.round(_cr.h * imgH)),
             name: `imgcrop_${block.id}`, parentId: node.id, clipsContent: true });
           if (_cf) _fillId = _cf.id;
+        } else if (_abg) {
+          /* F8 ① — set_image_fill 은 칠을 갈아 끼워 한 노드에 배경·그림 둘을 못 둔다 → 그림 = 자식 프레임(크롭 갈래와 같은 꼴 · 지디 OK)
+             자식도 같은 둥글기 = «내용 자르기 끔»(clipsContent false)이어도 부모 모양 밖으로 그림 모서리가 안 나간다 */
+          _paintAssetBg();
+          const _if = run('create_frame', { x: 0, y: 0, width: imgW, height: imgH, name: `imgfill_${block.id}`, parentId: node.id, clipsContent: true });
+          if (_if) { _fillId = _if.id; if ((s.borderRadius || 0) > 0) run('set_corner_radius', { nodeId: _if.id, radius: s.borderRadius }); }
         }
         const fillResult = run('set_image_fill', {
           nodeId: _fillId,
@@ -829,10 +843,15 @@ function renderBlock(block, parentId, x, y, availableWidth) {
         }
       } else {
         // 빈 슬롯 = goditor 체커보드 placeholder를 Figma에도 체커로(회차12 현빈 B결정)
+        if (_abg) {   // F8 ① 빈 칸 + 배경색 = 캔버스는 체커 없이 그 색(D33 b) · 숨겨도 체커 없음(css .asset-block[data-fill-hidden] background-image none)
+          _paintAssetBg();
+          console.log(`      · image ${availableWidth}×${imgH} → ${node.id} (빈 슬롯 배경색)`);
+        } else {
         run('set_fill_color', { nodeId: node.id, color: { r: 1, g: 1, b: 1, a: 0 } });
         const _ck = run('create_node_from_svg', { svg: checkerSvg(availableWidth, imgH, false), parentId: node.id, x: 0, y: 0 }, { timeout: 12000 });
         if (_ck) run('resize_node', { nodeId: _ck.id, width: Math.round(availableWidth), height: Math.round(imgH) });
         console.log(`      · image ${availableWidth}×${imgH} → ${node.id} (빈 슬롯 체커)`);
+        }
       }
       if ((s.borderRadius || 0) > 0)
         run('set_corner_radius', { nodeId: node.id, radius: s.borderRadius });

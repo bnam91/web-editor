@@ -823,3 +823,30 @@ test('D33 F8 ① 탐침 — 에셋 배경색: 빈 칸·투명 PNG 에서 화면 
   expect([res['a 빈·키없음'].w > 0, res['b 빈·bgColor'].inlineBg !== '', res['c 투명PNG·bgColor'].hasImg], '[전제] 장면 셋이 섰다(크기 · b 인라인 색 · c 그림 있음)').toEqual([true, true, true]);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* F8 ①(시트 81행 · 지디 261125) — D34 에셋 배경색 → Figma JSON image 항목 bg(렌더러가 프레임 칠로 · 그림은 자식 imgfill · 유닛 figma-fill-hidden-f7 A1~A5)
+ *   ★bg = bgColor · 숨김 = fillHidden + 색 그대로 · [지킴] 키 없음 = bg·fillHidden 키 0(옛 바이트) · 'transparent'(− 누름) = bg 0
+ * 양성대조: 고치기 전 판 4188f69c1 에서 D34 빨강(bg 없음) */
+test('D34 에셋 배경색 — Figma JSON image bg = bgColor · 숨김 키 · [지킴] 키 없음·transparent = 키 0', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const ids = await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    const sec = await window.addSection(); const out = [];
+    for (let i = 0; i < 3; i++) { window.deselectAll(); window.selectSection(sec); const before = new Set(sec.querySelectorAll('.asset-block')); await window.addAssetBlock(); out.push([...sec.querySelectorAll('.asset-block')].find((x) => !before.has(x)).id); }
+    const m = await import('/js/props/_fill-section.js');
+    { const it = m.fillKindOf(document.getElementById(out[1])); it.k.paint(it.block, '#12ab34'); }
+    document.getElementById(out[2]).dataset.bgColor = 'transparent';
+    window.deselectAll(); return out; });
+  const entry = (id) => page.evaluate((id) => { const j = window.buildFigmaExportJSON(null); let hit = null;
+    (function walk(o) { if (!o || typeof o !== 'object' || hit) return; if (o.id === id && o.type) { hit = o; return; } Object.values(o).forEach(walk); })(j); return hit ? JSON.parse(JSON.stringify(hit)) : null; }, id);
+  const a = await entry(ids[0]), b = await entry(ids[1]), t = await entry(ids[2]);
+  expect([a?.type, b?.type, t?.type], '[전제] 셋 다 image 항목').toEqual(['image', 'image', 'image']);
+  expect(['bg' in a, 'fillHidden' in a], '[지킴] 키 없음 = bg·fillHidden 0').toEqual([false, false]);
+  expect('bg' in t, "[지킴] 'transparent' = bg 0").toBe(false);
+  expect(String(b.bg).toLowerCase(), '★배경색이 Figma JSON bg 로').toMatch(/^(#12ab34|rgb\(18, 171, 52\))$/);
+  expect('fillHidden' in b, '안 숨기면 키 0').toBe(false);
+  await page.evaluate(async (id) => { const m = await import('/js/props/_fill-section.js'); const it = m.fillKindOf(document.getElementById(id)); m.fillSetHidden(it.block, it.k, true); }, ids[1]);
+  const b1 = await entry(ids[1]);
+  expect([b1.fillHidden, String(b1.bg).toLowerCase()], '★숨기면 fillHidden · 색 그대로').toEqual([true, String(b.bg).toLowerCase()]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

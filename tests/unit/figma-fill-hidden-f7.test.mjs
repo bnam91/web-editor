@@ -71,9 +71,9 @@ if (cmd === 'get_document_info') out = { children: [] };
 if (cmd === 'get_node_info') out = { document: { id: 'svgroot', type: 'FRAME', fills: [], children: [{ id: 'vfill', type: 'VECTOR', fills: [{ type: 'SOLID' }], children: [] }, { id: 'vline', type: 'VECTOR', fills: [], children: [] }] } };
 if (cmd === 'set_node_properties') out = process.env.FAKE_OLD ? { id: p.nodeId, visible: true } : { id: p.nodeId, visible: true, fillsVisible: p.fillsVisible !== false };
 console.log(JSON.stringify(out));`;
-function render(blocks, old) {
+function render(blocks, old, srcDir) {
   const dir = mkTmpRoot('fill-f7-');
-  const src = path.join(ROOT, 'figma-renderer');
+  const src = srcDir || path.join(ROOT, 'figma-renderer');
   for (const f of fs.readdirSync(src)) if (f.endsWith('.mjs')) fs.copyFileSync(path.join(src, f), path.join(dir, f));
   fs.writeFileSync(path.join(dir, 'figma_cmd.mjs'), FAKE);
   const json = path.join(dir, 'd.json'), log = path.join(dir, 'l.log');
@@ -152,4 +152,64 @@ test('S2 숨김 — 브리지 = 칠 벡터 fillsVisible:false · 쿠폰 = 걷지
   assert.deepEqual(b.filter((x) => x.cmd === 'set_node_properties' && x.params.fillsVisible === false).map((x) => x.params.nodeId), ['vfill'], '브리지 몸 칠을 안 껐다');
   assert.equal(c.filter((x) => x.cmd === 'set_node_properties' && 'fillsVisible' in x.params).length, 0, '쿠폰을 걸어 칠을 껐다(스텁까지 꺼짐)');
   assert.equal(c.filter((x) => x.cmd === 'create_node_from_svg').length, 1, '[전제] 쿠폰도 그렸다');
+});
+
+/* ── F8 ①(시트 81행 · 지디 261125) — 에셋 배경색(bg) = 프레임 자기 칠 · 그림 있으면 그림 = 자식 프레임 imgfill_<id>
+ *   A1 ⓐ bg 없는 에셋(그림·빈 칸·크롭·둥글기) = 명령 목록·이름·부모가 «고치기 전 판(git HEAD 의 렌더러)»과 같다(노드 id 뺀 바이트 대조)
+ *   A2 빈 칸 + bg = 그 프레임 칠 = bg · 체커 svg 0
+ *   A3 그림 + bg = 프레임 칠 bg · 자식 imgfill(부모 = 프레임 · clipsContent true · 둥글기 같음) · set_image_fill = 자식 · 자르기 끔이어도 자식은 자름
+ *   A4 ⓑ 크롭 + bg = 자식 하나(imgcrop) · imgfill 0 · 부모 칠 = bg
+ *   A5 숨김 = 부모 칠만 fillsVisible:false(그림 자식·크롭 자식 손 0) · 빈 칸 숨김도 체커 0(캔버스 css background-image none)
+ * 양성대조: _patches/fill-f8-CTL-assetbg.patch(렌더러 _abg = '') → A2~A5 빨강 · A1 초록 */
+const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+const img = (extra) => ({ type: 'image', id: 'ab', height: 200, sizePct: 100, padX: 0, style: { borderRadius: 0 }, src: PNG, overlayOn: false, ...extra });
+const strip = (cmds) => { const ids = new Map(cmds.map((c, i) => [c.id, 'N' + i])); return JSON.stringify(cmds.map((c) => [c.cmd, JSON.stringify(c.params).replace(/"n\d+"/g, (m) => ids.get(m.slice(1, -1)) || m)])); };
+function oldRenderer() {
+  const dir = mkTmpRoot('fill-f8a-old-');
+  for (const f of fs.readdirSync(path.join(ROOT, 'figma-renderer'))) if (f.endsWith('.mjs')) {
+    const r = spawnSync('git', ['-C', ROOT, 'show', `HEAD:figma-renderer/${f}`], { encoding: 'utf8' });
+    if (r.status === 0) fs.writeFileSync(path.join(dir, f), r.stdout);
+  }
+  return dir;
+}
+const kidNamed = (cmds, pre) => cmds.filter((c) => c.cmd === 'create_frame' && String(c.params.name).startsWith(pre));
+test('A1 ⓐ bg 없는 에셋 = 고치기 전 렌더러와 명령·이름·부모 같음(그림·빈 칸·크롭·둥글기·자르기 끔)', () => {
+  const old = oldRenderer();
+  for (const b of [img(), img({ src: null }), img({ crop: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 } }), img({ style: { borderRadius: 24 }, clip: false })]) {
+    assert.equal(strip(render([b]).cmds), strip(render([b], false, old).cmds), `옛 판과 달라졌다: ${JSON.stringify({ src: !!b.src, crop: !!b.crop, r: b.style.borderRadius })}`);
+  }
+});
+test('A2 빈 칸 + bg = 프레임 칠 bg · 체커 0', () => {
+  const { cmds } = render([img({ src: null, bg: '#12ab34' })]);
+  const fr = kidNamed(cmds, 'image_ab')[0];
+  assert.deepEqual(cmds.filter((c) => c.cmd === 'set_fill_color' && isG(c.params.color)).map((c) => c.params.nodeId), [fr.id], '배경색이 그 프레임에 안 칠해졌다');
+  assert.equal(cmds.filter((c) => c.cmd === 'create_node_from_svg').length, 0, '배경색이 있는데 체커를 그렸다(캔버스엔 체커 없음 · D33 b)');
+});
+test('A3 그림 + bg = 프레임 칠 bg · 그림 = 자식 imgfill(자름 · 둥글기 같음) · 자르기 끔이어도', () => {
+  const { cmds } = render([img({ bg: '#12ab34', style: { borderRadius: 24 }, clip: false })]);
+  const fr = kidNamed(cmds, 'image_ab')[0], kid = kidNamed(cmds, 'imgfill_ab');
+  assert.equal(kid.length, 1, '그림 자식 프레임이 하나가 아니다');
+  assert.equal(kid[0].params.parentId, fr.id); assert.equal(kid[0].params.clipsContent, true, '자식이 안 자른다');
+  assert.deepEqual([kid[0].params.width, kid[0].params.height], [fr.params.width, fr.params.height], '자식 크기 ≠ 부모');
+  assert.deepEqual(cmds.filter((c) => c.cmd === 'set_fill_color' && isG(c.params.color)).map((c) => c.params.nodeId), [fr.id], '배경색이 부모에 안 칠해졌다');
+  assert.deepEqual(cmds.filter((c) => c.cmd === 'set_image_fill').map((c) => c.params.nodeId), [kid[0].id], '그림이 자식에 안 갔다(부모에 가면 배경을 갈아 끼움)');
+  const rad = cmds.filter((c) => c.cmd === 'set_corner_radius' && c.params.radius === 24).map((c) => c.params.nodeId).sort();
+  assert.deepEqual(rad, [fr.id, kid[0].id].sort(), 'ⓒ 둥글기가 부모·자식 둘 다 아니다(자르기 끔이면 자식 모서리가 부모 밖으로)');
+});
+test('A4 ⓑ 크롭 + bg = 자식 하나(imgcrop) · imgfill 0 · 부모 칠 bg', () => {
+  const { cmds } = render([img({ bg: '#12ab34', crop: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 } })]);
+  const fr = kidNamed(cmds, 'image_ab')[0];
+  assert.equal(kidNamed(cmds, 'imgfill_').length, 0, '크롭 자식이 있는데 그림 자식을 하나 더 만들었다(이중 자식)');
+  const cr = kidNamed(cmds, 'imgcrop_ab'); assert.equal(cr.length, 1);
+  assert.deepEqual(cmds.filter((c) => c.cmd === 'set_image_fill').map((c) => c.params.nodeId), [cr[0].id]);
+  assert.deepEqual(cmds.filter((c) => c.cmd === 'set_fill_color' && c.params.nodeId === fr.id).map((c) => isG(c.params.color)), [true], '부모 칠 = bg 하나(투명 칠이 덮으면 안 됨)');
+});
+test('A5 숨김 = 부모 칠만 눈 끔(그림·크롭 자식 손 0) · 빈 칸 숨김 체커 0', () => {
+  for (const extra of [{}, { src: null }, { crop: { x: 0, y: 0, w: 0.5, h: 0.5 } }]) {
+    const { cmds } = render([img({ bg: '#12ab34', fillHidden: true, ...extra })]);
+    const fr = kidNamed(cmds, 'image_ab')[0];
+    assert.deepEqual(cmds.filter((c) => c.cmd === 'set_node_properties' && c.params.fillsVisible === false).map((c) => c.params.nodeId), [fr.id], `숨김이 부모 칠 하나가 아니다 ${JSON.stringify(extra)}`);
+    assert.equal(cmds.filter((c) => c.cmd === 'create_node_from_svg').length, 0);
+  }
+  assert.equal(render([img({ fillHidden: true })]).cmds.filter((c) => 'fillsVisible' in (c.params || {})).length, 0, '[지킴] bg 없으면 숨김 명령 0');
 });
