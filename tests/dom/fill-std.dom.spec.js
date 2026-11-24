@@ -415,3 +415,36 @@ test('D20 심플카드 글 영역 배경 − / ⌘Z / ＋ · 옛 «투명» 몸 
   expect(s3, '★＋ = 지난 색 · 제목 색 되돌림(옛 몸)').toEqual({ bg: '#ff0000', title: '#ffffff' });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* F5-3(현빈 «표준 줄 없이 부위 색만» · 구분선 = Special «Line» · Stroke 2-2 이사와 같게)
+ * D21 구분선 — Fill 절 없음 · 색 칸(dvd-* 옛 id) = Special «Line» 첫 줄 · 색 바꾸면 lineColor 그대로 씀
+ * D22 채팅·인포카드·그래프·비교표 — Fill 절 = 부위 색만(표준 부품 0 · 머리 ＋ 0) · 부위 색 칸 옛 id 그대로
+ * 양성대조: 구분선 이사 전 판(e98cb4310)에서 D21 빨강 · D22 초록(넷은 손 0 = 지키는 칸) */
+async function bootBlk(page, add, cls) {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  await page.evaluate(async ({ add, cls }) => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    await window.addSection(); const sec = [...c.querySelectorAll('.section-block')].pop(); window.selectSection(sec); await window[add]();
+    window.__b = sec.querySelector('.' + cls); window.selectBlock(window.__b.id); }, { add, cls });
+  await page.waitForSelector('#panel-right .prop-section', { state: 'attached' });
+  return errs;
+}
+test('D21 구분선 — 색 = Special «Line» 첫 줄 · Fill 절 없음 · 색 쓰기 그대로', async ({ page }) => {
+  const errs = await bootBlk(page, 'addDividerBlock', 'divider-block');
+  const ui = await page.evaluate(() => { const sp = document.querySelector('#panel-right .prop-section[data-sec="special"]'); const first = sp?.querySelector('.prop-section-body, .prop-section-content')?.firstElementChild || sp?.querySelector('.prop-row, .prop-color-row');
+    return { fill: !!document.querySelector('#panel-right .prop-section[data-sec="fill"]'), title: sp?.querySelector('.prop-section-title, .prop-section-header')?.textContent.trim().slice(0, 8) ?? null,
+      inLine: ['dvd-color', 'dvd-hex', 'dvd-alpha'].every((i) => sp?.contains(document.getElementById(i))), firstIsColor: !!first?.querySelector('#dvd-hex') }; });
+  expect(ui, '★Fill 절 0 · 색 칸 = Line 절 안 첫 줄 · 옛 id').toEqual({ fill: false, title: expect.stringContaining('Line'), inLine: true, firstIsColor: true });
+  await page.fill('#dvd-hex', '#ff0000'); await page.press('#dvd-hex', 'Enter');
+  await expect.poll(() => page.evaluate(() => window.__b.dataset.lineColor), { message: '★색 쓰기 = 옛 배선 그대로' }).toBe('#ff0000');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+for (const [add, cls, part] of [['addChatBlock', 'chat-block', 'chb-bg-left-hex'], ['addInfoCardBlock', 'infocard-block', 'ifc-accent-hex'], ['addGraphBlock', 'graph-block', 'grb-label-hex'], ['addComparisonBlock', 'comparison-block', 'cmp-c0HdBg-hex']]) {
+  test(`D22 ${cls} — Fill = 부위 색만 · 표준 부품 0 · ＋ 0 · 옛 id`, async ({ page }) => {
+    const errs = await bootBlk(page, add, cls);
+    const ui = await page.evaluate((part) => { const f = document.querySelector('#panel-right .prop-section[data-sec="fill"]');
+      return { fill: !!f, std: !!f?.querySelector('[data-part="fill"]'), add: !!f?.querySelector('[id$="-fill-add"]') || !!f?.closest('.prop-section')?.querySelector('.prop-section-header [id$="-fill-add"]'), part: !!f?.contains(document.getElementById(part)) }; }, part);
+    expect(ui, '★Fill 절 있음 · 표준 부품 0 · ＋ 0 · 부위 색 칸 옛 id').toEqual({ fill: true, std: false, add: false, part: true });
+    expect(errs, errs.join(' | ')).toEqual([]);
+  });
+}
