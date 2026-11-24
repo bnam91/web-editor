@@ -43,16 +43,16 @@ test('M2 칠 없음 = 겹 줄 0 · «칠 없음» · 머리 ＋', () => {
 test('M3 이름칸 — 그라데이션·이미지 = 읽기 전용 이름 · 단색 = HEX', () => {
   for (const [k, n] of [['linear', 'Linear'], ['radial', 'Radial'], ['conic', 'Angular'], ['image', 'Image']]) {
     const h = fillSectionHTML({ prefix: 'p', colorHtml: FIELD, kind: k });
-    assert.match(h, new RegExp(`id="shape-color-hex" value="${n}" readonly data-fill-kind="${k}"`), k);
+    assert.match(h, new RegExp(`id="shape-color-hex" value="${n}" data-fill-kind="${k}" data-fill-hex="FF0000"`), k);   // ★기대 바뀜(261124 text-gradient G6): 읽기 전용 아님 · 옛 HEX 를 data-fill-hex 에(포커스 때 돌려 «HEX 쳐서 단색» 옛 길)
   }
   assert.match(fillSectionHTML({ prefix: 'p', colorHtml: FIELD, kind: 'solid' }), /id="shape-color-hex" value="FF0000" maxlength/);
 });
-test('M4 setFillKindName — 단색 복귀 = 읽기 전용 풂', () => {
-  const el = { value: 'FF0000', readOnly: false, dataset: {} };
+test('M4 setFillKindName — 이름 = 옛 HEX 보관 · 단색 복귀 = HEX 로', () => {
+  const el = { value: 'FF0000', dataset: {} };
   setFillKindName(el, 'linear');
-  assert.deepEqual([el.value, el.readOnly, el.dataset.fillKind], ['Linear', true, 'linear']);
+  assert.deepEqual([el.value, el.dataset.fillKind, el.dataset.fillHex], ['Linear', 'linear', 'FF0000']);   // ★기대 바뀜: 읽기 전용 대신 옛 HEX 보관
   setFillKindName(el, 'solid');
-  assert.deepEqual([el.readOnly, el.dataset.fillKind], [false, undefined]);
+  assert.deepEqual([el.value, el.dataset.fillKind, el.dataset.fillHex], ['FF0000', undefined, undefined]);   // 단색 복귀 = 이름이 남아 있으면 옛 HEX 로
 });
 
 const FAKE = `import { appendFileSync } from 'fs';

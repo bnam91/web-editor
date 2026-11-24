@@ -374,9 +374,9 @@ export function buildFillSectionHtml({ p, colorHex, alpha, colorHexVal, colorHex
   const _colorSwatchBg = _mix.color.mixed ? 'linear-gradient(135deg,#bbb 25%,#777 25%,#777 50%,#bbb 50%,#bbb 75%,#777 75%)' : colorHex;
   const _swatchExtraClass = _mix.color.mixed ? ' swatch-mix' : '';
 
-  /* 표준 Fill F4(현빈 GO 261124 · 이름 «Fill» = 글자색) — 옛 «글자색» 라벨 줄 → 표준 겹 줄(.ui-fill-layer · 색 칸 id 그대로 · 이름 = 칸 aria-label «글자색») · 눈 막힘(F6) · − 막힘(글자색 «없음» = 다음 단계) */
+  /* 표준 Fill F4(현빈 GO 261124 · 이름 «Fill» = 글자색) — 옛 «글자색» 라벨 줄 → 표준 겹 줄(.ui-fill-layer · 색 칸 id 그대로 · 이름 = 칸 aria-label «글자색») · 눈 막힘(F6) · − 막힘(글자색 «없음» = 글자가 안 보임 · 지디 261124 (가) · «외곽선 글자»는 Stroke 켬 규칙과 따로 카드) */
   const _body = `
-      ${fillSectionHTML({ prefix: `${p}-fill`, removeWhy: '글자색 지우기 — 곧 지원', colorHtml: `<div class="prop-color-field">
+      ${fillSectionHTML({ prefix: `${p}-fill`, removeWhy: '글자가 안 보이게 되는 길이라 지금은 못 지워요', colorHtml: `<div class="prop-color-field">
           <div class="prop-color-swatch${_swatchExtraClass}" style="background:${_colorSwatchBg}" title="${_mix.color.mixed?'Mix — 일부 선택 후 색상 변경':''}">
             <input type="color" id="${p}-color" value="${colorHex}" aria-label="글자색">
           </div>

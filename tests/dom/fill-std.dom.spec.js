@@ -212,8 +212,8 @@ async function gradScene(page) {
 }
 test('D11 그라데이션 블럭 — 탭 방출 → 정지점·종류·방향(가까운 프리셋) · 툴팁 = 맞춘 이름 · ⌘Z 한 칸', async ({ page }) => {
   const { errs, id } = await gradScene(page);
-  const g0 = await page.evaluate((id) => ({ ds: { ...document.getElementById(id).dataset }, name: document.getElementById('grad-fill-hex')?.value, ro: document.getElementById('grad-fill-hex')?.readOnly, modes: document.getElementById('grad-fill-color')?.dataset.cpModes, slot: !!document.querySelector('[data-slot-kind="gradient-stops"] #grad-stops-bar') }), id);
-  expect([g0.name, g0.ro, g0.modes, g0.slot], '[전제] 이름칸 Linear(읽기 전용) · 탭 = 그라데이션만 · 옛 정지점 바 = 슬롯').toEqual(['Linear', true, 'gradient', true]);
+  const g0 = await page.evaluate((id) => ({ ds: { ...document.getElementById(id).dataset }, name: document.getElementById('grad-fill-hex')?.value, ro: document.getElementById('grad-fill-hex')?.dataset.fillKind, modes: document.getElementById('grad-fill-color')?.dataset.cpModes, slot: !!document.querySelector('[data-slot-kind="gradient-stops"] #grad-stops-bar') }), id);
+  expect([g0.name, g0.ro, g0.modes, g0.slot], '[전제] 이름칸 Linear(종류 표식 · 포커스 = HEX) · 탭 = 그라데이션만 · 옛 정지점 바 = 슬롯').toEqual(['Linear', 'linear', 'gradient', true]);
   await page.evaluate(() => { const i = document.getElementById('grad-fill-color'); const detail = { type: 'linear', angle: 100, stops: [{ color: '#ff0000', offset: 0, opacity: 1 }, { color: '#0000ff', offset: 1, opacity: 0.5 }], commit: true };
     i.dispatchEvent(new CustomEvent('goya-cp:gradient', { bubbles: true, detail })); i.dispatchEvent(new CustomEvent('goya-cp:gradient-commit', { bubbles: true, detail })); });
   const g1 = await page.evaluate((id) => { const b = document.getElementById(id); return { dir: b.dataset.gradDirection, style: b.dataset.gradStyle, stops: JSON.parse(b.dataset.gradStops || '[]'), sel: document.getElementById('grad-direction')?.value, tip: document.getElementById('grad-fill-color')?.closest('.prop-color-swatch')?.title || '' }; }, id);
@@ -249,5 +249,47 @@ test('D13 텍스트 Fill = 표준 겹 줄 · 옛 id · 눈·− 막힘 · 글자
   await page.fill('#txt-color-hex', 'FF0000'); await page.locator('#txt-color-hex').press('Enter'); await raf(page);
   const col = await page.evaluate((id) => { const b = document.getElementById(id); const t = b.querySelector('[class^="tb-"]') || b; return getComputedStyle(t).color; }, id);
   expect(col, '★글자색 칸 = 옛 배선 그대로 글자에 칠함').toBe('rgb(255, 0, 0)');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* F4 나머지 — 글자 그라데이션 이름칸(Linear/Radial · 읽기 전용 · 단색 복귀 = HEX) · 태그 배경 = Fill 슬롯(tag-bg · id 무변) · − 막힘 까닭 = 사실(지디 (가))
+ * D14 텍스트 그라데이션(goya-cp:gradient) → 이름칸 «Linear»(패널 다시 열어도) · 라벨 = tag-bg 슬롯 안 label-bg-* · − 까닭 «지금은 못 지워요»
+ * 양성대조: _patches/fill-f4b-CTL.patch(_syncGradUi 이름칸 줄 뺌) ⇒ D14 빨강 */
+test('D14 글자 그라데이션 이름칸 · 태그 배경 슬롯 · − 까닭', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const id = await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); const sec = await window.addSection(); window.deselectAll(); window.selectSection(sec); window.addTextBlock('body'); const b = [...sec.querySelectorAll('.text-block')].pop(); window.selectBlock?.(b.id); window.showTextProperties?.(b); return b.id; });
+  await page.waitForSelector('#txt-color', { state: 'attached' });
+  expect(await page.evaluate(() => document.getElementById('txt-fill-remove')?.title), '★− 막힘 까닭 = 사실(약속 아님)').toBe('글자가 안 보이게 되는 길이라 지금은 못 지워요');
+  await page.evaluate(() => { const i = document.getElementById('txt-color'); const detail = { css: 'linear-gradient(90deg, #ff0000 0%, #0000ff 100%)', type: 'linear', angle: 90, stops: [{ color: '#ff0000', offset: 0, opacity: 1 }, { color: '#0000ff', offset: 1, opacity: 1 }], commit: true };
+    i.dispatchEvent(new CustomEvent('goya-cp:gradient', { bubbles: true, detail })); i.dispatchEvent(new CustomEvent('goya-cp:gradient-commit', { bubbles: true, detail })); });
+  const g = await page.evaluate(() => { const h = document.getElementById('txt-color-hex'); return [h.value, h.dataset.fillKind]; });
+  expect(g, '★글자 그라데이션 = 이름칸 «Linear»(종류 표식)').toEqual(['Linear', 'linear']);
+  await page.evaluate((id) => { const b = document.getElementById(id); window.selectBlock?.(id); window.showTextProperties?.(b); }, id);
+  const g2 = await page.evaluate(() => { const h = document.getElementById('txt-color-hex'); return [h.value, h.dataset.fillKind]; });
+  expect(g2, '★패널 다시 열어도 «Linear»').toEqual(['Linear', 'linear']);
+  const lid = await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); const sec = await window.addSection(); window.deselectAll(); window.selectSection(sec); window.addTextBlock('label'); const b = [...sec.querySelectorAll('.text-block')].pop(); window.selectBlock?.(b.id); window.showTextProperties?.(b); return b.id; });
+  await page.waitForSelector('#label-bg-color', { state: 'attached' });
+  const slot = await page.evaluate(() => ['label-bg-color', 'label-bg-hex', 'label-bg-none'].every((i) => !!document.querySelector('#panel-right .prop-section[data-sec="fill"] .ui-fill-slot[data-slot="below"][data-slot-kind="tag-bg"] #' + i)));
+  expect(slot, '★태그 배경 = Fill 슬롯(tag-bg) 안 · 옛 id 셋 그대로').toBe(true);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* D15 이름칸 = 읽기 전용 아님(text-gradient G6 옛 길) — 포커스 = 첫 정지점 HEX · 안 치고 나가면 «Linear» · HEX 치면 단색(이름 표식 걷힘) */
+test('D15 그라데이션 이름칸 포커스 = HEX · 나가면 이름 · HEX 치면 단색', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); const sec = await window.addSection(); window.deselectAll(); window.selectSection(sec); window.addTextBlock('body'); const b = [...sec.querySelectorAll('.text-block')].pop(); window.selectBlock?.(b.id); window.showTextProperties?.(b); });
+  await page.waitForSelector('#txt-color', { state: 'attached' });
+  await page.evaluate(() => { const i = document.getElementById('txt-color'); const detail = { css: 'linear-gradient(90deg, #ff0000 0%, #0000ff 100%)', type: 'linear', angle: 90, stops: [{ color: '#ff0000', offset: 0, opacity: 1 }, { color: '#0000ff', offset: 1, opacity: 1 }], commit: true };
+    i.dispatchEvent(new CustomEvent('goya-cp:gradient', { bubbles: true, detail })); i.dispatchEvent(new CustomEvent('goya-cp:gradient-commit', { bubbles: true, detail })); });
+  await page.focus('#txt-color-hex');
+  const onFocus = await page.evaluate(() => document.getElementById('txt-color-hex').value);
+  await page.evaluate(() => document.activeElement?.blur?.());
+  const onBlur = await page.evaluate(() => document.getElementById('txt-color-hex').value);
+  expect([onFocus, onBlur], '★포커스 = 첫 정지점 HEX · 나가면 «Linear»').toEqual(['FF0000', 'Linear']);
+  await page.fill('#txt-color-hex', '112233'); await page.locator('#txt-color-hex').press('Enter');
+  const after = await page.evaluate(() => { const h = document.getElementById('txt-color-hex'); return [h.value, h.dataset.fillKind ?? null]; });
+  expect(after, '★HEX 치면 단색 · 이름 표식 걷힘').toEqual(['112233', null]);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

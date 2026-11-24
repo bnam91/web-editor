@@ -392,7 +392,7 @@ export function buildTextPanelSpec(state) {
       sec('padding', _paddingHtml),
       sec('appearance', _tagRadius),
       sec('typography', _typo + _tagShape),
-      sec('fill', _fill + _tagBg),
+      sec('fill', _fill + (_tagBg && `<div class="ui-fill-slot" data-slot="below" data-slot-kind="tag-bg">${_tagBg}</div>`)),   // 표준 Fill F4 — 태그 배경 = Fill 슬롯(below · tag-bg) · 쓰는 자리에서 감쌈(_tagBg 줄 무변 = dev «체크» 이관 b74749fbc 와 안 겹침 · 탑 261124)
       /* ★1012t1E1/E1 — Stroke(글자 윤곽선 — §8 「Stroke 절 안 행」) · Effects. 대상 밖 = 말풍선·태그·아이콘텍스트(+liner 는 Stroke 만). */
       (!stroke || isSpeechBubble || isLabel || isIconText || isLiner) ? sec('stroke', '') : strokeSection({ p: 'txt', stroke, colorHtml: strokeColorHtml }),
       _effects,
