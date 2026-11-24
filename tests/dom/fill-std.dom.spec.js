@@ -474,3 +474,23 @@ test('D23 도형 눈 = 숨김 키 · 면만 투명 · 색 지킴 · ⌘Z · 다�
   expect([s.key, s.fo, s.color], '★숨긴 채 − → ＋ = 숨김 안 남음 · 지난 색').toEqual([null, '', '#ff0000']);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* D24 파일 왕복(지디 261124) — serializeProject → 캔버스 비움 → applyProjectData(big-block-dragout 의 reopen 꼴)
+ *   ① 숨긴 도형 = 다시 열어도 data-fill-hidden="1" · 면 fill-opacity 0 · 색 키 그대로 · 패널 눈 눌림
+ *   ② [음성] 옛 저장본(키 없음 · 안 숨긴 도형) = 다시 열어도 키·fill-opacity 없음 · 색 그대로 · 저장 문자열에 두 낱말 0
+ * 양성대조: _patches/fill-f6-1-save-CTL.patch(serializeCleanRoot 가 data-fill-hidden 을 뺌) ⇒ ① 빨강 */
+const reopenFile = (page) => page.evaluate(() => { const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); window.clearHistory?.(); });
+const fileSt = (page, id) => page.evaluate((id) => { const b = document.getElementById(id); if (!b) return null; window.selectBlock(id); window.showShapeProperties?.(b);
+  return { key: b.getAttribute('data-fill-hidden'), fo: b.querySelector('svg')?.style.fillOpacity ?? null, color: b.dataset.shapeColor ?? null, pressed: document.getElementById('shape-fill-eye')?.getAttribute('aria-pressed') ?? null }; }, id);
+test('D24 파일 왕복 — 숨김 유지 · 색 그대로 · [음성] 키 없는 옛 저장본 무변', async ({ page }) => {
+  const { errs, id } = await scene(page, '#ff0000');
+  await reopenFile(page); await raf(page);
+  const old = await fileSt(page, id);
+  const oldTxt = await page.evaluate(() => window.serializeProject());
+  expect(old, '★[음성] 키 없는 저장본 = 다시 열어도 키·면 투명 없음 · 색 그대로').toEqual({ key: null, fo: '', color: '#ff0000', pressed: 'false' });
+  expect([/data-fill-hidden/.test(oldTxt), /fill-opacity/.test(oldTxt)], '★안 숨기면 저장 문자열에 숨김 흔적 0(옛 바이트)').toEqual([false, false]);
+  await page.click('#shape-fill-eye'); await raf(page);
+  await reopenFile(page); await raf(page);
+  expect(await fileSt(page, id), '★숨긴 채 저장 → 다시 열기 = 키 1 · 면 투명 · 색 그대로 · 눈 눌림').toEqual({ key: '1', fo: '0', color: '#ff0000', pressed: 'true' });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
