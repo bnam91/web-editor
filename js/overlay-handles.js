@@ -450,6 +450,13 @@ function _onHandleMouseDown(e, ss, dir) {
     if (!isFullWidth) {
       ss.style.height = `${newH}px`; ss.style.minHeight = `${newH}px`; ss.dataset.height = String(newH);
     }
+    /* ★표준 Layout(갈래 C4) — 패널 W/H 숫자 칸을 끄는 동안 같이 맞춘다(에셋 손잡이와 같은 꼴). 칸이 옛 값을 쥔 채면
+       포커스가 남은 칸의 늦은 change(패널을 다시 그릴 때 등)가 그 옛 값을 다시 먹여 손잡이 결과를 되돌린다(resize-handle-*-1020w2b 실측). */
+    if (ss.classList.contains('selected')) {
+      const _wN = document.getElementById('ss-width-num'), _hN = document.getElementById('ss-height-num');
+      if (_wN) _wN.value = String(Math.round(newW));
+      if (_hN && !isFullWidth) _hN.value = String(Math.round(newH));
+    }
     if (_anchor0) {
       const p = anchoredLeftTop(_anchor0.L, _anchor0.T, startW, startH, newW, newH, _dirL, _rotStart);
       _applyOverlayPos(ss, p.left, p.top);
@@ -846,10 +853,8 @@ function _onIconHandleMouseDown(e, block, dir) {
     if (svg) { svg.setAttribute('width', newSize); svg.setAttribute('height', newSize); }
     const img = block.querySelector('img');
     if (img) { img.width = newSize; img.height = newSize; }
-    // 프로퍼티 패널 동기화
-    const slider = document.getElementById('icn-size-slider');
+    // 프로퍼티 패널 동기화 — 숫자 칸만(표준 Layout · 슬라이더 걷음)
     const num    = document.getElementById('icn-size-number');
-    if (slider) slider.value = String(newSize);
     if (num)    num.value    = String(newSize);
     window.scheduleAutoSave?.();
   }
@@ -1107,13 +1112,11 @@ function _onAssetResizeHandleMouseDown(e, ab, dir) {
       const p = anchoredLeftTop(_anchor0.L, _anchor0.T, startW, startH, newW, newH, dir, _rotStart);
       _applyOverlayPos(ab, p.left, p.top);
     }
-    // 우측 패널 슬라이더 동기화
+    // 우측 패널 숫자 칸 동기화(표준 Layout L1 · 슬라이더 걷음)
     const wNum = document.getElementById('asset-w-number');
-    const wSl  = document.getElementById('asset-w-slider');
     const hNum = document.getElementById('asset-h-number');
-    const hSl  = document.getElementById('asset-h-slider');
-    if (wNum) { wNum.value = newW; if (wSl) wSl.value = newW; }
-    if (hNum) { hNum.value = newH; if (hSl) hSl.value = newH; }
+    if (wNum) wNum.value = newW;
+    if (hNum) hNum.value = newH;
     window.scheduleAutoSave?.();
   }
   function onUp() {
@@ -1484,10 +1487,8 @@ function _onCouponResizeHandleMouseDown(e, block, dir) {
     block.style.width = newW + 'px';
     const h = window.cpnBoxH ? window.cpnBoxH(block, newW) : null;
     if (h) block.style.height = h + 'px';
-    const wNum = document.getElementById('cpn-width-number');
-    const wSld = document.getElementById('cpn-width-slider');
+    const wNum = document.getElementById('cpn-width-number');   // 숫자 칸만(표준 Layout · 슬라이더 걷음)
     if (wNum) wNum.value = String(newW);
-    if (wSld) wSld.value = String(newW);
     window.scheduleAutoSave?.();
   }
   function onUp() {
@@ -1649,10 +1650,8 @@ function showIconCircleResizeHandle(block) {
       const circle = block.querySelector('.icb-circle');
       if (circle) { circle.style.width = newSize + 'px'; circle.style.height = newSize + 'px'; }
       block.dataset.size = newSize;
-      // prop panel sync
-      const sl = document.getElementById('icb-size-slider');
+      // prop panel sync — 숫자 칸만(표준 Layout L4 · 슬라이더 걷음)
       const nb = document.getElementById('icb-size-number');
-      if (sl) sl.value = newSize;
       if (nb) nb.value = newSize;
       window.scheduleAutoSave?.();
     }

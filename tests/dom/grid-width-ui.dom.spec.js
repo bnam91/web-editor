@@ -88,12 +88,12 @@ test('P1 패널 너비(안 떠 있음) → 키·그려진 폭 · 다시 그려�
   await select(page);
   expect(await page.isVisible('#grd-width-number'), '그리드 패널에 너비 칸').toBe(true);
   expect(await page.inputValue('#grd-width-number'), '키 없음 = 빈 칸(자동)').toBe('');
-  expect(await page.getAttribute('#grd-width-auto', 'class'), '키 없음 = 「100%」 켜짐').toContain('active');
+  expect(await page.inputValue('#grd-width-mode'), '키 없음 = 모드 «100%»').toBe('fill');   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — «100%» 단추 → 너비 모드 드롭다운
   await typeWidth(page, 420);
   expect(await st(page)).toMatchObject({ w: 420, css: '420px', key: '420', float: false });
   await page.evaluate(() => window.renderGridBlock(document.getElementById('gG')));
   expect((await st(page)).w, '재렌더 뒤에도').toBe(420);
-  expect(await page.getAttribute('#grd-width-auto', 'class')).not.toContain('active');
+  expect(await page.inputValue('#grd-width-mode')).toBe('fixed');
   await typeWidth(page, 9999);
   /* 10-05 K1 로 뒤집음 · 옛 단언 = 「상한 3000 으로 죈다」 — 패널 상한 = 담는 그릇(가장 가까운 사용자 프레임/섹션 안쪽) 내용 폭(prop-grid.js _grdWidthMax) */
   const box = await page.evaluate(() => { const b = document.getElementById('gG').parentElement.closest('.frame-block:not([data-text-frame]), .section-inner'); const cs = getComputedStyle(b); return String(Math.floor(b.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight))); });
@@ -110,7 +110,7 @@ test('P2 패널 너비(떠 있음) → 굳힌 폭이 바뀐다(+키) · 다시 �
   expect(s0.float, '전제 — 떴다').toBe(true);
   expect(s0.frozen, '전제 — 굳힌 폭 표식이 있다(키 없이 띄움)').toMatch(/^\d+px$/);
   expect(await page.inputValue('#grd-width-number'), '떠 있으면 칸 = 지금 그려진 px').toBe(String(s0.w));
-  expect(await page.isDisabled('#grd-width-auto'), '떠 있는 동안 「100%」 는 막힘').toBe(true);
+  expect(await page.isDisabled('#grd-width-mode'), '떠 있는 동안 모드(«100%») 는 막힘').toBe(true);   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음)
   await typeWidth(page, 500);
   expect(await st(page)).toMatchObject({ w: 500, css: '500px', frozen: '500px', key: '500', float: true });
   await page.evaluate(() => { const g = document.getElementById('gG'); g.dataset.gap = '30'; window.renderGridBlock(g); });
@@ -123,7 +123,7 @@ test('P3 「100%(자동)」 → 키·자동 표시를 지우고 100% 로', async
   await page.evaluate(() => { const g = document.getElementById('gG'); g.dataset.gridWidthAuto = '1'; g.dataset.gridWidth = '333'; window.renderGridBlock(g); });
   await select(page);
   expect((await st(page)).w, '전제 — 333').toBe(333);
-  await page.click('#grd-width-auto'); await page.waitForTimeout(250);
+  await page.selectOption('#grd-width-mode', 'fill'); await page.waitForTimeout(250);   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — «100%» 단추 → 모드 «100%»
   expect(await st(page)).toMatchObject({ css: '100%', key: null, auto: null });
   expect(await page.inputValue('#grd-width-number')).toBe('');
   await typeWidth(page, 300);
@@ -132,16 +132,15 @@ test('P3 「100%(자동)」 → 키·자동 표시를 지우고 100% 로', async
   expect(errs).toEqual([]);
 });
 
-/* P4 — 슬라이더: 끄는 동안 매 틱 쓰고(applyGridOwnWidth) 양쪽 끝 표본을 찍는다. 이웃(push-after)과 ⌘Z 가 갈라지나. */
-test('P4 슬라이더 → 폭(끄는 동안 반영) · 뒤에 push-after 동작 → ⌘Z 한 번은 그 동작만 · 두 번째가 슬라이더', async ({ page }) => {
+/* P4 — ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 슬라이더 → 라벨 끌기(#grd-width-number-scrub · 놓을 때 change 한 번 = 확정 길 한 번). 이웃(push-after)과 ⌘Z 가 갈라지나. */
+test('P4 라벨 끌기 → 폭(놓을 때 확정 한 번) · 뒤에 push-after 동작 → ⌘Z 한 번은 그 동작만 · 두 번째가 끌기', async ({ page }) => {
   const errs = await setup(page);
   await select(page);
   const va0 = await page.evaluate(() => document.getElementById('gG').dataset.valign ?? null);
-  await page.evaluate(() => {
-    const sl = document.getElementById('grd-width-slider');
-    for (const v of [600, 560, 520]) { sl.value = String(v); sl.dispatchEvent(new Event('input', { bubbles: true })); }
-    sl.dispatchEvent(new Event('change', { bubbles: true }));
-  });
+  const w0 = await page.evaluate(() => document.getElementById('gG').offsetWidth);
+  const hd = page.locator('#grd-width-number-scrub'); await hd.scrollIntoViewIfNeeded(); const b = await hd.boundingBox();
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down();
+  await page.mouse.move(b.x + b.width / 2 - (w0 - 520), b.y + b.height / 2, { steps: 8 }); await page.mouse.up();
   await page.waitForTimeout(200);
   expect(await st(page)).toMatchObject({ w: 520, css: '520px', key: '520' });
   expect(await page.inputValue('#grd-width-number'), '패널 칸도 520').toBe('520');
@@ -219,7 +218,7 @@ test('F1 ★떠 있는 동안 바꾼 폭 → 오버레이 끔 → 폭 그대로 
   await page.evaluate(() => { const g = document.getElementById('gG'); g.dataset.gap = '30'; window.renderGridBlock(g); });
   expect((await st(page)).w, '흐름에서 다시 그려도').toBe(s1.w);
   /* 대조 — 폭을 «안» 바꾸고 띄웠다 끄면 옛 동작(100%, 키 없음) 그대로 */
-  await select(page); await page.click('#grd-width-auto'); await page.waitForTimeout(200);
+  await select(page); await page.selectOption('#grd-width-mode', 'fill'); await page.waitForTimeout(200);   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음)
   await select(page); await toggleFloat(page); await select(page); await toggleFloat(page);
   expect(await st(page), '대조 — 안 바꾸면 100% · 키 없음').toMatchObject({ float: false, css: '100%', key: null });
   expect(errs).toEqual([]);
@@ -263,7 +262,7 @@ test('U1 ⌘Z 한 걸음 — 손잡이 끌기 한 번 · 패널 입력 한 번',
   expect((await st(page)).w, '⌘⇧Z = 다시').toBeGreaterThan(s0.w);
   /* 패널 — 안 떠 있는 판 */
   await select(page); await toggleFloat(page);
-  await select(page); await page.click('#grd-width-auto'); await page.waitForTimeout(200);
+  await select(page); await page.selectOption('#grd-width-mode', 'fill'); await page.waitForTimeout(200);   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음)
   const p0 = await st(page);
   expect(p0.key, '전제 — 자동').toBe(null);
   await select(page); await typeWidth(page, 380);

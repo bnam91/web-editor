@@ -427,7 +427,7 @@ test('F4c ★음성대조 — 안 떠 있는 모달(full · fixed · 띄웠다 �
       await expect.poll(() => page.evaluate(() => !!document.getElementById('mdl-padx-number')), `★전제(${kind}): 모달 패널`).toBe(true); };
     await pick();
     if (kind === 'B-fixed') {
-      await page.click('[data-wm="fixed"]');
+      await page.selectOption('#mdl-wm', 'fixed');   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 너비 모드 세그먼트 → 드롭다운(같은 문 setModalSizeMode)
       await expect.poll(async () => (await css(mdl)).wMode, '★전제(B): 고정 폭').toBe('fixed');
       await pick();
     }

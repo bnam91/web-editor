@@ -78,11 +78,11 @@ test('S1 ★별 패널에 「갯수」 칸이 있다 (1~10 · 기본 1)', async 
   expect(s.labels, `패널 라벨 전수 (잰 값: ${JSON.stringify(s.labels)})`).toContain('갯수');
   const inp = await page.evaluate(() => {
     const n = document.getElementById('shape-star-count-num');
-    const r = document.getElementById('shape-star-count-slider');
-    return n && r ? { min: n.min, max: n.max, v: n.value, rMin: r.min, rMax: r.max, rStep: r.step } : null;
+    const r = document.getElementById('shape-star-count-num-scrub');   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 슬라이더 → 라벨 끌기 손잡이(범위 = 칸 min/max · 1px = 1)
+    return n && r ? { min: n.min, max: n.max, v: n.value, step: n.step, slider: !!document.getElementById('shape-star-count-slider') } : null;
   });
-  expect(inp, '숫자칸·슬라이더 쌍').not.toBeNull();
-  expect(inp).toEqual({ min: '1', max: '10', v: '1', rMin: '1', rMax: '10', rStep: '1' });
+  expect(inp, '숫자칸·끌기 손잡이').not.toBeNull();
+  expect(inp).toEqual({ min: '1', max: '10', v: '1', step: '1', slider: false });
 });
 
 test('S2 ★갯수 3 → polygon 3개 · viewBox 3배 · ★블록은 여전히 1개(복제 아님)', async ({ page }) => {

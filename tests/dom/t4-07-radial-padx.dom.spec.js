@@ -41,14 +41,14 @@ for (const shape of ['circle', 'arc']) {
     }, id);
     const g0 = await g(id);
     expect([g0.pl, g0.pr], 'P 전제: 처음 좌우 padding 0').toEqual([0, 0]);
+    /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — «좌우패딩» 줄(슬라이더＋숫자) → 표준 패딩 슬롯(작은 라벨 «Padding» · 좌우 칸 = 옛 id rdl-padx-number) */
     const num = await page.evaluate(() => {
-      const row = [...document.querySelectorAll('#panel-right .prop-row')].find((x) => x.querySelector('.prop-label')?.textContent.trim() === '좌우패딩'   /* ★기대 바뀜(패널 재설계 1차 ⑤ Q25) */);
-      const n = row?.querySelector('input[type=number]'); const s = row?.querySelector('input[type=range]');
-      if (!n || !s) return null;
-      if (!n.id) n.id = '__padx_probe';
+      const slot = [...document.querySelectorAll('#panel-right [data-part="layout"][data-slot="pad"]')].find((x) => x.querySelector('.ui-s2-cell > span')?.textContent.trim() === 'Padding');
+      const n = slot?.querySelector('[data-field="layout-pad-x"] input[type=number]');
+      if (!n || slot.querySelector('input[type=range]')) return null;
       return '#' + n.id;
     });
-    expect(num, `X1 ${shape} 패널 「좌우 패딩」 줄(슬라이더＋숫자)`).not.toBeNull();
+    expect(num, `X1 ${shape} 패널 «Padding» 슬롯(좌우 숫자 칸 · 슬라이더 0)`).toBe('#rdl-padx-number');
     await page.fill(num, '60');
     await page.press(num, 'Enter');
     await page.locator(num).blur();

@@ -7,6 +7,9 @@ import { colorFieldHTML, wireColorField } from './color-picker.js';
 import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, setFillKindName, fillLast, fillKindOfCss } from './_fill-section.js';
 /* ★window.* 가 아니라 «import» 로 잡는다 — 로드 순서가 바뀌어도 토글이 조용히 사라지지 않는다. */
 import { effectiveSectionPadX, clearBlockFullBleed } from '../drag-utils.js';
+import { layoutSizeRowHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout L2
+import { wireNumberScrub } from './_helpers.js';   // H 칸 라벨 끌기(«빈 값 = 자동» 칸이라 부품 배선 대신 옛 bindAutoNum + 끌기)
+const BN2_CHAIN_WHY = '높이 칸은 비우면 내용에 맞춰 자동이라 비율을 묶을 수 없어요';
 
 // ⑧ 줄 선택 상태 — 배너 안 «어느 줄»을 보고 있는지. 블록별로 기억한다(패널 재생성에도 유지).
 //   activeIdx = null 이면 «전체 보기»(옛 동작: 모든 줄을 한꺼번에 펼침).
@@ -260,12 +263,10 @@ export function showBanner02Properties(block, activeIdxArg) {
         <button class="prop-align-btn${d.imgFit === 'contain' ? ' active' : ''}" data-fit="contain" style="flex:1;font-size:11px;">원본 비율</button>
       </div>`),
       sec('size', `
-      <div class="prop-row">
-        <span class="prop-label">W</span>
-        <input type="number" class="prop-number" id="bn2-w" value="${parseInt(d.bannerW) || 780}" min="100" max="1600">
-        <span class="prop-label" style="margin-left:8px">H</span>
-        <input type="number" class="prop-number" id="bn2-h" value="${d.autoHeight === 'false' ? (parseInt(d.bannerH) || 260) : ''}" placeholder="${parseInt(d.bannerH) || 260}" min="40" max="1200" title="비우면 내용에 맞춰 자동">
-      </div>
+      ${/* ★표준 Layout L2(현빈 261124 L-4 · 시안 #mkp-layoutstd) — W/H 줄(숫자 칸 id·범위·dataset.bannerW/bannerH 무변) · H «비우면 자동» = 배선에서 placeholder·data-empty="auto"(아래 _bn2HAuto) · 사슬 막힘(H 가 비우면 자동) */
+        layoutSizeRowHTML({ prefix: 'bn2', chain: { on: false, blocked: BN2_CHAIN_WHY },
+          w: { id: 'bn2-w', value: parseInt(d.bannerW) || 780, min: 100, max: 1600 },
+          h: { id: 'bn2-h', value: d.autoHeight === 'false' ? (parseInt(d.bannerH) || 260) : '', min: 40, max: 1200 } })}
       <div class="prop-row">
         <span class="prop-label">텍스트 X</span>
         <input type="number" class="prop-number" id="bn2-tx" value="${d.textXTuned === '1' ? (parseInt(d.textX) || 0) : ''}" placeholder="${parseInt(d.textX) || 0}" min="0" max="1600" title="비우면 프리셋 기본값">
@@ -307,7 +308,7 @@ export function showBanner02Properties(block, activeIdxArg) {
       </div>
 ` : ''),
       sec('appearance', `
-      ${appearanceSectionHTML({ prefix: 'bn2', radius: { numberId: 'bn2-radius-num', value: parseInt(d.radius) || 0, max: 60 } })}   <!-- ★표준 Appearance A2(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·dataset.radius·범위 무변 -->`, { headTools: appearanceHeadToolsHTML({ prefix: 'bn2' }) }),
+      ${appearanceSectionHTML({ prefix: 'bn2', op: { value: window.readBlockOpacity?.(block) ?? 100 }, radius: { numberId: 'bn2-radius-num', value: parseInt(d.radius) || 0, max: 60 } })}   <!-- ★표준 Appearance A2(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·dataset.radius·범위 무변 -->`, { headTools: appearanceHeadToolsHTML({ prefix: 'bn2' }) }),
       sec('fill', fillSectionHTML({ prefix: 'bn2-fill', on: d.bg !== 'transparent', kind: fillKindOfCss(bgIsGrad ? d.bg : ''), colorHtml: colorFieldHTML({ idPrefix: 'bn2-bg', hex: bgIsGrad ? '#f3f4f6' : (d.bg || '#f3f4f6'), gradientCss: bgIsGrad ? d.bg : '' }) }),
         { headTools: fillHeadToolsHTML({ prefix: 'bn2-fill', on: d.bg !== 'transparent' }) }),   // 표준 Fill F2-2 — 없음 = bg 'transparent'
     ],
@@ -357,11 +358,14 @@ export function showBanner02Properties(block, activeIdxArg) {
   // Size
   // ⚠️힌트 갱신을 여기 따로 부르지 않는다 — rerender → renderBanner02 끝에서 «항상» 지나간다.
   //   (render:false 로 바인딩하는 칸이 생기면 그 칸은 렌더를 안 지나므로 그때 따로 봐야 한다.)
-  const bindNum = (id, dk, render = true) => {
-    const el = propPanel.querySelector('#' + id);
-    el?.addEventListener('change', () => { block.dataset[dk] = el.value; if (render) rerender(); commit(); });
-  };
-  bindNum('bn2-w', 'bannerW');
+  /* 표준 Layout L2 — W = 부품 배선(input = 바로 · change = 잘라 100~1600 + commit 한 번 · 빈 칸 = 되돌림 · 라벨 끌기 · 옛 bindNum 자리) */
+  wireLayoutSection({ commit, w: { numberId: 'bn2-w', min: 100, max: 1600, apply: (v) => { block.dataset.bannerW = String(v); rerender(); }, read: () => parseInt(block.dataset.bannerW) || 780 } });
+  /* H «빈 값 = 자동»(옛 그대로 · 배선 = 아래 bindAutoNum) — 부품 칸엔 placeholder 가 없어 여기서 단다(가드: 비지 않은 placeholder = 빈 값 커밋 · N9 선언 data-empty="auto") + 라벨 끌기 */
+  const _bn2HAuto = propPanel.querySelector('#bn2-h');
+  if (_bn2HAuto) {
+    _bn2HAuto.placeholder = String(parseInt(d.bannerH) || 260); _bn2HAuto.dataset.empty = 'auto'; _bn2HAuto.title = '비우면 내용에 맞춰 자동';
+    wireNumberScrub(document.getElementById('bn2-h-scrub'), _bn2HAuto, { min: 40, max: 1200 });
+  }
 
   /* ★「빈 값 = 자동」 — prop-table 의 «행별 높이»(placeholder="auto" · 비우면 자동복귀)와 같은 관용구.
      값을 넣으면 «사람이 만졌다» 플래그를 세우고, 비우면 플래그를 걷어 프리셋/자동값으로 돌아간다.
@@ -420,7 +424,8 @@ export function showBanner02Properties(block, activeIdxArg) {
     commit } });
 
   // Radius — 표준 Appearance A2(슬라이더 걷음 · 숫자 칸 + 라벨 끌기)
-  wireAppearanceSection({ radius: { numberId: 'bn2-radius-num', max: 60, apply: (v) => { block.dataset.radius = v; rerender(); }, commit } });
+  wireAppearanceSection({ radius: { numberId: 'bn2-radius-num', max: 60, apply: (v) => { block.dataset.radius = v; rerender(); }, commit },
+    op: { numberId: 'bn2-opacity', apply: (v) => window.setBlockOpacity?.(block, v), commit } });   // A4 Opacity — 계약(갈래 E) 없으면 그리기 0
 
   // 가변 lines — 각 줄 핸들러 바인딩
   const mutLines = (mutator) => {

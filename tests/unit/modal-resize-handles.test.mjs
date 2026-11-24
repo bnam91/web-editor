@@ -263,11 +263,11 @@ test('U7 ★SSOT — 패널의 min/max 와 핸들의 클램프가 «같은 표»
   const rCalls = CODE.prop.match(/numberId: 'mdl-radius-number'[^}]*\}/g) || [];
   assert.equal(rCalls.length, 2, `반경 부품 호출(그리기·배선)을 못 찾았다 — ${rCalls.length}`);
   for (const c of rCalls) assert.match(c, /min: L\.radius\.min, max: L\.radius\.max/, `반경 칸 min/max 가 표(L.radius)가 아니다: ${c}`);
+  /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — W/H 칸은 부품(layoutSizeRowHTML)이 그린다 ⇒ 같은 SSOT 를 «부품 호출 인자»에서 잰다(그리기 · 배선 두 군데) */
   for (const [id, key] of [['mdl-w-number', 'width'], ['mdl-h-number', 'height']]) {
-    const row = CODE.prop.match(new RegExp(`id="${id}"[^>]*`));
-    assert.ok(row, `${id} 행을 못 찾았다 — 검사가 대상을 놓쳤다`);
-    assert.match(row[0], new RegExp(`min="\\$\\{L\\.${key}\\.min\\}"`), `${id} 의 min 이 리터럴이다`);
-    assert.match(row[0], new RegExp(`max="\\$\\{L\\.${key}\\.max\\}"`), `${id} 의 max 가 리터럴이다`);
+    const calls = CODE.prop.match(new RegExp(`(?:id|numberId): '${id}'[^}]*\\}`, 'g')) || [];
+    assert.equal(calls.length, 2, `${id} 부품 호출(그리기·배선)을 못 찾았다 — ${calls.length}`);
+    for (const c of calls) assert.match(c, new RegExp(`min: L\\.${key}\\.min, max: L\\.${key}\\.max`), `${id} 의 min/max 가 표(L.${key})가 아니다: ${c}`);
   }
   // 핸들 쪽 — 떼어낸 두 핸들러 «안»에 크기·반경 리터럴이 없다
   const nums = (RESIZE_SRC + '\n' + RADIUS_SRC).match(/\b(?:80|860|30|900|60)\b/g);

@@ -48,7 +48,7 @@ async function setup(page) {
 const openPanel = (page, id) => page.evaluate(async (id) => { (await import('/js/props/prop-frame.js')).showFrameProperties(document.getElementById(id)); }, id);
 const field = (page) => page.evaluate(() => {
   const n = document.getElementById('ss-height-num'), r = document.getElementById('ss-height-slider');
-  return { num: n.value, slider: r.value, min: +r.min, step: +r.step || 1 };
+  return { num: n.value, slider: r ? r.value : null };   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 슬라이더 없음(null)
 });
 const snap = (v, f) => String(f.min + Math.round((v - f.min) / f.step) * f.step);
 
@@ -59,16 +59,17 @@ test('P1 ★옛 템플릿 프레임 — 높이 칸 = 그려진 높이(바닥 100
   const f = await field(page);
   console.log('  P1 field:', JSON.stringify(f), 'drawn', drawn);
   expect(f.num, '★높이 칸 = 실제 높이').toBe(String(drawn));
-  expect(f.slider, '슬라이더 = 실제 높이를 step 에 맞춘 값').toBe(snap(drawn, f));
+  expect(f.slider, '슬라이더 걷음').toBe(null);
   expect(errs, errs.join('\n')).toEqual([]);
 });
 
-test('P2 ★슬라이더를 한 칸 건드려도 안 쪼그라든다', async ({ page }) => {
+test('P2 ★높이 칸을 한 칸 건드려도 안 쪼그라든다', async ({ page }) => {   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 슬라이더 ↑ 한 칸 → 숫자 칸 ↑ 한 칸(같은 뜻: 손이 닿은 값이 그려진 높이에서 시작)
   const { errs, F, drawn } = await setup(page);
   await openPanel(page, F);
-  await page.focus('#ss-height-slider');
-  await page.keyboard.press('ArrowRight');
-  const after = await page.evaluate((id) => { const e = document.getElementById(id); return { h: e.offsetHeight, styleH: e.style.height, slider: document.getElementById('ss-height-slider').value }; }, F);
+  await page.focus('#ss-height-num');
+  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('Tab');
+  const after = await page.evaluate((id) => { const e = document.getElementById(id); return { h: e.offsetHeight, styleH: e.style.height, num: document.getElementById('ss-height-num')?.value }; }, F);
   console.log('  P2:', JSON.stringify(after), 'drawn', drawn);
   expect(after.styleH, '[전제] 건드린 값이 먹었다(고정 높이가 박힘)').not.toBe('');
   expect(after.h, `★건드린 뒤 높이 ${after.h} ≥ 건드리기 전 ${drawn}`).toBeGreaterThanOrEqual(drawn);
@@ -79,6 +80,6 @@ test('N1 [지킴] 높이를 고정한 프레임(300) — 칸 300 그대로', asy
   const { errs } = await setup(page);
   await openPanel(page, 'fN1');
   const f = await field(page);
-  expect({ num: f.num, slider: f.slider }).toEqual({ num: '300', slider: '300' });
+  expect({ num: f.num, slider: f.slider }).toEqual({ num: '300', slider: null });
   expect(errs, errs.join('\n')).toEqual([]);
 });

@@ -5,6 +5,8 @@ import { renderPanel, sec } from './_panel-frame.js';
 import { pushHistory } from '../editor.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { strokeSectionHTML, wireStrokeSection, STROKE_POP_WHY } from './_stroke-section.js';
+import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance A4(Opacity 만)
+import { layoutSizeRowHTML, wireLayoutSection, ratioLockOn, setRatioLock } from './_layout-section.js';   // 표준 Layout L2
 
 /** 아무 css 색 → colorField 가 받는 #rrggbb(알파는 parseAlphaFromColor 가 따로 읽는다) */
 function _hex(c) {
@@ -55,13 +57,10 @@ export function showVectorProperties(block) {
       id: block.id,
     }),
     sections: [
-      sec('size', `
-      <div class="prop-row">
-        <span class="prop-label">W</span>
-        <input type="number" class="prop-number" id="vb-w" value="${w}" min="10" max="1200">
-        <span class="prop-label" style="margin-left:8px">H</span>
-        <input type="number" class="prop-number" id="vb-h" value="${h}" min="10" max="2000">
-      </div>`),
+      /* ★표준 Layout L2(현빈 261124 L-4 · 시안 #mkp-layoutstd) — 숫자 칸 id·범위·dataset.w/h 무변 · 비율 사슬 기본 끔(dataset.ratioLock 다를 때만) */
+      sec('size', layoutSizeRowHTML({ prefix: 'vb', chain: { on: ratioLockOn(block, false) },
+        w: { id: 'vb-w', value: w, min: 10, max: 1200 }, h: { id: 'vb-h', value: h, min: 10, max: 2000 } })),
+      sec('appearance', appearanceSectionHTML({ prefix: 'vb', op: { value: window.readBlockOpacity?.(block) ?? 100 } }), { headTools: appearanceHeadToolsHTML({ prefix: 'vb' }) }),   // 표준 Appearance A4 — Opacity 만(새 절)
       // 옛 「Path」 절 → 패스 편집=Content · 선 두께=Stroke · 닫힌 패스 채움=Fill(색 옆)
       sec('content', hasPen ? `
       <div class="prop-row">
@@ -99,18 +98,13 @@ export function showVectorProperties(block) {
   }
 
   // ── 크기 ──────────────────────────────────────────────────────────────────────
-  document.getElementById('vb-w')?.addEventListener('change', () => {
-    block.dataset.w = parseInt(document.getElementById('vb-w').value) || w;
-    window.renderVector(block);
-    window.scheduleAutoSave?.();
-    pushHistory();
-  });
-  document.getElementById('vb-h')?.addEventListener('change', () => {
-    block.dataset.h = parseInt(document.getElementById('vb-h').value) || h;
-    window.renderVector(block);
-    window.scheduleAutoSave?.();
-    pushHistory();
-  });
+  /* 표준 Layout L2 — 부품 배선(input = 바로 그림 · change = 잘라 + 이력 한 칸 · 빈 칸 = 되돌림 · 라벨 끌기 · 비율 사슬) */
+  const _vbSize = (key) => (v) => { block.dataset[key] = v; window.renderVector(block); };
+  wireLayoutSection({ commit: () => { window.scheduleAutoSave?.(); (window.pushHistory || pushHistory)(); },   // 문 = window 쪽(편집기 안에선 같은 함수 · 감싼 이력 세기도 본다)
+    w: { numberId: 'vb-w', min: 10, max: 1200, apply: _vbSize('w'), read: () => parseInt(block.dataset.w) || w },
+    h: { numberId: 'vb-h', min: 10, max: 2000, apply: _vbSize('h'), read: () => parseInt(block.dataset.h) || h },
+    chain: { id: 'vb-ratio', on: ratioLockOn(block, false), set: (on) => setRatioLock(block, on, false) } });
+  wireAppearanceSection({ op: { numberId: 'vb-opacity', apply: (v) => window.setBlockOpacity?.(block, v), commit: () => { (window.pushHistory || pushHistory)(); window.scheduleAutoSave?.(); } } });   // A4 — 계약(갈래 E) 없으면 그리기 0
 
   // ── 색상 ──────────────────────────────────────────────────────────────────────
   wireColorField('vb', {

@@ -127,8 +127,7 @@ async function openPanelAndRead(page) {
     window.showShapeProperties(document.getElementById('shp1'));
     const v = (id) => document.getElementById(id)?.value;
     return {
-      wNum: v('shape-w-num'), wSlider: v('shape-w-slider'),
-      hNum: v('shape-h-num'), hSlider: v('shape-h-slider'),
+      wNum: v('shape-w-num'), hNum: v('shape-h-num'),   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 슬라이더 없음(숫자 칸만)
     };
   });
 }
@@ -156,24 +155,24 @@ async function typeAndCommit(page, id, value) {
 test('S1 — style 로 잰 프레임 크기(300×270)를 패널이 그대로 보인다', async ({ page }) => {
   await boot(page, fixtureHtml({ w: 300, h: 270, where: 'both' }));
   const got = await openPanelAndRead(page);
-  expect(got).toEqual({ wNum: '300', wSlider: '300', hNum: '270', hSlider: '270' });
+  expect(got).toEqual({ wNum: '300', hNum: '270' });
 });
 
 test('S2 — style 이 비고 dataset 만 있어도 읽는다(폴백 1단)', async ({ page }) => {
   await boot(page, fixtureHtml({ w: 275, h: 225, where: 'dataset' }));
-  expect(await openPanelAndRead(page)).toEqual({ wNum: '275', wSlider: '275', hNum: '225', hSlider: '225' });
+  expect(await openPanelAndRead(page)).toEqual({ wNum: '275', hNum: '225' });
 });
 
 test('S3 — style·dataset 둘 다 없으면 실제 레이아웃 크기로 읽는다(폴백 2단)', async ({ page }) => {
   await boot(page, fixtureHtml({ w: 240, h: 180, where: 'none' }));
-  expect(await openPanelAndRead(page)).toEqual({ wNum: '240', wSlider: '240', hNum: '180', hSlider: '180' });
+  expect(await openPanelAndRead(page)).toEqual({ wNum: '240', hNum: '180' });
 });
 
 test('S4 — 도형 타입 전수에서 동일', async ({ page }) => {
   for (const t of ['rectangle', 'ellipse', 'polygon', 'star', 'line', 'arrow']) {
     await boot(page, fixtureHtml({ shapeType: t, w: 320, h: 140, where: 'both' }));
     expect(await openPanelAndRead(page), `shapeType=${t}`)
-      .toEqual({ wNum: '320', wSlider: '320', hNum: '140', hSlider: '140' });
+      .toEqual({ wNum: '320', hNum: '140' });
   }
 });
 
@@ -181,7 +180,7 @@ test('S5 — 줌 40/100/150% 에서 같은 값(transform 은 layout 크기를 �
   for (const scale of [0.4, 1, 1.5]) {
     await boot(page, fixtureHtml({ w: 300, h: 270, where: 'both', scale }));
     expect(await openPanelAndRead(page), `scale=${scale}`)
-      .toEqual({ wNum: '300', wSlider: '300', hNum: '270', hSlider: '270' });
+      .toEqual({ wNum: '300', hNum: '270' });
   }
 });
 
@@ -213,11 +212,11 @@ test('S7 — H 칸만 333 입력·Enter → H 만 바뀌고 W(300) 불변', asyn
   expect(fr.dataW, 'W dataset 이 끌려가면 안 된다').toBe('300');
 });
 
-test('S8 — W 슬라이더만 움직여도 H 불변', async ({ page }) => {
+test('S8 — W 칸만 움직여도 H 불변', async ({ page }) => {   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — W 슬라이더 → W 숫자 칸 input(비율 사슬 기본 끔)
   await boot(page, fixtureHtml({ w: 300, h: 270, where: 'both' }));
   await openPanelAndRead(page);
   await page.evaluate(() => {
-    const s = document.getElementById('shape-w-slider');
+    const s = document.getElementById('shape-w-num');
     s.value = '420';
     s.dispatchEvent(new Event('input', { bubbles: true }));
   });
@@ -232,7 +231,7 @@ test('S9 — 패널 재렌더(딴 블럭 갔다 오기) 후에도 값 유지', a
   await typeAndCommit(page, 'shape-w-num', 101);
   // 딴 블럭 → 패널 비움 → 다시 도형
   await page.evaluate(() => { document.getElementById('prop-panel').innerHTML = '<div>other block</div>'; });
-  expect(await openPanelAndRead(page)).toEqual({ wNum: '101', wSlider: '101', hNum: '270', hSlider: '270' });
+  expect(await openPanelAndRead(page)).toEqual({ wNum: '101', hNum: '270' });
 });
 
 test('S10 — 핸들 리사이즈(프레임에 직접 기록)와 같은 모양으로 써도 패널이 따라온다', async ({ page }) => {
@@ -244,7 +243,7 @@ test('S10 — 핸들 리사이즈(프레임에 직접 기록)와 같은 모양�
     fr.style.width = '300px'; fr.dataset.width = '300';
     fr.style.height = '270px'; fr.style.minHeight = '270px'; fr.dataset.height = '270';
   });
-  expect(await openPanelAndRead(page)).toEqual({ wNum: '300', wSlider: '300', hNum: '270', hSlider: '270' });
+  expect(await openPanelAndRead(page)).toEqual({ wNum: '300', hNum: '270' });
 });
 
 test('S11 — H 를 100 아래(50)로 내려도 화면·패널이 같은 값(min-height 잔존 방지)', async ({ page }) => {

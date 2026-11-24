@@ -34,6 +34,9 @@ const SRC = {
      화이트리스트가 이 둘을 빠뜨리면 import 가 404 로 죽고 __ready 가 «영영 안 선다»(테스트는 타임아웃). */
   '/js/props/color-picker.js': fs.readFileSync(path.join(REPO, 'js/props/color-picker.js'), 'utf8'),
   '/js/props/gradient-model.js': fs.readFileSync(path.join(REPO, 'js/props/gradient-model.js'), 'utf8'),  '/js/props/_fill-section.js': fs.readFileSync(path.join(REPO, 'js/props/_fill-section.js'), 'utf8'),   // ★전제(표준 Fill F3 · 지혜맥 261124): prop-gradient 가 표준 Fill 부품을 import 함 → 그 파일도 내준다(없으면 404 → 모듈 실패 → __ready 안 섬)
+  /* ★전제(하네스 · 표준 Appearance A4 / Layout L2 갈래 C4) — prop-gradient 가 두 부품을 들인다. 빠지면 import 404 로 __ready 가 안 선다. */
+  '/js/props/_appearance-section.js': fs.readFileSync(path.join(REPO, 'js/props/_appearance-section.js'), 'utf8'),
+  '/js/props/_layout-section.js': fs.readFileSync(path.join(REPO, 'js/props/_layout-section.js'), 'utf8'),
 };
 
 const HTML = `<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0}</style>

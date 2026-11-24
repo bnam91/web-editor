@@ -144,15 +144,12 @@ test('R6 ★패널 — ★평점 칸 ★세 쪼가리가 ★있다(토글·숫�
 });
 
 test('R7 ★판정 ⑤ — ★켜면 ★갯수 두 칸이 ★★«보이게» 잠긴다 (★까닭 줄은 ★군더더기라 ★사라졌다)', () => {
-  /* ★갯수 ★슬라이더와 ★숫자칸 ★둘 다 — ⛔한쪽만 잠그면 ★다른 쪽으로 ★샌다 */
-  const cnt = PANEL.match(/id="shape-star-count-slider"[^>]*>/);
-  assert.ok(cnt, '★갯수 슬라이더 줄을 못 찾았다');
-  assert.match(cnt[0], /ratingOn \? ' disabled' : ''/,
-    '★갯수 ★슬라이더가 ★평점에서 ★안 잠긴다');
-  const cntN = PANEL.match(/id="shape-star-count-num"[^>]*>/);
-  assert.ok(cntN, '★갯수 숫자칸 줄을 못 찾았다');
-  assert.match(cntN[0], /ratingOn \? ' disabled' : ''/,
-    '★갯수 ★숫자칸이 ★평점에서 ★안 잠긴다 — ★슬라이더만 막으면 ★여기로 ★샌다');
+  /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 갯수 = 숫자 칸 «하나»(슬라이더 걷음 · 샐 «다른 쪽»이 없다)
+     ⇒ 그 한 칸이 평점에서 잠기나 = 막힘 표(id · ratingOn)와 disabled 쓰기 한 줄을 잰다(부품 마크업엔 disabled 칸이 없어 배선에서 단다) */
+  assert.match(PANEL, /\['shape-star-count-num', STAR_COUNT_MIN, STAR_COUNT_MAX, ratingOn\]/,
+    '★갯수 ★숫자칸이 ★평점에서 ★안 잠긴다(막힘 표에 ratingOn 이 없다)');
+  assert.match(PANEL, /if \(off\) n\.disabled = true;/, '★막힘 표가 disabled 로 안 쓰인다');
+  assert.ok(!/id="shape-star-count-slider"/.test(PANEL), '★갯수 슬라이더가 되살아났다');
   /* ★★★과녁을 ★옮겼다(2026-10-11 · 현빈 「힌트 두 줄 삭제」 · 지디 조건 ⒜) — ⛔단언을 ★지운 것이 ★아니다.
      ★옛 단언 = ★「`shape-star-rating-hint` ★글이 ★있나」
      ★★그 글이 ★사라졌다 ⇒ ★★그 단언은 ★더 이상 ★잴 것이 ★없다.

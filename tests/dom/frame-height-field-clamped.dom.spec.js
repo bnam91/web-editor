@@ -33,7 +33,7 @@ test('F1 ★30 을 치고 확정하면 칸에 100 이 보이고 실제도 100', 
   await page.press('#ss-height-num', 'Enter');
   expect(await H(page), '실제 높이').toBe('100px');
   expect(await page.inputValue('#ss-height-num'), '칸 = 실제').toBe('100');
-  expect(await page.inputValue('#ss-height-slider'), '슬라이더 = 실제').toBe('100');
+  expect(await page.locator('#ss-height-slider').count(), '슬라이더 걷음').toBe(0);   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음)
 });
 test('F2 치는 도중(input)엔 칸을 안 덮는다 — 300 을 한 자씩 쳐도 300', async ({ page }) => {
   await scene(page);

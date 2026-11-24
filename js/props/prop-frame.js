@@ -9,7 +9,7 @@ import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_STYLE
 import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, setFillKindName, fillLast, fillKindOfCss } from './_fill-section.js';
 import { hasSides, readSides, writeSides, cssSideWidths, sidesMixed } from '../stroke-look.js';
 import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A1 · 첫 소비자)
-import { bindSlider, alignBtn, blockHeaderHTML, sliderRowHTML, overlayToggleBtnHTML, wireRotRow, checkHTML, wireCheck } from './_helpers.js';
+import { bindSlider, alignBtn, blockHeaderHTML, overlayToggleBtnHTML, wireRotRow, checkHTML, wireCheck } from './_helpers.js';
 import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from './_position-section.js';   // 표준 Position 절(0.9.14 73행 P3)
 import { applyFrameTransform, frameAlignOffset, framePadding, applyFrameHAlignToChild } from '../frame-geometry.js';
 import { isShapeFrame as _isShapeFrameEl } from '../shape-frame.js';
@@ -20,6 +20,7 @@ import { buzzSectionHTML, wireBuzzSection, refitBuzzOnResize } from './prop-fram
 import { effectiveSectionPadX, applyBlockFullBleed, clearBlockFullBleed, framePadXData, isInlineAbsolute } from '../drag-utils.js';
 import { panelRenderedPx } from './_panel-rendered.js';
 import { renderPanel, sec } from './_panel-frame.js';
+import { layoutSizeRowHTML, layoutPadSlotHTML, wireLayoutSection, ratioLockOn, setRatioLock, LAY_FULLW_WHY } from './_layout-section.js';   // 표준 Layout L2·L3
 
 /* ★★2026-10-10 (현빈 ③) — ★★옛 `enterBgPosDragMode`(%-기반 ★위치만 · ★크기 축 ★없음)에서
      ★★`enterFrameBgEditMode`(대리 → 에셋 편집기 · ★위치 px ＋ ★★크기 px)로 ★갈았다.
@@ -530,18 +531,9 @@ function _renderAutoPanel(ss) {
         /* 플로팅 토글 = Position 머리 손잡이(§2-1) */
         headTools: positionHeadToolsHTML({ prefix: 'ss' }) + (_canFloat ? overlayToggleBtnHTML({ id: 'ss-float-toggle', active: _groupFloat, title: 'Ignore Auto Layout — ' + (_isGroupFrame ? '그룹' : '프레임') + '을 자동배치에서 빼서 그 자리에 둔다(옛 «오버레이»). 다시 누르면 원래 자리로 돌아간다.' }) : ''),
       }),
-      sec('size', `
-      <div class="prop-row">
-        <span class="prop-label">너비</span>
-        <input type="range" class="prop-slider" id="ss-width-slider" min="${minWidth}" max="860" step="10" value="${width}">
-        <input type="number" class="prop-number" id="ss-width-num" min="${minWidth}" max="860" value="${width}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">높이</span>
-        <input type="range" class="prop-slider" id="ss-height-slider" min="100" max="1200" step="10" value="${height}">
-        <input type="number" class="prop-number" id="ss-height-num" min="100" max="1200" value="${height}">
-      </div>
-`),
+      /* ★표준 Layout L2(현빈 261124 L-4 · 시안 #mkp-layoutstd) — 슬라이더 걷음 · 숫자 칸 id·범위·dataset.width/height 무변 · 비율 사슬 기본 끔 · 패딩 제외(꽉참) = 사슬 막힘 */
+      sec('size', layoutSizeRowHTML({ prefix: 'ss', chain: { on: ratioLockOn(ss, false), blocked: ss.dataset.fullBleed === 'true' ? LAY_FULLW_WHY : null },
+        w: { id: 'ss-width-num', value: width, min: minWidth, max: 860 }, h: { id: 'ss-height-num', value: height, min: isShapeFrame ? Math.min(height, 20) : 100, max: 1200 } })),
       sec('layout', (isBuzzFrame(ss) ? '' : `
       <div class="prop-row" style="gap:4px;">
         <span style="font-size:11px;color:${isFreeLayout ? '#9ca3af' : '#5fb4d8'};font-weight:500;flex:1;">${isFreeLayout ? 'free' : 'stack'}</span>
@@ -558,12 +550,7 @@ function _renderAutoPanel(ss) {
       </div>
 `),   /* 1120b P2(현빈 261120) — 간격 슬라이더(#ss-gap-slider/#ss-gap-num) 걷음 · 저장된 gap(style · dataset.gap)은 그대로 */
       sec('padding', `
-      <div class="prop-row">
-        <span class="prop-label">상하패딩</span>   <!-- 2026-10-03 지디: 섹션·디바이더·비교 패널과 같은 말(「상하 패딩」·「좌우 패딩」) — 옛 「상/하 여백」 -->
-        <input type="range" class="prop-slider" id="ss-pady-slider" min="0" max="200" step="4" value="${padY}">
-        <input type="number" class="prop-number" id="ss-pady-num" min="0" max="200" value="${padY}">
-      </div>
-      ${sliderRowHTML('좌우패딩', 'ss-padx-slider', 'ss-padx-num', { min: 0, max: 100, step: 2, value: padX })}${_cellParts ? '' : `
+      ${/* ★표준 Layout L3 — 패딩 슬롯(좌우 ↔ 0~100 · 상하 ↕ 0~200) · 슬라이더 걷음 · 숫자 칸 id·dataset.padX/padY 무변 */ layoutPadSlotHTML({ xId: 'ss-padx-num', yId: 'ss-pady-num', x: padX, y: padY, xMax: 100, yMax: 200 })}${_cellParts ? '' : `
       <div class="prop-row"${canFullBleed ? '' : ' style="opacity:.55"'}>
         ${checkHTML({ id: 'ss-fullbleed-toggle', label: '패딩 제외', checked: isFullBleed, blockedWhy: canFullBleed ? '' : String(_fbWhy || '지금은 패딩 제외를 쓸 수 없습니다') })}   <!-- 막힘 = aria-disabled + 까닭(아래 안내 줄 그대로 · 태양 §2c) -->
       </div>
@@ -574,7 +561,7 @@ function _renderAutoPanel(ss) {
       `}`}
 `),
       sec('appearance', `
-      ${appearanceSectionHTML({ prefix: 'ss', radius: { numberId: 'ss-radius-num', value: radius, max: 80 } })}   <!-- ★표준 Appearance A1(현빈 261124 · 시안 #mkp-appstd) — 옛 «코너» 슬라이더 걷음 · 숫자 칸 id·dataset.radius 무변 -->
+      ${appearanceSectionHTML({ prefix: 'ss', op: { value: window.readBlockOpacity?.(ss) ?? 100 }, radius: { numberId: 'ss-radius-num', value: radius, max: 80 } })}   <!-- ★표준 Appearance A1(현빈 261124 · 시안 #mkp-appstd) — 옛 «코너» 슬라이더 걷음 · 숫자 칸 id·dataset.radius 무변 -->
       <!-- ★내용 자르기(현빈 2026-09-30 「피그마처럼 프레임마다 켬/끔, 기본은 끔」).
            ⚰️★2026-10-10 — ★이 줄은 「기본이 «안 자름»」이었고 ★★거짓이 되었다:
              ★현빈 1009t3-② 로 ★★기본이 ★★«자름»이 되었다(css/editor-blocks.css 맨 위 .frame-block).
@@ -984,15 +971,11 @@ function _renderAutoPanel(ss) {
       sides: { read: () => (hasSides(ss.dataset) ? readSides(ss.dataset, _borderW) : null), write: (o) => { writeSides(ss.dataset, o, _borderW); applyBorder(); }, std: () => _borderW } } });
 
   // 코너
-  wireAppearanceSection({ radius: { numberId: 'ss-radius-num', max: 80, apply: (v) => { ss.dataset.radius = v; ss.style.borderRadius = v + 'px'; } } });
+  wireAppearanceSection({ radius: { numberId: 'ss-radius-num', max: 80, apply: (v) => { ss.dataset.radius = v; ss.style.borderRadius = v + 'px'; } },
+    op: { numberId: 'ss-opacity', apply: (v) => window.setBlockOpacity?.(ss, v) } });   // A4 Opacity — 계약(갈래 E) 없으면 그리기 0
 
   // 높이
-  const _sizeEl = (id) => document.getElementById(id) || (_cellParts ? document.createElement('input') : null);   // 142 — 칸은 크기 절이 없다(트랙 %) ⇒ 칸일 때만 떨어진 빈 입력에 배선(효과 0)
-  const heightSlider = _sizeEl('ss-height-slider');
-  const heightNum    = _sizeEl('ss-height-num');
-  const minHeight    = isShapeFrame ? Math.min(height, 20) : 100;
-  heightSlider.min   = minHeight;
-  heightNum.min      = minHeight;
+  const minHeight    = isShapeFrame ? Math.min(height, 20) : 100;   // 칸 min 도 같은 수(마크업 h.min) · 142 칸 = 크기 절 없음 → 아래 wireLayoutSection 이 없는 칸을 건너뛴다
   const applyHeight  = (v) => {
     const newH = parseInt(v);
     if (isShapeFrame) {
@@ -1016,9 +999,7 @@ function _renderAutoPanel(ss) {
         const curW = parseInt(ss.dataset.width || ss.offsetWidth || width);
         const newW = Math.round(curW * ratio);
         ss.style.width = newW + 'px'; ss.dataset.width = newW;
-        const wSlider = document.getElementById('ss-width-slider');
         const wNum    = document.getElementById('ss-width-num');
-        if (wSlider) wSlider.value = newW;
         if (wNum)    wNum.value    = newW;
       }
     }
@@ -1026,11 +1007,8 @@ function _renderAutoPanel(ss) {
     /* 버즈(1012t1Z5 D-1) — 높이를 줄여 말풍선이 밖으로 나가면 그 자리에서 안에 다시 맞춘다(안 나갔으면 무동작 · 히스토리는 이 높이 변경과 한 칸). */
     refitBuzzOnResize(ss);
   };
-  bindSlider(heightSlider, heightNum, applyHeight, { min: minHeight, max: 1200 });
 
   // 너비
-  const widthSlider = _sizeEl('ss-width-slider');
-  const widthNum    = _sizeEl('ss-width-num');
   const applyWidth  = (v, { scaleChildren = true } = {}) => {
     const oldW = _shownW();   // ★칸이 보이는 그 값(위 머리말) — 저장값 먼저면 조여진 프레임에서 자식이 엉뚱한 비율로 준다
     const newW = parseInt(v);
@@ -1070,9 +1048,7 @@ function _renderAutoPanel(ss) {
           const newH = Math.round(curFrameH * ratio);
           ss.style.minHeight = newH + 'px'; ss.style.height = newH + 'px';
           ss.dataset.height = newH;
-          const hSlider = document.getElementById('ss-height-slider');
           const hNum    = document.getElementById('ss-height-num');
-          if (hSlider) hSlider.value = newH;
           if (hNum)    hNum.value    = newH;
         }
       }
@@ -1098,7 +1074,12 @@ function _renderAutoPanel(ss) {
        ★그래서 ★여기 ★한 줄이 ★필요하다. ★부르는 자 셋(변환 끝 · `applyPadX` · 여기)이 ★같은 함수다. */
     _applyStackChildWidths(ss);
   };
-  bindSlider(widthSlider, widthNum, applyWidth, { min: minWidth, max: 860 });
+  /* ★표준 Layout L2 — 옛 bindSlider 두 쌍 자리(슬라이더 걷음) · 부품 배선(input = 바로 · change = 잘라 + 이력·저장 한 번 · 빈 칸 = 되돌림 · 라벨 끌기)
+     비율 사슬(기본 끔 · dataset.ratioLock 다를 때만) · 막힘 = 패딩 제외 켬(꽉참 — 너비가 줄 폭) */
+  const _ssLay = wireLayoutSection({
+    w: { numberId: 'ss-width-num', min: minWidth, max: 860, apply: (v) => applyWidth(v), read: () => parseInt(ss.dataset.width) || ss.offsetWidth },
+    h: { numberId: 'ss-height-num', min: minHeight, max: 1200, apply: applyHeight, read: () => parseInt(ss.dataset.height) || ss.offsetHeight },
+    chain: { id: 'ss-ratio', on: ratioLockOn(ss, false), set: (on) => setRatioLock(ss, on, false), blocked: () => (ss.dataset.fullBleed === 'true' ? LAY_FULLW_WHY : null) } });
 
   // 패딩 제외 (full-bleed) — 기본 «끔». 끄면 흔적만 지우고 제 폭을 되살린다.
   const fbToggle = wireCheck(document.getElementById('ss-fullbleed-toggle'));   // 막힘(aria-disabled)이면 click 을 막는다(옛 disabled 자리 · 태양 §2c)
@@ -1116,6 +1097,7 @@ function _renderAutoPanel(ss) {
       /* 버즈(1013t2 D1) — 새 버즈는 이 스위치가 켜진 채로 들어온다. 끄면 프레임이 패딩만큼 좁아지므로 밖으로 나간 말풍선이 있으면
          같은 무늬번호로 안에 다시 놓는다(안 나갔으면 무동작 · 높이 칸의 그 길과 같다 · 히스토리는 위의 한 칸에 같이 든다). */
       refitBuzzOnResize(ss);
+      _ssLay.refresh();   // 패딩 제외 켬/끔 = 사슬 막힘/풂(표준 Layout)
       window.scheduleAutoSave?.();
     });
   }
@@ -1135,11 +1117,8 @@ function _renderAutoPanel(ss) {
   });
 
   // 패딩
-  const padYSlider = document.getElementById('ss-pady-slider');
-  const padYNum    = document.getElementById('ss-pady-num');
   const applyPadY  = (v) => { ss.dataset.padY = v; ss.style.paddingTop = v + 'px'; ss.style.paddingBottom = v + 'px'; };
-  bindSlider(padYSlider, padYNum, applyPadY, { min: 0, max: 200 });
-  /* 좌우 패딩(F5) — 섹션 «좌우 패딩» 줄과 같은 마크업(sliderRowHTML)·같은 띠 힌트(_showPadXHint)를 쓴다.
+  /* 좌우 패딩(F5) — 섹션 «좌우 패딩» 과 같은 띠 힌트(_showPadXHint)를 쓴다(마크업 = 표준 패딩 슬롯 · L3).
      자유 프레임은 자식이 절대배치라 CSS padding 이 안 먹는다 — 정렬·삽입·끌기 죔이 framePadding 으로 이 값을 읽는다. */
   const applyPadX = (v) => {
     ss.dataset.padX = v; ss.style.paddingLeft = v + 'px'; ss.style.paddingRight = v + 'px';
@@ -1147,7 +1126,9 @@ function _renderAutoPanel(ss) {
     _applyStackChildWidths(ss);
     window._showPadXHint?.(ss, v);
   };
-  bindSlider(document.getElementById('ss-padx-slider'), document.getElementById('ss-padx-num'), applyPadX, { min: 0, max: 100 });
+  wireLayoutSection({   // 표준 Layout L3 — 옛 bindSlider 두 쌍 자리 · 축마다 제 범위
+    w: { numberId: 'ss-padx-num', min: 0, max: 100, apply: applyPadX, read: () => parseInt(ss.dataset.padX) || 0 },
+    h: { numberId: 'ss-pady-num', min: 0, max: 200, apply: applyPadY, read: () => parseInt(ss.dataset.padY) || 0 } });
 
   // 컴포넌트 저장
   const ssTplFolderSel = document.getElementById('ss-tpl-folder');
