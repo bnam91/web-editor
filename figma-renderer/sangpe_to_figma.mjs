@@ -95,7 +95,7 @@ function applyBorder(nodeId, border) {
 export const FILL_HIDDEN_OLD_PLUGIN_MSG = '⚠️ 숨긴 칠(Fill 눈 끔)이 Figma 에서 보여요 — Figma 플러그인이 옛 판이에요. 플러그인을 다시 불러온(import) 뒤 내보내면 숨긴 칠이 «칠 눈 꺼짐»으로 들어가요.';
 let _fillHiddenOldWarned = false;
 /* generic 중 «svg 가 곧 몸»인 종류 — 렌더러가 svg 를 그린다(F8 · 옛: vector 만) */
-const _SVG_BODY_KINDS = ['vector', 'bridge', 'coupon', 'zoom'];
+const _SVG_BODY_KINDS = ['vector', 'bridge', 'coupon', 'zoom', 'sticker'];   // sticker = F8b 별(톱니) 몸 — 내보내기가 스티커 svg 는 stk-burst 만 싣는다(둘레 글자 등은 빈 값)
 function _hideFills(nodeId) {
   if (!nodeId) return;
   const r = run('set_node_properties', { nodeId, fillsVisible: false });

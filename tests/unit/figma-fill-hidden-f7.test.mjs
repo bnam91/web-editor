@@ -237,3 +237,28 @@ test('K2 에셋 오버레이 글 색 rgb() → create_text fontColor 가 그 색
   assert.ok(t, '[전제] 오버레이 글이 그려졌다');
   assert.ok(near(t.params.fontColor, 255, 0, 0), `오버레이 글 색이 빨강이 아니다: ${JSON.stringify(t.params.fontColor)}`);
 });
+
+/* ── F8b(미카사 F7/F8 실기 12k · 지디 OK 261125) — 원·별 스티커가 Figma 빈 프레임
+ *   원·네모 = CSS 배경 + 둥글기(svg 0) → 내보내기가 bg·radius·글(.sticker-text)을 실음(DOM D35) · 렌더러는 generic bg 칠·둥글기·글 갈래 그대로
+ *   별(톱니) = svg 다각형(class stk-burst) → 렌더러가 그린다(_SVG_BODY_KINDS 에 sticker)
+ *   T1 별 svg 1번 그림(부모 = 그 프레임) · T2 [지킴] stk-burst 아닌 스티커 svg = 0 · T3 원 = 프레임 칠 bg(rgb()) + 둥글기
+ *   (스티커의 다른 svg — 둘레 글자 등 — 는 내보내기가 안 싣는다: DOM D35)
+ * 양성대조: _patches/f8b-CTL-renderer.patch(목록에서 sticker 뺌) → T1 빨강 */
+const BURST = '<svg class="stk-burst" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%;"><polygon points="50,0 61,35 98,35 68,57 79,91 50,70 21,91 32,57 2,35 39,35" fill="#e74c3c"/></svg>';
+const stk = (extra) => ({ type: 'generic', id: 'sk', kind: 'sticker', width: 80, height: 80, bg: '', radius: 0, svg: '', texts: [{ t: 'NEW', fs: 14, color: 'rgb(255, 255, 255)', x: 0, y: 0 }], ...extra });
+test('T1 별 스티커 svg(stk-burst) = 1번 그림 · 부모 = 그 프레임', () => {
+  const { cmds } = render([stk({ svg: BURST })]);
+  const fr = cmds.find((c) => c.cmd === 'create_frame' && c.params.name === 'sticker_sk');
+  assert.deepEqual(cmds.filter((c) => c.cmd === 'create_node_from_svg').map((c) => c.params.parentId), [fr.id], '별 몸이 안 그려졌다(빈 프레임)');
+});
+test('T2 [지킴] svg 없는 스티커(원·네모) = svg 그림 0 · 어노 svg 는 여전히 안 그림', () => {
+  assert.equal(render([stk({})]).cmds.filter((c) => c.cmd === 'create_node_from_svg').length, 0);
+  assert.equal(render([stk({ kind: 'annotation', svg: BURST })]).cmds.filter((c) => c.cmd === 'create_node_from_svg').length, 0, '어노 svg 를 그렸다');
+});
+test('T3 원 스티커 = 프레임 칠 bg(rgb()) + 둥글기 = 짧은 변 ÷ 2 + 글', () => {
+  const { cmds } = render([stk({ bg: 'rgb(231, 76, 60)', radius: 40 })]);
+  const fr = cmds.find((c) => c.cmd === 'create_frame' && c.params.name === 'sticker_sk');
+  assert.ok(cmds.some((c) => c.cmd === 'set_fill_color' && c.params.nodeId === fr.id && near(c.params.color, 231, 76, 60)), '원 배경색이 안 칠해졌다');
+  assert.ok(cmds.some((c) => c.cmd === 'set_corner_radius' && c.params.nodeId === fr.id && c.params.radius === 40), '둥글기 없음');
+  assert.ok(cmds.some((c) => c.cmd === 'create_text' && c.params.text === 'NEW'), '글이 없다');
+});

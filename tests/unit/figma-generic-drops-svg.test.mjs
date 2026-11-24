@@ -66,7 +66,8 @@ test('F1 ★★★generic 갈래는 ★«벡터(kind vector)»의 `block.svg` �
   const vec = sliceBlock(b, "if (_SVG_BODY_KINDS.includes(block.kind) && typeof block.svg === 'string' && /^\\s*<svg\\b/i.test(block.svg)) {", '★svg 몸 갈래(_SVG_BODY_KINDS → create_node_from_svg)가 generic 안에 없다');
   const kinds = /const _SVG_BODY_KINDS = (\[[^\]]*\]);/.exec(fs.readFileSync(SRC, 'utf8'));
   assert.ok(kinds, '★_SVG_BODY_KINDS 목록이 없다');
-  assert.deepEqual(JSON.parse(kinds[1].replace(/'/g, '"')), ['vector', 'bridge', 'coupon', 'zoom'], '★svg 몸 종류 목록이 바뀌었다 — 어노 등을 넣으려면 실화면 확인 뒤 이 칸을 고쳐라');
+  /* ★기대 바뀜(F8b · 미카사 F7/F8 실기 12k · 지디 OK 261125): 별(톱니) 스티커 몸도 그린다 — 내보내기가 스티커 svg 는 stk-burst 만 실어 다른 스티커 svg 는 여전히 안 그림 */
+  assert.deepEqual(JSON.parse(kinds[1].replace(/'/g, '"')), ['vector', 'bridge', 'coupon', 'zoom', 'sticker'], '★svg 몸 종류 목록이 바뀌었다 — 어노 등을 넣으려면 실화면 확인 뒤 이 칸을 고쳐라');
   const outside = b.replace(vec, '');
   assert.match(vec, /create_node_from_svg/, '★벡터 갈래가 svg 를 안 그린다');
   assert.ok(!/block\.svg/.test(outside), '★벡터 갈래 «밖»에서 block.svg 를 쓴다 — 어노 등도 그리기 시작했으면 실화면 확인 뒤 이 칸을 고쳐라');

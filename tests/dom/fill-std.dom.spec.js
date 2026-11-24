@@ -762,7 +762,8 @@ test('D31 글 스티커 배경 — Figma JSON bg = bgColor · 숨김 키 · [지
   expect([t0?.type, t0?.kind], '[전제] 글 스티커 = generic sticker 항목').toEqual(['generic', 'sticker']);
   expect(String(t0.bg).toLowerCase(), '★글 스티커 배경 = bgColor 가 Figma JSON bg 로').toBe('#12ab34');
   expect('fillHidden' in t0, '[지킴] 안 숨기면 키 0').toBe(false);
-  expect(c0 ? (c0.bg ?? '') : 'no-entry', '[지킴] 모양 스티커는 bg 옛 그대로(ds.bg · 항목이 없으면 no-entry 로 갈림)').toBe('');
+  // ★기대 바뀜(F8b 261125): 모양(원) 스티커 bg 는 이제 화면 배경색이 실린다(예전 빈 값 = Figma 빈 프레임) — 값 검사는 D35 · 여기선 «글 스티커 갈래가 원에 새지 않음»만
+  expect(c0 ? String(c0.bg ?? '').toLowerCase() : 'no-entry', '[지킴] 원 스티커가 글 스티커 bgColor(#12ab34)를 받지 않는다').not.toBe('#12ab34');
   await page.evaluate(async (id) => { const m = await import('/js/props/_fill-section.js'); const it = m.fillKindOf(document.getElementById(id)); m.fillSetHidden(it.block, it.k, true); }, ids[0]);
   const t1 = await entry(ids[0]);
   expect([t1.fillHidden, String(t1.bg).toLowerCase()], '★숨기면 fillHidden · 색 그대로').toEqual([true, '#12ab34']);
@@ -848,5 +849,32 @@ test('D34 에셋 배경색 — Figma JSON image bg = bgColor · 숨김 키 · [�
   await page.evaluate(async (id) => { const m = await import('/js/props/_fill-section.js'); const it = m.fillKindOf(document.getElementById(id)); m.fillSetHidden(it.block, it.k, true); }, ids[1]);
   const b1 = await entry(ids[1]);
   expect([b1.fillHidden, String(b1.bg).toLowerCase()], '★숨기면 fillHidden · 색 그대로').toEqual([true, String(b.bg).toLowerCase()]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* F8b(미카사 F7/F8 실기 12k · 지디 OK 261125) — D35 원·네모·별 스티커 → Figma JSON(예전: bg 빈 값 · radius 0 · 글 0 = Figma 빈 프레임)
+ *   ★원 = bg 화면 배경색 · radius = 짧은 변 ÷ 2 · 글 · ★네모 = radius 계산 px(>0) · ★별 = svg 에 stk-burst · [지킴] 글 스티커 bg = bgColor 그대로(+글이 이제 실림)
+ * 양성대조: 고치기 전 판 1f00271d0 에서 D35 빨강 */
+test('D35 원·네모·별 스티커 — Figma JSON bg·둥글기·글·별 svg', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const ids = await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    const sec = await window.addSection(); const out = [];
+    for (const o of [{ shape: 'circle' }, { shape: 'square' }, { shape: 'burst' }, { shape: 'text' }]) { window.deselectAll(); window.selectSection(sec); const before = new Set(sec.querySelectorAll('.sticker-block')); window.addStickerBlock(o);
+      out.push([...sec.querySelectorAll('.sticker-block')].find((x) => !before.has(x)).id); }
+    const t = document.getElementById(out[3]); t.dataset.bgColor = '#12ab34'; window.renderStickerBlock(t); return out; });
+  const entry = (id) => page.evaluate((id) => { const j = window.buildFigmaExportJSON(null); let hit = null;
+    (function walk(o) { if (!o || typeof o !== 'object' || hit) return; if (o.id === id && o.type) { hit = o; return; } Object.values(o).forEach(walk); })(j); return hit ? JSON.parse(JSON.stringify(hit)) : null; }, id);
+  const live = (id) => page.evaluate((id) => { const e = document.getElementById(id); const cs = getComputedStyle(e); return { bg: cs.backgroundColor, w: e.offsetWidth, h: e.offsetHeight, shape: e.dataset.shape }; }, id);
+  const [c, q, b, t] = [await entry(ids[0]), await entry(ids[1]), await entry(ids[2]), await entry(ids[3])];
+  const lc = await live(ids[0]);
+  expect([c?.kind, q?.kind, b?.kind, t?.kind], '[전제] 넷 다 generic sticker').toEqual(['sticker', 'sticker', 'sticker', 'sticker']);
+  expect([lc.shape, c.bg], '★원 bg = 화면 배경색').toEqual(['circle', lc.bg]);
+  expect(c.radius, '★원 둥글기 = 짧은 변 ÷ 2').toBe(Math.round(Math.min(lc.w, lc.h) / 2));
+  expect(c.texts.map((x) => x.t).join('|'), '★원 글이 실린다').toMatch(/\S/);
+  expect(q.radius > 0 && q.bg !== '', `★네모 둥글기 px·bg (${q.radius} · ${q.bg})`).toBe(true);
+  expect(/class="[^"]*stk-burst/.test(b.svg || ''), '★별 svg = stk-burst').toBe(true);
+  expect([c.svg, q.svg, t.svg], '[지킴] 원·네모·글 스티커는 svg 안 실음(렌더러가 그리는 건 별 몸뿐)').toEqual(['', '', '']);
+  expect(String(t.bg).toLowerCase(), '[지킴] 글 스티커 bg = bgColor').toBe('#12ab34');
   expect(errs, errs.join(' | ')).toEqual([]);
 });

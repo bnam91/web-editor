@@ -1214,7 +1214,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
           x: Math.round((r.left - _ltr.left) / _ltz), y: Math.round((r.top - _ltr.top) / _ltz), w: Math.round(r.width / _ltz),
           align: al === 'center' ? 'CENTER' : (al === 'right' || al === 'end') ? 'RIGHT' : 'LEFT' };
       };
-      el.querySelectorAll('[class^="tb-"], [class*=" tb-"], .annot-label, .itb-text, .grd-line, .grd-img-circle-text').forEach(t => {
+      el.querySelectorAll('[class^="tb-"], [class*=" tb-"], .annot-label, .itb-text, .grd-line, .grd-img-circle-text, .sticker-text').forEach(t => {   // F8b — 스티커 글(.sticker-text · 원·네모·별·글 스티커)도 싣는다(예전 0 → Figma 빈 프레임)
         if (!_notKid(t)) return;
         { const g = t.closest('.grid-block'); if (g && g !== el && el.contains(g)) return; }   // 원 위에 얹힌 자식 그리드의 글은 그 자식 몫
         /* ★1012t1H5 — 인용구 줄(.tb-qt-line) «안»의 효과 span(tb-dot 글자마다 · tb-hl · tb-glow)은 줄이 이미 실은 글자다.
@@ -1227,10 +1227,22 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
             x: parseFloat(t.style.left) || 0, y: parseFloat(t.style.top) || 0, ...(t.matches(_LIVE_TXT) ? _ltPos(t) : null) }); }
       });
       const ds = el.dataset || {};
+      /* F8b(미카사 F7/F8 실기 12k · 시트 83행 곁) — 원·네모 스티커 = CSS 배경색 + 둥글기(svg 0) → 예전 bg=ds.bg(빈 값)·radius=ds.radius 라 Figma 빈 프레임
+         그 배지만: 화면에 보이는 배경색(계산 style · 없으면 bgColor) + 원 = 짧은 변 ÷ 2 · 네모 = 계산 둥글기 px · 이미지 모드·투명 카운트는 손 0 */
+      const _stkBadge = ds.type === 'sticker' && ['circle', 'square'].includes(ds.shape || 'circle') && (ds.mode || (ds.imgSrc ? 'image' : 'text')) !== 'image' && !(ds.count && ds.countShape === 'none');
+      let _stkBg = '', _stkR = 0;
+      if (_stkBadge) {
+        const _lv = (el.id && document.getElementById(el.id)) || el;
+        const _cs = typeof window.getComputedStyle === 'function' ? window.getComputedStyle(_lv) : null;
+        const _cb = _cs && _cs.backgroundColor;
+        _stkBg = (_cb && !/^(transparent|rgba\([^)]*,\s*0\))$/.test(_cb)) ? _cb : (ds.bgColor || '');
+        _stkR = (ds.shape || 'circle') === 'circle' ? Math.round(Math.min(w, h || w) / 2) : (parseFloat(_cs && _cs.borderTopLeftRadius) || 0);
+      }
       const out = {
         type: 'generic', id: el.id || '', kind: ds.type || '', ..._fh(el),
-        width: w, height: h || 0, bg: (ds.type === 'sticker' && ds.shape === 'text' ? ds.bgColor : ds.bg) || '', radius: parseInt(ds.radius) || 0,   // F8 ④ 글 스티커 배경 = bgColor(ds.bg 아님 · 예전엔 늘 빈 값 → Figma 칠 0) · 'transparent' 면 렌더러가 투명
-        svg: [...el.querySelectorAll('svg')].find(s => _notKid(s) && !s.closest('.itb-icon'))?.outerHTML || '', texts,   /* ICONTEXT-EMPTY-ICON-PLACEHOLDER-IN-EXPORT-01 — .itb-icon 안 svg 는 편집 자리표시뿐(고른 아이콘·사진은 img) */
+        width: w, height: h || 0, bg: (ds.type === 'sticker' && ds.shape === 'text' ? ds.bgColor : _stkBadge ? _stkBg : ds.bg) || '', radius: _stkBadge ? _stkR : (parseInt(ds.radius) || 0),   // F8 ④ 글 스티커 배경 = bgColor(ds.bg 아님 · 예전엔 늘 빈 값 → Figma 칠 0) · 'transparent' 면 렌더러가 투명
+        svg: ds.type === 'sticker' ? ([...el.querySelectorAll('svg.stk-burst')].find(s => _notKid(s))?.outerHTML || '')   // F8b — 스티커는 별(톱니) 몸 svg 만(렌더러가 그림) · 둘레 글자·동전·화살표 등 다른 svg 는 안 실음(실화면 확인 전 · 예전에도 Figma 엔 안 그려짐)
+          : ([...el.querySelectorAll('svg')].find(s => _notKid(s) && !s.closest('.itb-icon'))?.outerHTML || ''), texts,   /* ICONTEXT-EMPTY-ICON-PLACEHOLDER-IN-EXPORT-01 — .itb-icon 안 svg 는 편집 자리표시뿐(고른 아이콘·사진은 img) */
       };
       /* F8 ③ 브리지 숨김 — 캔버스 svg 뿌리 style 의 fill-opacity:0(F6-2b 렌더러)을 그대로 싣으면 Figma 가 «불투명도 0 칠»로 받아 칠 눈을 켜도 안 보인다 → 뺀다(숨김은 렌더러가 칠 visible:false 로 · F7) */
       if (ds.type === 'bridge' && out.fillHidden && out.svg) out.svg = out.svg.replace(/;fill-opacity:0(?=[;"])/, '');
