@@ -1,9 +1,9 @@
 import { propPanel } from '../globals.js';
 import { exportFormatOptionsHTML, isAnimFormat } from '../io/export-formats.js';   /* ★t6-01 — 꼴 명부 정본 한 자리 */
 import { syncSectionCheckerTextTone } from '../canvas-contrast.js';   /* T6 — 섹션 안 글자 밝기 자동(판정은 그 파일 한 자리) */
-import { blockHeaderHTML, escHtml, sliderRowHTML, checkHTML } from './_helpers.js';
+import { blockHeaderHTML, escHtml, sliderRowHTML, checkHTML, wireNumberScrub } from './_helpers.js';
 import { renderPanel, sec as panelSec, panelRenderGen } from './_panel-frame.js';
-import { layoutPadSlotHTML, layoutSlotNumberHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout 패딩(탑 워커 261125)
+import { layoutSizeRowHTML, layoutPadSlotHTML, layoutSlotNumberHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout 패딩(탑 워커 261125)
 import { forgetLabelAutoColor } from './label-auto-color.js';
 import { wireHexText, parseHex6, formatHex6, colorFieldHTML, wireColorField } from './color-picker.js';
 import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';   /* 섹션 보강(현빈 261123 · d92ea91) — 배경색 VAR·최근 줄(텍스트 Fill 과 같은 벌) */
@@ -737,20 +737,13 @@ async function showSectionProperties(sec) {
              부른다. 값의 출처가 둘이면 어느 날 갈린다(js/section-height.js 머리말).
            갱신은 js/section-height.js 가 #sec-height-value 를 찾아서 한다(섹션 높이가 바뀌는 동안 패널이 열려 있을 수 있다). -->
       <!-- 섹션 보강(현빈 261123 승인 d92ea91 · 8910 v117a 상태 70) — Size 줄 = [너비 고정(읽기) | 높이] + 📌 엔드슬롯(끝 칼럼 · .prop-chain-btn). 높이 칸 id·data 그대로(section-height.js 가 #sec-height-value 를 갱신) -->
-      <div class="prop-row" title="내보내기 기준 레이아웃 px — 캔버스 배율에 흔들리지 않습니다">
-        <div class="prop-icon-input" style="flex:1 1 0;min-width:0" title="섹션 너비 — 페이지 폭으로 고정(바꿀 수 없음)">
-          <span class="prop-xy-label">너비</span>
-          <input type="number" id="sec-width-value" value="${sec.offsetWidth || 860}" readonly tabindex="-1" aria-label="섹션 너비(px) — 고정" aria-readonly="true">
-        </div>
-        <div class="prop-icon-input" style="flex:1 1 0;min-width:0">
-          <span class="prop-xy-label">높이</span>
-          <input type="number" id="sec-height-value" style="font-variant-numeric:tabular-nums;" min="1" max="20000" step="1" placeholder="—" data-empty="invalid" aria-label="섹션 높이(px)" data-sec-id="${escHtml(sec.id || '')}" value="${
-          (() => { const h = window.measureSectionHeight?.(sec); return h == null ? '' : h; })()
-        }">
-        </div>
-        <!-- ⑦ 높이 고정(핀) — js/section-pin.js. 켤 때 «지금 높이»로 고정 · 손잡이로 맞춘다 · 숫자칸에 치면(Enter/blur) 그 높이로 핀(Q13 ⓖ · 현빈 261114) -->
-        <button type="button" class="prop-chain-btn" id="sec-pin-btn" data-sec-id="${escHtml(sec.id || '')}" aria-pressed="false" aria-label="높이 고정" title="높이 고정">📌</button>
-      </div>
+      <!-- 표준 Layout 크기 줄(탑 261125 · FigCraft layout_panel.rs dimensions :161~) — W 읽기전용(페이지 폭) · H 숫자칸(치면 핀) · 끝 = 📌(블럭 단추 id 그대로 · 배선 _bindSectionPin)
+           ⑦ 높이 고정(핀) — js/section-pin.js. 켤 때 «지금 높이»로 고정 · 손잡이로 맞춘다 · 숫자칸에 치면(Enter/blur) 그 높이로 핀(Q13 ⓖ · 현빈 261114)
+           data-sec-id·placeholder «—»·data-empty 는 _bindSectionPin 이 칸에 단다(부품에 칸 없음 · 값·뜻 무변) -->
+      ${layoutSizeRowHTML({ prefix: 'sec',
+        w: { id: 'sec-width-value', value: sec.offsetWidth || 860, max: sec.offsetWidth || 860, readonly: true },
+        h: { id: 'sec-height-value', value: (() => { const h = window.measureSectionHeight?.(sec); return h == null ? '' : h; })(), min: 1, max: 20000 },
+        end: { id: 'sec-pin-btn', on: false, title: '높이 고정', icon: '📌' } })}
       <!-- ⑦ 안전장치(현빈 Q10 요구 · 문구 최소) — 숨은 블럭이 있을 때만 보인다 -->
       <div class="prop-row" id="sec-pin-hidden-row" style="display:none;gap:4px;">
         <span class="prop-value-text" style="color:var(--ui-danger);white-space:nowrap;">숨은 블럭 <b class="sec-pin-hidden-n">0</b>개</span>
@@ -1308,6 +1301,11 @@ async function showSectionProperties(sec) {
 
 /* ⑦ 섹션 높이 핀 — 📌 토글 · 전체 보기 · 핀 해제 (모델·규칙은 js/section-pin.js 한 곳) */
 function _bindSectionPin(sec) {
+  /* 표준 Layout 크기 줄 칸에 옛 표식 — section-height.js(cell.dataset.secId) · section-pin.js refreshPanel(btn.dataset.secId) · 빈 값 커밋 가드(data-empty) */
+  const _hv = document.getElementById('sec-height-value'), _pb = document.getElementById('sec-pin-btn');
+  if (_hv) { _hv.dataset.secId = sec.id || ''; _hv.placeholder = '—'; _hv.dataset.empty = 'invalid'; }
+  if (_pb) _pb.dataset.secId = sec.id || '';
+  wireNumberScrub(document.getElementById('sec-height-value-scrub'), _hv, { min: 1, max: 20000 });   // 끌기 = 놓을 때 change 한 번 → 아래 setHeight(핀)
   const P = window.sectionPin;
   if (!P) return;
   document.getElementById('sec-pin-btn')?.addEventListener('click', () => { P.isPinned(sec) ? P.unpin(sec) : P.pin(sec); P.refreshPanel(sec); });
