@@ -35,3 +35,22 @@ test('C2 그리드 패널 띄우기 단추 툴팁 = «Ignore Auto Layout — …
   expect(t, '옛 «오토레이아웃에서 빼서» 글 없음').not.toContain('오토레이아웃에서 빼서');
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* C3 0.9.13 SEC-SELECT-HITSTRIP-01(미카사 GRADE-0913close-3 · 판 1cd189937): 섹션 «아래 경계 안쪽 2~5px» 를 누르면 아무것도 안 골라짐(죽은 띠) · 10px 안 = 아래 gap · 밖 2px = 섹션.
+ *   잰다: 진짜 마우스로 아래 안 2·3·5px 누름 → 무엇이든(아래 gap 블럭 또는 섹션) 골라져야 한다 · 그 점의 elementFromPoint 를 /tmp/c3-hit.txt 에 남김(원인 가르기). */
+test('C3 섹션 아래 경계 안쪽 2~5px 누름 = 죽은 띠 아님(gap 또는 섹션이 골라짐)', async ({ page }) => {
+  const errs = await boot(page);
+  await page.evaluate(() => { const sec = document.querySelector('#canvas .section-block'); sec.id = sec.id || 'c3S'; window.addTextBlock('h2'); window.deselectAll(); });
+  const r = await page.evaluate(() => { const s = document.querySelector('#canvas .section-block'); s.scrollIntoView({ block: 'center' }); const b = s.getBoundingClientRect(); return { x: b.left + b.width / 2, bottom: b.bottom }; });
+  for (const dIn of [2, 3, 5]) {
+    await page.evaluate(() => window.deselectAll());
+    const y = r.bottom - dIn;
+    const hit = await page.evaluate(([x, y]) => { const e = document.elementFromPoint(x, y); return e ? `${e.tagName.toLowerCase()}#${e.id}.${String(e.className).slice(0, 60)}` : 'null'; }, [r.x, y]);
+    require('fs').appendFileSync('/tmp/c3-hit.txt', `안 ${dIn}px: ${hit}\n`);
+    await page.mouse.click(r.x, y);
+    const selOf = () => page.evaluate(() => [...document.querySelectorAll('#canvas .selected')].map((e) => String(e.className).split(' ')[0]));
+    await expect.poll(async () => (await selOf()).length, { message: `★C3 아래 안 ${dIn}px 누름 = 무엇이든 골라짐(죽은 띠 아님) · 점 ${hit}`, timeout: 2000 }).toBeGreaterThan(0)
+      .finally(async () => require('fs').appendFileSync('/tmp/c3-hit.txt', `  → 골라짐 ${JSON.stringify(await selOf())}\n`));
+  }
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
