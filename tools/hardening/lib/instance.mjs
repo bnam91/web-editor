@@ -99,7 +99,8 @@ export async function launch({
 
   const child = spawn('arch', args, {
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env, ...env },
+    /* 지디 261125 — 앱 내장 MCP 기본 9345 = 남의 goditor MCP 가 QA 인스턴스에 붙는 길 · 끄는 스위치가 없어 CDP+30(9380~9429)으로 민다(부르는 쪽 env 가 이김) */
+    env: { ...process.env, GODITOR_MCP_PORT: String(port + 30), ...env },
   });
   const stdout = [], stderr = [];
   child.stdout.on('data', d => stdout.push(d.toString()));
