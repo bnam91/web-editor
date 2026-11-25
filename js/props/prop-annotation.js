@@ -629,8 +629,9 @@ export function showAnnotationProperties(block) {
 
   // 선 두께
   /* 표준 Stroke 2-5 — 선 굵기 = 부품(어댑터 = 옛 _writeProps strokeWidth · change = 이력 «선 두께») · 색은 위 옛 wireColorField('annot-stroke') 그대로(부품 색 배선 안 함) */
+  let _lineLbl = '선 두께';   // 마지막으로 바꾼 칸의 이력 이름(굵기 = 선 두께 · ⫶ 선 꼴 = 선 꼴)
   wireStrokeSection({ prefix: 'annot-line', widthId: 'annot-stroke-w-num', minWidth: 0.5, maxWidth: 8, step: 0.5, noColor: true,
-    adapter: { width: (v) => _writeProps(block, { strokeWidth: v }), look: (part) => { if (part.style) _writeProps(block, { lineStyle: part.style }); }, commit: () => window.pushHistory?.('선 두께') } });
+    adapter: { width: (v) => { _lineLbl = '선 두께'; _writeProps(block, { strokeWidth: v }); }, look: (part) => { if (part.style) { _lineLbl = '선 꼴'; _writeProps(block, { lineStyle: part.style }); } }, commit: () => window.pushHistory?.(_lineLbl) } });   // 미카사 7판 곁(209): 선 꼴 바꿈 이력 이름 = «선 꼴»(옛: 굵기와 같은 commit 이라 «선 두께»)
 
   // 시작점 모양 (공용 .prop-align-btn)
   propPanel.querySelectorAll('#annot-shape-group .prop-align-btn').forEach(btn => {

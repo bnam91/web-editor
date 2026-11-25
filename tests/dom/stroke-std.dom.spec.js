@@ -813,6 +813,7 @@ test('S14d 주석 선 ⫶ — 선 꼴(실선·대시·점) · 키 lineStyle(실�
   await page.click('#annot-line-more');
   await page.selectOption('#annot-line-style', 'dashed');
   const s1 = await st();
+  expect(await page.evaluate(() => window.getHistoryTip?.()?.action), '★이력 이름 = 선 꼴(미카사 7판 곁)').toBe('선 꼴');
   await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z');
   await expect.poll(() => st(), { message: '★⌘Z 한 칸 = 키·대시 0' }).toEqual({ key: null, dash: null });
   await page.evaluate(() => { const b = document.getElementById('anD'); window.deselectAll(); window.selectBlock('anD'); window.showAnnotationProperties(b); });
