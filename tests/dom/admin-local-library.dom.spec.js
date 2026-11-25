@@ -15,6 +15,7 @@ const { bootApp } = require('./_root-harness.js');
 const DOODLE = '<svg width="20" height="10" viewBox="0 0 20 10" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 1L19 9" stroke-width="2" stroke="#A98467"/></svg>';
 const MULTI = '<svg viewBox="0 0 10 10"><path d="M0 0H5V5Z" fill="#ff0000"/><path d="M5 5H9V9Z" fill="#0000ff"/></svg>';
 const EVIL = '<svg viewBox="0 0 10 10" onload="window.__pwned=1"><script>window.__pwned=2</script><path d="M0 0H9V9Z" fill="#00aa00"/></svg>';
+const LOGO = '<svg width="120" height="40" viewBox="0 0 120 40"><rect width="120" height="40" fill="#03C75A"/></svg>';   // 브랜드 로고(색 원본 · 단색)
 const ARROW = '<svg width="131" height="41" viewBox="0 0 131 41" fill="none"><path d="M0 11H82V31H0Z" fill="black"/></svg>';
 
 async function setup(page, { admin, dirs }) {
@@ -33,13 +34,14 @@ async function setup(page, { admin, dirs }) {
       return base[k];
     } });
     window.__admin._forceState(admin ? { ok: true, isAdmin: true } : { ok: true, isAdmin: false, hasRoleField: true });
-  }, { admin, dirs, svgs: { 'Heart_195-288.svg': DOODLE, 'Multi_1-1.svg': MULTI, 'Evil_1-2.svg': EVIL, 'Vector_191-10.svg': ARROW, '두들002_Crispy_doodles/Star_195-466.svg': DOODLE, '두들003_update/Doodle_195-784.svg': MULTI } });
+  }, { admin, dirs, svgs: { 'Heart_195-288.svg': DOODLE, 'Multi_1-1.svg': MULTI, 'Evil_1-2.svg': EVIL, 'Vector_191-10.svg': ARROW, '두들002_Crispy_doodles/Star_195-466.svg': DOODLE, '두들003_update/Doodle_195-784.svg': MULTI, '결제/Pay_Logo.svg': LOGO } });
   return errs;
 }
 const DIRS = {
   'doodle-figma-191-38': ['Evil_1-2.svg', 'Heart_195-288.svg', 'Multi_1-1.svg'],
   'arrow-figma-191-2': ['Vector_191-10.svg'],
   'doodle-figma-more': ['두들002_Crispy_doodles/024_195-468.png', '두들002_Crispy_doodles/Star_195-466.svg', '두들003_update/Doodle_195-784.svg'],
+  'brand-logos': ['결제/Pay_Logo.svg', '판매채널/Store_Mark.webp'],
   'memoji-inclusive-192-2': ['Frame_1/b-sticker_1_192-9.webp', 'Frame_1/a-sticker_1_192-8.webp', 'Frame_3/c-sticker_1_192-20.webp'],
 };
 async function openLibrary(page) {
@@ -100,18 +102,37 @@ test('L2 음성 — 일반 계정 → 새 탭 0 · 화살표 20 · IPC 호출 0'
   await setup(page, { admin: false, dirs: DIRS });
   await openLibrary(page);
   await expect(page.locator('.lib-tab[data-col="doodle"]')).toHaveCount(1);
-  await expect(page.locator('.lib-tab[data-col="figma-doodle"], .lib-tab[data-col="memoji-inclusive"]')).toHaveCount(0);
+  await expect(page.locator('.lib-tab[data-col="figma-doodle"], .lib-tab[data-col="memoji-inclusive"], .lib-tab[data-col="brand-logos"]')).toHaveCount(0);
   await page.click('.lib-tab[data-col="arrow"]');
   await expect(page.locator('#lib-grid .lib-item')).toHaveCount(20);
   expect(await page.evaluate(() => window.__libCalls)).toEqual({ list: 0, read: 0 });
 });
 
 test('L3 관리자 · 폴더 없음 → 새 탭 0 · 화살표 20', async ({ page }) => {
-  await setup(page, { admin: true, dirs: {} });
+  const errs = await setup(page, { admin: true, dirs: {} });
   await openLibrary(page);
   await expect(page.locator('.lib-tab[data-col="doodle"]')).toHaveCount(1);
-  await expect(page.locator('.lib-tab[data-col="figma-doodle"], .lib-tab[data-col="memoji-inclusive"]')).toHaveCount(0);
+  await expect(page.locator('.lib-tab[data-col="figma-doodle"], .lib-tab[data-col="memoji-inclusive"], .lib-tab[data-col="brand-logos"]')).toHaveCount(0);
   await page.click('.lib-tab[data-col="arrow"]');
   await expect(page.locator('#lib-grid .lib-item')).toHaveCount(20);
   expect(await page.evaluate(() => window.__libCalls.list)).toBe(1);
+  expect(errs, '폴더 없음 = 오류 0').toEqual([]);
+});
+
+test('L4 브랜드·인증 로고(LIB-BRAND-LOGO-ASSETS-01) — 관리자 탭 · 묶음 = 폴더 이름 · 로고 SVG = 그림(에셋 · 색 원본) · 벡터 길 아님', async ({ page }) => {
+  const errs = await setup(page, { admin: true, dirs: DIRS });
+  await openLibrary(page);
+  await page.click('.lib-tab[data-col="brand-logos"]');
+  await expect(page.locator('.lib-tab[data-col="brand-logos"]')).toHaveText('브랜드·인증 로고');
+  await expect(page.locator('#lib-groups .lib-group')).toHaveText(['결제', '판매채널']);   // groups:'folder' = 폴더 이름 그대로(«캐릭터 결제» 아님)
+  await expect(page.locator('#lib-grid .lib-item[data-loaded="1"]')).toHaveCount(1);
+  const v0 = await count(page, '.vector-block'), a0 = await count(page, '.asset-block');
+  await page.click('#lib-grid .lib-item[title="Pay Logo"]');
+  await expect.poll(() => count(page, '.asset-block')).toBe(a0 + 1);
+  expect(await count(page, '.vector-block'), '로고 = 색 바꾸기 길(벡터) 아님').toBe(v0);
+  const src = await page.evaluate(() => [...window.getSelectedSection().querySelectorAll('.asset-block')].pop().dataset.imgSrc || '');
+  expect(src.slice(0, 26)).toBe('data:image/svg+xml;base64,');
+  const svg = await page.evaluate((u) => new TextDecoder().decode(Uint8Array.from(atob(u.split(',')[1]), (c) => c.charCodeAt(0))), src);
+  expect([/#03C75A/i.test(svg), /currentColor/.test(svg)], '거른 SVG 그대로 · 단색 정규화 0').toEqual([true, false]);
+  expect(errs).toEqual([]);
 });
