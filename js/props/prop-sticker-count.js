@@ -349,8 +349,7 @@ export function wireCountSection(panel, block, rerender) {
       if (lsRatio !== null) window.CountSticker?.rescaleLabel?.(d, prevW, next, lsRatio);
       _fsRatio.set(block, { w: d.sizeW, fs: d.fontSize, ratio, ls: d.countLabelSize, lsRatio: lsRatio === null ? undefined : lsRatio });
       sizeS.value = String(next); sizeN.value = String(next);
-      const fsS = $('stk-fs'), fsN = $('stk-fs-num');
-      if (fsS) fsS.value = d.fontSize;
+      const fsN = $('stk-typo-size-number');   // 표준 Typography 크기칸(시트 221 · 옛 stk-fs 쌍 걷음)
       if (fsN) fsN.value = d.fontSize;
       redraw();
       block.classList.toggle('tiny', next < 40);

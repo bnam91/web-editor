@@ -253,11 +253,9 @@ export function showStepProperties(block, activeIdxArg) {
     const number = propPanel.querySelector('#' + numberId);
     if (!number) return;
     /* input = 바로 그림(화살표 스텝·Enter 합성 input — prop-number-commit-guard.js) · change = 이력 한 번 */
-    number.addEventListener('input', () => {
-      block.dataset[datasetKey] = Math.max(min, Math.min(max, parseInt(number.value) || min));
-      rerender();
-    });
-    number.addEventListener('change', () => window.pushHistory?.());
+    const apply = () => { block.dataset[datasetKey] = Math.max(min, Math.min(max, parseInt(number.value) || min)); rerender(); };
+    number.addEventListener('input', apply);
+    number.addEventListener('change', () => { apply(); window.pushHistory?.(); });   // 옛 숫자칸 꼴: change 도 값을 먹인다
   }
 
   bindSize('stb-title-size-number', 12, 80, 'titleSize');

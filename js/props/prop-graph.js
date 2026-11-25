@@ -951,7 +951,7 @@ ${pieTagTypoRowsHTML(block)}
     };
     /* input = 바로 그림(화살표 스텝·Enter 합성 input — prop-number-commit-guard.js) · change = 이력 한 번 */
     psNumber.addEventListener('input',  () => applyPctSize(parseInt(psNumber.value)));
-    psNumber.addEventListener('change', () => window.pushHistory());
+    psNumber.addEventListener('change', () => { applyPctSize(parseInt(psNumber.value)); window.pushHistory(); });   // 옛 숫자칸 꼴: change 도 값을 먹인다
   }
 
   // 바 두께 (bar-h·bar-v·bar-pair) — H1 상한 = 세로·비교는 칸 폭까지(가로는 60)
@@ -1224,7 +1224,7 @@ ${pieTagTypoRowsHTML(block)}
     _syncPieTagPhSoon(block);   // ★t4-17 X4 — 원형 순위·이름 크기 칸의 기본값(placeholder)이 라벨 크기를 따른다(한 프레임 한 번)
   };
   lNumber?.addEventListener('input',  () => applyLabelSize(parseInt(lNumber.value)));   // 화살표 스텝·Enter 합성 input(prop-number-commit-guard.js)
-  lNumber?.addEventListener('change', () => window.pushHistory());
+  lNumber?.addEventListener('change', () => { applyLabelSize(parseInt(lNumber.value)); window.pushHistory(); });   // 옛 숫자칸 꼴: change 도 값을 먹인다
 
   // 라벨 색상
   if (document.getElementById('grb-vlabel-color')) {

@@ -36,7 +36,7 @@ const undo = async (page) => { await page.evaluate(() => document.activeElement?
 const CASES = [
   ['zm-bd-on',     'bd',     '#zm-bdw-num',  'bdw',   '14'],   // 티켓 예 그대로
   ['zm-shadow-on', 'shadow', '#zm-maxop-num', 'maxop', '37'],
-  ['zm-tx-on',     'tx',     '#zm-txs-num',  'txs',   '41'],
+  ['zm-tx-on',     'tx',     '#zm-typo-size-number', 'txs', '41'],   // ★기대 바뀜(표준 Typography · 탑 워커 261125): 옛 zm-txs 쌍 → 정본 크기칸(저장 키 txs 그대로)
 ];
 
 for (const [chk, key, field, fkey, val] of CASES) {

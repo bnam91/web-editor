@@ -531,8 +531,9 @@ export function showStickerProperties(block) {
     /* 숫자칸 — input = 바로 그림(화살표 스텝·Enter 합성 input — prop-number-commit-guard.js) · change = 이력 한 번 */
     const _num = (id, key, min, max, parse) => {
       const n = _q(id); if (!n) return;
-      n.addEventListener('input', () => { const v = parse(n.value); if (Number.isFinite(v)) _set({ [key]: String(Math.min(max, Math.max(min, v))) }); });
-      n.addEventListener('change', () => _commit());
+      const apply = () => { const v = parse(n.value); if (Number.isFinite(v)) _set({ [key]: String(Math.min(max, Math.max(min, v))) }); };
+      n.addEventListener('input', apply);
+      n.addEventListener('change', () => { apply(); _commit(); });   // 옛 숫자칸 꼴: change 도 값을 먹인다
     };
     _num('size-number', 'fontSize', isText ? 8 : 6, isText ? 400 : 150, parseInt);
     _num('ls-number', 'letterSpacing', -10, 40, parseFloat);
