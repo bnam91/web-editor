@@ -357,9 +357,9 @@ test('R3-premise ★G2 골든 픽스처가 «정렬 오버라이드 0건»이라
  *   아니라 «⌘Z 가 한 단계로 돌아가기 위한 두 조건»이다 — 이 레포가 moveSection 에서 실제로
  *   당한 버그(스냅샷을 «뒤»에 찍어 undo 가 두 단계를 한꺼번에 먹던)의 판정식 그대로다:
  *     ⑴ 제스처 1회 = pushHistory «정확히 1회» (2회면 ⌘Z 를 두 번 눌러야 한다)
- *     ⑵ 그 스냅샷이 «바뀌기 전» 상태다 (뒤에 찍으면 한 번 눌러도 안 돌아온다)
+ *     ⑵ ~~그 스냅샷이 «바뀌기 전» 상태다~~ → 0.9.14 97행: «바뀐 뒤» 상태다(push-after · 앞 칸은 이전 동작의 끝 표본)
  *   ⛔「⌘Z 를 눌러 봤다」고 적지 않는다 — 여기선 못 누른다. 무엇을 쟀는지 그대로 적는다. */
-test('R6-undo ★폭(%) 한 번 = 히스토리 한 단계, 그리고 스냅샷은 «바뀌기 전» 것이다', async ({ page }) => {
+test('R6-undo ★폭(%) 한 번 = 히스토리 한 단계, 그리고 스냅샷은 «바뀐 뒤» 것이다(push-after)', async ({ page }) => {
   const errs = await boot(page);
   const got = await page.evaluate(async (fx) => {
     const b = window.__mount(fx, { r: 1, c: 0, li: 1 });
@@ -378,8 +378,10 @@ test('R6-undo ★폭(%) 한 번 = 히스토리 한 단계, 그리고 스냅샷�
   expect(got.before, '★전제 — 폭을 안 준 그림은 저장본에 widthPct 가 없다').toBeNull();
   expect(got.after, '★폭(%)이 저장본에 안 닿았다').toBe(40);
   expect(got.pushes, `★제스처 한 번에 히스토리가 ${got.pushes}단계 쌓였다 — 1 이어야 ⌘Z 한 번에 돌아온다`).toBe(1);
-  expect(got.snapshotValue, '★★스냅샷을 «바뀐 뒤»에 찍었다 — ⌘Z 를 눌러도 40 인 상태로 돌아간다. ' +
-    '이 레포의 moveSection 에 실재하는 버그와 같은 꼴이다').toBe(got.before);
+  /* ★기대 바뀜(0.9.14 97행 UNDO-PUSH-BEFORE-BUTTONS-PICKERS-01 · numWire = push-after): 스냅샷은 «바뀐 뒤» 것이다.
+     ⌘Z 의 «앞 칸»은 이전 동작의 끝 표본이 진다(js/CLAUDE.md 히스토리 규약). 앱 실측(serializeProject 바이트 · ea56805d7 push-before ·
+     c0029673b push-after 둘 다): ⌘Z 한 번 = 조작 전 · ⇧⌘Z = 조작 뒤 — 이 칸만으로는 «한 걸음»을 못 잰다 ⇒ 그건 undo-push-after-3 U grid:2060 이 잰다. */
+  expect(got.snapshotValue, '★스냅샷이 «바뀐 뒤» 값이 아니다 — push-after(끝 표본)가 깨졌다').toBe(got.after);
 });
 
 void A_TEXT; void A_IMG; void A_GAP;
