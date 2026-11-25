@@ -15,6 +15,7 @@
    ⌘Z 는 캔버스를 통째로 갈므로 배선은 노드가 아니라 id 로 프레임을 다시 잡는다(F()). */
 import { propPanel } from '../globals.js';
 import { escHtml, bindSlider, sliderRowHTML, checkHTML } from './_helpers.js';
+import { layoutGapSlotHTML, layoutSlotNumberHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout 간격·너비 슬롯(탑 261125)
 import { isBuzzFrame } from '../blocks/buzz-mark.js';
 import { BUZZ_STYLES, BUZZ_STYLE_KEYS, BUZZ_COUNT, BUZZ_LIMITS, getBuzz, setBuzz, buzzRows,
          relayoutBuzzFrame, applyBuzzStyle, setBuzzFrameBg, setBuzzCount, refitBuzzFrame, buzzCrowded,
@@ -141,11 +142,11 @@ export function buzzSectionHTML(frame) {
                 title="같은 번호로 다시 그리기" aria-label="다시 그리기">↻</button>
       </div>
       ${layout === 'stack'
-        ? _slider('엇갈림', 'bzf-offset', 'offset', getBuzz(frame, 'offset')) + _slider('간격', 'bzf-gap', 'gap', getBuzz(frame, 'gap'))
+        ? _slider('엇갈림', 'bzf-offset', 'offset', getBuzz(frame, 'offset')) + layoutGapSlotHTML({ id: 'bzf-gap-number', label: '간격', value: getBuzz(frame, 'gap'), min: BUZZ_LIMITS.gap.min, max: BUZZ_LIMITS.gap.max })   /* 표준 Layout 간격 슬롯(탑 261125 · 슬라이더 걷음 · id·키·범위 무변) */
         : _slider('흩어짐', 'bzf-spread', 'spread', getBuzz(frame, 'spread')) + `<div class="prop-row">
         ${checkHTML({ id: 'bzf-overlap', label: '겹침', checked: getBuzz(frame, 'overlap') === 1 })}
       </div>`}
-      ${_slider('너비', 'bzf-width', 'width', getBuzz(frame, 'width'), '0 = 글 길이에 맞춤')}
+      ${layoutSlotNumberHTML({ id: 'bzf-width-number', label: '너비', value: getBuzz(frame, 'width'), ...BUZZ_LIMITS.width }).replace('<div class="prop-row ui-lay-slot-num"', '<div class="prop-row ui-lay-slot-num" title="0 = 글 길이에 맞춤"')}   <!-- 표준 Layout 슬롯 숫자(탑 261125 · 모드 드롭다운 0 · 0 = 글에 맞춤 그대로) -->
       ${_slider('각도', 'bzf-angle', 'angle', getBuzz(frame, 'angle'))}
       ${_slider('범위', 'bzf-range', 'range', getBuzz(frame, 'range'), '각도에 더하는 무작위 흔들림(±)')}
       ${_group('bzf-dir', '방향', [['alt', '번갈아'], ['one', '한 방향'], ['rand', '무작위']], getBuzz(frame, 'dir'))}
@@ -275,8 +276,11 @@ export function wireBuzzSection(frame) {
   }, BUZZ_LIMITS.scale);
   slide('bzf-spread', 'spread');
   slide('bzf-offset', 'offset');
-  slide('bzf-gap', 'gap');
-  slide('bzf-width', 'width');
+  /* 표준 Layout 배선(탑 261125) — input = 그림 · change = 히스토리 한 칸(이 절 단추와 같은 push-after) · 라벨 끌기 */
+  const lay = (id, key, label) => wireLayoutSection({ commit: () => save(label), w: { numberId: id, ...BUZZ_LIMITS[key],
+    apply: (v) => { const f = F(); if (!f) return; setBuzz(f, key, v); again(f); }, read: () => { const f = F(); return f ? getBuzz(f, key) : NaN; } } });
+  lay('bzf-gap-number', 'gap', '버즈 간격');
+  lay('bzf-width-number', 'width', '버즈 너비');
   slide('bzf-angle', 'angle');
   slide('bzf-range', 'range');
   $('bzf-overlap')?.addEventListener('change', (e) => {
