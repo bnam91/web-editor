@@ -435,9 +435,9 @@ export function showModalProperties(block) {
     fsNum.value = x; setDs('fontSize', x); commit();
   });
 
-  /* B / I / S / H — ⚠️슬롯 «전체»에만 걸린다.
-     슬롯 글자는 _esc() 평문으로 dataset 에 저장되므로 «부분 선택 서식»은 원리적으로 불가하다
-     (텍스트블록과 다른 점 — 거기선 <b> 태그가 살지만 여기선 «글자로» 보인다). */
+  /* B / I / S / H — ⚠️이 «패널 단추»는 슬롯 «전체»(dataset.bold/italic/strike/highlight)에만 걸린다.
+     부분 서식은 따로 있다 — 캔버스 편집 ⌘B 등은 dataset.<slot>Html(textHtml 꼴)로 커밋되고 렌더가 sanitizeRichTextHtml 로 그린다(modal-block.js _textHtml).
+     ⇒ 패널이 고른 글자를 안 읽는 것은 «원리» 한계가 아니라 아직 안 이은 것(AUDIT R2·R3 · 정정 rp120 O5). */
   // ★id 는 «통짜로» 적는다 — 템플릿으로 조립하면 grep 도 검사도 그 배선을 «못 본다».
   for (const [id, key] of [['mdl-typo-bold-btn', 'bold'], ['mdl-typo-italic-btn', 'italic'],
                            ['mdl-typo-strike-btn', 'strike'], ['mdl-typo-highlight-btn', 'highlight']]) {

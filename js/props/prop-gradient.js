@@ -93,8 +93,7 @@ export function showGradientProperties(block) {
       <button type="button" id="grad-add-stop" class="prop-btn" style="margin-top:6px;width:100%;font-size:12px;">+ 중간색 추가</button></div>` })),   // 표준 Fill F3ⓐ — 겹 줄(이름칸 Linear/Radial · 견본 = goya-cp 그라데이션 탭) + 옛 정지점 바·목록 = 슬롯(옛 id · 걷기는 따로 결정)
       /* ★표준 Layout L2(현빈 261124 L-4 · 시안 #mkp-layoutstd) — 슬라이더 걷음 · 숫자 칸 id·범위·dataset.gradWidth/gradHeight 무변 · 비율 사슬 기본 끔 */
       sec('size', `${layoutSizeRowHTML({ prefix: 'grad', chain: { on: ratioLockOn(block, false) },
-        w: { id: 'grad-width-num', value: width, min: 200, max: 1200 }, h: { id: 'grad-height-num', value: height, min: 50, max: 1500 } })}
-      ${hintHTML('캔버스에 자유 배치 (드래그로 이동, 우측 컨트롤로 크기 조절)')}`),
+        w: { id: 'grad-width-num', value: width, min: 200, max: 1200 }, h: { id: 'grad-height-num', value: height, min: 50, max: 1500 } })}`),   // R8ⓑ(rp120 · 현빈 261119) «우측 컨트롤로 크기 조절» 힌트 걷음 — W/H 칸이 바로 이 줄이다(FigCraft 패널엔 안내 문단 없음 widgets.rs)
       sec('appearance', appearanceSectionHTML({ prefix: 'grad', op: { value: window.readBlockOpacity?.(block) ?? 100 } }), { headTools: appearanceHeadToolsHTML({ prefix: 'grad' }) }),   // 표준 Appearance A4 — Opacity 만(새 절)
     ],
   });

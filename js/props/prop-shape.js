@@ -182,7 +182,7 @@ export function showShapeProperties(block) {
           </div>
         </div>
         ${legacyMosaic ? `
-        <div class="prop-hint" id="shape-redact-legacy-note" style="margin-top:6px;">이 도형은 <b>모자이크</b>로 저장돼 있습니다. 모자이크가 일시 중지돼 지금은 <b>블러로 보여 주는 중</b>이고, 모자이크가 되살아나면 다시 모자이크로 돌아갑니다.</div>
+        <div class="prop-hint" id="shape-redact-legacy-note" style="margin-top:6px;">저장값은 <b>모자이크</b> · 지금은 블러로 보입니다.</div>
         <button type="button" class="prop-btn" id="shape-redact-to-blur" style="margin-top:6px;width:100%;">블러로 바꾸기 (저장값도 블러로)</button>
         ` : ''}
         <div class="prop-row" style="margin-top:8px;">
@@ -193,7 +193,7 @@ export function showShapeProperties(block) {
         <!-- 힌트 ≤2: 레거시 모자이크 고지가 뜨면 블러 설명 줄은 뺀다(고지가 같은 말을 한다) -->
         ${redactMode === 'mosaic' ? `
         <button type="button" class="prop-btn" id="shape-redact-mosaic-refresh" style="margin-top:8px;width:100%;">${window.isMosaicPending?.(block) ? '캡처 중…' : '지금 스냅샷 새로고침'}</button>
-        <div class="prop-hint" style="margin-top:4px;">도형을 얼굴·주민번호 등 위에 올리면 그 순간 밑 콘텐츠를 캡처해 픽셀 모자이크로 가립니다. 실시간 추적이 아니라 도형을 옮기거나(이동/리사이즈 종료) 편집을 마칠 때(mouseup) 자동으로 다시 찍습니다 — 안 맞으면 위 버튼으로 즉시 새로고침하세요. 채우기 색상은 무시됩니다.</div>
+        <div class="prop-hint" style="margin-top:4px;">밑 콘텐츠를 찍어 픽셀 모자이크로 가립니다. 옮기거나 크기를 바꾸면 다시 찍습니다 — 안 맞으면 위 버튼. 채우기 색은 무시됩니다.</div>
         ` : `
         ${legacyMosaic ? '' : `<div class="prop-hint" style="margin-top:4px;">도형을 얼굴·주민번호 등 위에 올리면 밑에 깔린 콘텐츠가 실시간으로 흐려집니다. 채우기 색상은 무시됩니다.</div>`}
         `}
