@@ -854,7 +854,8 @@ function restampHistoryTop(seq) {
 
 /* ★154 t13D-03 마감 ◑(⌥끌기 복제 · 지디 261122 재채점 «⌘Z 한 번에 사본 안 빠짐») — 한 손짓이 쌓은 칸들을 «한 칸»으로 접는다.
  *   seq = 손짓 «전» 꼭대기의 seq. 그 칸은 남기고, 그 뒤에 생긴 칸들 중 꼭대기(끝 상태)만 남긴다 ⇒ ⌘Z 한 번 = 손짓 전.
- *   ⛔안전: 그 사이 되돌리기가 있었거나(꼭대기 아님) 그 seq 가 없거나(밀려남) 새 칸이 둘 미만이면 아무것도 안 한다(false). */
+ *   ⛔안전: 그 사이 되돌리기가 있었거나(꼭대기 아님) 그 seq 가 없거나(밀려남) 새 칸이 둘 미만이면 아무것도 안 한다(false).
+ *   shortcut: 빠지는 가운데 칸의 remoteKeys(원격 기여분 표식)는 꼭대기로 안 옮긴다 — 협업 킬스위치 꺼진 지금은 무해(지디 261125 리뷰) · 협업 켤 때 합쳐 옮기게 고칠 것. */
 function squashHistorySince(seq) {
   if (_historyPaused || seq == null) return false;
   if (historyPos !== historyStack.length - 1) return false;
