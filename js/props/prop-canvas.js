@@ -4,7 +4,7 @@ import { CVB_H_MIN, CVB_H_MAX } from '../blocks/card-limits.js';   // #cvb-h min
 import { blockHeaderHTML, escHtml } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { wireHexText, parseHex6OrTransparent, formatHex6OrTransparent } from './color-picker.js';
-import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast } from './_fill-section.js';   /* 색 코드 칸 배선은 «한 자리»(유닛 colorhex) */
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast, fillHiddenOf, setFillHiddenKey } from './_fill-section.js';   /* 색 코드 칸 배선은 «한 자리»(유닛 colorhex) */
 
 export function showCanvasProperties(block) {
   if (block.dataset.cardMode === 'simple') {
@@ -115,7 +115,7 @@ export function showCanvasProperties(block) {
       sec('appearance', `
       ${appearanceSectionHTML({ prefix: 'cvb', radius: { numberId: 'cvb-radius-number', value: radius, max: 60 } })}   <!-- ★표준 Appearance A2(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·dataset.radius·범위 무변 -->
 `, { headTools: appearanceHeadToolsHTML({ prefix: 'cvb' }) }),
-      sec('fill', fillSectionHTML({ prefix: 'cvb-fill', on: bg !== 'transparent', colorHtml: `<div class="prop-color-field">
+      sec('fill', fillSectionHTML({ prefix: 'cvb-fill', hiddenWhy: '', hidden: fillHiddenOf(block), on: bg !== 'transparent', colorHtml: `<div class="prop-color-field">
         <div class="prop-color-swatch" style="background:${bg === 'transparent' ? '#fff' : bg}">
           <input type="color" id="cvb-bg-pick" value="${bg === 'transparent' ? '#ffffff' : bg}">
         </div>
@@ -221,6 +221,7 @@ export function showCanvasProperties(block) {
   bgPick?.addEventListener('change', () => window.pushHistory?.());
   /* 표준 Fill F2-2 — − = 'transparent'(옛 hex 칸에 transparent 쓰던 길과 같은 값) · ＋ = 지난 색 · 없으면 #FFFFFF */
   wireFillSection({ prefix: 'cvb-fill', adapter: {
+    hide: (on) => { setFillHiddenKey(block, on); window.renderCanvas(block); window.scheduleAutoSave?.(); },   // F6-2 숨김 — 키만 바꾸고 다시 그림(렌더러가 키를 보고 칠 안 함)
     none: () => { fillLast.set(block.id, bg); block.dataset.bg = 'transparent'; window.renderCanvas(block); window.scheduleAutoSave?.(); showCanvasProperties(block); },
     add: () => { block.dataset.bg = fillLast.get(block.id, '#ffffff'); window.renderCanvas(block); window.scheduleAutoSave?.(); showCanvasProperties(block); },
     commit: () => window.pushHistory?.() } });

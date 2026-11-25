@@ -1,5 +1,6 @@
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast, fillHiddenOf, setFillHiddenKey } from './_fill-section.js';
 import { alignBtn, blockHeaderHTML, checkHTML } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
 import { buildTypographySectionHtml } from './_typo-section.js';   // 표준 Typography 절(시트 221) — 크기칸 둘(제목·설명)
@@ -158,10 +159,7 @@ export function showStepProperties(block, activeIdxArg) {
         omitHidden: true,
       })}`).join('')),
       sec('fill', `
-      <div class="prop-row" id="stb-card-bg-row" style="display:${stepStyle === 'card' ? 'flex' : 'none'}">
-        <span class="prop-label">카드 배경</span>
-        ${colorFieldHTML({ idPrefix: 'stb-card-bg', hex: stepCardBg, alpha: parseAlphaFromColor(stepCardBg) })}
-      </div>
+      <div id="stb-card-bg-row" style="display:${stepStyle === 'card' ? 'block' : 'none'}">${fillSectionHTML({ prefix: 'stb-fill', hiddenWhy: '', hidden: fillHiddenOf(block), on: stepCardBg !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'stb-card-bg', hex: stepCardBg, alpha: parseAlphaFromColor(stepCardBg) }) })}</div>
       <div class="prop-row">
         <span class="prop-label">배지 배경</span>
         ${colorFieldHTML({ idPrefix: 'stb-num-bg', hex: numBg, alpha: parseAlphaFromColor(numBg) })}
@@ -177,7 +175,7 @@ export function showStepProperties(block, activeIdxArg) {
       <div class="prop-row">
         <span class="prop-label">설명 색</span>
         ${colorFieldHTML({ idPrefix: 'stb-desc-color', hex: descColor, alpha: parseAlphaFromColor(descColor) })}
-      </div>`),
+      </div>`, { headTools: stepStyle === 'card' ? fillHeadToolsHTML({ prefix: 'stb-fill', on: stepCardBg !== 'transparent' }) : '' }),   // 표준 Fill F5-1 — 카드 배경 = 표준 줄(카드 꼴일 때만 · 없음 = 'transparent') · 배지·제목·설명 = 부위 색 줄 그대로
       sec('special', `
       <div class="prop-row" title="시작: 이 step-block의 첫 번호 (다른 step-block과 01/02/03 순차 표시) · 형식: 배지 표기 방식">
         <span class="prop-label" style="width:auto;flex:0 0 auto">시작</span>
@@ -217,7 +215,7 @@ export function showStepProperties(block, activeIdxArg) {
     if (!btn) return;
     block.dataset.stepStyle = btn.dataset.style;
     const cardBgRow = propPanel.querySelector('#stb-card-bg-row');
-    if (cardBgRow) cardBgRow.style.display = btn.dataset.style === 'card' ? 'flex' : 'none';
+    if (cardBgRow) cardBgRow.style.display = btn.dataset.style === 'card' ? 'block' : 'none';   // 표준 Fill F5-1 — 그릇 = 표준 줄 감싼 div(flex 면 줄이 옆으로 눌림)
     rerender();
     propPanel.querySelectorAll('#stb-style-group [data-style]').forEach(b => b.classList.toggle('active', b === btn));
     window.pushHistory?.();
@@ -243,6 +241,12 @@ export function showStepProperties(block, activeIdxArg) {
   }
 
   bindColor('stb-card-bg',    'stepCardBg', stepCardBg);
+  /* 표준 Fill F5-1 — − = stepCardBg 'transparent' · ＋ = 지난 색 · 없으면 토큰 기본 */
+  wireFillSection({ prefix: 'stb-fill', adapter: {
+    hide: (on) => { setFillHiddenKey(block, on); rerender(); },   // F6-2 숨김 — 키만 바꾸고 다시 그림(렌더러가 키를 보고 칠 안 함)
+    none: () => { fillLast.set(block.id, stepCardBg); block.dataset.stepCardBg = 'transparent'; rerender(); showStepProperties(block, activeIdx); },
+    add: () => { block.dataset.stepCardBg = fillLast.get(block.id, _stepToken('--preset-step-card-bg', '#f5f5f5')); rerender(); showStepProperties(block, activeIdx); },
+    commit: () => window.pushHistory?.() } });
   bindColor('stb-num-bg',     'numBg',      numBg);
   bindColor('stb-num-color',  'numColor',   numColor);
   bindColor('stb-title-color','titleColor', titleColor);

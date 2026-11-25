@@ -176,6 +176,7 @@ const panelAlive = (page) => page.evaluate(() => {
 /** 패널에서 «배경»이라 적힌 절을 찾아, 그 안의 색 스와치와 «초기화류» 버튼을 rect 로 재서 돌려준다.
  *  선택자(#asset-bg-*)를 못박지 않는다 — 고친 쪽이 다른 id 를 써도 같은 뜻이면 통과해야 한다. */
 const bgReach = (page) => page.evaluate(() => {
+  document.querySelector('#panel-right [id$="-fill-add"]')?.click();   // ★전제(74행 cf680cce1 · 키 없는 새 에셋 = 표준 Fill «칠 없음 + ＋» · 색 칸 안 섬) → ＋ 로 켠 뒤 색 칸(IC 꼴 39353d07d · 사용자가 닿는 길 그대로)
   const body = document.querySelector('#panel-right .panel-body');
   if (!body) return { section: false };
   const secs = [...body.querySelectorAll('.prop-section')];
@@ -221,6 +222,7 @@ const bgState = (page) => page.evaluate(() => {
 /** 배경 절의 스와치를 «눌러» 컬러피커를 연다. (0×0 유령이면 여기서 못 연다 = 자동 검출) */
 async function openBgPicker(page) {
   const pos = await page.evaluate(() => {
+    document.querySelector('#panel-right [id$="-fill-add"]')?.click();   // ★전제(74행 cf680cce1 · 키 없는 새 에셋 = 표준 Fill «칠 없음 + ＋» · 색 칸 안 섬) → ＋ 로 켠 뒤 색 칸(IC 꼴 39353d07d · 사용자가 닿는 길 그대로)
     const body = document.querySelector('#panel-right .panel-body');
     const sec = [...body.querySelectorAll('.prop-section')].find(s => s.dataset.sec === 'fill' || /배경/.test(s.innerText));   // ★전제(표준 Fill F2-2 · 지디 261124): 배경 줄 «배경색» 라벨 걷힘(시안 #mkp-fillstd 겹 줄 = 라벨 없음) → 절 이름(data-sec=fill)으로도
     const sw = sec && sec.querySelector('.prop-color-swatch');
@@ -243,6 +245,7 @@ async function closePicker(page) {
 /** 사용자가 hex 칸에 «자기 색»을 찍는 진짜 경로. */
 async function typeBgHex(page, hex) {
   await page.evaluate((h) => {
+    document.querySelector('#panel-right [id$="-fill-add"]')?.click();   // ★전제(74행 cf680cce1 · 키 없는 새 에셋 = 표준 Fill «칠 없음 + ＋» · 색 칸 안 섬) → ＋ 로 켠 뒤 색 칸(IC 꼴 39353d07d · 사용자가 닿는 길 그대로)
     const body = document.querySelector('#panel-right .panel-body');
     const sec = [...body.querySelectorAll('.prop-section')].find(s => s.dataset.sec === 'fill' || /배경/.test(s.innerText));   // ★전제(표준 Fill F2-2 · 지디 261124): 배경 줄 «배경색» 라벨 걷힘(시안 #mkp-fillstd 겹 줄 = 라벨 없음) → 절 이름(data-sec=fill)으로도
     const inp = sec.querySelector('.prop-color-hex');

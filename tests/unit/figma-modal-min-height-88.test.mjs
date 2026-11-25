@@ -14,10 +14,10 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 const EXP = fs.readFileSync(path.join(ROOT, 'js/io/export-figma-json.js'), 'utf8');
 const MODAL_SRC = sliceBlock(EXP, "if (el.classList.contains('modal-block')) {");
 
-function run(el, live) {
+function run(el, live) {   // _fh = dev F7 fillHidden(통합 × f93500071 만남 · 숨김 아님 = 키 0)
   const document = { getElementById: (id) => (id === el.id ? live : null) };
   return new Function('el', 'document',
-    `const _modalTextRanges = () => []; const _strokeBorderOut = () => null; ${MODAL_SRC}; return null;`)(el, document);
+    `const _modalTextRanges = () => []; const _strokeBorderOut = () => null; const _fh = () => ({}); ${MODAL_SRC}; return null;`)(el, document);
 }
 // 분리된 클론(offsetHeight 0) + 살아 있는 요소(실측 h) — 실제 내보내기와 같은 꼴
 function mkModal(ds, h) {

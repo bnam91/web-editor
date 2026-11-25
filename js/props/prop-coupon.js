@@ -19,6 +19,7 @@
 */
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast, fillHiddenOf, setFillHiddenKey } from './_fill-section.js';
 /* ★HTML 이스케이프는 ★정본 하나다 — ⛔제 사본을 만들지 마라
    (tests/unit/name-axes-to-markup X9 가 사본 수를 센다). */
 import { blockHeaderHTML, escHtml as _esc, disclosureChevronHtml, checkHTML } from './_helpers.js';
@@ -186,14 +187,11 @@ ${openKey ? _slotPanelHTML(block, openKey) : ''}`),
       <div class="prop-row" title="비율 16:9 를 블럭이 스스로 지킵니다 (비율 고르기는 2단계)"><span class="prop-label">비율</span><span class="prop-value-text">16:9 · 높이 ${boxH}px</span></div>`),   // 옛 «높이» 값 줄 꼴 그대로(⛔prop-hint 로 두면 칸 열림 때 패널 안내가 3개 → 게이트 «prop-hint > 2»)
       sec('appearance', appearanceSectionHTML({ prefix: 'cpn', op: { value: window.readBlockOpacity?.(block) ?? 100 }, radius: { numberId: 'cpn-radius-number', value: radius, min: L.radius.min, max: L.radius.max } }), { headTools: appearanceHeadToolsHTML({ prefix: 'cpn' }) }),   // ★표준 Appearance A2 — 옛 _pairRow 슬라이더 걷음 · 숫자 칸 id·dataset.radius·L.radius 무변
       sec('fill', `
-      <div class="prop-row">
-        <span class="prop-label">본체색</span>
-        ${colorFieldHTML({ idPrefix: 'cpn-body', hex: _swatchHex(bodyCol, COUPON_DEFAULTS.bodyCol), alpha: parseAlphaFromColor(bodyCol) })}
-      </div>
+      ${fillSectionHTML({ prefix: 'cpn-fill', hiddenWhy: '', hidden: fillHiddenOf(block), on: bodyCol !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'cpn-body', hex: _swatchHex(bodyCol, COUPON_DEFAULTS.bodyCol), alpha: parseAlphaFromColor(bodyCol) }) })}
       <div class="prop-row">
         <span class="prop-label">스텁색</span>
         ${colorFieldHTML({ idPrefix: 'cpn-stub', hex: _swatchHex(stubCol, COUPON_DEFAULTS.stubCol), alpha: parseAlphaFromColor(stubCol) })}
-      </div>`),
+      </div>`, { headTools: fillHeadToolsHTML({ prefix: 'cpn-fill', on: bodyCol !== 'transparent' }) }),   // 표준 Fill F5-1 — 본체 = 표준 줄(없음 = 'transparent' · 블럭 색 검사가 받음) · 스텁색 = 부위 색 줄 그대로
     ],
   });
 
@@ -237,6 +235,12 @@ ${openKey ? _slotPanelHTML(block, openKey) : ''}`),
     });
   };
   wireColor('cpn-body', 'bodyCol');
+  /* 표준 Fill F5-1 — − = bodyCol 'transparent' · ＋ = 지난 색 · 없으면 블럭 기본 */
+  wireFillSection({ prefix: 'cpn-fill', adapter: {
+    hide: (on) => { setFillHiddenKey(block, on); rerender(); },   // F6-2 숨김 — 키만 바꾸고 다시 그림(렌더러가 키를 보고 칠 안 함)
+    none: () => { fillLast.set(block.id, block.dataset.bodyCol || COUPON_DEFAULTS.bodyCol); block.dataset.bodyCol = 'transparent'; rerender(); showCouponProperties(block, slotKey); },
+    add: () => { block.dataset.bodyCol = fillLast.get(block.id, COUPON_DEFAULTS.bodyCol); rerender(); showCouponProperties(block, slotKey); },
+    commit } });
   wireColor('cpn-stub', 'stubCol');
 
   /* ── 프리셋 칩 ──────────────────────────────────────────────────────────────

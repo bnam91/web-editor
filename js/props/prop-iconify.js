@@ -1,6 +1,7 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML, wireRotRow } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
+import { fillSectionHTML } from './_fill-section.js';   // 표준 Fill F5-1b(탑 import 6행과 떨어진 자리)
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { strokeSectionHTML, wireStrokeSection } from './_stroke-section.js';
 import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from './_position-section.js';   // 표준 Position 절(0.9.14 73행 P3)
@@ -85,22 +86,18 @@ export function showIconifyProperties(block) {
       </div>`),
       /* ★표준 Stroke 2-5(현빈 261124 ⓑ · 8910 #mkp-linestroke) — 선 아이콘: 굵기만(색 = Fill 의 아이콘 한 색) · ＋/− · 위치 · ⫶ 없음 · 옛 id icn-stroke-w-number · 걸음·한도 = icon-variant 상수 그대로 */
       sec('stroke', strokeable ? strokeSectionHTML({ prefix: 'icn-stroke', noColor: true, noAlign: true, width: strokeW, minWidth: ICON_STROKE_MIN, maxWidth: ICON_STROKE_MAX, step: ICON_STROKE_STEP, widthId: 'icn-stroke-w-number' }) : ''),
-      sec('fill', `${fillState ? `
+      sec('fill', `${isRaster ? `
+      <div class="prop-row">
+        <span class="prop-label" style="font-size:10px;color:#888;line-height:1.4;">이미지(PNG/JPG)는 색을 바꿀 수 없어요</span>
+      </div>` : fillSectionHTML({ prefix: 'icn-fill', removeWhy: '아이콘이 안 보이게 되는 길이라 지금은 못 지워요', colorHtml: colorFieldHTML({ idPrefix: 'icn-color', hex: color, alpha: colorAlpha }),
+        slotsBelow: fillState ? `<div class="ui-fill-slot" data-slot="below" data-slot-kind="ms-fill">
       <div class="prop-row">
         <span class="prop-label">채움</span>
         <div class="prop-align-group" id="icn-ms-fill-group">
           <button class="prop-align-btn${fillState === 'fill' ? ' active' : ''}" data-ms-fill="fill" title="채운 모양(Material Symbols)">채움</button>
           <button class="prop-align-btn${fillState === 'outline' ? ' active' : ''}" data-ms-fill="outline" title="선 모양(Material Symbols)">선</button>
         </div>
-      </div>` : ''}
-      ${isRaster ? `
-      <div class="prop-row">
-        <span class="prop-label" style="font-size:10px;color:#888;line-height:1.4;">이미지(PNG/JPG)는 색을 바꿀 수 없어요</span>
-      </div>` : `
-      <div class="prop-color-row">
-        <span class="prop-label">Color</span>
-        ${colorFieldHTML({ idPrefix: 'icn-color', hex: color, alpha: colorAlpha })}
-      </div>`}`),
+      </div></div>` : '' })}`),   // 표준 Fill F5-1b — 아이콘 색 = 표준 줄(− 막힘 = 아이콘이 안 보임 · 사실) · «채움/선»(Material Symbols) = 슬롯(ms-fill) · 이미지 아이콘 = 옛 까닭 줄 그대로(막힘)
       // 옛 「내 SVG 프리셋」 — 내 라이브러리(저장·불러오기). 블록 고유 절
       sec('special', `
       <div class="prop-row" style="gap:4px;">

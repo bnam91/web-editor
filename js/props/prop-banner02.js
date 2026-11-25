@@ -4,7 +4,7 @@ import { propPanel } from '../globals.js';
 import { blockHeaderHTML, disclosureSectionHtml, discSecOpen, discSecToggle, checkHTML } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField } from './color-picker.js';
-import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, setFillKindName, fillLast, fillKindOfCss } from './_fill-section.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, setFillKindName, fillLast, fillKindOfCss, fillHiddenOf, setFillHiddenKey } from './_fill-section.js';
 /* ★window.* 가 아니라 «import» 로 잡는다 — 로드 순서가 바뀌어도 토글이 조용히 사라지지 않는다. */
 import { effectiveSectionPadX, clearBlockFullBleed } from '../drag-utils.js';
 import { layoutSizeRowHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout L2
@@ -309,7 +309,7 @@ export function showBanner02Properties(block, activeIdxArg) {
 ` : ''),
       sec('appearance', `
       ${appearanceSectionHTML({ prefix: 'bn2', op: { value: window.readBlockOpacity?.(block) ?? 100 }, radius: { numberId: 'bn2-radius-num', value: parseInt(d.radius) || 0, max: 60 } })}   <!-- ★표준 Appearance A2(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·dataset.radius·범위 무변 -->`, { headTools: appearanceHeadToolsHTML({ prefix: 'bn2' }) }),
-      sec('fill', fillSectionHTML({ prefix: 'bn2-fill', on: d.bg !== 'transparent', kind: fillKindOfCss(bgIsGrad ? d.bg : ''), colorHtml: colorFieldHTML({ idPrefix: 'bn2-bg', hex: bgIsGrad ? '#f3f4f6' : (d.bg || '#f3f4f6'), gradientCss: bgIsGrad ? d.bg : '' }) }),
+      sec('fill', fillSectionHTML({ prefix: 'bn2-fill', hiddenWhy: '', hidden: fillHiddenOf(block), on: d.bg !== 'transparent', kind: fillKindOfCss(bgIsGrad ? d.bg : ''), colorHtml: colorFieldHTML({ idPrefix: 'bn2-bg', hex: bgIsGrad ? '#f3f4f6' : (d.bg || '#f3f4f6'), gradientCss: bgIsGrad ? d.bg : '' }) }),
         { headTools: fillHeadToolsHTML({ prefix: 'bn2-fill', on: d.bg !== 'transparent' }) }),   // 표준 Fill F2-2 — 없음 = bg 'transparent'
     ],
   });
@@ -419,6 +419,7 @@ export function showBanner02Properties(block, activeIdxArg) {
 
   /* 표준 Fill F2-2 — − = 'transparent' · ＋ = 지난 색 · 없으면 #F3F4F6(블럭 기본) */
   wireFillSection({ prefix: 'bn2-fill', adapter: {
+    hide: (on) => { setFillHiddenKey(block, on); rerender(); window.scheduleAutoSave?.(); },   // F6-2 숨김 — 키만 바꾸고 다시 그림(렌더러가 키를 보고 칠 안 함)
     none: () => { fillLast.set(block.id, block.dataset.bg); block.dataset.bg = 'transparent'; window.hideGradientLine?.(block); rerender(); window.scheduleAutoSave?.(); showBanner02Properties(block, activeIdx); },
     add: () => { block.dataset.bg = fillLast.get(block.id, '#f3f4f6'); rerender(); window.scheduleAutoSave?.(); showBanner02Properties(block, activeIdx); },
     commit } });

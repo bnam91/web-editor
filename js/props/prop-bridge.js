@@ -2,7 +2,7 @@ import { propPanel, state } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast } from './_fill-section.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast, fillHiddenOf, setFillHiddenKey } from './_fill-section.js';
 import { layoutSizeRowHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(L2 · C1)
 import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A4 Opacity)
 
@@ -36,7 +36,7 @@ export function showBridgeProperties(block) {
       id: block.id,
     }),
     sections: [
-      sec('fill', fillSectionHTML({ prefix: 'brg-fill', on: color !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'brg', hex: color, alpha }) }),
+      sec('fill', fillSectionHTML({ prefix: 'brg-fill', hiddenWhy: '', hidden: fillHiddenOf(block), on: color !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'brg', hex: color, alpha }) }),
         { headTools: fillHeadToolsHTML({ prefix: 'brg-fill', on: color !== 'transparent' }) }),   // 표준 Fill F2 — 없음 = bridgeColor 'transparent'(svg path fill 그대로 받음)
       /* ★표준 Layout L2(현빈 261124 L-4) — 옛 brg-h-slider 걷음 · 숫자 칸 id·범위 무변 · H 만 = 한 칸(one) · 아이콘 ↕(one.icon h) */
       sec('size', layoutSizeRowHTML({ prefix: 'brg', one: { id: 'brg-h-number', label: 'Height', icon: 'h', min: 20, max: 300, value: height } })),
@@ -99,6 +99,7 @@ export function showBridgeProperties(block) {
   /* 표준 Fill F2 — − = 'transparent' · ＋ = 지난 색 · 없으면 #CCCCCC(BRIDGE_DEFAULTS) */
   const _brgFill = (c) => { block.dataset.bridgeColor = c; block.querySelector('svg path')?.setAttribute('fill', c); window.scheduleAutoSave?.(); showBridgeProperties(block); };
   wireFillSection({ prefix: 'brg-fill', adapter: {
+    hide: (on) => { setFillHiddenKey(block, on); window.renderBridgeBlock?.(block); window.scheduleAutoSave?.(); },   // F6-2b 숨김 — 키 + 다시 그림(렌더러가 svg fill-opacity 0)
     none: () => { fillLast.set(block.id, color); _brgFill('transparent'); },
     add: () => _brgFill(fillLast.get(block.id, '#cccccc')),
     commit: () => window.pushHistory?.() } });

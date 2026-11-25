@@ -78,7 +78,7 @@ function renderStepBlock(block) {
   const descColor  = block.dataset.descColor  || _stepToken('--preset-step-desc', '#555555');
   const orient     = block.dataset.stepOrient || 'vertical';
   const style      = block.dataset.stepStyle  || 'default';
-  const cardBg     = block.dataset.stepCardBg || _stepToken('--preset-step-card-bg', '#f5f5f5');
+  const cardBg     = block.dataset?.fillHidden === '1' ? 'transparent' : (block.dataset.stepCardBg || _stepToken('--preset-step-card-bg', '#f5f5f5'));   // F6-2 숨김(키 = props/_fill-section setFillHiddenKey · import 0 = 하네스 단독 적재) — 칠만 안 함 · 색 키 그대로
   const align          = block.dataset.stepAlign       || 'left';
   const padL = parseInt(block.dataset.stepPadL ?? block.dataset.stepPadX) || 0;
   const padR = parseInt(block.dataset.stepPadR ?? block.dataset.stepPadX) || 0;

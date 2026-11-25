@@ -5,7 +5,7 @@ import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast } from './_fill-section.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast, fillHiddenOf, setFillHiddenKey } from './_fill-section.js';
 
 import { layoutPadSlotHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(C2)
 
@@ -39,7 +39,7 @@ export function showInnerCardProperties(block) {
       sec('padding', layoutPadSlotHTML({ allId: 'icd-pad-number', all: padding, max: 120 })),   // ★표준 Layout(C2) — 네 면 한 값 한 칸 · 옛 슬라이더 icd-pad-slider 걷음 · 숫자 칸 id·범위·dataset.padding 무변
       sec('appearance', `
       ${appearanceSectionHTML({ prefix: 'icd', op: { value: window.readBlockOpacity?.(block) ?? 100 }, radius: { numberId: 'icd-radius-number', value: radius, max: 60 } })}   <!-- ★표준 Appearance A2(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·dataset.radius·범위 무변 -->`, { headTools: appearanceHeadToolsHTML({ prefix: 'icd' }) }),
-      sec('fill', fillSectionHTML({ prefix: 'icd-fill', on: bg !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'icd-bg', hex: bg, alpha: parseAlphaFromColor(bg) }) }),
+      sec('fill', fillSectionHTML({ prefix: 'icd-fill', hiddenWhy: '', hidden: fillHiddenOf(block), on: bg !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'icd-bg', hex: bg, alpha: parseAlphaFromColor(bg) }) }),
         { headTools: fillHeadToolsHTML({ prefix: 'icd-fill', on: bg !== 'transparent' }) }),   // 표준 Fill F2 — 없음 = bg 'transparent'(블럭 색 검사가 이미 받는 값)
       sec('effects', `
       <div class="prop-row">
@@ -64,6 +64,7 @@ export function showInnerCardProperties(block) {
   }
   /* 표준 Fill F2 — − = 'transparent' · ＋ = 지난 색 · 없으면 #FFFFFF(블럭 기본) */
   wireFillSection({ prefix: 'icd-fill', adapter: {
+    hide: (on) => { setFillHiddenKey(block, on); window.renderInnerCardBlock?.(block); window.scheduleAutoSave?.(); },   // F6-2 숨김 — 키만 바꾸고 다시 그림(렌더러가 키를 보고 칠 안 함)
     none: () => { fillLast.set(block.id, bg); block.dataset.bg = 'transparent'; window.renderInnerCardBlock?.(block); window.scheduleAutoSave?.(); showInnerCardProperties(block); },
     add: () => { block.dataset.bg = fillLast.get(block.id, '#ffffff'); window.renderInnerCardBlock?.(block); window.scheduleAutoSave?.(); showInnerCardProperties(block); },
     commit: () => window.pushHistory?.() } });

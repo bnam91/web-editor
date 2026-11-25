@@ -9,7 +9,7 @@
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { strokeSectionHTML, wireStrokeSection, STROKE_STYLES_SVG, STROKE_POP_WHY } from './_stroke-section.js';
-import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast } from './_fill-section.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast, fillHiddenOf, setFillHiddenKey } from './_fill-section.js';
 import { readLook, writeLook } from '../stroke-look.js';
 import { blockHeaderHTML, escHtml as _esc, checkHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
@@ -256,7 +256,7 @@ export function showRadialProperties(block, idx) {
       })}
       ${/* 굵기 = 옛 줄 유지 — 부품 select(100~900)를 쓰면 저장 값 꼴(bold/normal)이 바뀐다 */ _typeRow('라벨 굵기', 'rdl-labelweight', [['bold', '굵게'], ['normal', '보통']], st.labelWeight)}`),
       sec('fill', `
-      ${fillSectionHTML({ prefix: 'rdl-fill', on: !!st.bg && st.bg !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'rdl-bg', hex: _swatchHex(st.bg || '#ffffff', '#ffffff'), alpha: parseAlphaFromColor(st.bg || '#ffffff') }) })}
+      ${fillSectionHTML({ prefix: 'rdl-fill', hiddenWhy: '', hidden: fillHiddenOf(block), on: !!st.bg && st.bg !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'rdl-bg', hex: _swatchHex(st.bg || '#ffffff', '#ffffff'), alpha: parseAlphaFromColor(st.bg || '#ffffff') }) })}
       ${isDot ? _colorRow('rdl-dotcolor', '점 색', st.dotColor, RADIAL_DEFAULTS.dotColor) : _colorRow('rdl-cellfill', '칸 채움', st.cellFill, RADIAL_DEFAULTS.cellFill)}
       ${st.centerMode === 'text' ? `
       ${/* 블럭 배경 꼴 — 가운데 기본값만 'transparent' 라 먼저 '' 로 바꿔 같은 빈 값 표시(#ffffff)에 닿게 한다 */ _colorRow('rdl-center-bg', '가운데 배경', (st.centerBg === 'transparent' ? '' : st.centerBg) || '#ffffff', '#ffffff')}
@@ -447,6 +447,7 @@ export function showRadialProperties(block, idx) {
   }
   /* 표준 Fill F2-3 — − = bg ''(옛 «배경 지우기 (투명)» 단추가 쓰던 값 그대로 · 단추·힌트는 표준 «칠 없음» 줄로) · ＋ = 지난 색 · 없으면 #FFFFFF(옛 빈 값 표시) */
   wireFillSection({ prefix: 'rdl-fill', adapter: {
+    hide: (on) => { setFillHiddenKey(block, on); rerender(); },   // F6-2 숨김 — 키만 바꾸고 다시 그림(렌더러가 키를 보고 칠 안 함)
     none: () => { fillLast.set(block.id, block.dataset.bg); block.dataset.bg = ''; rerender(); reopen(); },
     add: () => { block.dataset.bg = fillLast.get(block.id, '#ffffff'); rerender(); reopen(); },
     commit } });

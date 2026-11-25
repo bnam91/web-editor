@@ -21,6 +21,7 @@ import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, G
 import { GAP_MIN, GAP_MAX } from '../blocks/gap-limits.js';
 import { showGridGutters, hideGridGutters } from '../overlay-handles.js';
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
+import { fillSectionHTML } from './_fill-section.js';   // 표준 Fill F5-2 — 블럭 배경 색 줄
 /* ★right-panel-unify U1 — 패널 껍데기는 틀(renderPanel·sec)이 그린다 · 스코프칩(⑥)도 틀 부품. */
 import { renderPanel, sec, scopeChipsHTML, expandSection } from './_panel-frame.js';
 import { positionHeadToolsHTML } from './_position-section.js';   // 표준 Position 머리 엔드슬롯(그리드 «흐름 안에 있음» 줄 걷음 · 현빈 19:22)
@@ -2922,10 +2923,7 @@ function _grdBlockBgSectionHtml(block) {
   return `
     <div class="prop-section" id="grd-bbg-section" data-scope="block">
       <div class="prop-section-title" style="display:flex;align-items:center;justify-content:space-between;">블럭 배경 ${toggle}</div>
-      <div class="prop-color-row">
-        <span class="prop-label">배경색</span>
-        ${window.colorFieldHTML({ idPrefix: 'grd-bbg', hex: swatchHex(bg.color, '#f5f5f5'), alpha: parseAlphaFromColor(bg.color) })}
-      </div>
+      ${fillSectionHTML({ prefix: 'grd-bbg-fill', removeWhy: '블럭 배경 끄기 = 제목 옆 토글', colorHtml: window.colorFieldHTML({ idPrefix: 'grd-bbg', hex: swatchHex(bg.color, '#f5f5f5'), alpha: parseAlphaFromColor(bg.color) }) })}   <!-- 표준 Fill F5-2 — 블럭 배경 색 = 표준 줄 · 켬/끔 정본 = 옛 토글(지디 (가) · Stroke 그리드와 같게 · 키 무변) -->
       <div class="prop-row">
         <span class="prop-label">이미지</span>
         <div style="display:flex;gap:4px;flex:1;min-width:0;">

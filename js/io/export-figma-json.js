@@ -173,7 +173,7 @@ function _shapeFigmaBlock(el) {
   /* 별의 갯수·간격·통통함·꼭짓점 둥글기·별마다 배율·평점 칠 — 옛 판은 여기서 0건이라 Figma 엔 «별 하나 + 색 하나»로 갔다(t1bstar 2026-10-10 기록).
    ⇒ 261117 SHAPE-STAR-FIGMA-EXPORT-FIXED-FORM-01 이 아래 starViewBox·starPolygons 로 고쳤다(캔버스가 이미 그린 SVG 를 그대로 싣는다). */
   const out = {
-    type: 'shape', id: el.id || '',
+    type: 'shape', id: el.id || '', ...(el.dataset?.fillHidden === '1' ? { fillHidden: true } : {}),   // F7 숨김(= _fh · 이 함수는 유닛이 홀로 잘라 쓰니 helper 없이 같은 한 줄)
     shapeType: el.dataset.shapeType || 'rect',
     color,
     // ★0 보존(0918 기본 테두리 0) — `|| 1` 이면 0이 1이 돼 피그마에 1px 테두리가 생긴다. 누락/NaN 만 1.
@@ -676,6 +676,11 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         })(),
       };
       { const _bd = _strokeBorderOut(el.dataset, parseInt(el.dataset.strokeWidth) || 0, el.dataset.strokeColor || '#000000', 'solid'); if (_bd) _assetOut.border = _bd; }   // 표준 Stroke 4-3 — 에셋 테두리(굵기 0 = 안 실음 = 옛 바이트)
+      { const _abg = el.dataset.bgColor;   // F8 ①(시트 81행 · 지디 261125): 배경색 = 빈 칸·투명 PNG 사이로 캔버스에 보인다(D33) · 키 없음·transparent = 안 실음 = 옛 바이트
+        if (_abg && _abg !== 'transparent') {
+          Object.assign(_assetOut, { bg: _abg }, _fh(el));
+          if (/gradient\s*\(/i.test(_abg)) { const g = parseGradient(_abg); if (g && Array.isArray(g.stops) && g.stops.length >= 2) _assetOut.bgGradient = { type: g.type, angle: g.angle, stops: g.stops }; }
+        } }
       if (!el.dataset.collab && !_assetOut.halftone) Object.assign(_assetOut, _assetFigmaClipCrop(el));   // FIGMA-ASSET-CLIP-OFF-AND-CROP-MISMATCH-01 — 단일 그림만 clip·crop(묶음은 아래 콜라보 갈래 그대로)
       return el.dataset.collab ? _assetCollabFigmaFrame(el, _assetOut) : _assetOut;   // ★1013t2A2
     }
@@ -699,8 +704,9 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         const _ds = el.dataset.bgColor;
         bgColor = (_ds && _ds !== '#e8e8e8') ? _ds : null;
       }
+      if (_fh(el).fillHidden) { const _hc = el.dataset.bgColor; if (_hc && _hc !== '#e8e8e8' && _hc !== 'transparent') bgColor = _hc; }   // F7 숨김 — 계산 style 은 숨김 규칙에 투명이라 null(→ 렌더러 빈 원 체커)이 됐다 · 원래 색 + fillHidden 으로 보내 Figma 칠 눈만 끔
       const _circleOut = {
-        type:    'circle',
+        type:    'circle', ..._fh(el),
         id:      el.id || ('icb_' + Math.random().toString(36).slice(2, 8)),
         size,
         bgColor,
@@ -823,6 +829,26 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         height:     realH || (rows.length * (fontSize + 28) + 24),
       };
     }
+    if (el.classList.contains('canvas-block') && (el.dataset.cardMode || '') !== 'simple' && el.dataset.layers) {
+      /* 86행 FIGMA-CANVAS-LAYERS-CONTENT-NOT-EXPORTED-01(+81행 ② 칸마다 배경) — 레이어 모드 = 칸 그리드(gridRows×gridCols · 칸 사이 cardGap · 칸마다 배경·둥글기)
+         × 칸마다 되풀이되는 레이어(도형·글·그림 · 디자인 좌표). 예전엔 card-grid(cards 0)로 나가 배경·내용 모두 Figma 에 0.
+         꼴 = MCP add_canvas_block 레이어 꼴 그대로(알려진 칸만) · 그림 src(goya-asset://)는 buildFigmaExportJSONInlined 후처리가 data URI 로 · 심플 모드는 아래 card-grid 그대로(바이트 무변) */
+      let layers = [];
+      try { layers = JSON.parse(el.dataset.layers || '[]'); } catch {}
+      const LK = ['type', 'x', 'y', 'w', 'h', 'color', 'radius', 'src', 'content', 'fontSize', 'fontWeight', 'align'];
+      layers = (Array.isArray(layers) ? layers : []).filter((l) => l && ['shape', 'text', 'image'].includes(l.type))
+        .map((l) => Object.fromEntries(LK.filter((k) => l[k] !== undefined && l[k] !== null && l[k] !== '').map((k) => [k, l[k]])));
+      const _lv = (el.id && document.getElementById(el.id)) || el;
+      const _in = _lv.querySelector('.cvb-inner');
+      const _sm = /scale\(([\d.]+)\)/.exec((_in && _in.style.transform) || '');
+      const bg = el.dataset.bg || '';
+      const grid = { cols: parseInt(el.dataset.gridCols) || 1, rows: parseInt(el.dataset.gridRows) || 1, gap: parseInt(el.dataset.cardGap ?? '12'),
+        cellW: parseInt(el.dataset.canvasW) || 360, cellH: parseInt(el.dataset.canvasH) || 400, radius: parseInt(el.dataset.radius) || 0, padX: parseInt(el.dataset.padX ?? '0') || 0,
+        ...(bg && bg !== 'transparent' ? { bg } : {}), ...(el.dataset.fillHidden === '1' && bg && bg !== 'transparent' ? { bgHidden: true } : {}) };
+      if (grid.bg && /gradient\s*\(/i.test(grid.bg)) { const g = parseGradient(grid.bg); if (g && Array.isArray(g.stops) && g.stops.length >= 2) grid.bgGradient = { type: g.type, angle: g.angle, stops: g.stops }; }
+      return { type: 'canvas-layers', id: el.id || ('cvb_' + Math.random().toString(36).slice(2, 8)), layers, grid,
+        scale: _sm ? parseFloat(_sm[1]) : 1, width: Math.round(_lv.offsetWidth || 0), height: Math.round(_lv.offsetHeight || 0) };
+    }
     if (el.classList.contains('canvas-block')) {
       let cards = [];
       try { cards = JSON.parse(el.dataset.cards || '[]'); } catch {}
@@ -841,7 +867,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         canvasH:   parseInt(el.dataset.canvasH)   || 400,
         radius:    parseInt(el.dataset.radius)    || 16,
         imgRatio:  parseInt(el.dataset.imgRatio)  || 75,
-        cardMode:  el.dataset.cardMode || 'simple',
+        cardMode:  el.dataset.cardMode || 'simple', ...((el.dataset.cardMode || 'simple') === 'simple' ? _fh(el) : {}),   // F7 — 숨김 키는 카드 하나(레이어 모드 배경과 같은 키) · Figma 로 가는 칠은 심플 글 배경뿐이라 심플일 때만
         textBg:    el.dataset.textBg   || '#cccccc',
         labelPos:      el.dataset.labelPos || 'below',
         overlayHeight: parseInt(el.dataset.overlayHeight) || 180,
@@ -966,7 +992,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     if (el.classList.contains('step-block')) {
       let steps = []; try { steps = JSON.parse(el.dataset.steps || '[]'); } catch {}
       return {
-        type: 'step', id: el.id || '',
+        type: 'step', id: el.id || '', ..._fh(el),
         steps: steps.map(s => ({ title: s.title || '', desc: s.desc || '' })),
         startNumber: parseInt(el.dataset.startNumber) || 1,
         numBg: el.dataset.numBg || '#222222',
@@ -986,7 +1012,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     if (el.classList.contains('banner02-block')) {
       let lines = []; try { lines = JSON.parse(el.dataset.lines || '[]'); } catch {}
       return {
-        type: 'banner02', id: el.id || '',
+        type: 'banner02', id: el.id || '', ..._fh(el),
         bannerW: parseInt(el.dataset.bannerW) || 780,
         bannerH: parseInt(el.dataset.bannerH) || 260,
         radius: parseInt(el.dataset.radius) || 20,
@@ -1141,7 +1167,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       else push('text', ds.textText, ds.textHtml);
       const bw = parseInt(ds.borderW) || 0;
       return {
-        type: 'generic', id: el.id || '', kind: 'modal', variant: ds.variant || 'plain',
+        type: 'generic', id: el.id || '', kind: 'modal', variant: ds.variant || 'plain', ..._fh(el),
         width: (ds.wMode === 'fixed' && parseInt(ds.width)) || null,
         /* ★#88 — hMode='fixed' 의 H 는 «최소 높이»(renderModalBlock min-height · frameify minHeight) ⇒ max(H, 실측) */
         height: Math.max((ds.hMode === 'fixed' && parseInt(ds.height)) || 0,
@@ -1210,7 +1236,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       /* FIGMA-GRID-CELL-TEXT-NOT-EXPORTED-01 — 그리드 칸 글(.grd-line · 원 안 글 .grd-img-circle-text)도 싣는다.
          이 셋(_LIVE_TXT)은 인라인 left/top 이 없다 ⇒ 살아 있는 문서가 있으면 그 자리·폭·정렬을 블럭 왼위 기준 레이아웃 px 로 싣는다
          (그리드 칸 그림 images 와 같은 셈). 살아 있는 짝이 없으면(다른 페이지) 글만 — 옛 꼴(x·y 0). */
-      const _LIVE_TXT = '.itb-text, .grd-line, .grd-img-circle-text';
+      const _LIVE_TXT = '.itb-text, .grd-line, .grd-img-circle-text, .tb-cpn-line, .sticker-text';   // 85행 — 쿠폰 줄·스티커 글도 살아 있는 짝에서 크기·색·굵기·자리·정렬(사본은 안 그려져 계산 style 이 비어 24·#111·왼위로 갔다)
       const _lt = el.id ? document.getElementById(el.id) : null;
       const _ltr = _lt && _lt.getBoundingClientRect(), _ltz = _ltr ? (_ltr.width / (_lt.offsetWidth || 1)) || 1 : 1;
       const _ltCopy = [...el.querySelectorAll(_LIVE_TXT)], _ltLive = _lt ? [..._lt.querySelectorAll(_LIVE_TXT)] : [];
@@ -1218,11 +1244,11 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         const i = _ltLive.length === _ltCopy.length ? _ltCopy.indexOf(t) : -1;
         const lv = i >= 0 ? _ltLive[i] : null; if (!lv) return null;
         const r = lv.getBoundingClientRect(), lcs = window.getComputedStyle(lv), al = lcs.textAlign;   // 사본은 안 그려져 computed 가 비었다 — 크기·색도 살아 있는 짝에서
-        return { fs: parseInt(lcs.fontSize) || 24, color: lcs.color || '#111111',
+        return { fs: parseInt(lcs.fontSize) || 24, color: lcs.color || '#111111', fw: parseInt(lcs.fontWeight) || 400,
           x: Math.round((r.left - _ltr.left) / _ltz), y: Math.round((r.top - _ltr.top) / _ltz), w: Math.round(r.width / _ltz),
           align: al === 'center' ? 'CENTER' : (al === 'right' || al === 'end') ? 'RIGHT' : 'LEFT' };
       };
-      el.querySelectorAll('[class^="tb-"], [class*=" tb-"], .annot-label, .itb-text, .grd-line, .grd-img-circle-text').forEach(t => {
+      el.querySelectorAll('[class^="tb-"], [class*=" tb-"], .annot-label, .itb-text, .grd-line, .grd-img-circle-text, .sticker-text').forEach(t => {   // F8b — 스티커 글(.sticker-text · 원·네모·별·글 스티커)도 싣는다(예전 0 → Figma 빈 프레임)
         if (!_notKid(t)) return;
         { const g = t.closest('.grid-block'); if (g && g !== el && el.contains(g)) return; }   // 원 위에 얹힌 자식 그리드의 글은 그 자식 몫
         /* ★1012t1H5 — 인용구 줄(.tb-qt-line) «안»의 효과 span(tb-dot 글자마다 · tb-hl · tb-glow)은 줄이 이미 실은 글자다.
@@ -1235,11 +1261,25 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
             x: parseFloat(t.style.left) || 0, y: parseFloat(t.style.top) || 0, ...(t.matches(_LIVE_TXT) ? _ltPos(t) : null) }); }
       });
       const ds = el.dataset || {};
+      /* F8b(미카사 F7/F8 실기 12k · 시트 83행 곁) — 원·네모 스티커 = CSS 배경색 + 둥글기(svg 0) → 예전 bg=ds.bg(빈 값)·radius=ds.radius 라 Figma 빈 프레임
+         그 배지만: 화면에 보이는 배경색(계산 style · 없으면 bgColor) + 원 = 짧은 변 ÷ 2 · 네모 = 계산 둥글기 px · 이미지 모드·투명 카운트는 손 0 */
+      const _stkBadge = ds.type === 'sticker' && ['circle', 'square'].includes(ds.shape || 'circle') && (ds.mode || (ds.imgSrc ? 'image' : 'text')) !== 'image' && !(ds.count && ds.countShape === 'none');
+      let _stkBg = '', _stkR = 0;
+      if (_stkBadge) {
+        const _lv = (el.id && document.getElementById(el.id)) || el;
+        const _cs = typeof window.getComputedStyle === 'function' ? window.getComputedStyle(_lv) : null;
+        const _cb = _cs && _cs.backgroundColor;
+        _stkBg = (_cb && !/^(transparent|rgba\([^)]*,\s*0\))$/.test(_cb)) ? _cb : (ds.bgColor || '');
+        _stkR = (ds.shape || 'circle') === 'circle' ? Math.round(Math.min(w, h || w) / 2) : (parseFloat(_cs && _cs.borderTopLeftRadius) || 0);
+      }
       const out = {
-        type: 'generic', id: el.id || '', kind: ds.type || '',
-        width: w, height: h || 0, bg: ds.bg || '', radius: parseInt(ds.radius) || 0,
-        svg: [...el.querySelectorAll('svg')].find(s => _notKid(s) && !s.closest('.itb-icon'))?.outerHTML || '', texts,   /* ICONTEXT-EMPTY-ICON-PLACEHOLDER-IN-EXPORT-01 — .itb-icon 안 svg 는 편집 자리표시뿐(고른 아이콘·사진은 img) */
+        type: 'generic', id: el.id || '', kind: ds.type || '', ..._fh(el),
+        width: w, height: h || 0, bg: (ds.type === 'sticker' && ds.shape === 'text' ? ds.bgColor : _stkBadge ? _stkBg : ds.bg) || '', radius: _stkBadge ? _stkR : (parseInt(ds.radius) || 0),   // F8 ④ 글 스티커 배경 = bgColor(ds.bg 아님 · 예전엔 늘 빈 값 → Figma 칠 0) · 'transparent' 면 렌더러가 투명
+        svg: ds.type === 'sticker' ? ([...el.querySelectorAll('svg.stk-burst')].find(s => _notKid(s))?.outerHTML || '')   // F8b — 스티커는 별(톱니) 몸 svg 만(렌더러가 그림) · 둘레 글자·동전·화살표 등 다른 svg 는 안 실음(실화면 확인 전 · 예전에도 Figma 엔 안 그려짐)
+          : ([...el.querySelectorAll('svg')].find(s => _notKid(s) && !s.closest('.itb-icon'))?.outerHTML || ''), texts,   /* ICONTEXT-EMPTY-ICON-PLACEHOLDER-IN-EXPORT-01 — .itb-icon 안 svg 는 편집 자리표시뿐(고른 아이콘·사진은 img) */
       };
+      /* F8 ③ 브리지 숨김 — 캔버스 svg 뿌리 style 의 fill-opacity:0(F6-2b 렌더러)을 그대로 싣으면 Figma 가 «불투명도 0 칠»로 받아 칠 눈을 켜도 안 보인다 → 뺀다(숨김은 렌더러가 칠 visible:false 로 · F7) */
+      if (ds.type === 'bridge' && out.fillHidden && out.svg) out.svg = out.svg.replace(/;fill-opacity:0(?=[;"])/, '');
       /* FIGMA-EXPORT-GRID-IMAGES-MISSING-01 — 그리드 칸 그림(<img class="grd-img">)은 위 svg·texts 어디에도 안 실려 Figma 엔 빈 프레임이었다.
          그리드일 때만 · 그림이 있을 때만 images 를 싣는다(없으면 옛 바이트). 자리는 «살아 있는 문서»에서 블럭 왼위 기준 레이아웃 px(화면 사각형 ÷ 배율)
          — 자식(G19 그릇 안) 그림은 자식 블럭이 따로 싣는다(살아 있는 그릇 _lkb 로 거름). 원 모양은 circle. */
@@ -1573,8 +1613,11 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       });
       const _bg = fb.dataset.bg || '';
       const out = { type: 'frame', id: fb.id || '', width: w, height: h,
-               bg: _bg, radius: parseInt(fb.dataset.radius) || 0, free, children };
+               bg: _bg, radius: parseInt(fb.dataset.radius) || 0, free, children, ..._fh(fb) };
       { const _op = _opacityOf(fb); if (_op != null) out.opacity = _op; }   // ★A4 — 프레임 노드 제 값(자식은 제 노드에 따로)
+      /* 71행 FIGMA-FRAME-BG-IMAGE-MISSING-01 — 프레임 배경 그림(prop-frame 이 쓰는 dataset.bgImg = 원문 src · data: 또는 goya-asset:// · url() 안 씌움) + 맞춤(bgSize)
+         그림 없음·자리표시(bgImgEmpty)면 키 0(옛 바이트) · goya-asset 은 buildFigmaExportJSONInlined 후처리가 data URI 로 · 그리드 칸(_gridHostBlock)도 같은 식(대성 몫) */
+      if (fb.dataset.bgImg && fb.dataset.bgImgEmpty !== '1') { out.bgImg = fb.dataset.bgImg; out.bgSize = fb.dataset.bgSize || 'cover'; }
       { const _bd = _strokeBorderOut(fb.dataset, parseInt(fb.dataset.borderWidth) || 0, fb.dataset.borderColor || '', fb.dataset.borderStyle || 'solid'); if (_bd) out.border = _bd; }   // 표준 Stroke 4-3 — 프레임 테두리(굵기 0 = 안 실음)
       // ★0919 QA: 배경 그라데이션 → 모델(렌더러가 set_gradient 로 칠함). 예전엔 렌더러가 CSS 문자열에서 «처음 나오는 rgba()»
       //   를 단색으로 칠해 가운데 스탑 색 한 가지가 됐다.
@@ -1795,6 +1838,9 @@ window.figmaGrainNotice      = figmaGrainNotice;
 window.buildFigmaExportJSONInlined = buildFigmaExportJSONInlined;
 
 /* ══ 표준 Stroke 4-3 — CSS 테두리 → Figma(굵기 0 이면 null = 안 실음 = 옛 바이트) · 면별 키(strokeWidthTop/Right/Bottom/Left · js/stroke-look.js 와 같은 이름) 있으면 sides ══ */
+/* F7 표준 Fill 숨김(지디 261124) — 블럭 data-fill-hidden="1" 이면 { fillHidden:true }(색·종류 키는 그대로 · 렌더러가 그 칠만 visible:false) · 아니면 {}(바이트 무변) */
+function _fh(el) { return el?.dataset?.fillHidden === '1' ? { fillHidden: true } : {}; }
+
 function _strokeBorderOut(ds, width, color, style) {
   const w = Number(width) || 0;
   if (!(w > 0)) return null;

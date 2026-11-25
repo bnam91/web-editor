@@ -6,6 +6,7 @@ import { buildTypographySectionHtml } from './_typo-section.js';   // 표준 Typ
 import { wireFontPicker } from './_font-picker.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_POP_WHY } from './_stroke-section.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast, fillHiddenOf, setFillHiddenKey } from './_fill-section.js';   // 표준 Fill F5-2b
 import { panelRenderedColor } from './_panel-rendered.js';
 import { sanitizeIconMarkup } from '../util/sanitize-svg.js';
 import { glowSectionHTML, wireGlowSection } from './prop-sticker-glow.js';
@@ -267,10 +268,7 @@ export function showStickerProperties(block) {
       ${positionSectionHTML({ prefix: 'stk-icon', posEl: null, xy: false, rot: { p: 'stk-icon', numberId: 'stk-icon-rot-num', value: parseFloat(block.dataset.rotation) || 0, flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' } })}`);
     put('size', layoutSizeRowHTML({ prefix: 'stk-icon', one: { id: 'stk-icon-size-num', label: 'Size', icon: 'px', min: 16, max: 600, value: parseInt(block.dataset.size) || 64 } }));   // ★표준 Layout(C2) — 옛 슬라이더 stk-icon-size 걷음 · 숫자 칸 id·범위 무변
     put('fill', `
-      <div class="prop-color-row">
-        <span class="prop-label">색상</span>
-        ${colorFieldHTML({ idPrefix: 'stk-icon-color', hex: _stkIconShown, alpha: parseAlphaFromColor(_stkIconShown) })}
-      </div>
+      ${fillSectionHTML({ prefix: 'stk-icon-fill', removeWhy: '아이콘이 안 보이게 되는 길이라 지금은 못 지워요', colorHtml: colorFieldHTML({ idPrefix: 'stk-icon-color', hex: _stkIconShown, alpha: parseAlphaFromColor(_stkIconShown) }) })}
       <div class="prop-hint">SVG가 currentColor를 쓰는 아이콘만 색상이 반영됩니다.</div>`);
   }
   if (basic && !isCount) put('content', `
@@ -297,11 +295,7 @@ export function showStickerProperties(block) {
         w: { id: 'stk-hl-w-num', min: 10, max: 1200, value: parseInt(block.dataset.hlW) || 160 },
         h: { id: 'stk-hl-h-num', min: 4, max: 400, value: parseInt(block.dataset.hlH) || 28 } })}
     </div>`);
-    put('fill', `
-      <div class="prop-color-row">
-        <span class="prop-label">색상</span>
-        ${colorFieldHTML({ idPrefix: 'stk-hl-color', hex: _stkHlShown, alpha: parseAlphaFromColor(_stkHlShown) })}
-      </div>`);
+    put('fill', fillSectionHTML({ prefix: 'stk-hl-fill', removeWhy: '형광펜이 안 보이게 되는 길이라 지금은 못 지워요', colorHtml: colorFieldHTML({ idPrefix: 'stk-hl-color', hex: _stkHlShown, alpha: parseAlphaFromColor(_stkHlShown) }) }));
   }
   /* ★현빈 261123 — 선 형광펜(highlightB) = Stroke 절 «밖» Special «Highlight» 로 이사(선이 곧 몸 · 정본 시안 8910 strokestd2 20) · 몸 컨트롤·id·배선 그대로 · «두께» → «굵기»(이름 통일) */
   let _hlbSpecialHTML = '';
@@ -338,11 +332,7 @@ export function showStickerProperties(block) {
         <input type="number" class="prop-number" id="stk-hlb-period-num" min="6" max="200" value="${parseFloat(block.dataset.period) || 30}">
       </div>
     </div>`;
-    put('fill', `
-      <div class="prop-color-row">
-        <span class="prop-label">색상</span>
-        ${colorFieldHTML({ idPrefix: 'stk-hlb-color', hex: _stkHlShown, alpha: parseAlphaFromColor(_stkHlShown) })}
-      </div>`);
+    put('fill', fillSectionHTML({ prefix: 'stk-hlb-fill', removeWhy: '형광펜이 안 보이게 되는 길이라 지금은 못 지워요', colorHtml: colorFieldHTML({ idPrefix: 'stk-hlb-color', hex: _stkHlShown, alpha: parseAlphaFromColor(_stkHlShown) }) }));
   }
   if (basic) {
     if (!isCount) put('size', `
@@ -352,10 +342,8 @@ export function showStickerProperties(block) {
     put('typography', _stkTypo({ sizeMin: 6, sizeMax: 150 }));   // 옛 stk-fs 쌍·stk-fw·stk-b-style-group 걷음 · 저장 키 fontSize/fontWeight/fontStyle/textDecoration 그대로
     put('fill', `
     <div id="stk-colors-section">
-      <div class="prop-color-row">
-        <span class="prop-label">${isCountNone ? '숫자색' : '배경색'}</span>
-        ${colorFieldHTML({ idPrefix: 'stk-bg', hex: bgColor, alpha: bgAlpha })}
-      </div>
+      <span class="prop-label">${isCountNone ? '숫자색' : '배경색'}</span>   <!-- 표준 Fill F5-2b — 이름표 지킴(카운트 «없음» 꼴이면 이 칸 = 숫자색 · 뜻이 바뀌어 이름이 필요 · count-sticker C6·C13) · 겹 줄 위 한 줄 -->
+      ${fillSectionHTML({ prefix: 'stk-bg-fill', removeWhy: isCountNone ? '숫자가 안 보이게 되는 길이라 지금은 못 지워요' : '모양 스티커는 바탕이 곧 모양이라 지금은 못 지워요', colorHtml: colorFieldHTML({ idPrefix: 'stk-bg', hex: bgColor, alpha: bgAlpha }) })}
       <div class="prop-color-row" id="stk-txt-row" style="display:${isCountNone ? 'none' : 'flex'};">
         <span class="prop-label">글자색</span>
         ${colorFieldHTML({ idPrefix: 'stk-txt', hex: textColor, alpha: txtAlpha })}
@@ -387,15 +375,12 @@ export function showStickerProperties(block) {
       mode: { w: { id: 'stk-t-boxw-mode', value: tBoxWOn ? 'fixed' : 'auto', options: [['fixed', ...LAY_SIZING.fixed], ['auto', ...LAY_SIZING.hug]] } } }));
     put('fill', `
     <div id="stk-text-colors-section">
+      ${fillSectionHTML({ prefix: 'stk-t-fill', hiddenWhy: '', hidden: fillHiddenOf(block), on: bgColor !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'stk-t-bg', hex: (bgColor === 'transparent' ? '#ffffff' : bgColor), alpha: (bgColor === 'transparent' ? 0 : bgAlpha) }) })}
       <div class="prop-color-row">
         <span class="prop-label">글자색</span>
         ${colorFieldHTML({ idPrefix: 'stk-t-color', hex: textColor, alpha: txtAlpha })}
       </div>
-      <div class="prop-color-row">
-        <span class="prop-label">배경색</span>
-        ${colorFieldHTML({ idPrefix: 'stk-t-bg', hex: (bgColor === 'transparent' ? '#ffffff' : bgColor), alpha: (bgColor === 'transparent' ? 0 : bgAlpha) })}
-      </div>
-    </div>`);
+    </div>`);   // 표준 Fill F5-2b — 글 스티커 = 표준 줄 배경(없음 = 'transparent' · 옛 «알파 0 = transparent» 값 그대로) · 글자색 = 부위 색 줄(시안 ④)
     /* ★표준 Stroke 부품(현빈 261123 · 8910 strokestd2 17) — 글자 외곽선 · 없음 = strokeWidth 0(렌더 sticker-block.js:283 «> 0 일 때만» · 옛 키 그대로) · 0.5 걸음(지디 261123)
        위치 = 바깥 막힘: 렌더가 -webkit-text-stroke 를 «두께×2» 로 긋고 paint-order:stroke fill 로 안쪽 절반을 글자 밑에 묻는다 = 보이는 건 바깥(sticker-block.js:280 실측 · 시안의 «안쪽»은 기본값 그림) */
     put('stroke', strokeSectionHTML({ prefix: 'stk-t-stk', pop: { why: STROKE_POP_WHY.soon, styleWhy: STROKE_POP_WHY.soon }, color: tStrokeColor, alpha: tStrokeAlpha, width: tStrokeWidth, maxWidth: 50, step: 0.5, align: 'outside', canAlign: false,
@@ -463,6 +448,7 @@ export function showStickerProperties(block) {
         ${checkHTML({ id: 'stk-t-shadow-on', label: '켜기', checked: tShadowOn, attrs: 'aria-label="그림자 켜기"' })}` } : {},   /* ②ⓒ(현빈 261123) — 이름 없이 홀로 선 켬/끔 = 체크 + 옆에 «켜기» 글 */
     appearance: { headTools: appearanceHeadToolsHTML({ prefix: isText ? 'stk-t' : 'stk' }) },   // 표준 Appearance A3 — 글 스티커만(머리 눈 = 7-2 보류 표식)
   };
+  if (isText) OPTS.fill = { headTools: fillHeadToolsHTML({ prefix: 'stk-t-fill', on: bgColor !== 'transparent' }) };   // 표준 Fill F5-2b — 글 스티커 배경 없음이면 머리 ＋ (OPTS 밖 한 줄 = dev 효과 머리 체크 이관 줄과 안 겹침)
   renderPanel(block, {
     header: blockHeaderHTML({
       icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3"><circle cx="6" cy="6" r="4.5"/></svg>`,
@@ -624,6 +610,12 @@ export function showStickerProperties(block) {
     },
     onCommit: () => { window.pushHistory?.('텍스트 스티커 배경'); window.scheduleAutoSave?.(); },
   });
+  /* 표준 Fill F5-2b — 글 스티커 배경 − = 'transparent'(옛 «알파 0» 이 저장하던 값) · ＋ = 지난 색 · 없으면 #FFFFFF */
+  if (isText) wireFillSection({ prefix: 'stk-t-fill', adapter: {
+    hide: (on) => { setFillHiddenKey(block, on); rerender(); window.scheduleAutoSave?.(); },   // F6-2 숨김 — 키만 바꾸고 다시 그림(렌더러가 키를 보고 칠 안 함)
+    none: () => { fillLast.set(block.id, bgColor); block.dataset.bgColor = 'transparent'; rerender(); showStickerProperties(block); },
+    add: () => { block.dataset.bgColor = fillLast.get(block.id, '#ffffff'); rerender(); showStickerProperties(block); },
+    commit: () => { window.pushHistory?.('텍스트 스티커 배경'); window.scheduleAutoSave?.(); } } });
   // 텍스트 스티커 — 외곽선(표준 Stroke 부품 · 어댑터 = 옛 쓰기 그대로: dataset.strokeWidth/strokeColor · rerender · 이력 이름 «텍스트 스티커 외곽선»)
   if (propPanel.querySelector('#stk-t-stk-w-num')) wireStrokeSection({ prefix: 'stk-t-stk', alpha: tStrokeAlpha, maxWidth: 50, step: 0.5, widthId: 'stk-t-stk-w-num', colorId: 'stk-t-stk-c', onWidth: 2,
     adapter: { color: (c) => { block.dataset.strokeColor = c; rerender(); }, width: (v) => { block.dataset.strokeWidth = v; rerender(); }, commit: () => { window.pushHistory?.('텍스트 스티커 외곽선'); window.scheduleAutoSave?.(); } } });

@@ -2,11 +2,11 @@
    PROP-FRAME — Frame 속성 패널 (frame-block)
 ══════════════════════════════════════ */
 import { propPanel } from '../globals.js';
-import { syncFrameBgVars, frameBgSize, applyFrameBgImageInline, setFrameBgOpacity } from '../frame-bg.js';
+import { syncFrameBgVars, frameBgSize, applyFrameBgImageInline, setFrameBgOpacity, syncFrameBgRepeat } from '../frame-bg.js';
 import { clipsContent } from '../clip-content.js';   /* ★★켬 판정의 ★단 한 자리(2026-10-10 c2 · 지디 ㉠) */   /* ★프레임 배경 ★먹이는 한 자리(2026-10-10 ③) */
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_STYLES_CSS, STROKE_POP_WHY } from './_stroke-section.js';
-import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, setFillKindName, fillLast, fillKindOfCss } from './_fill-section.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, setFillKindName, fillLast, fillKindOfCss, fillHiddenOf, setFillHiddenKey } from './_fill-section.js';
 import { hasSides, readSides, writeSides, cssSideWidths, sidesMixed } from '../stroke-look.js';
 import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A1 · 첫 소비자)
 import { bindSlider, alignBtn, blockHeaderHTML, overlayToggleBtnHTML, wireRotRow, checkHTML, wireCheck } from './_helpers.js';
@@ -571,7 +571,7 @@ function _renderAutoPanel(ss) {
       </div>`}
 `, { headTools: appearanceHeadToolsHTML({ prefix: 'ss' }) }),
       sec('fill', `
-      ${fillSectionHTML({ prefix: 'ss-fill', on: fillOn, kind: fillKindOfCss(bgGradCss), colorHtml: colorFieldHTML({ idPrefix: 'ss-bg', hex: hexBg, alpha: bgAlpha, gradientCss: bgGradCss }) })}
+      ${fillSectionHTML({ prefix: 'ss-fill', hiddenWhy: '', hidden: fillHiddenOf(ss), on: fillOn, kind: fillKindOfCss(bgGradCss), colorHtml: colorFieldHTML({ idPrefix: 'ss-bg', hex: hexBg, alpha: bgAlpha, gradientCss: bgGradCss }) })}
       <div class="prop-row">
         <span class="prop-label">배경 투명도</span>
         <input type="range" class="prop-slider" id="ss-bgopa-slider" min="0" max="100" step="1" value="${bgOpacity}">
@@ -863,6 +863,7 @@ function _renderAutoPanel(ss) {
       ss.style.backgroundImage = `url('${src}')`;
       ss.style.backgroundSize = frameBgSize(ss);
       ss.style.backgroundPosition = 'center';
+      syncFrameBgRepeat(ss);
       ss.dataset.bgImg = src;
       delete ss.dataset.bgImgEmpty; ss.classList.remove('sec-bg-empty');   // ★진짜 그림이 오면 «자리표시»는 물러난다(섹션과 같다)
       document.getElementById('ss-bg-empty-box')?.remove();
@@ -948,6 +949,7 @@ function _renderAutoPanel(ss) {
 
   /* 표준 Fill F2 — − = 'transparent'(옛 단색 쓰기 길 그대로 = 그라데이션도 걷힘 · 이미지 = 슬롯이라 그대로) · ＋ = 지난 색 · 없으면 #FFFFFF(Figma 프레임 기본) */
   wireFillSection({ prefix: 'ss-fill', adapter: {
+    hide: (on) => { setFillHiddenKey(ss, on); window.scheduleAutoSave?.(); },   // F6-2b 숨김 — 키만(그리기 = css/editor-blocks.css 규칙 한 벌)
     none: () => { fillLast.set(ss.id, bgGradCss || hexBg); applyBgSolid('transparent'); if (ss.dataset.bgImg) applyFrameBgImageInline?.(ss); showFrameProperties(ss); },
     add: () => { const c = fillLast.get(ss.id, '#ffffff'); if (/gradient\s*\(/i.test(c)) { ss.style.backgroundColor = ''; ss.style.background = c; ss.dataset.bg = c; _syncFrameBgVars(); window.scheduleAutoSave?.(); } else applyBgSolid(c); showFrameProperties(ss); },
     commit: () => window.pushHistory?.() } });
