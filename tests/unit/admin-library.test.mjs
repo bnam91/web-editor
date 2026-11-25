@@ -227,3 +227,12 @@ test('A8 brand-logos — 묶음 폴더·svg/webp 만 · 명부 칸 · 로고 SVG
   assert.ok(iImg > 0 && iVec > iImg && /!col\.asImage\) \{ await _insertLocalSvg/.test(ins), '★asImage SVG 가 벡터(단색→currentColor) 길로 샌다');
   assert.doesNotMatch(sliceBlock(panel, 'async function _localSvgImage('), /normalizeMonoSvg/, '★그림 길에서 단색 정규화(색 바뀜)');
 });
+
+test('A9 브랜드 탭(asImage) 썸네일 칸 = 밝은 체커 바탕(앱 체커 토큰 checkerBg 재사용 · 새 색 0) · 다른 탭 무변 — BRAND-03(어두운 칸 #252525 위 검정 OpenAI·검붉은 카카오 심볼이 묻힘)', () => {
+  const panel = readSrc(ROOT, 'js/panels/library-panel.js');
+  assert.match(panel, /^import \{[^}]*\bcheckerBg\b[^}]*\} from '\.\.\/checker-tokens\.js';$/m, '★체커는 앱 토큰 읽개(js/checker-tokens.js)에서 — 값 베끼기 금지');
+  const grid = sliceBlock(panel, 'function _renderGrid(');
+  assert.match(grid, /col\.asImage \? `background:\$\{checkerBg\('small'\)\};` : ''/, '★asImage 탭에서만 바탕(두들·미모지 등 = 빈 글자 = 무변)');
+  assert.match(grid, /class="lib-thumb" style="\$\{thumbBg\}/, '★그 바탕이 .lib-thumb 칸에 실린다');
+  assert.doesNotMatch(grid, /#(?:d8d8d8|f0f0f0|e3e3e3|efefef|fff|ffffff)\b/i, '★체커·흰 hex 를 손으로 박지 않는다');
+});

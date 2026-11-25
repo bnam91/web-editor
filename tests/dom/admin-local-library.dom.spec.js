@@ -136,3 +136,16 @@ test('L4 브랜드·인증 로고(LIB-BRAND-LOGO-ASSETS-01) — 관리자 탭 ·
   expect([/#03C75A/i.test(svg), /currentColor/.test(svg)], '거른 SVG 그대로 · 단색 정규화 0').toEqual([true, false]);
   expect(errs).toEqual([]);
 });
+
+test('L5 BRAND-03 브랜드 탭 썸네일 = 밝은 체커 바탕(앱 체커 토큰) · 두들 탭 썸네일 = 바탕 없음(무변)', async ({ page }) => {
+  const errs = await setup(page, { admin: true, dirs: DIRS });
+  await openLibrary(page);
+  const bg = () => page.evaluate(() => [...document.querySelectorAll('#lib-grid .lib-item[data-loaded="1"] .lib-thumb')].map((t) => getComputedStyle(t).backgroundImage.startsWith('repeating-conic-gradient')));
+  await page.click('.lib-tab[data-col="brand-logos"]');
+  await expect(page.locator('#lib-grid .lib-item[data-loaded="1"]')).toHaveCount(1);
+  expect(await bg(), '브랜드 = 체커(어두운 칸 #252525 그대로면 빨강)').toEqual([true]);
+  await page.click('.lib-tab[data-col="figma-doodle"]');
+  await expect(page.locator('#lib-grid .lib-item[data-loaded="1"]')).toHaveCount(3);
+  expect(await bg(), '두들 = 바탕 없음(대조)').toEqual([false, false, false]);
+  expect(errs).toEqual([]);
+});
