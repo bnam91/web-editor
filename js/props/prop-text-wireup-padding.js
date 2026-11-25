@@ -95,4 +95,7 @@ export function wirePaddingSection({ tb, phLinked: phLinkedArg }) {
 
   /* ★J146B ⒝ — 패딩이 글자칸을 옮기면 자유변형 보라·손잡이도 따라간다(위 setter 들 뒤에 돈다) */
   [pvSlider, pvNumber, plSlider, plNumber, prSlider, prNumber, phSlider, phNumber].forEach((el) => el?.addEventListener('input', () => { if (tb.dataset.tfCorners) window.ftHandlesSync?.(tb); }));
+  /* ★151 TEXT-PAD-SLIDER-NO-HISTORY-01(0.9.13 · 지디 261120 발견 · 옛 판부터) — 위 input 은 바로 적용만 하고 이력을 안 남겼다(⌘Z 가 패딩을 건너뛰거나 다음 변경과 한 칸).
+     끄기·숫자 입력이 «끝날 때»(change) 한 번 = push-after(다른 슬라이더 줄 · 줄간격 prop-text-wireup-spacing 과 같은 꼴) */
+  [pvSlider, pvNumber, plSlider, plNumber, prSlider, prNumber, phSlider, phNumber].forEach((el) => el?.addEventListener('change', () => window.pushHistory?.('패딩')));
 }
