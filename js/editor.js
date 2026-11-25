@@ -4982,6 +4982,7 @@ _canvasWrapEl.addEventListener('click', e => {
   const zoomAcc = { notches: 0, pinch: 0 };   // [M67] 마우스 노치 «개수» / 트랙패드 «연속량» 따로
   let timer = null;
   wrap.addEventListener('wheel', (e) => {
+    if (!e.cancelable) window.__wheelNonCancelable = (window.__wheelNonCancelable || 0) + 1;   // 191 진단(조용 · 관리자 콘솔에서 읽음): 막을 수 없는 휠(관성) 수
     if (document.body.classList.contains('preview-mode')) return;
     if (e.ctrlKey) {
       // 핀치/휠 = 줌
