@@ -131,10 +131,10 @@ export function wireShadowSection({ ctx, initial }) {
   // 토글
   if (onChk) {
     onChk.addEventListener('change', () => {
-      window.pushHistory?.();
       s.enabled = !!onChk.checked;
       _setCtrlsDisabled(!s.enabled);
       _apply();
+      window.pushHistory?.();   // push-after(0.9.14 94행) — tests/unit/prop-push-after PA-9
     });
   }
 

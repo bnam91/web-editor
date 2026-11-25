@@ -280,7 +280,6 @@ ${narrowRow}
     btn.addEventListener('click', () => {
       const next = btn.dataset.shape;
       if (block.dataset.shape === next) return;
-      window.pushHistory?.('확대블럭 모양');
       propPanel.querySelectorAll('#zm-shape-group .prop-align-btn')
         .forEach(b => b.classList.toggle('active', b === btn));
       block.dataset.shape = next;
@@ -290,6 +289,7 @@ ${narrowRow}
       // ★프리셋이 바뀌면 «비율»이 달라진다 — 핸들로 끈 w/h 를 남기면 프리셋이 구실을 못 한다.
       window.clearZoomSizeOverride?.(block);
       rerender();
+      window.pushHistory?.('확대블럭 모양');   // push-after(0.9.14 94행) — tests/unit/prop-push-after PA-9
       showZoomProperties(block);
       window.triggerAutoSave?.();
     });
@@ -304,10 +304,10 @@ ${narrowRow}
     btn.addEventListener('click', () => {
       const next = btn.dataset.val;
       if (block.dataset.dropShadow === next) return;
-      window.pushHistory?.('확대블럭 도형 그림자');
       propPanel.querySelectorAll('#zm-drop-group .prop-align-btn')
         .forEach(b => b.classList.toggle('active', b === btn));
       block.dataset.dropShadow = next;
+      window.pushHistory?.('확대블럭 도형 그림자');   // push-after(0.9.14 94행) — tests/unit/prop-push-after PA-9
       window.triggerAutoSave?.();
     });
   });
@@ -391,11 +391,11 @@ ${narrowRow}
     btn.addEventListener('click', () => {
       const next = btn.dataset.txa;
       if ((block.dataset.txa || D().txa) === next) return;
-      window.pushHistory?.('확대블럭 글자 정렬');
       propPanel.querySelectorAll('#zm-txa-group .prop-align-btn')
         .forEach(b => b.classList.toggle('active', b === btn));
       block.dataset.txa = next;
       rerender();
+      window.pushHistory?.('확대블럭 글자 정렬');   // push-after(0.9.14 94행) — tests/unit/prop-push-after PA-9
       window.triggerAutoSave?.();
     });
   });

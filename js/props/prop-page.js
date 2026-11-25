@@ -595,7 +595,6 @@ export function showPageProperties() {
   wireLayoutSection({ w: { numberId: 'page-padx-number', max: 200, apply: applyPadX } });
 
   padxAsset.addEventListener('change', e => {
-    window.pushHistory?.();
     state.pageSettings.padXExcludesAsset = e.target.checked;
     document.querySelectorAll('.section-block').forEach(sec => {
       const inner = sec.querySelector('.section-inner');
@@ -604,6 +603,7 @@ export function showPageProperties() {
       const px = hasOverride ? parseInt(inner.dataset.paddingX) : state.pageSettings.padX;
       applyPadXToSection(inner, px || 0);
     });
+    window.pushHistory?.();   // push-after(0.9.14 94행) — tests/unit/prop-push-after PA-9
     window.scheduleAutoSave?.();
   });
 

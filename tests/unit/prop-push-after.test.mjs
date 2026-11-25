@@ -299,3 +299,70 @@ test('PA-8 ★음성·양성대조 — PA-7 의 판정이 두 순서를 실제�
   assert.equal(appliesBeforeRecord(recLine + '\n' + rest), false, '★push-before 변형본을 판정이 «못 잡는다» — PA-7 의 초록은 «못 봐서»다');
   assert.equal(appliesBeforeRecord(rest + '\n' + recLine), true, '★push-after 변형본을 판정이 «틀렸다»고 한다 — PA-7 의 빨강은 잣대 탓이다');
 });
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PA-9/PA-10 — ★[0.9.14 94행 UNDO-CHECK-PUSH-BEFORE-OTHERS-01] 80행과 같은 병 · 다른 자리 열하나
+   ──────────────────────────────────────────────────────────────────────────
+   체크박스(켬/끔) change 여덟 + 줌 단일 선택 단추 무리 셋이 «찍고 나서» 바꿨다 — PA-7 과 같은 병.
+   PA-1 은 기록 뒤 «대입»·«delete»를 못 본다. ⇒ 핸들러 몸통을 자리마다 잠근다.
+   판정은 PA-7 보다 좁다: 앞의 `const x = …`(읽기)와 화살표 `=>`는 «쓰기»가 아니다 — 안 빼면 줌 단추의
+     `const next = btn.dataset…` 가 쓰기로 읽혀 고치기 전에도 초록이 난다.
+   행동 쪽은 tests/dom/undo-check-push-after-2.dom.spec.js 가 잰다. ⛔이 검사는 «소스 모양»만 잰다.
+═══════════════════════════════════════════════════════════════════════════ */
+/* [파일, 자리 앵커, 그 뒤 처음 오는 핸들러 머리] */
+const CHECK_SITES_2 = [
+  ['js/props/prop-asset.js',             "'asset-clip-toggle')",            "addEventListener('change'"],
+  ['js/props/prop-asset.js',             'const applyTone',                 '=>'],
+  ['js/props/prop-icon-circle.js',       "'#icb-clip-toggle')",             "addEventListener('change'"],
+  ['js/props/prop-banner02.js',          "'#bn2-fullbleed-toggle')",        "addEventListener('change'"],
+  ['js/props/prop-text-wireup-bubble.js', "'bubble-show-sender')",          "addEventListener('change'"],
+  ['js/props/prop-frame.js',             "'ss-fullbleed-toggle')",          "addEventListener('change'"],
+  ['js/props/prop-text-wireup-shadow.js', 'onChk.addEventListener',         "addEventListener('change'"],
+  ['js/props/prop-page.js',              'padxAsset.addEventListener',      "addEventListener('change'"],
+  ['js/props/prop-zoom.js',              "'#zm-shape-group .prop-align-btn').forEach", "addEventListener('click'"],
+  ['js/props/prop-zoom.js',              "'#zm-drop-group .prop-align-btn').forEach",  "addEventListener('click'"],
+  ['js/props/prop-zoom.js',              "'#zm-txa-group .prop-align-btn').forEach",   "addEventListener('click'"],
+];
+/** 판정 — 기록 «앞»에 블럭 쓰기(대입·delete)가 있다. 선언(`const x =`)과 `=>`·비교는 빼고 본다. */
+const writesBeforeRecord = (body) => {
+  const rec = body.search(RECORD_RE);
+  if (rec < 0) return false;
+  const pre = body.slice(0, rec).replace(/\b(?:const|let|var)\s+[\w$]+\s*=/g, '');
+  return /[^=!<>]=(?![=>])/.test(pre) || /\bdelete\s/.test(pre);
+};
+function siteBody([file, anchor, hook]) {
+  const f = sources().find(s => s.rel === file);
+  assert.ok(f, `★${file} 을 못 찾았다 — 검사가 «안 돈» 것이지 통과가 아니다`);
+  const at = f.code.indexOf(anchor);
+  assert.ok(at >= 0, `★${file} 에서 «${anchor}» 를 못 찾았다 — 앵커가 늙었다`);
+  const on = f.code.indexOf(hook, at);
+  assert.ok(on >= at, `★${file} «${anchor}» 뒤에 «${hook}» 가 없다 — 앵커가 늙었다`);
+  const body = bodyFrom(f.code, on);
+  assert.ok(body, `★${file} «${anchor}» 몸통을 못 떼어냈다`);
+  return body;
+}
+
+test('PA-9 ★켬/끔 체크 · 줌 단추 무리 열하나는 «바꾸고 나서» 찍는다', () => {
+  const bad = [];
+  for (const site of CHECK_SITES_2) {
+    const body = siteBody(site);
+    assert.match(body, RECORD_RE, `★${site[0]} «${site[1]}» 가 기록을 안 한다 — 칸을 못 만든다`);
+    if (!writesBeforeRecord(body)) bad.push(`${site[0]} «${site[1]}»`);
+  }
+  assert.deepEqual(bad, [],
+    '★«찍고 나서» 바꾼다(push-before). 앞 편집이 push-after 면 이 켬/끔은 자기 칸을 잃고 ' +
+    '⌘Z 한 번에 다음 편집과 같이 사라진다 — 적용 먼저, 기록 나중.');
+});
+
+test('PA-10 ★음성·양성대조 — PA-9 의 판정이 자리마다 두 순서를 실제로 가르는가', () => {
+  /* PA-8 과 같은 꼴: 지금 몸통에서 기록 줄을 떼어 «맨 앞»(옛 모양)·«맨 뒤»(고친 모양)에 붙인다 — 지금 순서와 무관하다. */
+  for (const site of CHECK_SITES_2) {
+    const body = siteBody(site);
+    const rec = body.search(RECORD_RE);
+    assert.ok(rec >= 0, `★변환이 늙었다 — ${site[0]} 기록 줄을 못 찾았다`);
+    const ls = body.lastIndexOf('\n', rec) + 1, le = body.indexOf(';', rec) + 1;
+    const recLine = body.slice(ls, le), rest = body.slice(0, ls) + body.slice(le);
+    assert.equal(writesBeforeRecord(recLine + '\n' + rest), false, `★${site[0]} «${site[1]}» push-before 변형본을 판정이 «못 잡는다»`);
+    assert.equal(writesBeforeRecord(rest + '\n' + recLine), true, `★${site[0]} «${site[1]}» push-after 변형본을 판정이 «틀렸다»고 한다`);
+  }
+});

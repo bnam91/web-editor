@@ -291,11 +291,11 @@ export function showAssetProperties(ab) {
      ★★선례(프레임)는 ★늘 쓰지만(`'true'`/`'false'`) ★★그쪽은 ★이미 그 글자가 ★문서에 있다.
      ★그리기는 ★★렌더러가 한다 — ★`applyAssetClip` ★한 자리(⛔여기서 ★style 을 ★직접 ★만지지 ★않는다). */
   document.getElementById('asset-clip-toggle')?.addEventListener('change', e => {
-    window.pushHistory?.('에셋 내용 자르기');
     const want = !!e.target.checked;
     if (want === CLIP_DEFAULTS.asset) delete ab.dataset.clipContent;
     else ab.dataset.clipContent = want ? 'true' : 'false';
     applyAssetClip(ab);
+    window.pushHistory?.('에셋 내용 자르기');   // push-after(0.9.14 94행) — tests/unit/prop-push-after PA-9
     window.scheduleAutoSave?.();
   });
 
@@ -621,8 +621,8 @@ export function showAssetProperties(ab) {
   const ckOn  = document.getElementById('asset-checker-tone-on');
   if (ckOn) {
     const applyTone = (dark) => {
-      window.pushHistory?.(dark ? '에셋 체커 어둡게' : '에셋 체커 밝게');
       if (dark) ab.dataset.checkerTone = 'dark'; else delete ab.dataset.checkerTone;
+      window.pushHistory?.(dark ? '에셋 체커 어둡게' : '에셋 체커 밝게');   // push-after(0.9.14 94행) — tests/unit/prop-push-after PA-9
       window.scheduleAutoSave?.();
     };
     ckOn.addEventListener('change', () => applyTone(ckOn.checked));   // 1120b A5 — 토글 하나(켬 = dark · 끔 = 키 지움)
