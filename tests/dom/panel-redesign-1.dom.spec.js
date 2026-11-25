@@ -116,7 +116,7 @@ test('P6 텍스트 Size — 너비 라벨을 오른쪽으로 끌면 너비가 �
   const id = await open(page, 'text-block', 'addTextBlock');
   const h = page.locator('#txt-height-number');
   await expect(h).toBeDisabled();
-  await expect(h).toHaveAttribute('placeholder', '자동');   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C3) — 높이 칸 = 부품 h.auto(placeholder «자동»)
+  await expect(h).toHaveAttribute('placeholder', 'Hug');   // ★기대 바뀜(표준 Layout · 탑 워커 261125 — 크기 모드 영어 «자동» → «Hug» · 134560d1b) · 옛: 표준 Appearance/Layout 현빈 261124 L-4/7 · C3 — 높이 칸 = 부품 h.auto
   expect(await page.evaluate(() => getComputedStyle(document.getElementById('txt-height-number').closest('.prop-icon-input')).opacity),
     '★꺼진 높이 칸이 안 흐리다').toBe(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--ui-disabled-opacity').trim()));
   const w0 = Number(await page.locator('#txt-width-number').inputValue());
