@@ -348,6 +348,8 @@
   opacity: var(--frame-bg-opacity, 1);
   border-radius: inherit;
 }
+/* 87행 FRAME-BG-CONTAIN-REPEATS-01(지디 261125) — Contain = 그림 하나(Figma FIT 과 같은 뜻) · ::before 길. 본체는 인라인(js/frame-bg.js syncFrameBgRepeat) · Cover 는 옛 그대로 */
+.frame-block.has-bg-opacity[data-bg-size="contain"]::before { background-repeat: no-repeat; }
 /* 직속 자식이 ::before(z-index:0) 위에 오도록 보장 (free/flow 양쪽) */
 .frame-block.has-bg-opacity > * {
   position: relative;
@@ -4936,3 +4938,11 @@ html.tgs-selecting .tgs:focus-within {
 .tfh-handle:hover { background: #f0e8ff; }
 .tfh-handle.edge:hover { background: #b48cff; }
 .tfh-handle:focus-visible { outline: 2px solid var(--ui-sel-overlay, #9966ff); outline-offset: 2px; }
+
+/* F6-2b 표준 Fill 숨김(눈 · 키 data-fill-hidden="1" = props/_fill-section setFillHiddenKey) — 패널이 «직접» 칠하는 블럭 셋(프레임·에셋·아이콘원).
+   그 배경 style 을 쓰는 자리가 여럿(패널·block-factory·save-load·template-system·buzz-frame · 전수 = 지디 보고 261124)이라 자리마다 막지 않고
+   규칙 한 벌이 !important 로 덮는다 — 색 키·인라인 style 은 그대로(눈 다시 = 그대로 돌아옴) · PNG(html2canvas 계산 style)·HTML 내보내기(앱 CSS 실음) 같이 따라옴 · Figma = F7
+   ⛔프레임 그림 슬롯(data-bg-img)은 칠이 아니다 — 그림 있는 프레임은 색만 끔(그림 안 지움) */
+.frame-block[data-fill-hidden="1"], .asset-block[data-fill-hidden="1"] { background-color: transparent !important; }
+.frame-block[data-fill-hidden="1"]:not([data-bg-img]), .asset-block[data-fill-hidden="1"] { background-image: none !important; }
+.icon-circle-block[data-fill-hidden="1"] .icb-circle { background-color: transparent !important; }

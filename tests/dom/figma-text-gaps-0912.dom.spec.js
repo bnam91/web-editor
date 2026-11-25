@@ -105,7 +105,10 @@ console.log(JSON.stringify(cmd === 'get_document_info' ? { children: [] } : { id
       const n = kids.filter((c) => c.params.text === t.t);
       expect(n.length, `T3 ${label} — «${t.t}» create_text ${n.length}번`).toBe(1);
       const p = n[0].params;
-      expect([p.x, p.y, p.width, p.textAlignHorizontal, p.fontSize], `T3 ${label} — «${t.t}» 플러그인이 받을 자리·폭·정렬·크기`).toEqual([t.x, t.y, t.w, t.align, t.fs]);
+      /* ★기대 바뀜(85행 c384ce4aa · 미카사 3차 T1): 한 줄 글(잰 폭 있고 줄바꿈 없음)은 폭 고정 안 함 = width 키 0 · WIDTH_AND_HEIGHT(앱 DOM 폭으로 고정하면 Figma 글꼴이 조금 넓어 꺾임) · 여러 줄 = 옛 그대로 width = 잰 폭 */
+      const oneLine = typeof t.w === 'number' && t.w > 0 && !/[\r\n]/.test(String(t.t || ''));
+      expect([p.x, p.y, p.width, p.textAlignHorizontal, p.fontSize], `T3 ${label} — «${t.t}» 플러그인이 받을 자리·폭·정렬·크기`).toEqual([t.x, t.y, oneLine ? undefined : t.w, t.align, t.fs]);
+      if (oneLine) expect(p.textAutoResize, `T3 ${label} — «${t.t}» 한 줄 글 = 폭 따라 늘어남`).toBe('WIDTH_AND_HEIGHT');
     }
   }
   expect(s.errs, s.errs.join('\n')).toEqual([]);

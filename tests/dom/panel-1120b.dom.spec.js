@@ -86,7 +86,7 @@ test('A4 Asset — 「텍스트 막」 토글·조절 없음 · 옛 data-overlay
   const errs = await open(page, 'asset');
   const r = await page.evaluate(() => {
     const none = !document.getElementById('asset-overlay-toggle') && !document.getElementById('asset-overlay-controls');
-    window.__b.dataset.overlay = 'true'; window.showAssetProperties(window.__b);   // 옛 저장본 꼴
+    window.__b.dataset.overlay = 'true'; window.__b.dataset.bgColor = '#a0a0a0'; window.showAssetProperties(window.__b);   // 옛 저장본 꼴 · ★기대 바뀜(74행 cf680cce1): 색 키 없는 새 에셋은 «칠 없음 + ＋»라 색 칸이 없다 → 색 있는 에셋으로 «패널이 열린다»를 잰다
     return { none, reopened: !!document.getElementById('asset-bg-hex') && !document.getElementById('asset-overlay-toggle') };
   });
   expect(r).toEqual({ none: true, reopened: true });
@@ -95,6 +95,8 @@ test('A4 Asset — 「텍스트 막」 토글·조절 없음 · 옛 data-overlay
 
 test('A6 Asset — 배경 「초기화」(#asset-bg-clear) 없음 · 배경색 칸은 있음', async ({ page }) => {
   const errs = await open(page, 'asset');
+  // ★기대 바뀜(74행 cf680cce1): 색 키 없는 새 에셋 = «칠 없음 + ＋»(색 칸 없음) → 색 있는 에셋에서 «색 칸 있음 · 초기화 없음»을 잰다
+  await page.evaluate(() => { window.__b.dataset.bgColor = '#a0a0a0'; window.showAssetProperties(window.__b); });
   expect(await page.evaluate(() => ({ clear: !!document.getElementById('asset-bg-clear'), hex: !!document.getElementById('asset-bg-hex') }))).toEqual({ clear: false, hex: true });
   expect(errs, errs.join(' | ')).toEqual([]);
 });

@@ -116,6 +116,7 @@ const paint = (page) => page.evaluate(() => {
 
 async function openBgPicker(page) {
   const pos = await page.evaluate(() => {
+    document.querySelector('#panel-right [id$="-fill-add"]')?.click();   // ★전제(74행 cf680cce1 · 키 없는 새 에셋 = 표준 Fill «칠 없음 + ＋» · 색 칸 안 섬) → ＋ 로 켠 뒤 스와치(IC 꼴 39353d07d · 사용자 길)
     const body = document.querySelector('#panel-right .panel-body');
     const sec = [...body.querySelectorAll('.prop-section')].find(s => s.dataset.sec === 'fill' || /배경/.test(s.innerText));   // ★전제(표준 Fill F2-2 · 지디 261124): 배경 줄 «배경색» 라벨 걷힘(시안 #mkp-fillstd 겹 줄 = 라벨 없음) → 절 이름(data-sec=fill)으로도
     const sw = sec && sec.querySelector('.prop-color-swatch');

@@ -71,6 +71,7 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
     ab.style.width = '600px'; ab.style.height = '400px';
     row.appendChild(ab); host.appendChild(row);
     showAssetProperties(ab);          // 이미지 없음 → 「배경색」 행이 있는 분기
+    if (!document.getElementById('asset-bg-hex')) document.getElementById('asset-fill-add')?.click();   // ★전제(74행 cf680cce1 · 키 없는 새 에셋 = 표준 Fill «칠 없음 + ＋» · 색 칸 안 섬) → ＋ 로 켠 뒤 hex 칸(IC 꼴 · 이 시험은 hex 칸 규약을 잰다 · 뜻 그대로)
     return ab;
   };
 

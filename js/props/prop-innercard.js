@@ -4,7 +4,7 @@ import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast } from './_fill-section.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast, fillHiddenOf, setFillHiddenKey } from './_fill-section.js';
 
 export function showInnerCardProperties(block) {
   let lines = [];
@@ -45,7 +45,7 @@ export function showInnerCardProperties(block) {
         <input type="range" class="prop-slider" id="icd-radius-slider" min="0" max="60" step="2" value="${radius}">
         <input type="number" class="prop-number" id="icd-radius-number" min="0" max="60" value="${radius}">
       </div>`),
-      sec('fill', fillSectionHTML({ prefix: 'icd-fill', on: bg !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'icd-bg', hex: bg, alpha: parseAlphaFromColor(bg) }) }),
+      sec('fill', fillSectionHTML({ prefix: 'icd-fill', hiddenWhy: '', hidden: fillHiddenOf(block), on: bg !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'icd-bg', hex: bg, alpha: parseAlphaFromColor(bg) }) }),
         { headTools: fillHeadToolsHTML({ prefix: 'icd-fill', on: bg !== 'transparent' }) }),   // 표준 Fill F2 — 없음 = bg 'transparent'(블럭 색 검사가 이미 받는 값)
       sec('effects', `
       <div class="prop-row">
@@ -70,6 +70,7 @@ export function showInnerCardProperties(block) {
   }
   /* 표준 Fill F2 — − = 'transparent' · ＋ = 지난 색 · 없으면 #FFFFFF(블럭 기본) */
   wireFillSection({ prefix: 'icd-fill', adapter: {
+    hide: (on) => { setFillHiddenKey(block, on); window.renderInnerCardBlock?.(block); window.scheduleAutoSave?.(); },   // F6-2 숨김 — 키만 바꾸고 다시 그림(렌더러가 키를 보고 칠 안 함)
     none: () => { fillLast.set(block.id, bg); block.dataset.bg = 'transparent'; window.renderInnerCardBlock?.(block); window.scheduleAutoSave?.(); showInnerCardProperties(block); },
     add: () => { block.dataset.bg = fillLast.get(block.id, '#ffffff'); window.renderInnerCardBlock?.(block); window.scheduleAutoSave?.(); showInnerCardProperties(block); },
     commit: () => window.pushHistory?.() } });

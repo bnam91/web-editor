@@ -34,7 +34,7 @@ function _icdLines(block) {
 
 function renderInnerCardBlock(block) {
   const lines = _icdLines(block);
-  const bg = block.dataset.bg || INNERCARD_DEFAULTS.bg;
+  const bg = block.dataset?.fillHidden === '1' ? 'transparent' : (block.dataset.bg || INNERCARD_DEFAULTS.bg);   // F6-2 숨김(키 = props/_fill-section setFillHiddenKey · import 0 = 하네스 단독 적재) — 칠만 안 함 · 색 키 그대로
   const radius = parseInt(block.dataset.radius);
   const padding = parseInt(block.dataset.padding);
   const align = block.dataset.align || 'left';

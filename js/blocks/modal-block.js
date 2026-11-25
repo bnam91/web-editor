@@ -722,7 +722,7 @@ function renderModalBlock(block) {
   if (!block) return;
   const v = MODAL_VARIANTS.includes(block.dataset.variant) ? block.dataset.variant : MODAL_DEFAULTS.variant;
   // 테두리·배경은 «변형의 유효 기본값»으로 폴백한다 — dataset 이 비어 있어도 변형의 정체가 보인다.
-  const bg = block.dataset.bg || _effDefault(v, 'bg');
+  const bg = block.dataset?.fillHidden === '1' ? 'transparent' : (block.dataset.bg || _effDefault(v, 'bg'));   // F6-2 숨김(키 = props/_fill-section setFillHiddenKey · import 0 = 하네스 단독 적재) — 칠만 안 함 · 색 키 그대로
   /* ★모서리의 진실은 dataset.radius «하나»다. 실측으로 셋이 갈라져 있었다:
      dataset.radius=75 → 화면 75px / 슬라이더 "60" / 숫자 "75".
      ⇒ 그리는 자리에서도 «같은 표»로 자른다. 패널·핸들도 같은 clampModal 을 쓴다. */

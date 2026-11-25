@@ -845,7 +845,7 @@ function renderRadialBlock(block) {
       if (g2.R !== g.R || g2.H !== g.H || g2.cx !== g.cx || g2.cy !== g.cy) { g = g2; _paintRadial(block, st, g); }
     }
   }
-  block.style.background = st.bg || '';
+  block.style.background = block.dataset?.fillHidden === '1' ? '' : (st.bg || '');   // F6-2 숨김(키 = props/_fill-section setFillHiddenKey · import 0 = 하네스 단독 적재) — 칠만 안 함 · 색 키 그대로 · 상태 읽기(radialStateOf)는 패널도 읽어 손 안 댐
   block._rdlGeom = { g, st };
   block._rdlW = g.arc ? block.clientWidth : undefined;   // 이 그림을 맞춘 폭(문서에 안 붙었으면 0 ⇒ 붙은 뒤 관찰자가 다시 맞춘다)
   _watchArcWidth(block, g.arc);

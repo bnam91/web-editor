@@ -62,7 +62,12 @@ test('F1 ★★★generic 갈래는 ★«벡터(kind vector)»의 `block.svg` �
      ★까닭: 벡터 블럭이 Figma 에 빈 프레임으로 나가던 것을 고쳤다(create_node_from_svg). 어노(kind annotation) 등 다른 generic svg 는 여전히 안 그린다 ⇒ FIGMA-GENERIC-SVG-NOT-DRAWN-01 은 «벡터만 닫힘».
      ★되돌리면(벡터 갈래 삭제) 아래 «벡터 갈래가 있다»가 빨강 · 벡터 밖에서 block.svg 를 쓰기 시작하면 «밖 0» 이 빨강(그때 어노까지 닫혔는지 실화면으로 보고 이 칸을 고쳐라). */
   /* 구간 = sliceBlock(머리 «리터럴» · 세어서 끝) — ⛔꼬리 문자열 짝맞추기 금지(SB-16) · ⛔머리를 변수로 넘기지 않는다(anchor-signature-ratchet R4 변수 닻) · 못 찾으면 sliceBlock 이 던진다 */
-  const vec = sliceBlock(b, "if (block.kind === 'vector' && typeof block.svg === 'string' && /^\\s*<svg\\b/i.test(block.svg)) {", '★벡터 갈래(kind vector → create_node_from_svg)가 generic 안에 없다');
+  /* ★기대 바뀜(F8 · 시트 83행 FIGMA-EXPORT-EMPTY-FRAME-COUPON-ZOOM-BRIDGE-01 · 지디 261125 GO): svg 가 곧 몸인 쿠폰·줌·브리지도 그린다(실측: 셋 다 투명 빈 프레임이었다) — 조건 = _SVG_BODY_KINDS 목록 · ★어노는 여전히 «밖» */
+  const vec = sliceBlock(b, "if (_SVG_BODY_KINDS.includes(block.kind) && typeof block.svg === 'string' && /^\\s*<svg\\b/i.test(block.svg)) {", '★svg 몸 갈래(_SVG_BODY_KINDS → create_node_from_svg)가 generic 안에 없다');
+  const kinds = /const _SVG_BODY_KINDS = (\[[^\]]*\]);/.exec(fs.readFileSync(SRC, 'utf8'));
+  assert.ok(kinds, '★_SVG_BODY_KINDS 목록이 없다');
+  /* ★기대 바뀜(F8b · 미카사 F7/F8 실기 12k · 지디 OK 261125): 별(톱니) 스티커 몸도 그린다 — 내보내기가 스티커 svg 는 stk-burst 만 실어 다른 스티커 svg 는 여전히 안 그림 */
+  assert.deepEqual(JSON.parse(kinds[1].replace(/'/g, '"')), ['vector', 'bridge', 'coupon', 'zoom', 'sticker'], '★svg 몸 종류 목록이 바뀌었다 — 어노 등을 넣으려면 실화면 확인 뒤 이 칸을 고쳐라');
   const outside = b.replace(vec, '');
   assert.match(vec, /create_node_from_svg/, '★벡터 갈래가 svg 를 안 그린다');
   assert.ok(!/block\.svg/.test(outside), '★벡터 갈래 «밖»에서 block.svg 를 쓴다 — 어노 등도 그리기 시작했으면 실화면 확인 뒤 이 칸을 고쳐라');

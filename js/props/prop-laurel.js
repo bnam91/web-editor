@@ -2,6 +2,7 @@ import { propPanel } from '../globals.js';
 import { blockHeaderHTML, discSecOpen, discSecToggle, disclosureChevronHtml, checkHTML } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { fillSectionHTML } from './_fill-section.js';
 import { gridNumOr } from '../blocks/grid-block.js';   /* ★C 181 — 0 을 살려 읽는 문 하나(렌더러 laurel-block.js 와 같은 함수 · 두 벌 금지) */
 
 function _readCells(block) {
@@ -160,6 +161,8 @@ export function showLaurelProperties(block) {
         ${checkHTML({ id: 'lrl-fullbleed-toggle', label: '패딩 제외', checked: block.dataset.fullBleed === 'true' })}
       </div>` : ''),
       sec('fill', `
+      <div data-solid-only data-scope="all" style="${(cells[0]?.leafFill && cells[0].leafFill !== 'solid') ? 'opacity:0.4;pointer-events:none;' : ''}" title="잎 색상 · 모든 칸(일괄)"><span class="prop-label" title="잎 색상 · 모든 칸(일괄)">일괄 색상</span>${fillSectionHTML({ prefix: 'lrl-fill', removeWhy: '잎이 안 보이게 되는 길이라 지금은 못 지워요', colorHtml: colorFieldHTML({ idPrefix: 'lrl-all-leaf', hex: cells[0]?.leafColor || '#1a1a1a', alpha: parseAlphaFromColor(cells[0]?.leafColor || '#1a1a1a') }) })}</div>
+      <div class="ui-fill-slot" data-slot="below" data-slot-kind="leaf-fill-preset">
       <div class="prop-row" data-scope="all">
         <span class="prop-label" title="잎 채움 · 모든 칸(일괄)">일괄 채움</span>
         <select class="prop-select" id="lrl-all-fill">
@@ -186,11 +189,8 @@ export function showLaurelProperties(block) {
           </optgroup>
         </select>
       </div>
-      <div class="prop-color-row" data-solid-only data-scope="all" style="${(cells[0]?.leafFill && cells[0].leafFill !== 'solid') ? 'opacity:0.4;pointer-events:none;' : ''}">
-        <span class="prop-label" title="잎 색상 · 모든 칸(일괄)">일괄 색상</span>
-        ${colorFieldHTML({ idPrefix: 'lrl-all-leaf', hex: cells[0]?.leafColor || '#1a1a1a', alpha: parseAlphaFromColor(cells[0]?.leafColor || '#1a1a1a') })}
       </div>
-`),
+`),   // 표준 Fill F5-1 — 일괄 색 = 표준 줄(«일괄 색상» 이름표 지킴 = 칸 카드 «잎 색상»과 범위 가름 · RP-LAUREL-SCOPE-LABEL 현빈 ⓑ · − 막힘 = 잎이 안 보임 · 사실) · «일괄 채움» 프리셋 = 슬롯(below · leaf-fill-preset) · id·배선 무변 · 잎마다 색 = 부위 색(칸 절)
     ],
   });
 

@@ -352,6 +352,7 @@ function _cpnScopeIds(svg, blockId) {
 function renderCouponBlock(block) {
   if (!block) return;
   const st = _cpnState(block);
+  if (block.dataset?.fillHidden === '1') st.bodyCol = 'transparent';   // F6-2 숨김(키 = props/_fill-section setFillHiddenKey · import 0 = 하네스 단독 적재) — 칠만 안 함 · 색 키 그대로 · _cpnState 는 순수 읽기(패널도 읽음)라 그리는 자리에서만
   const boxW = clampCoupon(_num(block, 'width', COUPON_DEFAULTS.width), COUPON_LIMITS.width);
   const boxH = _cpnBoxH(block, boxW);
 

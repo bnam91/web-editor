@@ -1,6 +1,6 @@
 import './block-flip.js';     // side-effect import — window.applyFlip/toggleFlip 를 블럭 렌더러(스티커·아이콘·모달·목업·줌)보다 먼저(Q17 반전)
 import './graph-limits.js';   // side-effect import — window.GRAPH_LIMITS 를 «이 모듈보다 먼저» 싣는다(하네스·앱 같은 길, 로드 순서 의존 없음)
-import { syncFrameBgVars, frameBgSize } from './frame-bg.js';   /* ★프레임 배경 ★먹이는 한 자리(2026-10-10 ③) */
+import { syncFrameBgVars, frameBgSize, syncFrameBgRepeat } from './frame-bg.js';   /* ★프레임 배경 ★먹이는 한 자리(2026-10-10 ③) */
 import { state } from './globals.js';
 import {
   genId,
@@ -1398,7 +1398,7 @@ function _buildBridgeWavePath({ shape = 'round', amp, count, phase = 'crest' } =
 function renderBridgeBlock(block) {
   if (!block) return;
   if ('bridgeSharp' in block.dataset) delete block.dataset.bridgeSharp;  // 폐지된 레거시 키 정리(재직렬화 방지, 코덱스 Q5)
-  const color = block.dataset.bridgeColor || BRIDGE_DEFAULTS.color;
+  const color = block.dataset.bridgeColor || BRIDGE_DEFAULTS.color;   // F6-2b 숨김 = 아래 svg style fill-opacity:0(색 키·path fill 그대로 · 패널이 path fill 을 바로 써도 숨김 유지)
   const width = parseFloat(block.dataset.bridgeWidth) || BRIDGE_DEFAULTS.width;
   const depth = parseFloat(block.dataset.bridgeDepth) || BRIDGE_DEFAULTS.depth;
   const _ar = parseFloat(block.dataset.bridgeArc);
@@ -1410,7 +1410,7 @@ function renderBridgeBlock(block) {
   const shape = block.dataset.bridgeShape === 'round' || block.dataset.bridgeShape === 'sharp' ? block.dataset.bridgeShape : 'v';   // 모르는 값 = V(옛 꼴)
   const path = shape === 'v' ? _buildBridgePath({ width, depth, arc })
     : _buildBridgeWavePath({ shape, amp: parseFloat(block.dataset.bridgeWaveAmp), count: parseFloat(block.dataset.bridgeWaveCount), phase: block.dataset.bridgeWavePhase });
-  block.innerHTML = `<svg viewBox="0 0 860 90" width="100%" height="100%" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%;height:100%"><path d="${path}" fill="${color}"/></svg>`;
+  block.innerHTML = `<svg viewBox="0 0 860 90" width="100%" height="100%" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%;height:100%${block.dataset?.fillHidden === '1' ? ';fill-opacity:0' : ''}"><path d="${path}" fill="${color}"/></svg>`;
 }
 
 // 브릿지는 토글 없이 '항상' full-bleed: 섹션 좌우패딩만큼 음수마진 + calc 확장 (gradient-block 정책과 동일).
@@ -7009,6 +7009,7 @@ function updateFrameBlock(blockId, partial = {}) {
       block.style.backgroundImage = `url("${src}")`;
       block.style.backgroundSize = frameBgSize(block);
       block.style.backgroundPosition = 'center';
+      syncFrameBgRepeat(block);
       block.dataset.bgImg = src;
       _syncBgVars();
       applied.bgImage = src;
@@ -7208,6 +7209,7 @@ function updateFrameBlock(blockId, partial = {}) {
         block.style.backgroundImage = `url("${block.dataset.bgImg}")`;
         block.style.backgroundSize = frameBgSize(block);
         block.style.backgroundPosition = block.dataset.bgPos || 'center';
+        syncFrameBgRepeat(block);
       } else if (bgVal) {
         block.style.backgroundColor = bgVal;
       }
