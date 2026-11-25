@@ -1,6 +1,7 @@
 import { propPanel } from '../globals.js';
 import { alignBtn } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
+import { positionHeadToolsHTML } from './_position-section.js';   // 표준 Position 머리(시트 222) — 몸 = 부품에 칸 없음(옛 그대로 · 탑 보고)
 import { layoutSizeRowHTML, layoutGapSlotHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(P-2 · 지디 판정)
 import { appearanceSectionHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance A4 Opacity(P-2)
 /* ★★말풍선의 ★«발신자 이름»을 ★데려가는 ★유일한 자 — ⛔여기서 ★`.tb-sender-name` 을 ★직접 ★만지지 ★마라.
@@ -269,7 +270,7 @@ export function showFreeLayoutMultiSelPanel() {
         ${mkInput('x', xVal, 'x', 'X')}
         ${mkInput('y', yVal, 'y', 'Y')}
       </div>
-`),
+`, { headTools: positionHeadToolsHTML({ prefix: 'msp', rotCan: false }) }),
       sec('size', layoutSizeRowHTML({ prefix: 'msp', chain: { on: false, blocked: '여러 블럭 — 비율 사슬 없음' },   // 표준 Layout — 숫자 칸 id 무변(msp-w·msp-h) · 다르면 Mixed
         w: { id: 'msp-w', value: wVal, min: 1, max: 4000, mixed: wVal === 'mixed' }, h: { id: 'msp-h', value: hVal, min: 1, max: 4000, mixed: hVal === 'mixed' } })),
       sec('layout', `${layoutGapSlotHTML({ id: 'msp-gap', value: spacing, max: 9999, mixed: spacing === 'mixed' })}

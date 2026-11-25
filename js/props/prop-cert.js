@@ -4,9 +4,10 @@
  *   용지 그림 = 캔버스에서만(끌어 놓기·더블클릭·스크래치 끌기 — cert-block.js · canvas-scratch-drop.js) · 패널 용지 카드는 현빈 261114 ⑥ 으로 뺐다.
  *   ⛔값은 escHtml 로 속성에 싣는다(블럭 데이터는 남이 준 프로젝트에서 올 수 있다).
  */
-import { blockHeaderHTML, sliderRowHTML, escHtml, overlayToggleBtnHTML, checkHTML } from './_helpers.js';
+import { blockHeaderHTML, sliderRowHTML, escHtml, checkHTML } from './_helpers.js';
+import { positionSectionHTML, positionHeadToolsHTML } from './_position-section.js';   // 표준 Position 절(시트 222 DS-POSITION-STD-REST-01)
 import { renderPanel, sec } from './_panel-frame.js';
-import { wireFloatToggle, wireFloatPosition, floatPositionRowHTML, posElOf, isFloat } from '../overlay-float.js';
+import { wireFloatToggle, wireFloatPosition, posElOf, isFloat } from '../overlay-float.js';
 import { colorFieldHTML, wireColorField } from './color-picker.js';
 import { readCertState, setCertList, CERT_SHADOWS } from '../blocks/cert-block.js';
 const SHADOW_LABEL = { none: '없음', soft: '부드럽게', strong: '진하게' };
@@ -60,8 +61,7 @@ export function showCertProperties(block) {
       sec('content', (isGrid ? '' : `
       ${sliderRowHTML('장 수', 'crt-count-slider', 'crt-count-number', { min: 1, max: CERT_MAX_SHEETS, step: 1, value: st.certs.length })}`) + `
       ${_toggleRow('crt-samples', '샘플넣기', block.dataset.samples === 'on', '빈 칸에 샘플 문서를 보여 줌(넣은 그림은 안 덮음 · 저장·내보내기엔 안 들어감)')}`),
-      sec('position', `
-      ${floatPositionRowHTML({ prefix: 'crt', posEl: _crtPosEl })}`, { headTools: overlayToggleBtnHTML({ id: 'crt-float-toggle', active: _crtIsFloat }) }),
+      sec('position', positionSectionHTML({ prefix: 'crt', posEl: _crtPosEl }), { headTools: positionHeadToolsHTML({ prefix: 'crt', ialId: 'crt-float-toggle', ialOn: _crtIsFloat, rotCan: false }) }),   // 표준 Position — 회전 없음(슬라이드 disabled) · id·배선 무변
       sec('size', isGrid ? '' : `
       ${layoutSlotNumberHTML({ id: 'crt-sheetw-number', label: '용지 크기', value: Math.round(st.sheetW * 100), min: 20, max: 45 })}
       ${sheetHRow}`),

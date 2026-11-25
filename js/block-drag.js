@@ -1342,12 +1342,8 @@ function bindBlock(block) {
         // 프로퍼티 패널 실시간 업데이트
         const xNum = document.getElementById('joker-x-number');
         const yNum = document.getElementById('joker-y-number');
-        const xSl  = document.getElementById('joker-x-slider');
-        const ySl  = document.getElementById('joker-y-slider');
         if (xNum) xNum.value = newLeft;
-        if (xSl)  xSl.value  = newLeft;
         if (yNum) yNum.value = newTop;
-        if (ySl)  ySl.value  = newTop;
       }
 
       function onUp() {

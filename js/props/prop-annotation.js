@@ -3,6 +3,7 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML, escHtml, checkHTML, wireNumberScrub } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
+import { positionHeadToolsHTML } from './_position-section.js';   // 표준 Position 머리(시트 222) — 몸 = 부품에 칸 없음(옛 그대로 · 탑 보고)
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_STYLES_CSS, STROKE_POP_WHY } from './_stroke-section.js';
 /* ★1017t1h3 — 「고른 글자만」 한 벌. ⛔선택을 여기서 따로 저장하지 않는다(_text-selection.js 머리말 ⛔). */
@@ -392,7 +393,7 @@ export function showAnnotationProperties(block) {
         <input type="number" class="prop-number" id="annot-label-dx" min="${LIM.labelDx.min}" max="${LIM.labelDx.max}" step="1" value="${st.labelDx}" title="가로(dx)">
         <input type="number" class="prop-number" id="annot-label-dy" min="${LIM.labelDy.min}" max="${LIM.labelDy.max}" step="1" value="${st.labelDy}" title="세로(dy)">
       </div>
-      <button class="prop-btn-full" id="annot-label-reset"${manual ? '' : ' disabled'}>자동 배치로 되돌리기</button>`, { id: 'annot-label-pos-section' }),
+      <button class="prop-btn-full" id="annot-label-reset"${manual ? '' : ' disabled'}>자동 배치로 되돌리기</button>`, { id: 'annot-label-pos-section', headTools: positionHeadToolsHTML({ prefix: 'annot', rotCan: false }) }),
       // 옛 「치수선」(치수선만) + 라벨 이미지 크기 / 라벨 너비
       sec('size', `${st.annotKind === 'dim' ? `
     <!-- ★★t3-01 사이즈 스티커(치수선) — ★이 절은 ★annotKind==='dim' 일 때만 그린다.

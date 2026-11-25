@@ -33,7 +33,7 @@ const V = [
   { name: 'divider', make: `return add('divider-block', () => window.addDividerBlock());`, open: 'showDividerProperties', ctl: { id: 'dvd-style', value: 'dashed' } },
   { name: 'vector 일반', make: `return add('vector-block', () => window.addVectorBlock(${JSON.stringify(SVG)}, { w: 120, h: 120 }));`, open: 'showVectorProperties', ctl: { id: 'vb-rotate-deg', value: '30' } },
   { name: 'vector 펜 패스', make: `const b = add('vector-block', () => window.addVectorBlock(${JSON.stringify(SVG)}, { w: 120, h: 120 })); b.dataset.penNodes = JSON.stringify([{ x: 0, y: 0 }, { x: 10, y: 10 }]); b.dataset.penClosed = '1'; return b;`, open: 'showVectorProperties', ctl: { id: 'vb-stroke-w-num', value: '5' } },   // ★기대 바뀜(표준 Stroke 2-5): 선 굵기 = 숫자 칸 하나(옛 슬라이더 걷음)
-  { name: 'joker', make: `return add('joker-block', () => window.addJokerBlock());`, open: 'showJokerProperties', ctl: { id: 'joker-x-slider', value: '100' } },
+  { name: 'joker', make: `return add('joker-block', () => window.addJokerBlock());`, open: 'showJokerProperties', ctl: { id: 'joker-x-number', value: '100' } },   // ★기대 바뀜(표준 Position · 탑 워커 261125) — X 슬라이더 걷음 → 같은 id 줄기 숫자 칸(키 offsetX 무변)
   { name: 'icon-circle', make: `return add('icon-circle-block', () => window.addIconCircleBlock());`, open: 'showIconCircleProperties', ctl: { id: 'icb-border-select', value: 'solid' } },
 ];
 
