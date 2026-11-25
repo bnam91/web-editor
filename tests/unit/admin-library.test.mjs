@@ -197,7 +197,14 @@ test('A7 viewBox 고침 — 곡선 극값 · 넘을 때만 · use 펼침', () =>
   const inside = '<svg viewBox="0 0 100 100"><path d="M10 10L90 90" stroke-width="4" stroke="#000"/></svg>';
   assert.deepEqual([P.fixViewBox(inside).changed, P.fixViewBox(inside).svg], [false, inside], '안쪽이면 글자 그대로');
   const edge = '<svg viewBox="0 0 100 100"><path d="M0 50H100" stroke-width="20" stroke="#000"/></svg>';
-  assert.equal(P.fixViewBox(edge).changed, false, '패스가 틀 안 = 획 여유만 넘어도 무변(피그마 «안 잘림»과 같은 판정)');
+  /* ★기대 바뀜(0.9.13 66 마감 ◑ · 지디 261125 «여유 = max(획)/2»): 옛 = «패스가 틀 안이면 획 여유만 넘어도 무변» → 패스 ± 획/2 가 넘으면 넓힘 */
+  const e1 = P.fixViewBox(edge);
+  assert.deepEqual([e1.changed, e1.newVB], [true, '-10 0 120 100'], '패스 ± 획 10 이 좌우로 넘음 → 넓힘(위아래 40 = 틀 안 그대로)');
+  /* LIB-05 실측 꼴 — Doodle 원본 273-12335: 틀 0 0 2210 2337 · 획 40 · 패스 아래 끝 2329.8(여유 7.2 < 20) → 아래로 넓힘(잘림 0) */
+  const clip = '<svg viewBox="0 0 2210 2337" fill="none"><path d="M100.6 85.1L2019.6 2329.8" stroke="#000" stroke-width="40"/></svg>';
+  const c1 = P.fixViewBox(clip), [, , , ch] = c1.newVB.split(' ').map(Number);
+  assert.deepEqual([c1.changed, c1.newVB.split(' ').slice(0, 3).join(' ')], [true, '0 0 2210'], '위·좌우 = 여유 넉넉 → 그대로');
+  assert.ok(Math.abs(ch - (2329.8 + 20)) < 0.02, `아래 = 패스 끝 + 획/2 = 2349.8 (${ch})`);
   const fillOnly = '<svg viewBox="0 0 10 10"><path d="M0 0H10V10H0Z" fill="#000"/></svg>';
   assert.equal(P.fixViewBox(fillOnly).changed, false, '채움만 = 획 여유 0 → 딱 맞으면 무변');
   const use = '<svg viewBox="0 0 10 10"><use xlink:href="#s0" fill="black"/><defs><path id="s0" d="M1 1H9V9Z"/></defs></svg>';
