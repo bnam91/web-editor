@@ -2727,6 +2727,9 @@ function bindBlock(block) {
          텍스트 블록의 dblclick 도 같은 이유로 elementFromPoint 로 대상을 고른다(이 파일 isText 분기). */
       const atPoint = document.elementFromPoint(e.clientX, e.clientY);
       const node = (atPoint && block.contains(atPoint)) ? atPoint : e.target;
+      /* ★0.9.13 201행(현빈 ⓑ «에셋블럭 방식» · 지디 (가) 두 겹) — 인포그래픽(data-ifg-preset)은 편집 모드 «밖» 더블클릭 = 인포그래픽 편집(틀 고정 · 안 내용 배율 · js/blocks/grid-ifg-edit.js).
+         편집 모드 «안» 더블클릭은 아래 옛 갈래(아이콘 고르개 · 글줄 글자 편집) 그대로 = 한 겹 더. 글자 바로 고치기는 Enter(그대로). */
+      if (block.dataset.ifgPreset && !window.isIfgEditing?.(block) && window.enterIfgEditMode?.(block)) { e.stopPropagation(); return; }
       /* ★t5-12ⓑ — 원 줄 «위» 블럭(.grd-circle-kids 안) 더블클릭은 그 블럭의 것(제 처리기가 편집을 연다) — 그리드는 손 뗀다. */
       { const _ck = node && node.closest ? node.closest('.grd-circle-kids') : null;
         if (_ck && block.contains(_ck) && node !== _ck) return; }

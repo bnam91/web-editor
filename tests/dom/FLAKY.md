@@ -477,3 +477,7 @@ ft-restore-remeasures-at-other-width.dom.spec.js:112 X0   빨강 1/1 (u6m 전수
 - `iconify-bundle-preview.dom.spec.js:59` B2 — 인텔 전수 1/1 빨강 · 인텔 workers 1 ×3 0/3 · srv workers 1 ×5 0/5 · srv workers 2 ×3 0/3.
 - `s3v-icon-text.dom.spec.js:122` ⒤⒦ — 인텔 전수 1/1 빨강 · 인텔 workers 1 ×3 0/3.
 - `ft-restore-remeasures-at-other-width.dom.spec.js:112` X0 — 인텔 전수 1/1 빨강 · 인텔 workers 1 ×3 0/3(앞 2026-11-21 dev16 줄과 같은 칸).
+
+## 2026-11-24 · tp/0913-ifg-edit 표적 — 이름 ＋ 수 (⛔원인 라벨 없이)
+- `itb-photo-upload-door.dom.spec.js:165` U2 — 파일 통째 srv workers 1 ×5: tp/front(f27025897 파일) 2/5 흔들림 · 가지(c033b6ba1) 3/5 흔들림 · U2 단독 ×5 둘 다 0/5.
+- `itb-photo-upload-door.dom.spec.js:146` U3 — 표적(가지 a~g 고침 · 파일 통째 · srv workers 1) 1/1 빨강 · 같은 판 ×3 0/3. 같은 파일 `:121` U1 — 922cd91ae ×3 1/3.
