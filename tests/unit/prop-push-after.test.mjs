@@ -366,3 +366,84 @@ test('PA-10 ★음성·양성대조 — PA-9 의 판정이 자리마다 두 순�
     assert.equal(writesBeforeRecord(rest + '\n' + recLine), true, `★${site[0]} «${site[1]}» push-after 변형본을 판정이 «틀렸다»고 한다`);
   }
 });
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PA-11/PA-12 — ★[0.9.14 97행 UNDO-PUSH-BEFORE-BUTTONS-PICKERS-01] 80·94행과 같은 병 · 단추·피커·목록 더하기/지우기·올리기
+   ──────────────────────────────────────────────────────────────────────────
+   94행 전수(census)가 남긴 «찍고 나서 바꾸는» 자리들. 쓰기가 «함수 호출»(_writeProps·rerender·previewLine…)이라
+   PA-9 의 대입 잣대로는 못 가른다 ⇒ 자리마다 «그 쓰기»를 이름으로 적고, 기록이 그 «뒤»에 오는지 본다.
+   ⛔안 잠근 것(일부러 둠): prop-grid «적용 전에 한 번» 둘(규칙 줄 commit · 줄 정렬) · 양쪽 끝 핸들러 · 구조 전환(글 종류 · 인용구 → 글 · 스택).
+   행동 쪽은 tests/dom/undo-push-after-3.dom.spec.js 가 잰다. ⛔이 검사는 «소스 모양»만 잰다.
+═══════════════════════════════════════════════════════════════════════════ */
+/* [파일, 자리 앵커, 그 뒤 처음 오는 핸들러 머리, 기록보다 앞에 와야 하는 쓰기] */
+const PICK_SITES = [
+  ['js/props/prop-annotation.js', "'#annot-label-mode-group .prop-align-btn').forEach", "addEventListener('click'", '_writeProps('],
+  ['js/props/prop-annotation.js', 'reader.onload = ev =>',                     '=>',                         '_writeProps('],
+  ['js/props/prop-annotation.js', 'removeBtn.addEventListener',                "addEventListener('click'",   '_writeProps('],
+  ['js/props/prop-chat.js',       "'.chb-del-btn').forEach",                   "addEventListener('click'",   'rerender('],
+  ['js/props/prop-chat.js',       "'#chb-add-msg')",                           "addEventListener('click'",   'rerender('],
+  ['js/props/prop-frame.js',      'function _swapBannerChildren',              'function _swapBannerChildren', 'Array.from(ss.children).forEach'],
+  ['js/props/prop-frame.js',      'bannerSel.addEventListener',                "addEventListener('change'",  '_applyBannerPreset'],
+  ['js/props/prop-frame.js',      'bgSizeSel) bgSizeSel.addEventListener',     "addEventListener('change'",  'applyFrameBgImageInline('],
+  ['js/props/prop-gap.js',        'presetBtns.forEach(btn',                    "addEventListener('click'",   'gb.style.height ='],
+  ['js/props/prop-grid.js',       'const numWire = (id, field, lo = 0, hi = Infinity)', "addEventListener('change'", 'gridPreviewLine(block'],
+  ['js/props/prop-grid.js',       "const gapH = document.getElementById('grd-line-gap-h')", "addEventListener('change'", 'H.previewLine('],
+  ['js/props/prop-grid.js',       "const dvH = document.getElementById('grd-divider-h')",   "addEventListener('change'", 'H.previewLine('],
+  ['js/props/prop-grid.js',       "getElementById('grd-line-reset')",          "addEventListener('click'",   'H.previewLine('],
+  ['js/props/prop-grid.js',       "'.grd-row-h-item').forEach",                "addEventListener('change'",  'window.renderGridBlock'],
+  ['js/props/prop-label-group.js', "styleSelect?.addEventListener('change'",   "addEventListener('change'",  '_applyPresetToItem('],
+  ['js/props/prop-label-group.js', "applyAllBtn?.addEventListener('click'",    "addEventListener('click'",   '_applyPresetToItem('],
+  ['js/props/prop-label-group.js', 'const _rebind = (name) =>',                '=>',                         'window.LabelShape?.unbindLabelItem'],
+  ['js/props/prop-mockup.js',     "'#mkp-shadow-group .prop-align-btn').forEach", "addEventListener('click'", '_applyShadow(block'],
+  ['js/props/prop-mockup.js',     'async function _captureAndApply',           'try',                        '_applyScreenImage(block'],
+  ['js/props/prop-modal.js',      "getElementById('mdl-typo-color-chips')",    'onPick:',                    "setDs('textColor'"],
+  ['js/props/prop-page.js',       'getElementById(`page-align-${align}`)',     "addEventListener('click'",   "'.label-group-block').forEach"],
+  ['js/props/prop-section.js',    'const _chk = (dark) =>',                    '=>',                         '_applySectionBg(sec)'],
+  ['js/props/prop-section.js',    'bgSizeEl.addEventListener',                 "addEventListener('change'",  '_applySectionBg(sec)'],
+  ['js/props/prop-section.js',    'bgImgRemove.addEventListener',              "addEventListener('click'",   '_applySectionBg(sec)'],
+  ['js/props/prop-sticker.js',    "'#stk-preset-select')",                     "addEventListener('change'",  'rerender('],
+  ['js/props/prop-sticker.js',    "'#stk-icon-replace')",                      'openIconifyModal',           'rerender('],
+  ['js/props/prop-text-wireup-bubble.js', "'bubble-style-select')",            "addEventListener('change'",  'applySpeechBubbleStyle'],
+  ['js/props/prop-text-wireup-bubble.js', 'const _setTail = (dir) =>',         '=>',                         'replaceWith('],
+  ['js/props/prop-text-wireup-bubble.js', 'const _setSize = (mode) =>',        '=>',                         'applyBubbleSize(tb)'],
+  ['js/props/prop-text-wireup-bubble.js', 'const _wireDim = (input, key, min, max) =>', "addEventListener('change'", 'applyBubbleSize(tb)'],
+  ['js/props/prop-text-wireup-label.js', "'label-shape-pill')",                "addEventListener('click'",   'if (rNumber2)'],
+  ['js/props/prop-text-wireup-label.js', "'label-shape-box')",                 "addEventListener('click'",   'if (rNumber2)'],
+  ['js/props/prop-text-wireup-label.js', "'label-shape-outline')",             "addEventListener('click'",   'if (rNumber2)'],
+  ['js/props/prop-text-wireup-label.js', "'label-shape-circle')",              "addEventListener('click'",   'if (rNumber2)'],
+  ['js/props/prop-text-wireup-label.js', "'label-shape-oval')",                "addEventListener('click'",   'if (rNumber2)'],
+  ['js/props/prop-text-wireup-label.js', "'label-shape-text')",                "addEventListener('click'",   'if (rNumber2)'],
+  ['js/props/prop-text-wireup-text-edit.js', 'container: chipContainer',       'onPick:',                    'applyColorToSel(cssRef)'],
+  ['js/props/prop-zoom.js',       "'#zm-img-clear')",                          "addEventListener('click'",   'rerender('],
+  ['js/props/prop-zoom.js',       "'#zm-ab-reset')",                           "addEventListener('click'",   'clearPinnedZoomShortEdge'],
+];
+/** 판정 — 몸통에 기록이 있고, 그 자리의 쓰기가 기록보다 «앞»에 있다. */
+const writeBeforeRecord = (body, write) => { const rec = body.search(RECORD_RE), w = body.indexOf(write); return rec >= 0 && w >= 0 && w < rec; };
+
+function checkPickSites(sites, tag) {
+  const bad = [];
+  for (const site of sites) {
+    const body = siteBody(site);
+    assert.match(body, RECORD_RE, `★${site[0]} «${site[1]}» 가 기록을 안 한다 — 칸을 못 만든다`);
+    assert.ok(body.includes(site[3]), `★${site[0]} «${site[1]}» 몸통에 쓰기 «${site[3]}» 가 없다 — 앵커가 늙었다`);
+    if (!writeBeforeRecord(body, site[3])) bad.push(`${site[0]} «${site[1]}»`);
+  }
+  assert.deepEqual(bad, [],
+    `★${tag}: «찍고 나서» 바꾼다(push-before). 앞 편집이 push-after 면 이 조작은 자기 칸을 잃고 ` +
+    '⌘Z 한 번에 다음 편집과 같이 사라진다 — 적용 먼저, 기록 나중.');
+}
+function controlPickSites(sites) {
+  /* PA-10 과 같은 꼴: 지금 몸통에서 기록 줄을 떼어 «맨 앞»(옛 모양)·«맨 뒤»(고친 모양)에 붙인다 — 지금 순서와 무관하다. */
+  for (const site of sites) {
+    const body = siteBody(site);
+    const rec = body.search(RECORD_RE);
+    assert.ok(rec >= 0, `★변환이 늙었다 — ${site[0]} 기록 줄을 못 찾았다`);
+    const ls = body.lastIndexOf('\n', rec) + 1, le = body.indexOf(';', rec) + 1;
+    const recLine = body.slice(ls, le), rest = body.slice(0, ls) + body.slice(le);
+    assert.equal(writeBeforeRecord(recLine + '\n' + rest, site[3]), false, `★${site[0]} «${site[1]}» push-before 변형본을 판정이 «못 잡는다»`);
+    assert.equal(writeBeforeRecord(rest + '\n' + recLine, site[3]), true, `★${site[0]} «${site[1]}» push-after 변형본을 판정이 «틀렸다»고 한다`);
+  }
+}
+
+test('PA-11 ★단추·피커·목록·올리기 서른아홉 자리는 «바꾸고 나서» 찍는다', () => checkPickSites(PICK_SITES, 'PA-11'));
+test('PA-12 ★음성·양성대조 — PA-11 의 판정이 자리마다 두 순서를 실제로 가르는가', () => controlPickSites(PICK_SITES));
