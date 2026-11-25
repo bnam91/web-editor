@@ -71,6 +71,19 @@ test('H2 한 줄 상자 + 문단 → 낱말로 · 높이 그대로', async ({ pa
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
+test('H2b (174 곁 · 미카사 7판) 한 줄 높이 상자 + 문단 = 낱말 갈래 → 표식·패널 = 실제 낱말 수(옛 0/0) · 단위 칸 낱말', async ({ page }) => {
+  /* 옛: 한 단위도 안 들어가 낱말로 채우면 표식 n·m 0 → 패널 «0/0»인데 글은 있음(채울 때마다 씨앗 따라 1/1 ↔ 0/0 번갈음 · GRADE-0913close-7 E08 곁) */
+  const { errs } = await scene(page, 24);
+  await page.selectOption('#txt-lorem-unit', 'paragraph');
+  await run(page);
+  const a = await st(page);
+  const unitNow = await page.evaluate(() => document.getElementById('txt-lorem-unit')?.value);
+  console.log('[H2b 실측]', JSON.stringify({ mk: a.mk, sl: a.sl, words: a.words, unitNow, h: a.h }));
+  expect([a.h, a.words > 0], '[전제] 높이 그대로 · 글 있음').toEqual([24, true]);
+  expect([a.mk.u, a.mk.n, a.mk.m, a.sl.max, a.sl.v, unitNow], `★표식·패널 = 낱말 ${a.words} 개(0/0 아님)`).toEqual(['word', a.words, a.words, String(a.words), String(a.words), 'word']);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
 test('H3 auto 상자 — 채우기 = 그 순간 높이를 굳힘 · 높이 그대로 · 꽉 · 슬라이더 0~최대 = 최대', async ({ page }) => {
   /* ★기대 바뀜(174 t13E-08 · 현빈 결정 261125 21:27 «ⓐ 높이 지키기 우선»): 옛 = «개수 3 · 높이 키 없음 · 상자가 글을 따라 커짐»(지디 안전 기본값) → 채우기 순간 높이를 정한 높이로 굳히고 그 높이에 꽉 */
   const { errs } = await scene(page, 0);

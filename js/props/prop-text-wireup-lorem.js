@@ -69,14 +69,19 @@ export function applyLorem(tb, opts = {}) {
   let n, m = null, u = o.unit;
   if (cap) {
     m = _maxFit(tb, o, seed, cap);
-    if (m === 0 && u !== 'word') { u = 'word'; const w = _maxFit(tb, o, seed, cap, 'word'); _write(tb, { ...o, unit: 'word' }, seed, Math.max(1, w)); n = 0; }   // 작은 상자 = 낱말로(위 shortcut)
+    if (m === 0 && u !== 'word') {   // 작은 상자 = 낱말로(위 shortcut)
+      /* ★미카사 7판 곁(174 · 261126): 옛 = 표식 n·m 0 → 패널 개수 «0/0» 인데 글은 들어 있음(잘린 낱말 글) · 채울 때마다 씨앗 따라 1/1 ↔ 0/0 번갈음
+         ⇒ 실제로 넣은 단위(낱말)와 개수로 적는다(슬라이더 0~낱말 최대 = 낱말 수 · 단위 칸도 낱말로 — wireLoremSection _panelSync) · 알림 한 줄 */
+      u = 'word'; m = _maxFit(tb, o, seed, cap, 'word'); n = Math.max(1, m); _write(tb, { ...o, unit: 'word' }, seed, n);
+      window.showToast?.('한 문장도 안 들어가는 높이라 낱말로 채웠어요');
+    }
     else { n = opts.n == null ? m : Math.max(0, Math.min(m, Math.round(opts.n))); _write(tb, o, seed, n); }
   } else {
     n = Math.max(1, Math.min(LOREM_MAX[u] || 30, Math.round(opts.n ?? 2)));
     _write(tb, o, seed, n);
   }
-  tb.dataset.lorem = JSON.stringify({ u: o.unit, l: o.lang, s: seed, n, m, h: _hash(_textOf(tb)) });
-  return { n, m };
+  tb.dataset.lorem = JSON.stringify({ u, l: o.lang, s: seed, n, m, h: _hash(_textOf(tb)) });   // u = 실제로 넣은 단위(작은 상자 낱말 갈래면 word)
+  return { n, m, u };
 }
 /** 아래 변 끌기(t13D-10 손잡이)가 부른다 — 더미 그대로면 정한 높이 = want 로 두고 다시 꽉 채운 뒤 true(손잡이는 옛 «내용보다 작게 못 줄임» 셈을 건너뜀) · 사용자 글이면 false. */
 export function loremRefit(posEl, want) {
@@ -102,7 +107,7 @@ export function wireLoremSection({ tb, propPanel }) {
   if (mk) { if (unit) unit.value = mk.u; if (lang) lang.value = mk.l; }
   const U = () => unit?.value || 'sentence', MAX = () => LOREM_MAX[U()] || 30;
   if (mk && mk.m != null && cap) set(0, mk.m, mk.n); else if (mk) set(1, MAX(), mk.n); else if (cap) set(0, MAX(), MAX()); else set(1, MAX(), 2);
-  _panelTb = tb; _panelSync = (r) => { if (r.m != null) set(0, r.m, r.n); else set(1, MAX(), r.n); };
+  _panelTb = tb; _panelSync = (r) => { if (r.u && unit && unit.value !== r.u) unit.value = r.u; if (r.m != null) set(0, r.m, r.n); else set(1, MAX(), r.n); };   // 단위 칸도 실제로 넣은 단위로(낱말 갈래)
   const live = (n) => {   // 끄는 동안 바로 — 더미 그대로일 때만(사용자 글·안내문구를 덮지 않는다 · 처음 넣기는 «채우기»)
     const m2 = loremMark(tb); if (!m2) return null;
     const r = applyLorem(tb, { unit: U(), lang: lang?.value, seed: m2.s, n }); _panelSync(r); window.triggerAutoSave?.(); return r;
