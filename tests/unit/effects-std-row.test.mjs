@@ -56,3 +56,25 @@ for (const [p, ids] of Object.entries(PANELS)) {
     for (const id of ids) assert.ok(s.includes(id), `옛 id ${id} 사라짐`);
   });
 }
+
+test('R3 펼침 단추 = document 위임 한 벌 — 누르면 몸 hidden·aria-expanded 뒤집힘 · 다시 그려도 닫힘 기억', async () => {
+  let onClick = null;
+  const body = { hidden: false };
+  const row = { id: 'zz-row' };
+  const btn = { attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, closest: (s) => (s === '[data-part="fx-open"]' ? btn : row) };
+  const saved = globalThis.document;
+  delete globalThis.__fxRowWired;
+  globalThis.document = { addEventListener: (t, f) => { if (t === 'click') onClick = f; }, getElementById: (id) => (id === 'zz-row-body' ? body : null) };
+  try {
+    const d = mkTmpRoot('fx-row-wire-');
+    fs.copyFileSync(PART, path.join(d, 'fx2.mjs'));
+    const m = await import(pathToFileURL(path.join(d, 'fx2.mjs')).href);
+    assert.equal(typeof onClick, 'function');
+    onClick({ target: btn });
+    assert.equal(body.hidden, true); assert.equal(btn.attrs['aria-expanded'], 'false');
+    assert.match(m.effectRowHTML({ id: 'zz-row', label: 'a', body: '' }), /aria-expanded="false"[\s\S]*id="zz-row-body" hidden>/);
+    onClick({ target: btn });
+    assert.equal(body.hidden, false); assert.equal(m.fxRowOpen('zz-row'), true);
+    onClick({ target: { closest: () => null } });   // 딴 곳 클릭 = 무시
+  } finally { globalThis.document = saved; delete globalThis.__fxRowWired; }
+});
