@@ -4,6 +4,8 @@ import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from 
 import { renderPanel, sec } from './_panel-frame.js';
 import { pushHistory } from '../editor.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { fillSectionHTML } from './_fill-section.js';   // 표준 Fill(DS-FILL-STD-REST-01) — 단색 vb / 여러 색 = 색 1(vb-g0) = 겹 줄 · 색 2… = 부위 줄 · 펜 «채움» 체크 = 그대로(펜 색 칸 vb 는 Stroke 에 · 한 id 두 칸 금지 — 탑에 올림)
+const _VB_RM_WHY = '벡터 색은 지울 수 없어요 — 투명도 0 으로 숨기세요';
 import { strokeSectionHTML, wireStrokeSection, STROKE_POP_WHY } from './_stroke-section.js';
 import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance A4(Opacity 만)
 import { layoutSizeRowHTML, wireLayoutSection, ratioLockOn, setRatioLock } from './_layout-section.js';   // 표준 Layout L2
@@ -66,15 +68,13 @@ export function showVectorProperties(block) {
       <div class="prop-row">
         <button class="prop-btn-full" id="vb-pen-edit">패스 편집</button>
       </div>` : ''),
-      sec('fill', (multi ? groups.map((g, k) => `
+      sec('fill', (multi ? groups.map((g, k) => k === 0 ? `
+      ${fillSectionHTML({ prefix: 'vb-fill', removeWhy: _VB_RM_WHY, colorHtml: colorFieldHTML({ idPrefix: 'vb-g0', hex: _hex(g.color), alpha: parseAlphaFromColor(g.color) }).replace('aria-label="Color"', 'aria-label="색 1"') })}` : `
       <div class="prop-row">
         <span class="prop-label">색 ${k + 1}</span>
         ${colorFieldHTML({ idPrefix: `vb-g${k}`, hex: _hex(g.color), alpha: parseAlphaFromColor(g.color) })}
       </div>`).join('') : hasPen ? '' : `
-      <div class="prop-row">
-        <span class="prop-label">색</span>
-        ${colorFieldHTML({ idPrefix: 'vb', hex: color, alpha: colorAlpha })}
-      </div>`) + `${hasPen && penClosed ? `
+      ${fillSectionHTML({ prefix: 'vb-fill', removeWhy: _VB_RM_WHY, colorHtml: colorFieldHTML({ idPrefix: 'vb', hex: color, alpha: colorAlpha }) })}`) + `${hasPen && penClosed ? `
       <div class="prop-row" style="margin-top:6px;" title="닫힌 패스 채움 토글">
         ${checkHTML({ id: 'vb-pen-fill', label: '채움', checked: fillOn })}
       </div>` : ''}`),
