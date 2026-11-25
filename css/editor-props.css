@@ -1356,6 +1356,12 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
   transform: translateY(-50%) scale(1.2);
   z-index: 3;
 }
+/* 정지점 줄(0.9.14 #75 GRAD-STOPS-LIST-RIGHT-CELL-CLIP-01) — 옛 인라인 gap 6 · 34/48px 칸이 183px 줄을 넘겨 끝 «%»·× 가 잘렸다.
+   표준 줄 꼴: 폼 줄 간격 · ×(지우기) = 끝 옵션 칼럼(.prop-chain-btn:last-child 와 같은 자리) · 투명도·위치 = 표준 숫자 칸(.prop-icon-input · «%» = .prop-unit) */
+.grad-stop-row { gap: var(--ui-row-gap); }
+.prop-section[data-sec] .grad-stop-row { margin-right: calc(-1 * var(--ui-opt-col-w)); }
+.grad-stop-row > .prop-icon-input { height: var(--ui-input-h); }
+.grad-stop-row > .grad-stop-del { flex: 0 0 auto; width: calc(var(--ui-opt-col-w) - var(--ui-space-1_5)); height: var(--ui-input-h); padding: 0; margin-left: calc(var(--ui-space-1_5) - var(--ui-space-1)); }
 
 /* ── 템플릿 저장: 역할별 «추천 태그» 칩 (현빈 2026-09-28) ──────────────────
    ★칩은 «보조»다 — 위 입력칸에 직접 쳐도 되고, 칩에 없는 태그도 저장된다.
