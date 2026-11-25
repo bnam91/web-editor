@@ -11,7 +11,7 @@ const { bootApp, waitStableRect } = require('./_root-harness.js');
 async function scene(page) {
   await page.setViewportSize({ width: 1600, height: 1400 });
   const errs = await bootApp(page);
-  await page.click('.fp-btn.primary[title="새 섹션 추가"]');
+  await page.click('.fp-btn.primary[title^="새 섹션 추가"]');
   await expect.poll(() => page.evaluate(() => !!window.getSelectedSection?.())).toBe(true);
   const id = await page.evaluate(() => window.addInfographicBlock()?.id);
   expect(id, '[전제] 인포그래픽').toBeTruthy();
