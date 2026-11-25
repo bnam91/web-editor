@@ -350,7 +350,7 @@ function addVectorBlock(svgString = '', opts = {}) {
 /* t13A-04 — 스크래치 펜 항목을 섹션에 놓을 때: 펜 데이터(penNodes 그대로 · 점 편집 됨)로 «떠 있는» 벡터를 그 섹션 x·y(섹션 px)에.
  *  이력은 부르는 쪽(scratch-pad onUp «스크래치→섹션 변환» 한 칸 — 스크래치 되살림 onUndo 와 같이) ⇒ 여기선 pushHistory 0(addVectorBlock 을 안 탄다).
  *  meta = 스크래치 SVG 의 data-goditor-pen { nodes, closed, sw, color, fill, w, h } */
-function placePenVectorInSection(sec, meta, x, y) {
+function placePenVectorInSection(sec, meta, x, y, { clamp = true } = {}) {
   if (!sec || !meta || !Array.isArray(meta.nodes) || meta.nodes.length < 2) return null;
   const w = Math.max(20, Math.round(+meta.w || 120)), h = Math.max(20, Math.round(+meta.h || 120));
   const { row, block } = makeVectorBlock({
@@ -363,7 +363,8 @@ function placePenVectorInSection(sec, meta, x, y) {
   insertAfterSelected(sec, row);
   bindBlock(block);
   if (enterFloat(posElOf(block))) {
-    const cl = (v, max) => Math.max(0, Math.min(Math.max(0, max), v));   // 섹션 상자 안으로(addVectorFromSvgText 섹션 밖 드랍과 같은 조임)
+    /* 섹션 상자 안으로(addVectorFromSvgText 섹션 밖 드랍과 같은 조임) · clamp:false = 섹션 밖에 «그린» 선(0.9.13 185 마감 ◑ · 지디 261125) — 그린 자리 그대로 · 밖은 그 섹션 Clip content(--sec-clip)가 정한다 */
+    const cl = (v, max) => (clamp ? Math.max(0, Math.min(Math.max(0, max), v)) : Math.round(v));
     _applyOverlayPos(block, cl(x, sec.offsetWidth - w), cl(y, sec.offsetHeight - h));
   }
   window.buildLayerPanel?.();
@@ -372,7 +373,7 @@ function placePenVectorInSection(sec, meta, x, y) {
 
 /* BRUSH-OUTSIDE-SECTION-FLOAT-01(0.9.13 211행 · 현빈 결정 261124 10:47 [4]) — 붓 그림(채운 외곽 svg · 점 편집 없음)을 그 섹션 x·y 에 «떠 있는» 벡터로.
  *  placePenVectorInSection 과 같은 꼴(섹션 상자 안 조임 · 이력은 부르는 쪽 push-after 한 칸) — svg 그대로(⛔addVectorFromSvgText 는 P5 로 펜 점 벡터로 바꿔 섹션 안 붓과 꼴이 달라진다). */
-function placeSvgVectorInSection(sec, svg, w, h, x, y, label = 'Brush') {
+function placeSvgVectorInSection(sec, svg, w, h, x, y, label = 'Brush', { clamp = true } = {}) {
   if (!sec || typeof svg !== 'string' || !/^\s*<svg[\s>]/i.test(svg)) return null;
   const { row, block } = makeVectorBlock({ svg, color: '#1a1a1a', w, h, label });
   renderVector(block);
@@ -380,7 +381,7 @@ function placeSvgVectorInSection(sec, svg, w, h, x, y, label = 'Brush') {
   insertAfterSelected(sec, row);
   bindBlock(block);
   if (enterFloat(posElOf(block))) {
-    const cl = (v, max) => Math.max(0, Math.min(Math.max(0, max), v));
+    const cl = (v, max) => (clamp ? Math.max(0, Math.min(Math.max(0, max), v)) : Math.round(v));   // clamp:false = 그린 자리 그대로(위 펜과 같음)
     _applyOverlayPos(block, cl(x, sec.offsetWidth - w), cl(y, sec.offsetHeight - h));
   }
   window.buildLayerPanel?.();
