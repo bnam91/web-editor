@@ -1498,10 +1498,12 @@ function renderBlockInner(block, parentId, x, y, availableWidth) {
         if (im.circle) run('set_corner_radius', { nodeId: n.id, radius: Math.round(Math.min(iw, ih) / 2) });
       });
       /* VECTOR-FIGMA-EXPORT-DROPS-SVG-01 — 벡터 블럭(kind 'vector')은 svg 가 몸이다 → 프레임 안에 그린다(옛: 빈 프레임).
-         보내는 쪽 svg 는 화면 렌더(뿌리 width/height 100%) — 블럭 크기 숫자로 바꿔 넣는다. 그 밖 generic 의 svg(어노 등)는 종전대로 안 그림(겹쳐 그릴 위험 · 별건). */
-      if (block.kind === 'vector' && typeof block.svg === 'string' && /^\s*<svg\b/i.test(block.svg)) {
+         보내는 쪽 svg 는 화면 렌더(뿌리 width/height 100%) — 블럭 크기 숫자로 바꿔 넣는다. 그 밖 generic 의 svg 는 종전대로 안 그림(겹쳐 그릴 위험 · 별건).
+         FIGMA-ANNOTATION-LINE-ANCHOR-MISSING-01 — 주석(kind 'annotation')도 svg 가 선·앵커 점이다(라벨은 texts) → 같이 그린다 · 고른 동안만 사는 손잡이(.annot-handle)는 뺀다. */
+      if ((block.kind === 'vector' || block.kind === 'annotation') && typeof block.svg === 'string' && /^\s*<svg\b/i.test(block.svg)) {
         const vw = Math.max(1, w), vh = Math.max(1, h || 1);
-        const vsvg = block.svg.replace(/^\s*<svg\b([^>]*)>/i, (m, at) => `<svg${at.replace(/\s(width|height)\s*=\s*("[^"]*"|'[^']*')/gi, '')} width="${vw}" height="${vh}">`);
+        const vsvg = block.svg.replace(/<(\w+)\b[^>]*\bclass="[^"]*\bannot-handle\b[^"]*"[^>]*?(\/>|>\s*<\/\1>)/g, '')
+          .replace(/^\s*<svg\b([^>]*)>/i, (m, at) => `<svg${at.replace(/\s(width|height)\s*=\s*("[^"]*"|'[^']*')/gi, '')} width="${vw}" height="${vh}">`);
         const vn = run('create_node_from_svg', { svg: vsvg, parentId: frame.id, x: 0, y: 0 }, { timeout: 15000 });
         if (vn) run('resize_node', { nodeId: vn.id, width: vw, height: vh });
       }

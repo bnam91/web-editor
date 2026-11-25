@@ -56,16 +56,17 @@ test('F0 ★전제 — ★받는 쪽 파일이 ★있고 ★generic 갈래가 �
   assert.match(b, /block\.texts/, '★generic 갈래가 texts 도 안 쓴다 — 자가 엉뚱하다');
 });
 
-test('F1 ★★★generic 갈래는 ★«벡터(kind vector)»의 `block.svg` 만 그린다 — ★어노 그림은 여전히 안 그린다', () => {
+test('F1 ★★★generic 갈래는 ★«벡터·주석(kind vector · annotation)»의 `block.svg` 만 그린다', () => {
   const b = genericBranch();
   /* ★VECTOR-FIGMA-EXPORT-DROPS-SVG-01(261117 · wk1/vector-svg-import) — 옛 단언 «generic 갈래에 block.svg 가 0» → 새 단언 «block.svg 는 벡터 갈래 안에만».
      ★까닭: 벡터 블럭이 Figma 에 빈 프레임으로 나가던 것을 고쳤다(create_node_from_svg). 어노(kind annotation) 등 다른 generic svg 는 여전히 안 그린다 ⇒ FIGMA-GENERIC-SVG-NOT-DRAWN-01 은 «벡터만 닫힘».
      ★되돌리면(벡터 갈래 삭제) 아래 «벡터 갈래가 있다»가 빨강 · 벡터 밖에서 block.svg 를 쓰기 시작하면 «밖 0» 이 빨강(그때 어노까지 닫혔는지 실화면으로 보고 이 칸을 고쳐라). */
   /* 구간 = sliceBlock(머리 «리터럴» · 세어서 끝) — ⛔꼬리 문자열 짝맞추기 금지(SB-16) · ⛔머리를 변수로 넘기지 않는다(anchor-signature-ratchet R4 변수 닻) · 못 찾으면 sliceBlock 이 던진다 */
-  const vec = sliceBlock(b, "if (block.kind === 'vector' && typeof block.svg === 'string' && /^\\s*<svg\\b/i.test(block.svg)) {", '★벡터 갈래(kind vector → create_node_from_svg)가 generic 안에 없다');
+  /* ★FIGMA-ANNOTATION-LINE-ANCHOR-MISSING-01(0.9.14 row 70) — 주석(kind annotation)도 같은 갈래로 그린다 ⇒ FIGMA-GENERIC-SVG-NOT-DRAWN-01 은 «벡터·주석 닫힘» · 행동 자 = figma-annot-line-anchor.test.mjs(실 Figma 화면은 미카사) */
+  const vec = sliceBlock(b, "if ((block.kind === 'vector' || block.kind === 'annotation') && typeof block.svg === 'string' && /^\\s*<svg\\b/i.test(block.svg)) {", '★벡터·주석 갈래(kind vector|annotation → create_node_from_svg)가 generic 안에 없다');
   const outside = b.replace(vec, '');
   assert.match(vec, /create_node_from_svg/, '★벡터 갈래가 svg 를 안 그린다');
-  assert.ok(!/block\.svg/.test(outside), '★벡터 갈래 «밖»에서 block.svg 를 쓴다 — 어노 등도 그리기 시작했으면 실화면 확인 뒤 이 칸을 고쳐라');
+  assert.ok(!/block\.svg/.test(outside), '★벡터·주석 갈래 «밖»에서 block.svg 를 쓴다 — 다른 종류도 그리기 시작했으면 실화면 확인 뒤 이 칸을 고쳐라');
   /* ★★음성대조 — ★`block.svg` 는 ★다른 갈래에서는 ★쓰인다
      ⛔없으면 ★「그 파일이 ★svg 를 ★아예 안 쓴다」와 ★구분이 안 되고, ★선례가 ★없다는 뜻이 된다 */
   const all = fs.readFileSync(SRC, 'utf8');
