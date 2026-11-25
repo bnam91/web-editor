@@ -82,6 +82,16 @@ async function scene(page, kind) {
       pick(tb, window.showTextProperties);
     }
     if (kind === 'text')     { window.addTextBlock('body'); pick(last('.text-block'), window.showTextProperties); }
+    /* ★장면 정규화(0.9.14 97행 A3 실측): 배너·섹션 배경 그림·글 스티커는 장면이 남긴 «날 DOM»(배너 height 인라인 없음 · 섹션 bg style 미적용 ·
+       글 스티커 미기록 글 commit)이 ⌘Z 복원(restoreSnapshot = 재렌더)과 갈려 A3 를 거짓 빨강으로 만든다 — serializeProject 바이트로
+       ea56805d7(push-before)·c0029673b(push-after) «둘 다» 같은 자리에서 갈렸다(순서 무관 = 잣대 탓). 조작 전 화면을 ⌘Z 와 같은 복원 길로 한 번 지나게 한다. */
+    if (kind === 'banner' || kind === 'secImg' || kind === 'stkText') {
+      const id = kind === 'secImg' ? null : document.querySelector('.selected')?.id;
+      window.restoreSnapshot({ canvas: window.getSerializedCanvas(), settings: {}, selection: null });
+      const s2 = document.querySelector('.section-block');
+      if (kind === 'secImg') { window.selectSection(s2); await window.showSectionProperties(s2); }
+      else { const el = document.getElementById(id); window.deselectAll(); el.classList.add('selected'); (kind === 'banner' ? window.showFrameProperties : window.showStickerProperties)(el); }
+    }
     if (kind === 'zoom')     { window.addZoomBlock(); const z = last('.zoom-block'); z.dataset.imgSrc = PNG; z.dataset.lx = '120'; z.dataset.ly = '90'; window.renderZoomBlock(z); pick(z, window.showZoomProperties); }   // 렌더 안 하면 조작 전 화면엔 has-image 가 없고 ⌘Z(복원=재렌더) 뒤엔 있다 ⇒ A3 거짓 빨강(C0 까지)
     window.clearHistory?.();
   }, [kind, PNG]);
