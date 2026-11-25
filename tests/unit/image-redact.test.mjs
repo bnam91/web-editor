@@ -131,13 +131,18 @@ test('U5 배선 자리 — 패널·제거·스크래치·h2c·CSS·Figma', () =>
   assert.match(asset, /sec\('effects',[\s\S]*?_fx\?\.body/, 'Effects 절이 효과 목록(fxSectionParts 몸통)을 안 받는다');
   assert.doesNotMatch(asset, /redactSectionHTML|wireRedactSection/, '옛 «블러 (Redact)» 따로 절이 prop-asset 에 남았다(두 곳)');
   const fxb = readSrc(ROOT, 'js', 'effects-blur.js');
-  assert.match(fxb, /registerFxType\(\{\s*key: 'blur',\s*label: '가림',/, '명부 식구 「가림」 이 없다');   // ★기대 바뀜(IMG-FX-BLUR-01 261121): 꾸밈 «흐림»과 갈라 옛 «블러» 이름 = «가림»
-  assert.match(fxb, /import \{ applyRedact, readRedact, normalizeRedact \} from '\.\/effects\/image-redact\.js'/, '블러 카드가 공용 모듈(같은 저장 키)을 안 쓴다');
-  assert.match(fxb, /supports: \(el\) => !!\(el && el\.classList && el\.classList\.contains\('asset-block'\) && el\.classList\.contains\('has-image'\)\)/, '대상이 «그림 든 에셋»이 아니다');
+  assert.doesNotMatch(fxb, /registerFxType\(/, '옛 «가림» 항목이 명부에 남았다(Layer blur 와 두 곳)'); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125)
+  assert.match(fxb, /import \{ applyRedact, readRedact, normalizeRedact \} from '\.\/effects\/image-redact\.js'/, '가림 읽기·쓰기 문이 공용 모듈(같은 저장 키)을 안 쓴다');
+  const flb = readSrc(ROOT, 'js', 'effects-layer-blur.js'); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125)
+  assert.match(flb, /registerFxType\(\{\s*key: 'layerblur',\s*label: 'Layer blur',/, '명부 식구 «Layer blur» 가 없다');
+  assert.match(flb, /import \{ fxBlurOf, setFxBlur \} from '\.\/effects-blur\.js'/, 'Layer blur 가 옛 가림 쓰기 문(같은 저장 키)을 안 쓴다');
+  assert.match(flb, /supports: \(el\) => !!\(el && el\.classList && el\.classList\.contains\('asset-block'\) && el\.classList\.contains\('has-image'\)\)/, '대상이 «그림 든 에셋»이 아니다');
   const idx = readSrc(ROOT, 'index.html');
   const iReg = idx.indexOf('<script type="module" src="js/effects-registry.js">');
   const iBlur = idx.indexOf('<script type="module" src="js/effects-blur.js">');
   assert.ok(iReg > 0 && iBlur > iReg, 'index.html 이 effects-blur.js 를 명부 뒤에 안 싣는다');
+  const iLb = idx.indexOf('<script type="module" src="js/effects-layer-blur.js">'); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125)
+  assert.ok(iLb > iReg, 'index.html 이 effects-layer-blur.js 를 명부 뒤에 안 싣는다');
 
   const ih = readSrc(ROOT, 'js', 'image-handling.js');
   const clr = ih.slice(ih.indexOf('function clearAssetImage(ab)'), ih.indexOf('ab.innerHTML = `', ih.indexOf('function clearAssetImage(ab)')));

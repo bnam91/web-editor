@@ -68,9 +68,11 @@ const fxOpts = (page) => page.evaluate(() => {
 async function pickBlur(page) {
   const opts = await fxOpts(page);
   expect(opts, 'Effects 드롭다운이 없다').not.toBe(null);
-  expect(opts, 'Effects 드롭다운에 「가림」 가 없다').toContainEqual(['blur', '가림']);   // ★기대 바뀜(IMG-FX-BLUR-01 261121): 꾸밈 «흐림»이 생겨 옛 «블러» 이름을 «가림»으로 갈랐다(현빈 결정 ⓑ)
-  await page.selectOption('#asset-fx-add', 'blur');
-  await page.waitForFunction(() => !!document.querySelector('#asset-fx-list .prop-cell-card[data-fx-type="blur"]'), null, { timeout: 5000 });
+  expect(opts, 'Effects 드롭다운에 「Layer blur」 가 없다').toContainEqual(['layerblur', 'Layer blur']); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125): 가림·흐림 = 한 항목 · 가림 = ☑원본 숨김
+  await page.selectOption('#asset-fx-add', 'layerblur');
+  await page.waitForFunction(() => !!document.getElementById('asset-fxlb-hide'), null, { timeout: 5000 });
+  await page.click('#asset-fxlb-hide');   // 흐림 8px → 원본 숨김 = data-redact 40(옛 기본 그대로)
+  await page.waitForFunction(() => document.getElementById('asset-fxlb-hide')?.checked === true, null, { timeout: 5000 });
 }
 const state = (page) => page.evaluate(() => {
   const ab = document.getElementById(window.__AB);
@@ -82,17 +84,17 @@ const state = (page) => page.evaluate(() => {
     inline: media ? (media.style.filter || '') : null,
     outerHasRedact: /redact/i.test(ab.outerHTML),
     cards: [...document.querySelectorAll('#asset-fx-list .prop-cell-card')].map((e) => e.dataset.fxType),
-    num: document.getElementById('asset-redact-number')?.value ?? null,
-    sld: document.getElementById('asset-redact-slider')?.value ?? null,
+    num: document.getElementById('asset-fxlb-num') ? String(Math.round(Number(document.getElementById('asset-fxlb-num').value) * 5)) : null, // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125): 칸 = px · 옛 세기 = px×5
+    sld: document.getElementById('asset-fxlb-slider') ? String(Math.round(Number(document.getElementById('asset-fxlb-slider').value) * 5)) : null,
   };
 });
 const setNumber = (page, v) => page.evaluate((val) => {
-  const n = document.getElementById('asset-redact-number');
-  n.value = String(val); n.dispatchEvent(new Event('change', { bubbles: true }));
+  const n = document.getElementById('asset-fxlb-num'); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125): 세기 → px
+  n.value = String(val / 5); n.dispatchEvent(new Event('change', { bubbles: true }));
 }, v);
 const setSlider = (page, v) => page.evaluate((val) => {
-  const s = document.getElementById('asset-redact-slider');
-  s.value = String(val);
+  const s = document.getElementById('asset-fxlb-slider'); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125): 세기 → px
+  s.value = String(val / 5);
   s.dispatchEvent(new Event('input', { bubbles: true }));
   s.dispatchEvent(new Event('change', { bubbles: true }));
 }, v);
@@ -124,7 +126,7 @@ test('B1 드롭다운에 「블러」 · 옛 따로 절 0 · 그림 없는 에�
   console.log('B1 opts', JSON.stringify(opts));
   expect(opts, 'Effects 드롭다운이 없다').not.toBe(null);
   expect(opts[0][0], '머리 항목(값 없음)이 첫째가 아니다').toBe('');
-  expect(opts, 'Effects 드롭다운에 「가림」 가 없다').toContainEqual(['blur', '가림']);   // ★기대 바뀜(IMG-FX-BLUR-01 261121): 꾸밈 «흐림»이 생겨 옛 «블러» 이름을 «가림»으로 갈랐다(현빈 결정 ⓑ)
+  expect(opts, 'Effects 드롭다운에 「Layer blur」 가 없다').toContainEqual(['layerblur', 'Layer blur']); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125)
   expect(opts.map((o) => o[0]), '반사·그림자가 사라졌다').toEqual(expect.arrayContaining(['reflect', 'shadow']));
   const old = await page.evaluate(() => ({
     sec: !!document.getElementById('asset-redact-section'),
@@ -139,7 +141,7 @@ test('B1 드롭다운에 「블러」 · 옛 따로 절 0 · 그림 없는 에�
     window.showAssetProperties(block);
     const sel = document.getElementById('asset-fx-add');
     return { hasImage: block.classList.contains('has-image'), fx: !!document.getElementById('asset-fx-section'),
-             blur: !!sel?.querySelector('option[value="blur"]') };
+             blur: !!sel?.querySelector('option[value="layerblur"]') }; // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125)
   });
   expect(none.hasImage, '전제: 빈 에셋인데 has-image').toBe(false);
   expect(none.fx, '전제: 빈 에셋 패널에 Effects 절이 없다').toBe(true);
@@ -156,13 +158,13 @@ test('B2 고르면 효과 카드 · data-redact 40 · filter blur(8px) · 드롭
   await expect.poll(async () => (await state(page)).filter).toContain('blur(8px)');
   const s = await state(page);
   console.log('B2', JSON.stringify(s));
-  expect(s.cards).toEqual(['blur']);
+  expect(s.cards).toEqual(['layerblur']); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125)
   expect([s.attr, s.blurVar, s.off]).toEqual(['40', '8px', null]);
   expect(s.inline, '합성 한 자리(writeImgFilter)가 인라인에 블러 몫을 안 썼다').toContain('blur(8px)');
   expect([s.num, s.sld], '카드 강도 칸이 상태와 다르다').toEqual(['40', '40']);
-  expect((await fxOpts(page)).map((o) => o[0]), '건 뒤에도 「블러」 가 목록에 남았다').not.toContain('blur');
-  const title = await page.evaluate(() => document.querySelector('#asset-fxbl-card .prop-cell-card-title')?.textContent.trim());
-  expect(title).toBe('가림');   // ★기대 바뀜(IMG-FX-BLUR-01 261121): 카드 제목도 «가림»
+  expect((await fxOpts(page)).map((o) => o[0]), '건 뒤에도 「블러」 가 목록에 남았다').not.toContain('layerblur'); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125)
+  const title = await page.evaluate(() => document.querySelector('#asset-fxlb-card .prop-cell-card-title')?.textContent.trim());
+  expect(title).toBe('Layer blur'); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125) · 옛:    // ★기대 바뀜(IMG-FX-BLUR-01 261121): 카드 제목도 «가림»
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
@@ -186,13 +188,13 @@ test('B4 눈 끔 ⇒ 안 흐림 · 값 보존 · 눈 켬 ⇒ 같은 값으로 �
   await pickBlur(page);
   await setNumber(page, 60);
   await expect.poll(async () => (await state(page)).attr).toBe('60');
-  await page.locator('#asset-fxbl-eye').click();
+  await page.locator('#asset-fxlb-eye').click();
   await expect.poll(async () => (await state(page)).filter, { message: '눈을 껐는데 아직 흐리다' }).toBe('none');
   const off = await state(page);
   expect([off.attr, off.blurVar, off.off], '끔 = data-redact 없음 · 값은 data-redact-off 에').toEqual([null, '', '60']);
-  expect(off.cards, '끈 뒤 카드가 사라졌다(끔 ≠ 지움)').toEqual(['blur']);
+  expect(off.cards, '끈 뒤 카드가 사라졌다(끔 ≠ 지움)').toEqual(['layerblur']); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125)
   expect(off.inline, '끈 뒤에도 인라인 블러가 남았다').toBe('');
-  await page.locator('#asset-fxbl-eye').click();
+  await page.locator('#asset-fxlb-eye').click();
   await expect.poll(async () => (await state(page)).filter, { message: '눈을 켰는데 안 흐리다' }).toContain('blur(12px)');
   const on = await state(page);
   expect([on.attr, on.off]).toEqual(['60', null]);
@@ -204,12 +206,12 @@ test('B5 ✕ ⇒ 카드 0 · 「블러」 목록 복귀 · 흔적 0', async ({ p
   await openPanel(page);
   await pickBlur(page);
   await expect.poll(async () => (await state(page)).attr).toBe('40');
-  await page.locator('#asset-fxbl-del').click();
+  await page.locator('#asset-fxlb-del').click();
   await expect.poll(async () => (await state(page)).cards, { message: '✕ 뒤에도 카드가 남았다' }).toEqual([]);
   const s = await state(page);
   expect([s.attr, s.off, s.blurVar, s.filter, s.inline]).toEqual([null, null, '', 'none', '']);
   expect(s.outerHasRedact, '✕ 뒤에도 바이트에 redact 가 남았다').toBe(false);
-  expect((await fxOpts(page)).map((o) => o[0]), '✕ 뒤 「블러」 가 목록으로 안 돌아왔다').toContain('blur');
+  expect((await fxOpts(page)).map((o) => o[0]), '✕ 뒤 「블러」 가 목록으로 안 돌아왔다').toContain('layerblur'); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125)
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
@@ -236,9 +238,9 @@ test('B6 옛 저장(기존 키 data-redact) 불러오기 ⇒ 효과 카드 · �
   await openPanel(page);
   const s = await state(page);
   console.log('B6', JSON.stringify(s));
-  expect(s.cards, '옛 저장본이 효과 카드로 안 보인다').toEqual(['blur']);
+  expect(s.cards, '옛 저장본이 효과 카드로 안 보인다').toEqual(['layerblur']); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125)
   expect([s.attr, s.blurVar, s.num], '강도가 바뀌었다').toEqual(['60', '12px', '60']);
-  expect((await fxOpts(page)) === null || !(await fxOpts(page)).some((o) => o[0] === 'blur'), '걸린 블러가 목록에도 있다(두 곳)').toBe(true);
+  expect((await fxOpts(page)) === null || !(await fxOpts(page)).some((o) => o[0] === 'layerblur'), '걸린 블러가 목록에도 있다(두 곳)').toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
@@ -298,7 +300,7 @@ test('B8 내보내기 PNG — 네이티브 클론(스크린샷 갈래)이 흐리
     return r;
   });
   /* 양성대조 — 눈을 끈 블럭의 클론은 줄무늬가 보여야 한다 */
-  await page.locator('#asset-fxbl-eye').click();
+  await page.locator('#asset-fxlb-eye').click();
   await expect.poll(async () => (await state(page)).attr).toBe(null);
   const off = await mkClone('off');
   await rafs(page);
@@ -323,15 +325,15 @@ test('B9 끈 상태에서 ✕ ⇒ 카드 0 · data-redact·data-redact-off 둘 �
   await pickBlur(page);
   await setNumber(page, 60);
   await expect.poll(async () => (await state(page)).attr).toBe('60');
-  await page.locator('#asset-fxbl-eye').click();
+  await page.locator('#asset-fxlb-eye').click();
   await expect.poll(async () => (await state(page)).off, { message: '전제: 눈을 껐는데 값이 data-redact-off 로 안 갔다' }).toBe('60');
   expect((await state(page)).attr, '전제: 끈 뒤에도 data-redact 가 남았다').toBe(null);
-  await page.locator('#asset-fxbl-del').click();
+  await page.locator('#asset-fxlb-del').click();
   await expect.poll(async () => (await state(page)).cards, { message: '끈 상태 ✕ 뒤에도 카드가 남았다' }).toEqual([]);
   const s = await state(page);
   expect([s.attr, s.off], '끈 상태 ✕ 뒤 키가 남았다(다시 열면 «끈 블러 카드»가 살아난다)').toEqual([null, null]);
   expect(s.outerHasRedact, '끈 상태 ✕ 뒤 바이트에 redact 가 남았다').toBe(false);
-  expect((await fxOpts(page)).map((o) => o[0]), '✕ 뒤 「블러」 가 목록으로 안 돌아왔다').toContain('blur');
+  expect((await fxOpts(page)).map((o) => o[0]), '✕ 뒤 「블러」 가 목록으로 안 돌아왔다').toContain('layerblur'); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125)
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
@@ -341,14 +343,14 @@ test('B10 끈 채 슬라이더 끌기 ⇒ 켜지지 않는다 — data-redact �
   await pickBlur(page);
   await setNumber(page, 60);
   await expect.poll(async () => (await state(page)).attr).toBe('60');
-  await page.locator('#asset-fxbl-eye').click();
+  await page.locator('#asset-fxlb-eye').click();
   await expect.poll(async () => (await state(page)).off, { message: '전제: 눈을 껐는데 값이 data-redact-off 로 안 갔다' }).toBe('60');
   await setSlider(page, 30);
   await expect.poll(async () => (await state(page)).off, { message: '끈 채 끈 값이 data-redact-off 에 안 실렸다' }).toBe('30');
   const s = await state(page);
   expect(s.attr, '끈 채 슬라이더를 끌었더니 블러가 켜졌다(눈이 꺼져 있는데)').toBe(null);
   expect([s.filter, s.inline], '끈 채 끌었는데 그림이 흐리다').toEqual(['none', '']);
-  expect(s.cards, '카드가 사라졌다(끔 ≠ 지움)').toEqual(['blur']);
+  expect(s.cards, '카드가 사라졌다(끔 ≠ 지움)').toEqual(['layerblur']); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125)
   expect(s.num, '숫자칸이 슬라이더를 안 따라왔다').toBe('30');
   expect(errs, errs.join(' | ')).toEqual([]);
 });
