@@ -272,6 +272,8 @@ test.describe('grad-stop 입력 커밋 시점 (0920b grad-alpha)', () => {
     await page.keyboard.press('Backspace');                 // "100" → "10" (미커밋 타이핑)
     const hit = await page.evaluate(() => {
       const el = document.querySelectorAll('.grad-stop-alpha')[0];
+      /* ★기대 바뀜(시트 75 GRAD-STOPS-LIST-RIGHT-CELL-CLIP-01 · 탑 261125): 칸 폭이 인라인 34px → 앱 css 표준 칸(실앱 ≈30px)으로 옮겨 css 없는 이 하네스에선 칸이 늘어난다 → 실앱 폭을 여기서 준다(«좁은 text 칸 오른쪽 = 캐럿만» 전제 그대로) */
+      el.style.width = '30px'; el.style.flex = '0 0 30px';
       const r = el.getBoundingClientRect();
       return { x: r.right - 4, y: r.top + r.height / 2, w: Math.round(el.clientWidth), type: el.type };
     });

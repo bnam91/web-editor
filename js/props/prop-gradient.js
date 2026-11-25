@@ -276,13 +276,13 @@ export function showGradientProperties(block) {
       _keep = { idx: _modelIdx(_pendingFocus.idx), cls: _pendingFocus.cls, start: null, end: null };
     }
     listEl.innerHTML = stops.map((s, i) => `
-      <div class="prop-color-row grad-stop-row" data-idx="${i}" style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+      <div class="prop-color-row grad-stop-row" data-idx="${i}">
         <div class="prop-color-swatch" style="background:${s.color};position:relative;width:24px;height:24px;border-radius:4px;overflow:hidden;">
           <input type="color" class="grad-stop-color" value="${s.color}" style="position:absolute;inset:0;opacity:0;cursor:pointer;">
         </div>
-        <input type="text" class="prop-color-hex grad-stop-hex" maxlength="7" value="${s.color.replace('#','').toUpperCase()}" style="flex:1;" aria-label="stop ${i+1} 색">
-        <input type="text" class="grad-stop-alpha" value="${Math.round(s.alpha*100)}" style="width:34px;text-align:right;" aria-label="stop ${i+1} opacity">%
-        <input type="number" class="grad-stop-offset" min="0" max="100" value="${Math.round(s.offset*100)}" style="width:48px;" aria-label="stop ${i+1} 위치">%
+        <input type="text" class="prop-color-hex grad-stop-hex" maxlength="7" value="${s.color.replace('#','').toUpperCase()}" aria-label="stop ${i+1} 색">
+        <div class="prop-icon-input"><input type="text" class="grad-stop-alpha" value="${Math.round(s.alpha*100)}" aria-label="stop ${i+1} opacity"><span class="prop-unit">%</span></div>
+        <div class="prop-icon-input"><input type="number" class="grad-stop-offset" min="0" max="100" value="${Math.round(s.offset*100)}" aria-label="stop ${i+1} 위치"><span class="prop-unit">%</span></div>
         <button type="button" class="grad-stop-del" title="삭제" ${stops.length<=2?'disabled':''} style="border:none;background:none;color:${stops.length<=2?'#555':'#c66'};cursor:${stops.length<=2?'default':'pointer'};font-size:14px;">×</button>
       </div>`).join('');
     listEl.querySelectorAll('.grad-stop-row').forEach((row) => {
