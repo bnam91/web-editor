@@ -1,7 +1,7 @@
 import { propPanel } from '../globals.js';
 import { alignBtn } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
-import { positionHeadToolsHTML } from './_position-section.js';   // 표준 Position 머리(시트 222) — 몸 = 부품에 칸 없음(옛 그대로 · 탑 보고)
+import { positionSectionHTML, positionHeadToolsHTML } from './_position-section.js';   // 표준 Position 절(시트 222)
 import { layoutSizeRowHTML, layoutGapSlotHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(P-2 · 지디 판정)
 import { appearanceSectionHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance A4 Opacity(P-2)
 /* ★★말풍선의 ★«발신자 이름»을 ★데려가는 ★유일한 자 — ⛔여기서 ★`.tb-sender-name` 을 ★직접 ★만지지 ★마라.
@@ -233,17 +233,6 @@ export function showFreeLayoutMultiSelPanel() {
   const opBlocks = wrappers.map((w) => (w.classList.contains('selected') ? w : w.querySelector('.selected')) || w);
   const opVal = _mixedOrValue(opBlocks.map((b) => window.readBlockOpacity?.(b) ?? 100));
 
-  const mkInput = (id, val, field, label) => `
-    <div class="prop-icon-input" style="flex:1;min-width:0;" title="${label}">
-      <span style="font-size:9px;color:#666;padding:0 3px;flex-shrink:0;">${label}</span>
-      <input type="${val === 'mixed' ? 'text' : 'number'}"
-             id="msp-${id}"
-             value="${val}"
-             placeholder="${val === 'mixed' ? 'Mix' : ''}"
-             style="color:${val === 'mixed' ? '#888' : 'var(--ui-text)'}"
-             data-field="${field}"
-             ${val !== 'mixed' ? 'step="1"' : ''}>
-    </div>`;
 
   /* ★U3(right-panel-unify) — 옛 Position / Size 절을 Position(X·Y)·Size(W·H)로, Spacing·Align 은 Layout 한 절로. */
   renderPanel(null, {
@@ -265,12 +254,8 @@ export function showFreeLayoutMultiSelPanel() {
 `,
     sections: [
       sec('appearance', appearanceSectionHTML({ prefix: 'msp', op: { value: opVal, mixed: opVal === 'mixed' } })),   // A4 Opacity — 다르면 Mixed(빈 값 · data-empty="invalid")
-      sec('position', `
-      <div class="prop-row">
-        ${mkInput('x', xVal, 'x', 'X')}
-        ${mkInput('y', yVal, 'y', 'Y')}
-      </div>
-`, { headTools: positionHeadToolsHTML({ prefix: 'msp', rotCan: false }) }),
+      /* 표준 Position — X/Y = 부품 liveXY(다르면 Mixed = 빈 값 + data-empty=invalid · FigCraft number_field_mixed) · 숫자 칸 id msp-x/y 무변 · 배선 = 아래 Enter/blur 그대로 */
+      sec('position', positionSectionHTML({ prefix: 'msp', posEl: null, xy: false, liveXY: { xId: 'msp-x', yId: 'msp-y', x: xVal, y: yVal, xMixed: xVal === 'mixed', yMixed: yVal === 'mixed' } }), { headTools: positionHeadToolsHTML({ prefix: 'msp', rotCan: false }) }),
       sec('size', layoutSizeRowHTML({ prefix: 'msp', chain: { on: false, blocked: '여러 블럭 — 비율 사슬 없음' },   // 표준 Layout — 숫자 칸 id 무변(msp-w·msp-h) · 다르면 Mixed
         w: { id: 'msp-w', value: wVal, min: 1, max: 4000, mixed: wVal === 'mixed' }, h: { id: 'msp-h', value: hVal, min: 1, max: 4000, mixed: hVal === 'mixed' } })),
       sec('layout', `${layoutGapSlotHTML({ id: 'msp-gap', value: spacing, max: 9999, mixed: spacing === 'mixed' })}
@@ -292,14 +277,6 @@ export function showFreeLayoutMultiSelPanel() {
     const input = propPanel.querySelector(`#msp-${field}`);
     if (!input) return;
 
-    input.addEventListener('focus', () => {
-      if (input.value === 'mixed') {
-        input.value = '';
-        input.type = 'number';
-        input.style.color = 'var(--ui-text)';
-      }
-    });
-
     input.addEventListener('keydown', e => {
       if (e.key === 'Enter') {
         e.preventDefault();
@@ -312,7 +289,7 @@ export function showFreeLayoutMultiSelPanel() {
     });
 
     input.addEventListener('blur', () => {
-      if (input.value !== '' && input.value !== 'mixed') {
+      if (input.value !== '') {
         _applyDimension(wrappers, field, input.value);
       }
     });

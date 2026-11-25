@@ -5,8 +5,8 @@ import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, setFillKindName, f
 import { hasSides, readSides, writeSides, cssSideWidths, sidesMixed } from '../stroke-look.js';
 import { alignBtn, blockHeaderHTML, animGifBtnHTML, wireAnimGifBtn, checkHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
-import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
-import { positionHeadToolsHTML } from './_position-section.js';   // 표준 Position 머리(시트 222) — 몸은 부품에 flowAlign 칸이 없어 옛 floatPositionRowHTML 그대로(탑 보고)
+import { posElOf, wireFloatToggle, wireFloatPosition } from '../overlay-float.js';
+import { positionSectionHTML, positionHeadToolsHTML } from './_position-section.js';   // 표준 Position 절(시트 222) — 몸 = flowAlign:false(흐름 정렬 = 제 3칸)
 import { videoTrimSectionHTML, wireVideoTrim } from './asset-video-trim.js';
 import { clipsContent, CLIP_DEFAULTS, applyAssetClip } from '../clip-content.js';   /* ★「내용 자르기」 한 자리(2026-10-10 c2) */
 import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A3)
@@ -219,7 +219,7 @@ export function showAssetProperties(ab) {
       // 플로팅 토글 = Position 절 머리 손잡이(§2-1) · X/Y(플로팅일 때만 — 몸통이 비어도 머리 손잡이가 있으면 절은 남는다)
       /* 1120b A1(현빈 261120) — 정렬 줄 = Position 절 · 라벨은 텍스트 블럭 Layout 과 같은 꼴(.prop-field-label «Alignment» + .prop-align-group) */
       sec('position', `
-      ${floatPositionRowHTML({ prefix: 'asset', posEl: floatPosEl, flowAlign: false })}${isFloatOverlay ? '' : `
+      ${positionSectionHTML({ prefix: 'asset', posEl: floatPosEl, flowAlign: false })}${isFloatOverlay ? '' : `
       <span class="prop-field-label">Alignment</span>${/* 현빈 261123 S1-4 — 떠 있으면 흐름용 가로 정렬은 뜻이 없어 걷고 위 부모 기준 6칸이 그 자리(시안 8910 floatalign) */ ''}
       <div class="prop-align-group" id="asset-align-group">
           ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', active: currentAlign==='left', attrs: { 'data-align': 'left' } })}
