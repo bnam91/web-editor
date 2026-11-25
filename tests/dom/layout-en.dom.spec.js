@@ -56,7 +56,12 @@ test('EN3 모달 높이 Hug — H 칸 placeholder «Hug» · 사슬 막힘 까�
 /* 지디 판정(남은 목록 · FigCraft 기준): ① 그리드 행 높이 칸 placeholder 자동 → Hug ② 배너02 사슬 까닭 문장 속 자동 → (Hug) */
 test('EN4 그리드 행 높이 칸 placeholder «Hug»(· 실측 높이)', async ({ page }) => {
   const errs = await boot(page);
-  await page.evaluate(() => { window.addGridBlock(); const g = [...document.querySelectorAll('#canvas .grid-block')].pop(); g.id = 'enG'; });
+  /* ★장면 고침(탑 게이트 261125 · EN4 7/8 빨강) — 행 높이 칸(.grd-row-h-item)은 행이 2개 이상일 때만 뜬다(prop-grid _rowHeightHtml rows.length < 2 → '') · addGridBlock 기본 1행이라 전제가 안 섰다 → 2행 auto 로 짓는다 */
+  await page.evaluate(() => {
+    const sec = document.querySelector('#canvas > .section-block');
+    const { block: g } = window.makeGridBlock({ cols: [{ width: 1, lines: [{ type: 'body', text: 'A' }] }, { width: 1, lines: [{ type: 'body', text: 'B' }] }], rows: [{ height: 'auto' }, { height: 'auto' }] });
+    g.id = 'enG'; (sec.querySelector('.row') || sec.querySelector('.section-inner')).appendChild(g); window.rebindAll?.(); window.renderGridBlock(g);
+  });
   await page.evaluate(() => { window.deselectAll(); window.selectBlock('enG'); });
   await page.waitForSelector('.grd-row-h-item', { state: 'attached' });
   const ph = await page.evaluate(() => [...document.querySelectorAll('.grd-row-h-item')].map((i) => i.placeholder));
