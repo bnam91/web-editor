@@ -41,7 +41,7 @@ async function scene(page, overlay) {
   await expect.poll(() => page.evaluate((ids) => ids.every((id) => { const e = document.getElementById(id); return !e || e.style.display === 'none'; }), GATED),
     '[전제] dev-gate(비관리자 숨김)가 돌았다').toBe(true);
   await page.evaluate((ids) => ids.forEach((id) => document.getElementById(id)?.style.removeProperty('display')), GATED);
-  await page.click('.fp-btn.primary[title="새 섹션 추가"]');
+  await page.click('.fp-btn.primary[title^="새 섹션 추가"]');
   await expect.poll(() => page.evaluate(() => !!document.querySelector('.section-block.selected .section-toolbar'))).toBe(true);
   /* 섹션 툴바 시료 — «두 판에 같은 꼴로» 늘 셋을 넣고, 읽을 때도 이 셋만(data-v17 이름으로) 읽는다.
      (인텔 261120 빨강: 앱이 AI 단추를 늦게 붙여 «DOM 순번»이 판마다 달랐다 — 바쁨 표시가 다른 단추와 짝지어짐 = CSS 차이 아닌 장면 차이) */

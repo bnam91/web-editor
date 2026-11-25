@@ -129,7 +129,7 @@ test('마지막 한 열 — 메뉴 흐림·눌러도 무변 · Delete 도 무변
 test('N1 새 섹션 기본 모양 — 제목 바로 아래 그리드에서 열 띠 클릭 → 열 선택 → ⌫ 삭제(제목이 안 골라진다)', async ({ page }) => {
   await page.setViewportSize({ width: 1500, height: 1000 });
   await bootApp(page);
-  await page.click('.fp-btn.primary[title="새 섹션 추가"]');
+  await page.click('.fp-btn.primary[title^="새 섹션 추가"]');
   await expect.poll(() => page.evaluate(() => !!window.getSelectedSection?.())).toBe(true);
   await page.evaluate(() => window.addGridBlock());
   const id = await page.evaluate(() => document.querySelector('#canvas .grid-block').id);

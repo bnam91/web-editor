@@ -119,7 +119,7 @@ async function scene(page) {
   await zoom100(page);
   let sec = await page.evaluate(() => document.querySelector('#canvas .section-block:not([data-ghost])')?.id || null);
   if (!sec) {
-    await page.click('.fp-btn.primary[title="새 섹션 추가"]');
+    await page.click('.fp-btn.primary[title^="새 섹션 추가"]');
     expect(await poll(page, () => !!document.querySelector('#canvas .section-block:not([data-ghost])'), null, 5000), '전제: 섹션').toBe(true);
     sec = await page.evaluate(() => document.querySelector('#canvas .section-block:not([data-ghost])').id);
   }

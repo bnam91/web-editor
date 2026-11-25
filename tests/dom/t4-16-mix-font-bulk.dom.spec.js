@@ -85,7 +85,7 @@ async function pickSec(page, id) {
 }
 async function newSection(page) {
   const before = await secIds(page);
-  await page.click('.fp-btn.primary[title="새 섹션 추가"]');
+  await page.click('.fp-btn.primary[title^="새 섹션 추가"]');
   await pollTrue(page, (n) => document.querySelectorAll('#canvas .section-block:not([data-ghost])').length > n, before.length);
   const id = (await secIds(page)).find(x => !before.includes(x)) || null;
   if (!id) return { id: null, picked: false };

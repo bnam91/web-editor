@@ -25,7 +25,7 @@ test('T0 프레임 옆 같은 크기 Grid 단추 · 메뉴 Grid 없음', async (
 
 test('T1 단추 → 그리드 블럭 하나 · ⌘Z 한 번에 복원', async ({ page }) => {
   await bootApp(page);
-  await page.click('.fp-btn.primary[title="새 섹션 추가"]');
+  await page.click('.fp-btn.primary[title^="새 섹션 추가"]');
   await expect.poll(() => page.evaluate(() => !!window.getSelectedSection?.())).toBe(true);
   await page.evaluate(() => window.clearHistory?.());
   const n = () => page.evaluate(() => document.querySelectorAll('#canvas .grid-block').length);

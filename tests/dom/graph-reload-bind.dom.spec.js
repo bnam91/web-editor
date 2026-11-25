@@ -26,7 +26,7 @@ for (const p of ['AB', 'TPL', 'PASTE', 'RELOAD']) {
     const o = { cell: `${p}:graphbar`, path: p, kind: 'graphbar', run: RUN, rep: ti.repeatEachIndex, __B: B };
     try {
       o.A = await (async () => { const n0 = await page.evaluate(() => document.querySelectorAll('#canvas .section-block').length);
-        await page.click('.fp-btn.primary[title="새 섹션 추가"]');
+        await page.click('.fp-btn.primary[title^="새 섹션 추가"]');
         await page.waitForFunction((n) => document.querySelectorAll('#canvas .section-block').length > n, n0);
         return page.evaluate(() => window.getSelectedSection?.()?.id || [...document.querySelectorAll('#canvas .section-block')].pop()?.id); })();
       expect(o.A, '전제: 새 섹션').toBeTruthy();

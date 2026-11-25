@@ -48,7 +48,7 @@ async function softClick(page, x, y, sel) {
  *   앱 준비(새 섹션 버튼이 보이고 #canvas 가 있다) → 누르기 → 새 섹션이 생길 때까지(15s) →
  *   히트존이 «멈추고» 그 자리를 실제로 맞힐 때까지 기다렸다 누르기 → 골라질 때까지. 못 골랐으면 같은 길을 최대 5회 다시. */
 async function newSection(page) {
-  const BTN = '.fp-btn.primary[title="새 섹션 추가"]';
+  const BTN = '.fp-btn.primary[title^="새 섹션 추가"]';
   await page.locator(BTN).waitFor({ state: 'visible', timeout: 15000 });
   expect(await pollTrue(page, () => !!document.getElementById('canvas'), null, 15000), '전제: #canvas 가 있다').toBe(true);
   const before = await secIds(page);
