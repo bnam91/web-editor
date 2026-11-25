@@ -204,3 +204,43 @@ test('G7 프레임 안 오버레이를 다른 섹션 위에서 놓음 → 그 �
   expect(Math.abs(up.y - (qy - th / 2)) < 60, `★상자가 커서를 따라감(프레임 가장자리에 안 묶임) 상자 y ${up.y} · 커서 y ${qy}`).toBe(true);
   expect(errs).toEqual([]);
 });
+
+/* ★157 t13D-06 마감 ◑(지디 261125 · 아이맥 GRADE-0913close-4 CUT · 판 dev 1cd189937) — 메뉴 «편집›오려두기»(Electron role cut = 네이티브 cut 사건만) 무반응 → ⌘X 와 같은 한 벌(_appCut)
+ * G8 섹션 오버레이 고름 → 메뉴 오려두기(document 에 cut 사건) = 원본 사라짐 · 이력 한 칸 · ⌘Z 한 번 = 제자리 · 다시 오려두기 → 프레임에 들어가 메뉴 붙여넣기(paste 사건) = 그 프레임 안 오버레이(티켓 1~3 길 전부 메뉴로)
+ *    [지킴] ⌘X 키 길 = 한 번만 지움(뒤따르는 네이티브 cut 이 «한 번 더» 안 함 · _keyCutAt) */
+const menuCut = (page) => page.evaluate(() => { const ev = new ClipboardEvent('cut', { clipboardData: new DataTransfer(), bubbles: true, cancelable: true }); document.dispatchEvent(ev); return ev.defaultPrevented; });
+const menuPaste = (page) => page.evaluate(() => { document.dispatchEvent(new ClipboardEvent('paste', { clipboardData: new DataTransfer(), bubbles: true, cancelable: true })); });
+test('G8 (157) 메뉴 오려두기 = 잘라냄 · ⌘Z 한 칸 · 프레임에 들어가 메뉴 붙여넣기 = 그 프레임 안 오버레이 · [지킴] ⌘X 한 번만', async ({ page }) => {
+  const errs = await scene(page);
+  const pick = async () => { const [sx, sy, sw, sh] = await rect(page, '#tfS .text-block'); await page.mouse.click(sx + sw / 2, sy + sh / 2); await raf(page);
+    expect(await page.evaluate(() => !!document.querySelector('#tfS .text-block.selected')), '[전제] 섹션 오버레이 고름').toBe(true); await page.evaluate(() => document.activeElement?.blur?.()); };
+  await pick();
+  const tip0 = await page.evaluate(() => window.getHistoryTip?.()?.pos ?? null);
+  const took = await menuCut(page); await raf(page);
+  const c1 = await page.evaluate(() => ({ gone: !document.getElementById('tfS'), tip: window.getHistoryTip?.()?.pos ?? null }));
+  await page.keyboard.press('Meta+z'); await raf(page);
+  const back = await page.evaluate(() => !!document.getElementById('tfS'));
+  console.log('[G8 실측]', JSON.stringify({ took, tip0, c1, back }));
+  expect([took, c1.gone], '★메뉴 오려두기 = 사건을 받음 · 원본 사라짐').toEqual([true, true]);
+  expect(c1.tip, '★이력 한 칸').toBe(tip0 + 1);
+  expect(back, '★⌘Z 한 번 = 제자리').toBe(true);
+  await pick(); await menuCut(page); await raf(page);
+  expect(await page.evaluate(() => !document.getElementById('tfS')), '[전제] 다시 잘라냄').toBe(true);
+  const [x, y, w, h] = await rect(page, '#frV');
+  await page.mouse.dblclick(x + w - 30, y + h - 30); await raf(page);
+  expect(await page.evaluate(() => window._enteredFrame?.id), '[전제] 프레임에 들어갔다').toBe('frV');
+  const before = await page.evaluate(() => [...document.querySelectorAll('#frV > .frame-block[data-text-frame]')].map((e) => e.id));
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await menuPaste(page);
+  await page.waitForFunction((before) => [...document.querySelectorAll('#frV > .frame-block[data-text-frame]')].some((e) => !before.includes(e.id)), before, { timeout: 3000 });
+  const r = await page.evaluate((before) => { const n = [...document.querySelectorAll('#frV > .frame-block[data-text-frame]')].find((e) => !before.includes(e.id)); return { txt: n.querySelector('[class^="tb-"]').textContent, ov: n.dataset.overlayBlock || null, host: window.OverlayFloat.floatHostOf(n)?.id }; }, before);
+  expect(r, '★메뉴 붙여넣기 = 그 프레임 안 오버레이(잘라낸 글)').toEqual({ txt: '섹션 오버레이', ov: 'true', host: 'frV' });
+  // [지킴] ⌘X 키 길 — 한 번만(키 길 뒤 네이티브 cut 이 와도 두 번 안 지움)
+  await page.evaluate(() => { window.deselectAll(); }); const [ax, ay, aw, ah] = await rect(page, '#tfA .text-block'); await page.mouse.click(ax + aw / 2, ay + ah / 2); await raf(page);
+  await page.evaluate(() => document.activeElement?.blur?.());
+  const n0 = await page.evaluate(() => document.querySelectorAll('#sV .frame-block[data-text-frame]').length);
+  await page.keyboard.press('Meta+x'); await menuCut(page); await raf(page);
+  const n1 = await page.evaluate(() => document.querySelectorAll('#sV .frame-block[data-text-frame]').length);
+  expect([n0 - n1, await page.evaluate(() => !document.getElementById('tfA'))], '★⌘X = 한 블럭만 · 뒤따른 cut 사건은 건너뜀').toEqual([1, true]);
+  expect(errs).toEqual([]);
+});
