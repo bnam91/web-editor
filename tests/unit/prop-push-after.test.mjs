@@ -71,7 +71,6 @@ const BENIGN = new Set(['scheduleAutoSave', 'triggerAutoSave', 'showZoomProperti
    ⛔여기 넣을 땐 «자리(파일:줄)»가 아니라 «이유»를 반드시 같이 적어라. 이름만 적으면
      같은 이름의 다른 자리가 면제 뒤로 숨는다(2026-09-21 T-131 에서 실제로 그랬다). */
 const KNOWN_PUSH_BEFORE = {
-  'js/props/_font-picker.js::onPick': '★미측정 — 실앱에서 «이 자리가 정말 자기 칸을 잃는가»를 안 쟀다(2026-09-21)',
   'js/props/prop-annotation.js::_writeProps': '★미측정 — 실앱에서 «이 자리가 정말 자기 칸을 잃는가»를 안 쟀다(2026-09-21)',
   'js/props/prop-chat.js::rerender': '★미측정 — 실앱에서 «이 자리가 정말 자기 칸을 잃는가»를 안 쟀다(2026-09-21)',
   'js/props/prop-grid.js::_applyRatioInput': '★미측정 — 실앱에서 «이 자리가 정말 자기 칸을 잃는가»를 안 쟀다(2026-09-21)',
