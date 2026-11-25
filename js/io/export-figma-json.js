@@ -1143,8 +1143,9 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       return {
         type: 'generic', id: el.id || '', kind: 'modal', variant: ds.variant || 'plain',
         width: (ds.wMode === 'fixed' && parseInt(ds.width)) || null,
-        height: (ds.hMode === 'fixed' && parseInt(ds.height))
-                || Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 0),
+        /* ★#88 — hMode='fixed' 의 H 는 «최소 높이»(renderModalBlock min-height · frameify minHeight) ⇒ max(H, 실측) */
+        height: Math.max((ds.hMode === 'fixed' && parseInt(ds.height)) || 0,
+                Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 0)),
         bg: ds.bg || '', radius: parseInt(ds.radius) || 0,
         padX: parseInt(ds.padX) || 0, padY: parseInt(ds.padY) || 0,
         border: _strokeBorderOut(ds, bw, ds.borderColor || '', ds.borderStyle || 'solid'),   // 표준 Stroke 4-3 — 옛 {width,style,color} 같은 글자 순서 · 면별 키 있으면 sides 덧붙음
