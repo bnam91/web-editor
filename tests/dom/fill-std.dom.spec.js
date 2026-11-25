@@ -356,8 +356,9 @@ test('D18 그리드 블럭 배경 — 토글 정본 · 배경색 = 표준 줄 ·
   await page.setViewportSize({ width: 1500, height: 1100 });
   const errs = await bootApp(page);
   await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); const sec = await window.addSection(); window.deselectAll(); window.selectSection(sec); window.addGridBlock(); const g = [...sec.querySelectorAll('.grid-block')].pop(); window.selectBlock?.(g.id); window.showGridProperties?.(g); });
-  await page.waitForSelector('#grd-bbg-section .prop-toggle', { state: 'attached' });
-  await page.locator('#grd-bbg-section .prop-toggle').scrollIntoViewIfNeeded(); await page.click('#grd-bbg-section .prop-toggle');
+  /* ★기대 바뀜(0913-e · 0913-d ②ⓒ «머리 홀로 켬/끔 = 체크 + 켜기»): 옛 .prop-toggle 스위치 → 표준 체크(checkHTML · id 그대로 grd-bbg-toggle) · 겉 label 을 누른다(사용자 길) · 뜻 그대로 */
+  await page.waitForSelector('#grd-bbg-toggle', { state: 'attached' });
+  const tg = page.locator('label.ui-check:has(#grd-bbg-toggle)'); await tg.scrollIntoViewIfNeeded(); await tg.click();
   await page.waitForSelector('#grd-bbg-color', { state: 'attached' });
   const r = await page.evaluate(() => { const s = document.getElementById('grd-bbg-section');
     return { inLayer: ['grd-bbg-color', 'grd-bbg-hex', 'grd-bbg-alpha'].every((i) => !!s.querySelector('.ui-fill-layer #' + i)), rm: document.getElementById('grd-bbg-fill-remove')?.getAttribute('aria-disabled'),
@@ -593,6 +594,8 @@ for (const [name, make, sel, show, px, hex] of F62B) {
     if (!(await page.$(`#${hex}`)) && (await page.$(`#${px}-add`))) { await page.click(`#${px}-add`); await raf(page); }
     await page.fill(`#${hex}`, '#12ab34'); await page.press(`#${hex}`, 'Enter'); await raf(page);
     const png = async (native) => { await lane(native); await page.evaluate((s) => { window.deselectAll(); const sec = document.getElementById(s); window.selectSection(sec); window.showSectionProperties?.(sec); }, ids.sec);
+      /* ★기대 바뀜(0913-e · 0913-d Q33 «섹션 Export = 처음엔 머리만 · ＋ 로 펼침»): 접혀 있으면 머리 ＋(#sec-export-toggle)로 펼친 뒤(사용자 길) · 뜻 그대로 */
+      await page.evaluate(() => { const f = document.getElementById('sec-export-form'); if (f && f.hidden) document.getElementById('sec-export-toggle')?.click(); });
       await page.waitForSelector('#sec-export-btn'); await page.selectOption('#sec-export-format', 'png');
       const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }), page.evaluate(() => document.getElementById('sec-export-btn').click())]);   // 단추가 창 아래끝(y≈1041)이라 page.click 은 «누를 수 있나» 기다리다 멈춤(실측) — 단추 동작 그대로 부름
       const b64 = fsx.readFileSync(await dl.path()).toString('base64');
