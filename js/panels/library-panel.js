@@ -8,6 +8,7 @@ import { sanitizeSvgString, SVG_MAX_LEN_CEIL } from '../util/sanitize-svg.js';
 import { normalizeMonoSvg } from '../util/mono-svg.js';
 import { svgImportSize } from '../util/svg-import-size.js';
 import { posElOf, enterFloat, _applyOverlayPos } from '../overlay-float.js';   // 선택 없음 넣기 = 섹션 밖 SVG 드롭과 같은 오버레이(새 층 0)
+import { checkerBg } from '../checker-tokens.js';
 
 /* LIB-INSERT-NOSEL-OVERLAY-01 · LIB-MODAL-STAY-OPEN-01(현빈 261118)
    · 넣을 자리 = 모달을 «열 때» 정한다: 섹션을 골라 뒀으면 흐름(종전) · 아니면 «오버레이» — 화면 가운데에 가장 가까운 섹션 · 화면 가운데 자리(섹션 상자 안으로 조임).
@@ -259,10 +260,11 @@ function _renderGrid(col, gi = 0) {
   groups.style.display = col.groups ? 'flex' : 'none';
   groups.innerHTML = col.groups ? col.groups.map((g, k) => `<button class="panel-tile lib-group${k === gi ? ' active' : ''}" data-g="${k}" style="height:22px;padding:0 8px;border-radius:6px;font-size:10px;">${escHtml(g.name)}</button>`).join('') : '';
   groups.querySelectorAll('.lib-group').forEach((b) => b.addEventListener('click', () => _renderGrid(col, +b.dataset.g)));
+  const thumbBg = col.asImage ? `background:${checkerBg('small')};` : '';   // BRAND-03 — 로고(검정·검붉은 투명 바탕)가 어두운 칸에 묻힘 → 브랜드 탭만 밝은 체커 · 다른 탭 무변
   grid.innerHTML = items.map((it, i) => `
     <div class="panel-tile lib-item" data-i="${i}"${it.loc ? ` data-loc="${escHtml(it.loc)}"` : ''} title="${escHtml(it.name)}"
       style="border-radius:8px;padding:8px 4px 6px;display:flex;flex-direction:column;align-items:center;gap:4px;">
-      ${it.loc ? '<div class="lib-thumb" style="width:100%;height:72px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#666;"></div>'
+      ${it.loc ? `<div class="lib-thumb" style="${thumbBg}width:100%;height:72px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#666;"></div>`
     : `<img src="${escHtml(`${LIBRARY_ROOT}/${col.dir}/${it.file}`)}" alt="${escHtml(it.name)}" draggable="false"
         style="width:100%;height:72px;object-fit:contain;">`}
       <span class="lib-name" style="font-size:10px;color:#888;${FONT}white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">${escHtml(it.name)}</span>
