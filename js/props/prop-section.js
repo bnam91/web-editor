@@ -919,6 +919,7 @@ async function showSectionProperties(sec) {
     },
     onCommit: () => pushHistory(),
   });
+  { const h = document.getElementById('sec-bg-hex'), k = fillKindOfCss(bgGradCss); if (k !== 'solid') { setFillKindName(h, 'solid'); setFillKindName(h, k); } }   // 시드가 HEX 칸을 첫 정지점으로 덮어 이름칸이 사라진다 → 이름 다시(data-fill-hex = 첫 정지점)
   wireColorVarChips({
     container: document.getElementById('sec-bg-chips'),
     getActiveName: () => parseColorVarName(sec.dataset.bg || ''),
