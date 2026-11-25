@@ -29,3 +29,46 @@ for (const [f, p] of Object.entries(BODY)) {
 test('PR-W 텍스트 회전 슬라이드 = wirePositionSection(txt-rot-number)', () => {
   assert.match(src('prop-text-wireup-position'), /wirePosition(Section|Part)\(\{ prefix: 'txt', numberId: 'txt-rot-number'/);
 });
+
+/* ── 부품 칸 더하기(탑 261125 · 이번 물결 _position-section 주인 = pos) ──
+ *   ① flowAlign 을 floatPositionRowHTML 로 넘긴다(에셋 = 흐름 정렬이 제 3칸) ② liveXY Mixed 칸(빈 값 + placeholder Mixed + data-empty=invalid · _appearance-section _appCell 꼴 · FigCraft number_field_mixed)
+ *   옛 호출(인자 안 줌) = 바이트 그대로. 부품은 vm 에 import 를 벗겨 올리고 이웃 둘은 받은 인자를 그대로 내는 스텁. */
+import vm from 'node:vm';
+function loadPart() {
+  const body = fs.readFileSync(new URL('../../js/props/_position-section.js', import.meta.url), 'utf8')
+    .replace(/^import[^\n]*\n/gm, '').replace(/^export\s*\{[^}]*\};?[^\n]*$/gm, '').replace(/^export\s+/gm, '');
+  const ctx = { overlayToggleBtnHTML: () => '', rotRowHTML: () => '', POS_FLOW_WHY: '', floatPositionRowHTML: (o) => `FPR${JSON.stringify(o)}` };
+  vm.createContext(ctx); vm.runInContext(body + ';globalThis.__P = { positionSectionHTML };', ctx);
+  return ctx.__P;
+}
+const OLD_LIVE = (x, y) => `
+      <div class="prop-lhls-row">
+        <div class="prop-lhls-col">
+          <div class="prop-icon-input">
+            <span class="prop-xy-label">X</span>
+            <input type="number" class="prop-number" id="a-x" value="${x}" aria-label="X position">
+          </div>
+        </div>
+        <div class="prop-lhls-col">
+          <div class="prop-icon-input">
+            <span class="prop-xy-label">Y</span>
+            <input type="number" class="prop-number" id="a-y" value="${y}" aria-label="Y position">
+          </div>
+        </div>
+      </div>`;
+test('PP1 flowAlign — 안 주면 옛 호출 그대로({prefix,posEl}) · false 면 floatPositionRowHTML 로 넘긴다', () => {
+  const { positionSectionHTML: P } = loadPart(), el = { id: 'e' };
+  assert.equal(P({ prefix: 'a', posEl: el }), 'FPR{"prefix":"a","posEl":{"id":"e"}}', '옛 호출 바이트가 바뀌었다');
+  assert.equal(P({ prefix: 'a', posEl: el, flowAlign: false }), 'FPR{"prefix":"a","posEl":{"id":"e"},"flowAlign":false}');
+});
+test('PP2 liveXY Mixed — 안 주면 옛 마크업 바이트 그대로 · 주면 그 칸만 빈 값 + Mixed + data-empty=invalid', () => {
+  const { positionSectionHTML: P } = loadPart();
+  assert.equal(P({ prefix: 'a', posEl: null, xy: false, liveXY: { xId: 'a-x', yId: 'a-y', x: 3, y: 4 } }), OLD_LIVE(3, 4), '옛 liveXY 바이트가 바뀌었다');
+  const h = P({ prefix: 'a', posEl: null, xy: false, liveXY: { xId: 'a-x', yId: 'a-y', x: 3, y: 4, xMixed: true } });
+  assert.match(h, /id="a-x" value="" placeholder="Mixed" data-empty="invalid" aria-label="X position"/);
+  assert.match(h, /id="a-y" value="4" aria-label="Y position"/);
+});
+test('PP3 asset·multisel 몸 = 부품(asset flowAlign:false · multisel liveXY Mixed)', () => {
+  assert.match(src('prop-asset'), /positionSectionHTML\(\{ prefix: 'asset', posEl: floatPosEl, flowAlign: false \}\)/);
+  assert.match(src('prop-multisel'), /positionSectionHTML\(\{ prefix: 'msp'[^\n]*liveXY: \{ xId: 'msp-x', yId: 'msp-y'/);
+});
