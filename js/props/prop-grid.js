@@ -3263,7 +3263,7 @@ function _grdWireWidth(block) {
   }
   if (mode) {
     /* 너비 모드 — 100% = 옛 «100%» 단추 길(키 지움 updateGridBlock width:null) · 고정 = 지금 그려진 폭을 키로(그 뒤 W 칸으로 고친다) */
-    if (floating) { mode.disabled = true; mode.title = 'Width sizing — 떠 있는 동안은 굳힌 폭이 정본이라 «Fill»로 못 돌린다 — Ignore Auto Layout 을 끄고 고르세요';   // 모드 낱말 영어(현빈 261125 17:36) }
+    if (floating) { mode.disabled = true; mode.title = 'Width sizing — 떠 있는 동안은 굳힌 폭이 정본이라 «Fill»로 못 돌린다 — Ignore Auto Layout 을 끄고 고르세요'; }   // 모드 낱말 영어(현빈 261125 17:36)
     mode.addEventListener('change', () => {
       if (mode.disabled || block.dataset.overlayBlock === 'true') return;
       if (mode.value === 'fill') {
