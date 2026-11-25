@@ -1473,6 +1473,14 @@ function duplicateInPlace({ select = 'copy' } = {}) {
   return pairs;
 }
 window.duplicateInPlace = duplicateInPlace;
+/* ★0.9.13 77 Offset Path — 한 단위를 «원본 바로 앞»(= 겹친 떠 있는 것끼리 한 층 아래)에 새 id 로 복제 · 고름·이력 0(부르는 쪽이 push-after) · 몸 = duplicateInPlace 와 같은 붙여넣기 문 */
+function duplicateUnitBefore(u) {
+  if (!u?.parentElement) return null;
+  const c = u.cloneNode(true); u.before(c); _bindPastedEl(c); c._dragBound = false;
+  [c, ...c.querySelectorAll('.selected, .multi-selected')].forEach(n => n.classList.remove('selected', 'multi-selected'));
+  return c;
+}
+window.duplicateUnitBefore = duplicateUnitBefore;
 
 /* 다중선택 «판정» 셀렉터 — copySelected 와 pasteClipboard 가 «같은 집합»을 봐야 한다.
  * 붙여넣기 기준점을 copy 와 다른 목록으로 고르면 순서가 어긋난다.

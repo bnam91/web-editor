@@ -21,6 +21,7 @@ import { starPoints, starClipPath, clampStarN, STAR_MIN, STAR_MAX,
          STAR_SCALE_MIN, STAR_SCALE_MAX, STAR_SCALE_DEFAULT,
          clampRound, ROUND_MIN, ROUND_MAX } from '../shape-star.js';
 import { starSelectedIndex, starModeBlock, exitStarMode } from '../star-select.js';
+import '../offset-path.js';   // 0.9.13 77 Offset Path(window.applyOffsetPath)
 import { clampEllipseCount, ELLIPSE_COUNT_MIN, ELLIPSE_COUNT_MAX,
          clampEllipseGap, ELLIPSE_GAP_MIN, ELLIPSE_GAP_MAX, ELLIPSE_GAP_DEFAULT,
          ellipseFrameWidthFor, ellipseColorList, ellipseColorsAttr,
@@ -346,6 +347,14 @@ export function showShapeProperties(block) {
           <input type="number" class="prop-number" id="shape-ellipse-shadow-num" min="${ELLIPSE_SHADOW_MIN}" max="${ELLIPSE_SHADOW_MAX}" value="${ellShadow}">
         </div>` : ''}
         </div>` : ''}${_fx?.body || ''}`, { headTools: _fx?.headTools || '', id: _fx?.id }),
+      /* ★0.9.13 77 t13B-04 Offset Path 1차(현빈 261119 ⓑ 일러 꼴 · 지디 261125 R2·R3) — 사각·원 · 거리(±px · 음수 = 안쪽) · 모서리 Round/Miter · «만들기» = 새 도형(원본 무변 · 한 층 아래) · 몸 = js/offset-path.js */
+      sec('special', (shapeType === 'rectangle' || shapeType === 'ellipse') && !isRedact ? `
+        <div class="prop-row">
+          <span class="prop-label">거리</span>
+          <input type="number" class="prop-number" id="shape-offset-d" value="10" step="1" min="-500" max="500" aria-label="Offset 거리(px · 음수 = 안쪽)" title="px · 음수 = 안쪽">
+          <select class="prop-select" id="shape-offset-join" aria-label="모서리"${shapeType === 'ellipse' ? ' disabled title="원은 모서리 종류가 없어요"' : ''}><option value="round">Round</option><option value="miter">Miter</option></select>
+        </div>
+        <div class="prop-row"><button type="button" class="prop-btn" id="shape-offset-apply" title="원본은 그대로 두고 그 둘레(또는 안쪽)에 새 도형을 만들어요">새 도형 만들기</button></div>` : '', { title: 'Offset Path' }),
     ],
   });
   /* 막 생긴 «추가 줄»이 Fill 절에 떨어지면(별 하나 고름 → 「N번 별」 색 · 별점 켬 → 두 색 · 원 2개 이상 → 원마다 색) 접혀 있던 Fill 을 연다.
@@ -649,6 +658,12 @@ export function showShapeProperties(block) {
     commit: () => window.pushHistory?.() } });
 
   // ── 외곽선 = 표준 Stroke 부품 배선(어댑터 = 이 패널의 쓰기 함수 그대로 · 저장 키 shapeStrokeColor/shapeStrokeWidth 무변 · 이력 push-after) ──
+  /* ★77 Offset Path — 만들기 = js/offset-path.js applyOffsetPath(이력·고름·패널 다시 그리기는 그쪽) · 못 하면 까닭 알림 */
+  document.getElementById('shape-offset-apply')?.addEventListener('click', () => {
+    const d = Number(document.getElementById('shape-offset-d')?.value);
+    const r = window.applyOffsetPath?.(block, Number.isFinite(d) ? d : 0, document.getElementById('shape-offset-join')?.value || 'round');
+    if (r && !r.ok) window.showToast?.(r.why);
+  });
   wireStrokeSection({ prefix: 'shape-stroke', alpha: strokeColorAlpha, maxWidth: 20,
     adapter: { color: (c) => applyStrokeColor(c), width: (v) => applyStroke(v), look: (part) => applyLook(part), commit: () => window.pushHistory?.(),
       sides: (block.dataset.shapeType || 'rectangle') === 'rectangle' ? { read: () => { const sd = Number(block.dataset.shapeStrokeWidth) || 0; return hasSides(block.dataset) ? readSides(block.dataset, sd) : null; },
