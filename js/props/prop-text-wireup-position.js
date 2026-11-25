@@ -1,5 +1,6 @@
 import { wireRotRow } from './_helpers.js';
 import { wireLayoutSection } from './_layout-section.js';   // 표준 Layout(C3)
+import { wirePositionSection as wirePositionPart } from './_position-section.js';   // 표준 Position 슬라이드 모드(시트 222)
 /* prop-text-wireup-position.js
  * width / X / Y (overlay-tb는 호출하지 않음)
  */
@@ -67,5 +68,6 @@ export function wirePositionSection({ tb }) {
     rotNumber.addEventListener('change', () => { applyRot(parseInt(rotNumber.value) || 0); window.pushHistory?.(); });
     /* Q17 — 90° · 좌우 · 상하 반전 · 아이콘 끌기(회전 줄 한 벌 · _helpers.js wireRotRow) */
     wireRotRow({ p: 'txt', numberId: 'txt-rot-number', host: () => tb.closest('.frame-block[data-text-frame="true"]') || tb });
+    wirePositionPart({ prefix: 'txt', numberId: 'txt-rot-number', rerender: () => window.showTextProperties?.(tb) });
   }
 }

@@ -27,5 +27,5 @@ for (const [f, p] of Object.entries(BODY)) {
   });
 }
 test('PR-W 텍스트 회전 슬라이드 = wirePositionSection(txt-rot-number)', () => {
-  assert.match(src('prop-text-wireup-position'), /wirePositionSection\(\{ prefix: 'txt', numberId: 'txt-rot-number'/);
+  assert.match(src('prop-text-wireup-position'), /wirePosition(Section|Part)\(\{ prefix: 'txt', numberId: 'txt-rot-number'/);
 });

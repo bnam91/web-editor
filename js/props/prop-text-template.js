@@ -1,7 +1,8 @@
 // HTML template extracted from prop-text.js (Phase 2 refactor)
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
-import { overlayToggleBtnHTML, blockHeaderHTML, sliderRowHTML, rotRowHTML, floatAlignRowHTML, flowAlignDisabledHTML, POS_FLOW_WHY, checkHTML } from './_helpers.js';
+import { blockHeaderHTML, sliderRowHTML, floatAlignRowHTML, flowAlignDisabledHTML, POS_FLOW_WHY, checkHTML } from './_helpers.js';
 import { sec, buildPanelHTML } from './_panel-frame.js';
+import { positionSectionHTML, positionHeadToolsHTML } from './_position-section.js';   // 표준 Position 절(시트 222 DS-POSITION-STD-REST-01)
 import { strokeSectionHTML, strokeHeadToolsHTML, STROKE_POP_WHY } from './_stroke-section.js';
 import { sectionOrderFor, sectionRank } from './_section-spec.js';
 /* T7 — 글머리 명부·판정은 ★한 자리(text-type-class.js). 패널과 배선이 ★같은 하나를 본다. */
@@ -338,9 +339,8 @@ export function buildTextPanelSpec(state) {
             <input type="number" id="txt-y-number" value="${isOverlayBlock ? currentY : ''}" aria-label="Y position"${isOverlayBlock ? '' : ` disabled aria-disabled="true" title="${POS_FLOW_WHY}"`}>
           </div>
         </div>
-      </div>
-      <span class="prop-field-label">Rotation</span>${/* Q17 · Q20(시안 v10) — 각도 칸(숫자 + °) + 90° · 좌우 · 상하 반전 한 줄. 반전 키 = 회전 host(텍스트 프레임 또는 글 블럭) dataset.flipH/V */
-      rotRowHTML({ p: 'txt', numberId: 'txt-rot-number', value: currentRotation, flipH: _rotHost?.dataset?.flipH === '1', flipV: _rotHost?.dataset?.flipV === '1' })}`, { headTools: isOverlayTb ? '' : overlayToggleBtnHTML({ id: 'txt-overlay-toggle', active: isOverlayBlock }) }),
+      </div>${/* Q17 · Q20(시안 v10) — 각도 칸 + 90° · 좌우 · 상하 반전 한 줄(반전 키 = 회전 host dataset.flipH/V) · 표준 Position = 부품 rot(+ 슬라이드 모드 슬라이더) · 정렬·X/Y 는 위 옛 줄 그대로(텍스트는 currentX 를 넘겨받아 posEl 이 없다) */
+      positionSectionHTML({ prefix: 'txt', posEl: null, xy: false, rot: { p: 'txt', numberId: 'txt-rot-number', value: currentRotation, flipH: _rotHost?.dataset?.flipH === '1', flipV: _rotHost?.dataset?.flipV === '1' } })}`, { headTools: isOverlayTb ? positionHeadToolsHTML({ prefix: 'txt', rotCan: false }) : positionHeadToolsHTML({ prefix: 'txt', ialId: 'txt-overlay-toggle', ialOn: isOverlayBlock }) }),   // overlay-tb = IAL·회전 배선 없음(옛 그대로) → 슬라이드 disabled
       sec('size', _sizeHtml),
       sec('layout', _alignBtns + _itbLayout),
       sec('padding', _paddingHtml),

@@ -68,7 +68,8 @@ function loadTextTemplate() {
     stripEsm(readSrc(ROOT, SPEC_REL), SPEC_REL), stripEsm(readSrc(ROOT, FRAME_REL), FRAME_REL),
     stripEsm(readSrc(ROOT, 'js/props/_stroke-section.js'), 'js/props/_stroke-section.js'), stripEsm(readSrc(ROOT, 'js/props/_fill-section.js'), 'js/props/_fill-section.js'),
     stripEsm(readSrc(ROOT, 'js/props/_appearance-section.js'), 'js/props/_appearance-section.js'),
-    stripEsm(readSrc(ROOT, 'js/props/_layout-section.js'), 'js/props/_layout-section.js')];   /* ★전제(표준 Layout C3): 텍스트 W/H·태그 높이·아이콘 크기·Gap = 부품 · 실물 그대로 */   /* ★전제(표준 Appearance A3): 태그 모서리 = 부품 · 실물 그대로(사본 0) */   /* ★전제(표준 Fill F4): _typo-section 이 fillSectionHTML 을 부른다 */   // 표준 Stroke 부품(현빈 261123) — 텍스트 strokeSection 이 부른다 · 색 칸은 부르는 쪽 colorHtml 이라 color-picker 안 올림
+    stripEsm(readSrc(ROOT, 'js/props/_layout-section.js'), 'js/props/_layout-section.js'),
+    stripEsm(readSrc(ROOT, 'js/props/_position-section.js'), 'js/props/_position-section.js')];   /* ★전제(표준 Position · 시트 222): 텍스트 회전 줄·머리 = 부품(xy:false 라 overlay-float 안 부름) */   /* ★전제(표준 Layout C3): 텍스트 W/H·태그 높이·아이콘 크기·Gap = 부품 · 실물 그대로 */   /* ★전제(표준 Appearance A3): 태그 모서리 = 부품 · 실물 그대로(사본 0) */   /* ★전제(표준 Fill F4): _typo-section 이 fillSectionHTML 을 부른다 */   // 표준 Stroke 부품(현빈 261123) — 텍스트 strokeSection 이 부른다 · 색 칸은 부르는 쪽 colorHtml 이라 color-picker 안 올림
 
   // _typo-section.js 는 «추출 후»에만 존재한다 — 있으면 올리고, 없으면 (추출 전) 그냥 넘어간다.
   const typoPath = path.join(ROOT, TYPO_REL);
