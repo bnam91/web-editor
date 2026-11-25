@@ -6,6 +6,7 @@ import { renderPanel, sec as panelSec, panelRenderGen } from './_panel-frame.js'
 import { layoutSizeRowHTML, layoutPadSlotHTML, layoutSlotNumberHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout 패딩(탑 워커 261125)
 import { forgetLabelAutoColor } from './label-auto-color.js';
 import { wireHexText, parseHex6, formatHex6, colorFieldHTML, wireColorField } from './color-picker.js';
+import { fillSectionHTML, setFillKindName, fillKindOfCss } from './_fill-section.js';   // 표준 Fill(DS-FILL-STD-REST-01) — 섹션 배경 = 겹 줄(그라데이션 = 이름칸) · VAR·최근·이미지·무늬 = 그대로
 import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';   /* 섹션 보강(현빈 261123 · d92ea91) — 배경색 VAR·최근 줄(텍스트 Fill 과 같은 벌) */
 import { pushHistory, PRESETS, _presetsReady, rgbToHex, getBlockBreadcrumb } from '../editor.js';
 import { alignFlowBlock } from './prop-multisel.js';
@@ -786,10 +787,7 @@ async function showSectionProperties(sec) {
       </div>
 `),
       panelSec('fill', `
-      <div class="prop-color-row">
-        <span class="prop-label">배경색</span>
-        ${colorFieldHTML({ idPrefix: 'sec-bg', hex: hexBg, alpha: secBgAlpha, gradientCss: bgGradCss })}
-      </div>
+      ${fillSectionHTML({ prefix: 'sec-fill', kind: fillKindOfCss(bgGradCss), removeWhy: '섹션 배경은 지울 수 없어요 — 투명도 0 으로 숨기세요', colorHtml: colorFieldHTML({ idPrefix: 'sec-bg', hex: hexBg, alpha: secBgAlpha, gradientCss: bgGradCss }) })}
       <div class="cv-chips" id="sec-bg-chips" hidden></div>
       <span class="prop-field-label">Background Image</span>
       ${bgImgHTML}
@@ -912,10 +910,11 @@ async function showSectionProperties(sec) {
   wireColorField('sec-bg', {
     initialAlpha: secBgAlpha,
     gradientValue: bgGradCss,   // 재선택 뒤에도 그라데이션 탭·정지점으로 열린다(T-059 2라운드 규약)
-    onApply: (c) => _setSecBg(c),
+    onApply: (c) => { _setSecBg(c); setFillKindName(document.getElementById('sec-bg-hex'), 'solid'); },
     onGradient: (css, commit) => {
       if (_applyingSecGradExternal) return;   // 캔버스 바가 쓴 값의 메아리 — 이미 칠했다(루프 방지)
       _setSecBg(css);
+      setFillKindName(document.getElementById('sec-bg-hex'), fillKindOfCss(css));   // 이름칸 Linear/Radial(프레임·banner02 와 같은 손)
       if (commit) pushHistory();
     },
     onCommit: () => pushHistory(),
