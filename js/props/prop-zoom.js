@@ -365,9 +365,9 @@ ${narrowRow}
      그래서 끄고 켜기를 반복해도 방향·길이·농도가 그대로 돌아온다(검사 ⓑ-14·변이 M14). */
   const bindCheck = (id, key, label) => {   // 현빈 261123 온/오프=체크 · chku 1–3 GO · ③ⓐ 세그먼트 — 옛 ‹라디오로› 결정 대체
     wireCheck(id, { onChange: (on) => {
-      window.pushHistory?.(label);
       block.dataset[key] = on ? 'on' : 'off';
       rerender();
+      window.pushHistory?.(label);   // push-after(0.9.14 80행) — 먼저 찍으면 켬이 자기 칸을 잃는다 · tests/unit/prop-push-after PA-7
       showZoomProperties(block);   // 흐리게/진하게 갱신
       window.triggerAutoSave?.();
     } });
