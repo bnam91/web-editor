@@ -64,7 +64,7 @@ const clickTone = async (page) => {
 };
 const openAsset = async (page, id) => {
   await page.evaluate((i) => window.showAssetProperties(document.getElementById(i)), id);
-  await page.waitForSelector('#asset-bg-hex', { state: 'attached' })  /* 1120b A6 — 초기화 단추 걷음 ⇒ 배경 hex 칸으로 패널 열림을 잰다 */;
+  await page.waitForSelector('#asset-bg-hex, #asset-fill-add', { state: 'attached' })  /* 1120b A6 — 배경 hex 칸으로 패널 열림을 잰다 · ★전제(74행 cf680cce1 · 키 없는 새 에셋 = 표준 Fill «칠 없음 + ＋» · 색 칸 안 섬) → ＋ 도 열림 표지(누르지 않음 — 누르면 칠이 생겨 재는 체커가 사라진다) */;
 };
 
 test('T1 ⑴ 양성 — 에셋 라디오 켬 → 그 에셋 배경만 #7c7c7c·#949494 (옆 에셋은 밝다)', async ({ page }) => {
@@ -164,7 +164,7 @@ test('T5 입구 — 빈 에셋엔 조건 없는 줄 하나 · 이미지 있는 �
   }));
   expect(empty).toEqual({ n: 1, nOff: 0, offChecked: true, label: '체커 어둡게' });
   await page.evaluate(() => { const ab = document.getElementById('akB'); ab.classList.add('has-image'); window.showAssetProperties(ab); });
-  await page.waitForSelector('#asset-bg-hex', { state: 'attached' })  /* 1120b A6 — 초기화 단추 걷음 ⇒ 배경 hex 칸으로 패널 열림을 잰다 */;
+  await page.waitForSelector('#asset-bg-hex, #asset-fill-add', { state: 'attached' })  /* 1120b A6 — 배경 hex 칸으로 패널 열림을 잰다 · ★전제(74행 cf680cce1 · 키 없는 새 에셋 = 표준 Fill «칠 없음 + ＋» · 색 칸 안 섬) → ＋ 도 열림 표지(누르지 않음 — 누르면 칠이 생겨 재는 체커가 사라진다) */;
   const img = await page.evaluate(() => ({
     replace: document.querySelectorAll('#asset-replace-btn').length,
     n: document.querySelectorAll('#asset-checker-tone-on, #asset-checker-tone-off').length,
