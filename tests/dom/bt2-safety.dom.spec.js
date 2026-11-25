@@ -183,6 +183,7 @@ test('T6 그리드 패널 — 상태 7가지의 우측 패널 HTML 이 핀과 �
   if (MUT === 'add') got.block = got.block + '<div class="prop-row" id="zz-t6-added"></div>';      // 시험용 — 줄 하나 «더함»
   if (MUT === 'plant') got.block = got.block.replace(/(<div class="prop-row"[^>]*>)/, '$1<input type="number" id="zz-t6-planted">');   // 시험용 — Stroke 부품 «밖» 첫 줄에 칸 하나(표준 Stroke 이관 절이 구멍이 아님 = 거절돼야)
   if (MUT === 'aria') got.block = got.block.replace(/(<(?:input|button|select|textarea)\b[^>]*?) aria-label="[^"]*"/, '$1');                       // 시험용 — 컨트롤의 aria-label 하나 «뺌»(U1 ③-aria 양성대조)
+  if (MUT === 'ariaval') got.block = got.block.replace(/(<(?:input|button|select|textarea)\b[^>]*? aria-label="[^"]*)"/, '$1 zz"');   // 시험용 — aria-label 하나 «값 바꿈»(ARIA_CHANGE 명부 밖 = 여전히 거절 양성대조 · ★기대 바뀜 탑 261125)
   expect(Object.keys(got).length, '전제: 상태 8개').toBe(8);
   expect(got.h2.includes('grd-line-summary'), '전제: 줄을 고르면 줄바 요약이 뜬다').toBe(true);
   /* ★U1(right-panel-unify · 2026-11-13) 골든 재생성 «판정식»(플랜 §6-2) — 옛 골든 → 새 산출의 차이가 «아래 뜻한 꼴뿐»일 때만 쓴다(덮어쓰기 아님).
@@ -197,6 +198,7 @@ test('T6 그리드 패널 — 상태 7가지의 우측 패널 HTML 이 핀과 �
    *   ⑤ 하위 제목(틀 머리 밖 .prop-section-title · 순서 무관 다중집합) — 옛 것에서 「Layout」(틀 머리가 맡는다)과 «컨트롤 0개인» 「Typography」(빈 절 · 시트 티켓)만 빠진다. 더해지는 것 0.
    *   ⑥ prop-hint — 새 ⊆ 옛 · 빠진 것은 전부 HINT_GONE 정규식에 걸린다 · 새 산출 상태마다 ≤ 2 · data-sec 절 ≥ 1.
    *   양성대조: BT2_T6_MUT=del(첫 prop-row 뺌) → ③ 빨강(컨트롤 사라짐) · BT2_T6_MUT=aria(aria-label 하나 뺌) → ③-aria 빨강 · 둘 다 갱신 거절.
+   *            aria 값 뜻한 바뀜은 ARIA_CHANGE 둘뿐(★기대 바뀜 · 크기 모드 영어) · BT2_T6_MUT=ariaval(aria-label 하나 값 바꿈) → ③-aria 빨강 · 갱신 거절.
    *            BT2_T6_MUT=add 는 ③ 통과(id 있는 빈 줄 — 컨트롤 0). */
   const T6_SPEC = {
     added: ['grd-scope-block', 'grd-scope-col', 'grd-scope-row', 'grd-scope-line'],
@@ -221,6 +223,8 @@ test('T6 그리드 패널 — 상태 7가지의 우측 패널 HTML 이 핀과 �
     layAppStd: { removedIds: ['grd-col-gap-slider', 'grd-row-gap-slider', 'grd-child-gap-slider', 'grd-width-slider', 'grd-width-auto', 'grd-bbg-radius-slider'], phDrop: ['grd-width-number'],
       scope: '[data-part="layout"], [data-part="appearance"], .prop-sec-head .ui-app-eye' },
     PH_CHANGE: [{ sel: '.grd-row-h-item', from: '^auto$', to: '^Hug( · \\d+)?$' }],   // ★기대 바뀜(크기 모드 영어 · 현빈 261125 17:36)
+    /* ★기대 바뀜(표준 Layout 크기 모드 영어 · 현빈 261125 17:36 layout-en · 탑 워커 261125) — aria 값 바뀜은 이 명부 둘뿐 · 바뀐 토막 밖 글자는 그대로여야(밖 바뀜 = 빨강 · BT2_T6_MUT=ariaval 양성대조) */
+    ARIA_CHANGE: [{ sel: '#grd-width-mode', attr: 'aria-label', from: '^너비 모드$', to: '^Width sizing$' }, { sel: '#grd-ratio', attr: 'aria-label', from: '\\(자동\\)', to: '\\(Hug\\)' }],
     dataRename: { 'data-bbg-x': 'data-bbg-h', 'data-bbg-y': 'data-bbg-v', 'data-cpos-x': 'data-cpos-h', 'data-cpos-y': 'data-cpos-v' },
     LABEL_TO: { 'data-ha': '가로 정렬 · 모든 열', 'data-va': '세로 정렬 · 블록', 'grd-cell-align': '가로 정렬 · 이 칸', 'grd-cell-valign': '세로 정렬 · 이 칸', 'grd-line-align': '가로 정렬 · 이 줄', 'data-nva': '세로 정렬 · 이 열' },
     HINT_GONE: ['^가로×세로 칸 수를 고른다$', '^줄이면 잘린 칸 내용은 사라진다', '^예: 1:1:2', '^행/열 사이 간격', '^격자와 아래 블럭 사이', '^칸 하나만 바꾸려면', '^이 칸에만 적용된다', '^칸과 칸 «사이»', '^자르기 전에는', '^그림 폭이 100%', '^비우면 자동', '행을 열 \\d+개의', '^이 열에 기본값이 걸려'],   // 마지막 = 칸 꾸미기 접기 제목 「· 열 기본값 있음」으로(M4 예산)
@@ -253,7 +257,8 @@ test('T6 그리드 패널 — 상태 7가지의 우측 패널 HTML 이 핀과 �
           const key = ctrlKey(ca), q = pool.get(key);
           if (!q || !q.length) { if ((S.strokeStd.removedIds.includes(ca.id) || S.layAppStd.removedIds.includes(ca.id)) && !b.querySelector('#' + ca.id)) continue; out.push(`${k} ③ 컨트롤 사라짐/바뀜 ${key}`); continue; }
           const cb = q.shift(), ab = aria(cb);
-          for (const [n, v] of Object.entries(aria(ca))) if (ab[n] !== v) out.push(`${k} ③-aria ${key} ${n}: 「${v}」 → ${n in ab ? `「${ab[n]}」` : '(지워짐)'}`);
+          const ariaOk = (n, v, w) => w != null && S.ARIA_CHANGE.some(x => x.attr === n && cb.matches(x.sel) && new RegExp(x.from).test(v) && new RegExp(x.to).test(w) && v.replace(new RegExp(x.from), '') === w.replace(new RegExp(x.to), ''));   // ★ARIA_CHANGE 명부만 받는다
+          for (const [n, v] of Object.entries(aria(ca))) if (ab[n] !== v && !ariaOk(n, v, ab[n])) out.push(`${k} ③-aria ${key} ${n}: 「${v}」 → ${n in ab ? `「${ab[n]}」` : '(지워짐)'}`);
         }
         for (const [key, q] of pool) q.forEach((el) => { if (el.closest(S.strokeStd.scope) || el.closest(S.posFlow.scope) || el.closest(S.layAppStd.scope) || S.posHead.addedIds.includes(el.id)) return; out.push(`${k} ③ 컨트롤 더해짐 ${key}`); });   // + Position P2 흐름 줄 범위 안   // Stroke 부품 범위 안 더함만 면제(밖은 그대로 거절 — plant 양성대조)
         if (S.added.some(id => !b.querySelector('#' + id))) out.push(`${k} ② 스코프칩 넷이 없다`);
