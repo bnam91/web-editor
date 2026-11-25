@@ -64,3 +64,9 @@ test('B1 버즈 간격·너비 — 표준 슬롯(bzf-gap-number = layoutGapSlotH
   assert.ok(!/'bzf-(?:gap|width)'/.test(s), '옛 _slider/slide 호출이 남았다');
   assert.ok(!/layoutSizeRowHTML|LAY_SIZING/.test(s), '모드 드롭다운을 만들지 않는다');
 });
+
+test('L1b 옛 호출 바이트 그대로 — 크기 줄·패딩·간격·슬롯 숫자 17꼴(tests/fixtures/layout-part-old-calls.json · html = 덧붙임 전 소스 산출)', () => {
+  const fx = JSON.parse(fs.readFileSync(path.join(ROOT, 'tests', 'fixtures', 'layout-part-old-calls.json'), 'utf8'));
+  const P = vm.runInNewContext(`${partSrc}\n({ size: layoutSizeRowHTML, pad: layoutPadSlotHTML, gap: layoutGapSlotHTML, num: layoutSlotNumberHTML })`, {});
+  for (const [k, calls] of Object.entries(fx.calls)) calls.forEach((c, i) => assert.equal(P[k](c), fx.html[k][i], `${k}[${i}] 옛 산출과 다르다`));
+});
