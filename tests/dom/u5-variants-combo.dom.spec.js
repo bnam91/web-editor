@@ -172,10 +172,10 @@ test('V-I1/I2 infocard — countup: 숫자 크기 → dataset.numSize · price: 
   const errs = await scene(page);
   const id = await add(page, 'infocard-block', 'addInfoCardBlock');
   await open(page, 'showInfoCardProperties', id);
-  expect(await put(page, '#ifc-num-number', '120', ['change']), '[전제] countup 숫자 크기 칸').toBe(true);
+  expect(await put(page, '#ifc-typo-size-number', '120', ['change']), '[전제] countup 숫자 크기 칸').toBe(true);   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
   expect((await ds(page, id)).numSize).toBe('120');
   expect(await click(page, '[data-variant="price"]')).toBe(true);
-  await expect(page.locator('#panel-right #ifc-num-number'), 'price 갈래엔 숫자 크기 없음').toHaveCount(0);
+  await expect(page.locator('#panel-right #ifc-typo-size-number'), 'price 갈래엔 숫자 크기 없음').toHaveCount(0);   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
   expect(await put(page, '.ifc-field[data-key="label"]', 'u5가격', ['change'])).toBe(true);
   expect(JSON.parse((await ds(page, id)).data || '{}').label).toBe('u5가격');
   expect(errs).toEqual([]);

@@ -13,6 +13,7 @@ import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast } from '.
 import { readLook, writeLook } from '../stroke-look.js';
 import { blockHeaderHTML, escHtml as _esc, checkHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
+import { buildTypographySectionHtml } from './_typo-section.js';   // 표준 Typography 절(시트 221) — 크기칸만 · 굵기는 옛 bold/normal 줄 그대로
 import {
   radialStateOf, radialSetCount, RADIAL_LIMITS, RADIAL_DEFAULTS, RADIAL_ARC_PRESET, RADIAL_LOOK_KEYS,
   radialNormDeg, radialAutoDegs, radialItemIsManual, radialResetPlacement,
@@ -247,8 +248,13 @@ export function showRadialProperties(block, idx) {
         ${checkHTML({ id: 'rdl-clip-toggle', label: '내용 자르기', checked: window.clipsContent?.(block) !== false })}
       </div>`}`, { headTools: appearanceHeadToolsHTML({ prefix: 'rdl' }) }),   // A4 — 점 마커도 Opacity(절이 늘 선다 · 모서리·자르기는 칸 마커만 · 옛 그대로)
       sec('typography', st.labelPos === 'none' ? '' : `
-      ${_pairRow('rdl-labelsize', '라벨 크기', st.labelSize, L.labelSize)}
-      ${_typeRow('라벨 굵기', 'rdl-labelweight', [['bold', '굵게'], ['normal', '보통']], st.labelWeight)}`),
+      ${buildTypographySectionHtml({
+        p: 'rdl-typo', bare: true, size: st.labelSize, sizeMin: L.labelSize.min, sizeMax: L.labelSize.max,
+        showFont: false, showWeight: false, showStyleGroup: false,
+        showLetterSpacing: false, showLineHeight: false, showHighlight: false,
+        omitHidden: true,   // 크기칸 #rdl-typo-size-number(옛 rdl-labelsize 쌍 · 부품 계약) · 저장 키 labelSize 그대로
+      })}
+      ${/* 굵기 = 옛 줄 유지 — 부품 select(100~900)를 쓰면 저장 값 꼴(bold/normal)이 바뀐다 */ _typeRow('라벨 굵기', 'rdl-labelweight', [['bold', '굵게'], ['normal', '보통']], st.labelWeight)}`),
       sec('fill', `
       ${fillSectionHTML({ prefix: 'rdl-fill', on: !!st.bg && st.bg !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'rdl-bg', hex: _swatchHex(st.bg || '#ffffff', '#ffffff'), alpha: parseAlphaFromColor(st.bg || '#ffffff') }) })}
       ${isDot ? _colorRow('rdl-dotcolor', '점 색', st.dotColor, RADIAL_DEFAULTS.dotColor) : _colorRow('rdl-cellfill', '칸 채움', st.cellFill, RADIAL_DEFAULTS.cellFill)}
@@ -479,7 +485,7 @@ export function showRadialProperties(block, idx) {
 
   // ── Label ──
   wireType('rdl-label', _LABEL_OPTS, 'labelPos');
-  wireNum('rdl-labelsize', 'labelSize');
+  wireOnlyNum('rdl-typo-size-number', 'labelSize');
   wireColor('rdl-labelcolor', 'labelColor');
   wireOnlyNum('rdl-labelgap-number', 'labelGap');
   wireOnlyNum('rdl-labelwidth-number', 'labelWidth');
