@@ -467,7 +467,7 @@ const GRAPH_FIELD_PARTS = {
                  : { el: _firstPlain(b, b.dataset.chartType === 'bar-h' ? '.grb-bar-h-fill' : '.grb-bar-fill:not(.grb-bar-fill-b)'), prop: 'backgroundColor' },
   bar2:   (b) => ({ el: b.querySelector('.grb-bar-fill-b'), prop: 'backgroundColor' }),
   vlabel: (b) => ({ el: b.querySelector('.grb-bar-val-label, .grb-line-vlabel, .grb-bar-h-pct, .grb-pie-val'), prop: 'color' }),
-  xlabel: (b) => ({ el: b.querySelector('.grb-bar-label, .grb-line-xlabel, .grb-bar-h-desc, .grb-pie-label'), prop: 'color' }),
+  xlabel: (b) => ({ el: b.querySelector('.grb-bar-label, .grb-line-xlabel, .grb-bar-h-desc, .grb-pie-label, .grb-radial-label'), prop: 'color' }),   // 204 GRAPH-RADIAL-FILL-COLOR-ZERO-01 — 방사형 라벨(graph-radial.js · xlabelColor||labelColor)
   fill:   (b) => ({ el: b.querySelector('.grb-line-area'), prop: 'fill' }),
   grid:   (b) => ({ el: b.querySelector('.grb-ov-grid-layer') || b, prop: 'color' }),
   track:  (b) => ({ el: b.querySelector('.grb-shape-track'), prop: 'backgroundColor' }),   // 1012t1G3 — 실루엣의 안 찬 부분(키 없으면 채움과 같은 색)
