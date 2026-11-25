@@ -14,6 +14,7 @@ const MODE_LABEL = { stack: '스택(겹침)', grid: '격자(A4 칸)' };
 import { CERT_PRESET_NAMES, CERT_MAX_SHEETS, CERT_MAX_GRID, CERT_SHEET_H } from '../blocks/cert-layout.js';
 import { layoutGapSlotHTML, layoutSlotNumberHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(C2)
 import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance A4(C2)
+import { effectRowHTML } from './_effects-section.js';   // 표준 Effects 줄(0.9.14 224)
 const PICK_COLS = 4, PICK_ROWS = 3;   // 그리드 피커 4×3 = CERT_MAX_GRID
 
 const _ICON = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3"><rect x="3.5" y="1" width="6" height="8.5" rx="0.5"/><path d="M2.5 2.5v8.5h6"/></svg>`;
@@ -81,10 +82,12 @@ export function showCertProperties(block) {
       <div class="prop-row"><span class="prop-label">대상</span><select class="prop-select" id="crt-fx-target">
         <option value="all"${fxTarget === 'all' ? ' selected' : ''}>모든 용지</option>
         ${st.certs.map((_, i) => `<option value="${i}"${String(i) === fxTarget ? ' selected' : ''}>용지 ${i + 1}</option>`).join('')}</select></div>
+      ${effectRowHTML({ id: 'crt-fx-tf', label: '회전·기울기', body: `
       ${sliderRowHTML('회전°', 'crt-fx-rot-slider', 'crt-fx-rot-number', { min: -30, max: 30, step: 1, value: Math.round(fx.rot) })}
-      ${sliderRowHTML('기울기°', 'crt-fx-tilt-slider', 'crt-fx-tilt-number', { min: -40, max: 40, step: 1, value: Math.round(fx.tilt) })}
+      ${sliderRowHTML('기울기°', 'crt-fx-tilt-slider', 'crt-fx-tilt-number', { min: -40, max: 40, step: 1, value: Math.round(fx.tilt) })}` })}
+      ${effectRowHTML({ id: 'crt-fx-sh', label: '그림자', body: `
       <div class="prop-row"><span class="prop-label">그림자</span><select class="prop-select" id="crt-fx-shadow">
-        ${Object.keys(CERT_SHADOWS).map((k) => `<option value="${k}"${k === fx.shadow ? ' selected' : ''}>${SHADOW_LABEL[k]}</option>`).join('')}</select></div>`, { id: 'crt-fx-section' }),
+        ${Object.keys(CERT_SHADOWS).map((k) => `<option value="${k}"${k === fx.shadow ? ' selected' : ''}>${SHADOW_LABEL[k]}</option>`).join('')}</select></div>` })}`, { id: 'crt-fx-section' }),
       /* ⑰ⓓ «지시선 글» 토글 = 패널 맨 아래 절 첫 줄 · 켜면 그 바로 아래에 크기·색 — 색 줄은 data-own 으로 이 절 소유(현빈 ⑰ⓓ «같은 절 바로 아래» · 색 단어 규칙은 Fill/Stroke 로 보냄) */
       sec('special', `
       ${calloutsRow}

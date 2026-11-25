@@ -10,6 +10,7 @@ import { appearanceSectionHTML, wireAppearanceSection } from './_appearance-sect
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { strokeSectionHTML, wireStrokeSection, STROKE_POP_WHY } from './_stroke-section.js';
 import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast } from './_fill-section.js';
+import { effectRowHTML } from './_effects-section.js';   // 표준 Effects 줄(0.9.14 224)
 
 const D = () => (window.ZOOM_DEFAULTS || {});
 
@@ -221,9 +222,7 @@ ${bdrRow}
            같은 절 아래 줄 「도형 그림자」가 현빈이 말한 «박스에 거는 드롭섀도»(x·y로 조절, 텍스트블럭 라디오와
            같은 갈래 = CSS 그림자)다. 둘 다 「그림자」라 부르면 사람이 뭐가 뭔지 모른다.
            ⛔상태 키(st.shadow)와 id(zm-shadow*)는 그대로 둔다 — 바꾸면 저장된 프로젝트가 깨진다. -->
-      <div class="prop-row">
-        ${checkHTML({ id: 'zm-shadow-on', label: '줌 이펙트', checked: shadowOn })}   <!-- 현빈 261123 온/오프=체크 · chku 1–3 GO · ③ⓐ 세그먼트 — 옛 ‹라디오로› 결정 대체 -->
-      </div>
+      ${effectRowHTML({ id: 'zm-fx-zoom', head: checkHTML({ id: 'zm-shadow-on', label: '줌 이펙트', checked: shadowOn }), body: `   <!-- 현빈 261123 온/오프=체크 · chku 1–3 GO · ③ⓐ 세그먼트 — 옛 ‹라디오로› 결정 대체 · 표준 Effects 줄 머리(0.9.14 224) -->
       <div id="zm-shadow-fields" style="${dim(shadowOn)}">
 ${angleRow}${lengthRow}
       ${_pairRow('zm-spread', '벌림', spreadShown, 0, 800, 1)}
@@ -234,7 +233,7 @@ ${angleRow}${lengthRow}
       ${_pairRow('zm-maxop', '최대 농도%', st.maxop, 0, 100, 1)}
       ${_pairRow('zm-curve', '농도 곡선', st.curve, 10, 400, 1)}
 ${narrowRow}
-      </div>
+      </div>` })}
     <!-- ★★도형 그림자 — 현빈 2026-09-08 「줌블럭에 쉐도우 온오프 기능도 «별도로»」.
          ★「광원」과 이것을 패널에서 가르는 법 = 세 겹으로 갈랐다:
            ① 말   — 위 줄 라벨은 「줌 이펙트」, 이 줄은 「도형 그림자」. 둘 다 '그림자'라 안 부른다.
@@ -244,14 +243,14 @@ ${narrowRow}
                     컨트롤 «모양»이 달라 눈으로도 다른 것임을 안다.
          ★옛 «켬/끔 = 라디오»(현빈 「라디오버튼으로」) 결정은 현빈 261123 «온/오프 = 고디터 커스텀 체크 하나»(chku 1–3 GO)가 대체했다.
          ★어휘(없음/부드럽게/강하게 · none/soft/strong)는 prop-mockup.js:93-95 를 그대로 빌렸다. -->
+      ${effectRowHTML({ id: 'zm-fx-drop', head: '<span class="prop-label prop-label--auto" style="flex:1;">도형 그림자</span>', body: `
       <div class="prop-row">
-        <span class="prop-label prop-label--auto">도형 그림자</span>
         <div class="prop-align-group" id="zm-drop-group">
           <button class="prop-align-btn${st.dropShadow === 'none'   ? ' active' : ''}" data-val="none">없음</button>
           <button class="prop-align-btn${st.dropShadow === 'soft'   ? ' active' : ''}" data-val="soft">부드럽게</button>
           <button class="prop-align-btn${st.dropShadow === 'strong' ? ' active' : ''}" data-val="strong">강하게</button>
         </div>
-      </div>`),
+      </div>` })}`),
       // 옛 「손잡이 (빛 · a · b)」 → 블록 고유 절 «Handles»(괄호 금지 규칙). 빛·a·b 설명은 절 안 안내문이 진다
       sec('special', `
       <!-- ★손잡이 셋 — 현빈 승인 2026-09-09. 색은 css/editor-blocks.css 가 칠한다(빨강 L · 보라 a·b).
