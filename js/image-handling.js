@@ -888,6 +888,8 @@ function clearAssetImage(ab) {
   delete ab.dataset.gifPlaying;
   /* ★블러(Redact)도 그림과 같이 걷는다(그레인이 innerHTML 재작성으로 사라지는 것과 같은 동작, 1012t1 C1).
      안 걷으면 빈 칸에 속성이 남아 «다음에 넣는 그림이 말없이 흐려진다». */
+  delete ab.dataset.decorBlur;      /* 흐림(js/effects-decor-blur.js)도 같이(DECORBLUR-CLEAR-KEEPS-KEY-01) — applyRedact «앞»이라 그 recomposeHost 가 --decor-blur 까지 치운다 */
+  delete ab.dataset.decorBlurOff;
   applyRedact(ab, 0);
   delete ab.dataset.redactOff;   /* ★눈 끈 블러(js/effects-blur.js)도 같이 — 남기면 다음 그림에 «끈 블러 카드»가 말없이 붙는다 */
   const prevOverlayEl2 = ab.querySelector('.asset-overlay');
