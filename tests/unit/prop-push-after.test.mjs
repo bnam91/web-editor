@@ -61,7 +61,9 @@ const PUSH_BEFORE = /pushHistory\?\.\([^)]*\)\s*;\s*([A-Za-z_$][\w$]*)\s*\(/g;
 /** 뒤따라도 «기록이 아닌» 것들 — 이건 push-before 가 아니다. */
 const BENIGN = new Set(['scheduleAutoSave', 'triggerAutoSave', 'showZoomProperties', 'showToast', 'console',
   /* ★제어문은 «호출»이 아니다 — 안 빼면 if(·for( 가 잡혀 이 검사가 노이즈로 죽는다 */
-  'if', 'for', 'while', 'switch', 'catch', 'return', 'do']);
+  'if', 'for', 'while', 'switch', 'catch', 'return', 'do',
+  /* ★패널만 다시 그린다(캔버스 무변) — 97행에서 기록이 쓰기 «뒤»로 오며 이 둘이 기록 바로 뒤에 섰다 */
+  'showAnnotationProperties', 'rebindMsgList']);
 
 /* ★명부 = «지금 있는 것»(15쌍 · 33자리). 전부 ★미측정이다 — 결함으로 읽지 마라.
    한 줄이라도 «늘면» 빨강이다 — 새 핸들러가 조용히 이 꼴을 갖고 못 들어온다.
@@ -73,17 +75,12 @@ const KNOWN_PUSH_BEFORE = {
   'js/props/prop-annotation.js::_writeProps': '★미측정 — 실앱에서 «이 자리가 정말 자기 칸을 잃는가»를 안 쟀다(2026-09-21)',
   'js/props/prop-chat.js::rerender': '★미측정 — 실앱에서 «이 자리가 정말 자기 칸을 잃는가»를 안 쟀다(2026-09-21)',
   'js/props/prop-grid.js::_applyRatioInput': '★미측정 — 실앱에서 «이 자리가 정말 자기 칸을 잃는가»를 안 쟀다(2026-09-21)',
-  'js/props/prop-grid.js::gridPreviewLine': '★미측정 — 실앱에서 «이 자리가 정말 자기 칸을 잃는가»를 안 쟀다(2026-09-21)',
-  'js/props/prop-label-group.js::_applyPresetToItem': '★미측정 — 실앱에서 «이 자리가 정말 자기 칸을 잃는가»를 안 쟀다(2026-09-21)',
   'js/props/prop-laurel.js::showLaurelProperties': '★미측정 — 실앱에서 «이 자리가 정말 자기 칸을 잃는가»를 안 쟀다(2026-09-21)',
   'js/props/prop-mockup.js::_applyScreenImage': '★미측정 — 실앱에서 «이 자리가 정말 자기 칸을 잃는가»를 안 쟀다(2026-09-21)',
-  'js/props/prop-modal.js::setDs': '★미측정 — 실앱에서 «이 자리가 정말 자기 칸을 잃는가»를 안 쟀다(2026-09-21)',
   'js/props/prop-multisel.js::showFlowMultiSelPanel': '★미측정 — 실앱에서 «이 자리가 정말 자기 칸을 잃는가»를 안 쟀다(2026-09-21)',
   'js/props/prop-multisel.js::showFreeLayoutMultiSelPanel': '★미측정 — 실앱에서 «이 자리가 정말 자기 칸을 잃는가»를 안 쟀다(2026-09-21)',
   'js/props/prop-shape.js::showShapeProperties': '★미측정 — 실앱에서 «이 자리가 정말 자기 칸을 잃는가»를 안 쟀다(2026-09-21)',
   'js/props/prop-simple-card.js::setTextBgTransparentUI': '★미측정 — 실앱에서 «이 자리가 정말 자기 칸을 잃는가»를 안 쟀다(2026-09-21)',
-  'js/props/prop-text-wireup-label.js::_resetLabelInline': '★미측정 — 실앱에서 «이 자리가 정말 자기 칸을 잃는가»를 안 쟀다(2026-09-21)',
-  'js/props/prop-text-wireup-text-edit.js::applyColorToSel': '★미측정 — 실앱에서 «이 자리가 정말 자기 칸을 잃는가»를 안 쟀다(2026-09-21)',
 };
 
 test('PA-1 ★속성 패널에 «새» push-before 가 안 생긴다 (js/props 전수 · 명부 밖만)', () => {

@@ -1028,10 +1028,10 @@ export function showStickerProperties(block) {
   propPanel.querySelector('#stk-preset-select')?.addEventListener('change', e => {
     const preset = TEXT_PRESETS[parseInt(e.target.value)];
     if (!preset) return;
-    window.pushHistory?.('텍스트 스티커 프리셋');
     // text 내용(dataset.text)은 건드리지 않음 — 스타일 토큰만 덮어씀
     Object.entries(preset.style).forEach(([k, v]) => { block.dataset[k] = v; });
     rerender();
+    window.pushHistory?.('텍스트 스티커 프리셋');
     window.scheduleAutoSave?.();
     showStickerProperties(block); // 패널 재렌더 (슬라이더/색상 동기화)
   });
@@ -1039,13 +1039,13 @@ export function showStickerProperties(block) {
   // ── U6(e): Icon 섹션 — 교체 / 크기 / 회전 / 색상 ──────────────────────────────
   propPanel.querySelector('#stk-icon-replace')?.addEventListener('click', () => {
     window.openIconifyModal?.((p) => {
-      window.pushHistory?.('아이콘 스티커 교체');
       block.dataset.iconName = p.name || '';
       block.dataset.iconSvg  = p.svg  || '';
       if (p.size) block.dataset.size = String(p.size);
       // 즐겨찾기 픽(iconColor 정의됨)일 때만 색 적용 — 일반 교체는 '아이콘만 교체' 유지
       if (p.iconColor !== undefined && p.iconColor !== '') block.dataset.iconColor = p.iconColor;
       rerender();
+      window.pushHistory?.('아이콘 스티커 교체');
       window.scheduleAutoSave?.();
       showStickerProperties(block);
     }, { favorites: true }); // 스티커 경로 = iconColor 소비 가능 → Favorite 탭 노출

@@ -170,10 +170,10 @@ export function showMockupProperties(block) {
   // 그림자
   propPanel.querySelectorAll('#mkp-shadow-group .prop-align-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      window.pushHistory?.();
       const val = btn.dataset.val;
       block.dataset.shadow = val;
       _applyShadow(block, val);
+      window.pushHistory?.();
       propPanel.querySelectorAll('#mkp-shadow-group .prop-align-btn').forEach(b => {
         b.classList.toggle('active', b.dataset.val === val);
       });
@@ -200,13 +200,13 @@ async function _captureAndApply(block, sec) {
     }
     const dataUrl = shot.dataUrl;
 
-    window.pushHistory?.();
     block.dataset.imgSrc = dataUrl;
     block.dataset.sourceSec = sec.id;
     _applyScreenImage(block, dataUrl);
     // 섹션 숨기기
     sec.style.display = 'none';
     sec.dataset.mockupHidden = 'true';
+    window.pushHistory?.();   // 붙이기·숨기기 «뒤» 한 번 = 캡처 한 번이 ⌘Z 한 칸(0.9.14 97행)
     window.showToast?.('캡처 완료! 섹션이 숨겨졌습니다.');
     window.showMockupProperties?.(block);
   } catch(err) {
