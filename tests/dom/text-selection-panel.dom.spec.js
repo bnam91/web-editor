@@ -330,22 +330,83 @@ test('T6 그리드 줄 — 크기 칸 첫 클릭이 «안 먹힌다» · 누른 
 });
 
 /* ══ 모달 ═════════════════════════════════════════════════════════ */
-test('T7 모달 본문 — 크기 칸을 눌러도·적용해도 BBB 선택이 남는다(두 번)', async ({ page }) => {
+/* ★기대 바뀜(RP-MODAL-HIGHLIGHT-SELECTION-01 · 시트 119 · 현빈 승인 261119 · AUDIT-right-panel-261119 R1·R2) —
+ *   옛 T7 은 «BBB 칠은 남는데 크기 44 는 슬롯 전체»를 정상으로 잠갔다(AUDIT R2 — 보이는 선택과 먹는 자리가 갈렸다).
+ *   새 동작 = 텍스트블럭과 같다: 고른 글자가 있으면 크기는 «그 글자만»(span font-size · dataset.<slot>Html) · 슬롯 크기(dataset.fontSize) 무변 · 선택은 두 번 다 남는다. */
+test('T7 모달 본문 — 크기 칸을 눌러도·적용해도 BBB 선택이 남고, 크기는 BBB 에만 간다(두 번)', async ({ page }) => {
   const errs = await setup(page);
   const id = await insert(page, 'modal'); expect(id).toBeTruthy();
   const host = `#${id} .tb-mdl-text`;
   await editAndSelectBBB(page, host, { type: true, preClick: true });
   await assertPremise(page, host);
+  const base = await page.evaluate((h) => getComputedStyle(document.querySelector(h)).fontSize, host);
   await clickField(page, '#mdl-typo-size-number');
   expect(await act(page)).toBe('mdl-typo-size-number');
   expect(await highlight(page), '누른 순간 BBB 선택이 보인다').toEqual(['BBB']);
   await typeEnter(page, '40');
   expect(await page.evaluate((h) => document.querySelector(h)?.textContent, host), '친 글자가 남는다').toBe('AAA BBB CCC');
+  expect(await split(page, host, 'fontSize'), '★1회 — BBB 만 40px · 밖은 그대로').toEqual({ text: 'AAABBBCCC', inB: ['40px'], out: [base] });
   expect(await highlight(page), '★1회 뒤(모달을 다시 그렸어도) BBB 선택이 남는다').toEqual(['BBB']);
   await clickField(page, '#mdl-typo-size-number');
   await typeEnter(page, '44');
-  expect(await page.evaluate((h) => getComputedStyle(document.querySelector(h)).fontSize, host)).toBe('44px');
+  expect(await split(page, host, 'fontSize'), '★2회 — 같은 BBB 에 44px').toEqual({ text: 'AAABBBCCC', inB: ['44px'], out: [base] });
+  expect(await page.evaluate((h) => getComputedStyle(document.querySelector(h)).fontSize, host), '★슬롯 크기 무변').toBe(base);
   expect(await highlight(page), '★2회 뒤에도 남는다').toEqual(['BBB']);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* ── 119 모달 H(형광펜) — 텍스트블럭과 같은 기전(span.tb-hl · 글자 길이) ── */
+const mdlHl = (page, host) => page.evaluate((h) => { const el = document.querySelector(h); const b = el.closest('.modal-block');
+  return { spans: [...el.querySelectorAll('span.tb-hl')].map((s) => s.textContent), slotBg: getComputedStyle(el).backgroundColor,
+    hasKey: 'highlight' in b.dataset, html: /tb-hl/.test(b.dataset.textHtml || '') }; }, host);
+
+test('T7h 모달 본문 BBB 고르고 H — 고른 글자만 노랑(span.tb-hl) · 슬롯 상자 칠 0 · 저장 = textHtml', async ({ page }) => {
+  const errs = await setup(page);
+  const id = await insert(page, 'modal');
+  const host = `#${id} .tb-mdl-text`;
+  await editAndSelectBBB(page, host, { type: true, preClick: true });
+  await assertPremise(page, host);
+  await clickField(page, '#mdl-typo-highlight-btn');
+  await page.waitForTimeout(200);
+  expect(await page.evaluate((h) => document.querySelector(h)?.textContent, host)).toBe('AAA BBB CCC');
+  expect(await mdlHl(page, host), '★고른 글자만').toEqual({ spans: ['BBB'], slotBg: 'rgba(0, 0, 0, 0)', hasKey: false, html: true });
+  const bg = await page.evaluate((h) => getComputedStyle(document.querySelector(h + ' span.tb-hl')).backgroundImage, host);
+  expect(bg, '★획 = .tb-hl 그라데이션(색 변수가 모달에서도 선다)').toMatch(/linear-gradient\(.*rgb/);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('T7w 모달 선택 없이 H — 글자 전체를 span.tb-hl 로(상자 칠 아님) · 다시 누르면 걷힘', async ({ page }) => {
+  const errs = await setup(page);
+  const id = await insert(page, 'modal');
+  const host = `#${id} .tb-mdl-text`;
+  await page.evaluate((id) => { const b = document.getElementById(id); window.commitModalSlot(b, 'text', 'AAA BBB CCC', ''); window.renderModalBlock(b); window.deselectAll(); window.selectBlock(id); }, id);
+  await clickField(page, '#mdl-typo-highlight-btn');
+  expect(await mdlHl(page, host), '★켬 = 글자 전체').toEqual({ spans: ['AAA BBB CCC'], slotBg: 'rgba(0, 0, 0, 0)', hasKey: false, html: true });
+  expect(await page.evaluate(() => document.getElementById('mdl-typo-highlight-btn').classList.contains('active')), '단추 켜짐').toBe(true);
+  await clickField(page, '#mdl-typo-highlight-btn');
+  expect(await mdlHl(page, host), '★끔 = 걷힘').toEqual({ spans: [], slotBg: 'rgba(0, 0, 0, 0)', hasKey: false, html: false });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('T7m 옛 저장본(모달 dataset.highlight=1) — 열면 글자 길이 span.tb-hl 로 이관 · 상자 칠 0 · 옛 키 지움', async ({ page }) => {
+  const errs = await setup(page);
+  const id = await insert(page, 'modal');
+  const host = `#${id} .tb-mdl-text`;
+  await page.evaluate((id) => { const b = document.getElementById(id); b.dataset.textText = 'Old <b>A</b>'; delete b.dataset.textHtml; b.dataset.highlight = '1'; window.renderModalBlock(b); }, id);
+  expect(await mdlHl(page, host)).toEqual({ spans: ['Old <b>A</b>'], slotBg: 'rgba(0, 0, 0, 0)', hasKey: false, html: true });
+  expect(await page.evaluate((h) => document.querySelector(h).querySelectorAll('b').length, host), '평문 < > 는 글자 그대로(escape)').toBe(0);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('T7x 모달 BBB 고른 뒤 «슬롯 전체» 칸(굵기) — 선택 칠이 남지 않는다(보이는 선택 ≠ 먹는 자리 0)', async ({ page }) => {
+  const errs = await setup(page);
+  const id = await insert(page, 'modal');
+  const host = `#${id} .tb-mdl-text`;
+  await editAndSelectBBB(page, host, { type: true, preClick: true });
+  await assertPremise(page, host);
+  await page.locator('#mdl-typo-font-weight').selectOption('700');
+  await page.waitForTimeout(200);
+  expect(await highlight(page), '★슬롯 전체에 먹었으면 BBB 칠은 걷힌다').toBeNull();
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
