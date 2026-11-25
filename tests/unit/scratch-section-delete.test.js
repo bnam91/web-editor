@@ -50,6 +50,7 @@ const assert = require('node:assert');
 const path = require('path');
 const { readSrc } = require('./_srcread.js');
 const { stripComments } = require('./_strip-comments.js');
+const { sliceBlock } = require('./_slice-block.js');
 
 const ROOT = path.join(__dirname, '..', '..');
 const RAW = {
@@ -435,8 +436,10 @@ test('D11 ★★S6 배선 — 섹션 삭제의 pushHistory 가 «전부» sideEf
 });
 
 test('D12 ★★⌘X 는 «이동»이다 — 잘라내기는 링크 처분을 «아예» 안 지난다', () => {
-  const CUT = SRC.editor.slice(SRC.editor.indexOf("if (e.key === 'x' && !e.shiftKey)"));
-  assert.ok(CUT.includes('deleteSelectedFromCanvas({ isCut: true })'),
+  /* ★기대 바뀜(157 · 0018d700e): ⌘X 키 길과 메뉴 오려두기(cut 사건)가 몸 하나 _appCut() 을 부른다 ⇒ isCut 은 그 몸에서 잰다.
+     실측 = DOM t13d-06 G9(⌘X·메뉴 = 링크 처분 0 · [양성] Delete = 처분 1) */
+  assert.match(sliceBlock(SRC.editor, "if (e.key === 'x' && !e.shiftKey) {", '⌘X 키 길'), /\b_appCut\(\)/, '★⌘X 키 길이 _appCut 을 안 부른다');
+  assert.ok(sliceBlock(SRC.editor, 'function _appCut() {', '_appCut').includes('deleteSelectedFromCanvas({ isCut: true })'),
     '★⌘X 가 isCut 을 안 넘긴다 — 그러면 잘라내기가 참고이미지를 «지운다». ⌘V 로 되붙인 섹션의 '
     + 'refLinks 토큰은 死참조가 된다(붙여넣기 규칙: 아무도 안 쥐면 = 이동 → 토큰 그대로).');
   const rels = [...DELSEL.matchAll(/_splReleaseSections\(/g)].map((m) => m.index);

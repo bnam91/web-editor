@@ -2252,13 +2252,20 @@ function _copyGridImgLineAsAsset() {
    ⇒ 옛 판은 그 사건을 아무도 안 받아 클립보드 빈 값 · 붙여넣기 무변이었다. 키 길(⌘C/⌘V keydown)과 «같은 함수 한 벌»을 두 길이 부른다.
    키 길도 네이티브 사건을 뒤따라 쏘므로(메뉴 accelerator) — 방금 keydown 이 했으면(_keyCopyAt/_keyPasteAt 500ms) 사건 쪽은 건너뛴다.
    글 고침·입력칸·글 선택(네이티브 글 복사)은 손 안 댐. */
-let _keyCopyAt = 0, _keyPasteAt = 0;
+let _keyCopyAt = 0, _keyPasteAt = 0, _keyCutAt = 0;
 function _appCopy() {
   if (window.grdCopyRange?.()) return;   // ★t3-04 U2b — 칸 범위가 있을 때만 참(prop-grid.js)
   if (_copyGridImgLineAsAsset()) return;   // ★t13A-01 — 그림 줄 하나 = 에셋 클립 + 줄 클립
   if (window.grdCopySelectedLines?.()) return;
   copySelected();
   _markImgEditCopy();
+}
+/* ★157 t13D-06 마감 ◑(지디 261125 · 아이맥 GRADE-0913close-4 CUT · 판 dev 1cd189937) — 메뉴 «편집›오려두기»(Electron role cut = 네이티브 cut 사건만)가 캔버스 블럭에서 무반응
+   (받는 곳 0 — 위 copy/paste 만 살렸다). ⌘X 키 길과 «같은 함수 한 벌»: 잘라내기 = 복사 + 지우기(deleteSelectedFromCanvas isCut · ⌘Z 한 칸 = 키 길과 같음).
+   양보(스크래치 아이템 · 칸 범위)는 두 길이 각자 먼저 묻는다(키 길 = keydown 자리 · 메뉴 길 = cut 처리기). */
+function _appCut() {
+  if (!_copyGridImgLineAsAsset()) copySelected();   // ★t13A-01 — 그림 줄이면 그림만 담고, 지우기는 아래 줄 지우기 그대로
+  deleteSelectedFromCanvas({ isCut: true });   // [#16-DEL] ⌘X=이동 ⇒ ⛔스크래치를 안 건드린다
 }
 function _appPaste(e) {
   if (window.grdPasteRange?.(e)) return;   // ★t3-04 U2b — 범위 클립이 최신일 때만 참(prop-grid.js · e = 맥 Control+v 무장 0 판정)
@@ -2283,6 +2290,14 @@ document.addEventListener('copy', (e) => {
   if (!document.querySelector('#canvas .selected')) return;
   e.preventDefault();
   _appCopy();
+});
+document.addEventListener('cut', (e) => {   // ★157 — 메뉴 «편집›오려두기» · ⌘X 키 길이 방금 했으면 건너뜀(그 keydown 이 preventDefault 라 대개 안 온다 · copy 와 같은 잣대)
+  if (e.defaultPrevented || Date.now() - _keyCutAt < 500 || _nativeClipSkip()) return;
+  if (window.scratchCutSelected?.()) { e.preventDefault(); return; }   // 스크래치 아이템이면 그쪽(키 길과 같은 양보)
+  if (!document.querySelector('#canvas .selected')) return;
+  if (window.grdRangeBlocksKey?.({ key: 'x', metaKey: true, shiftKey: false, preventDefault: () => e.preventDefault() })) return;   // 칸 범위가 살아 있으면 삼키고 알림 — 그리드 통째 지움 막기(키 길과 같음)
+  e.preventDefault();
+  _appCut();
 });
 document.addEventListener('paste', (e) => {
   if (Date.now() - _keyPasteAt < 500 || _nativeClipSkip()) return;
@@ -3019,11 +3034,11 @@ document.addEventListener('keydown', e => {
          ★왜 여기서 묻나 — 이 갈래가 ⌘X 를 받아 preventDefault 해 버리므로, 스크래치가 keydown 을
            따로 들어도 네이티브 cut 이벤트가 안 온다(실측 cutEvt 0). «양보»만이 길이다.
          ★선례 = 바로 위 그리드 줄(`if (window.grdPasteLines?.()) return;`) — 같은 꼴로 맞췄다. */
+      _keyCutAt = Date.now();   // ★157 — 뒤따르는 네이티브 cut(메뉴 role)이 «한 번 더» 안 하게
       if (window.scratchCutSelected?.()) { e.preventDefault(); return; }
       if (window.grdRangeBlocksKey?.(e)) return;   // ★t3-04 U2b D4 — 칸 범위가 살아 있으면 삼키고 알림(prop-grid.js)
       e.preventDefault();
-      if (!_copyGridImgLineAsAsset()) copySelected();   // ★t13A-01 — 그림 줄이면 그림만 담고, 지우기는 아래 줄 지우기 그대로
-      deleteSelectedFromCanvas({ isCut: true });   // [#16-DEL] ⌘X=이동 ⇒ ⛔스크래치를 안 건드린다
+      _appCut();   // 몸 = 메뉴 길(cut 처리기)과 한 벌
       return;
     }
     if (e.key === 'd') {
