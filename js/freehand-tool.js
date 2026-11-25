@@ -91,12 +91,12 @@ function commitFreehand(host, pts, tool = _tool) {
   const local = poly.map((p) => ({ x: p.x - minX + pad, y: p.y - minY + pad }));
   const svg = `<svg xmlns="${SVG_NS}" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}"><path d="${polygonToPath(local)}" fill="#000000"/></svg>`;
   if (host.id === 'canvas-scaler') {
-    /* ★BRUSH-OUTSIDE-SECTION-FLOAT-01(0.9.13 211행 · 현빈 261124 [4]) — 섹션 밖 붓 = 그린 자리에 떠 있는(IAL) 그림(펜·연필 t13G-03 과 일관 · 받을 섹션 = penNearestSection · 섹션 상자 안 조임) · 이력 «붓» 한 칸(push-after) · 섹션 0 이면 옛 길(스크래치 그림) */
+    /* ★BRUSH-OUTSIDE-SECTION-FLOAT-01(0.9.13 211행 · 현빈 261124 [4]) — 섹션 밖 붓 = 그린 자리에 떠 있는(IAL) 그림(펜·연필 t13G-03 과 일관 · 받을 섹션 = penNearestSection · 그린 자리 그대로 = 조임 없음(185 마감 ◑ 261125)) · 이력 «붓» 한 칸(push-after) · 섹션 0 이면 옛 길(스크래치 그림) */
     const z = _zoom(), hr = host.getBoundingClientRect();
     const tgt = window.penNearestSection?.(hr.top + ((minY + maxY) / 2) * z);
     if (tgt && typeof window.placeSvgVectorInSection === 'function') {
       const tr = tgt.getBoundingClientRect();
-      const vb = window.placeSvgVectorInSection(tgt, svg, w, h, Math.round((hr.left + (minX - pad) * z - tr.left) / z), Math.round((hr.top + (minY - pad) * z - tr.top) / z), 'Brush');
+      const vb = window.placeSvgVectorInSection(tgt, svg, w, h, Math.round((hr.left + (minX - pad) * z - tr.left) / z), Math.round((hr.top + (minY - pad) * z - tr.top) / z), 'Brush', { clamp: false });   // 그린 자리 그대로(펜·연필 185 마감 ◑ 과 같게)
       if (vb) { window.pushHistory?.('붓'); window.scheduleAutoSave?.(); return vb; }
     }
     window._scratchAddAndSave?.('data:image/svg+xml;base64,' + btoa(svg), Math.round(minX - pad), Math.round(minY - pad), w);

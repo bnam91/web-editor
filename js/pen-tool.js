@@ -505,7 +505,7 @@ function _finalizeDraw() {
      src = base64 SVG data URL(저장 때 기존 외부화가 goya-asset .svg 로 · DESIGN §7). 섹션에 끌어 놓으면 펜 벡터(scratch-pad onUp). */
   /* ★t13G-03(0.9.13 185행 · 현빈 결정 261124 야간) — 섹션 밖 선 = «그린 자리»에 IAL(떠 있는) 펜 벡터. 임시보관함 아님 · 흐름 흡수 아님.
      섹션 = 그린 패스 세로 가운데가 걸친(없으면 위·아래 가장 가까운) 섹션 — 바깥 .svg 드랍(vector-block _nearestSection)과 같은 규칙 ·
-     자리 = 그린 화면 자리 그대로, 섹션 상자 안으로만 조임(placePenVectorInSection). 이력 = 놓은 «뒤» 한 칸(스크래치→섹션 변환과 같은 push-after).
+     자리 = 그린 화면 자리 그대로 — 조임 없음(0.9.13 마감 ◑ 지디 261125: 옛 «섹션 상자 안 조임»은 왼쪽 밖 선을 ~193px 옮겼다) · 섹션 밖은 그 섹션 Clip content 가 정한다. 이력 = 놓은 «뒤» 한 칸(스크래치→섹션 변환과 같은 push-after).
      shortcut: 섹션이 하나도 없을 때만 옛 길(스크래치 펜 항목) — 그릴 섹션이 생기는 설계가 필요하면 그때. */
   if (_isScratchHost(sec)) {
     const z = _zoom(), hr = sec.getBoundingClientRect();
@@ -513,7 +513,7 @@ function _finalizeDraw() {
     if (tgt && typeof window.placePenVectorInSection === 'function') {
       const tr = tgt.getBoundingClientRect();
       const vb = window.placePenVectorInSection(tgt, { nodes: norm, closed: !!closed, sw: strokeWidth, color, fill, w, h },
-        Math.round((hr.left + (bb.minX - pad) * z - tr.left) / z), Math.round((hr.top + (bb.minY - pad) * z - tr.top) / z));
+        Math.round((hr.left + (bb.minX - pad) * z - tr.left) / z), Math.round((hr.top + (bb.minY - pad) * z - tr.top) / z), { clamp: false });
       if (vb) {
         window.pushHistory?.('펜 패스');
         _cancelDraw();
