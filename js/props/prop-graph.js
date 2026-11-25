@@ -2,6 +2,7 @@ import '../graph-limits.js';   // side-effect import — window.GRAPH_LIMITS 를
 import { propPanel, state } from '../globals.js';
 import { blockHeaderHTML, escHtml, checkHTML } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
+import { buildTypographySectionHtml } from './_typo-section.js';   // 표준 Typography 절(시트 221) — 크기칸 둘(라벨·숫자)
 import { layoutSizeRowHTML, layoutPadSlotHTML, layoutGapSlotHTML, layoutSlotNumberHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(L2~L4 · C1)
 import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A4 Opacity)
 import { colorFieldHTML, wireColorField, parseAlphaFromColor, swatchHex } from './color-picker.js';
@@ -10,6 +11,14 @@ import { isBlurIntoPanel, parkEditing } from './_text-selection.js';
 import { graphFieldShown } from '../canvas-contrast.js';   // E149 — 색 칸 «보일 값»의 한 자리
 import '../graph-radial.js';   // 프로토 Z6-B — 「방사형」 유형의 렌더 · 패널 절(window.renderGraphRadial · graphRadialSectionHTML · wireGraphRadialSection)
 import { FX_SHADOW_DEFAULTS, FX_SHADOW_RANGES } from '../effects-shadow.js';   // 1017t1f4 — 그림자 x/y/blur 값·범위의 임자(⛔새 수 0 — 그 쪽을 그대로 읽는다)
+/* 표준 Typography 크기칸 하나(챗 선례 prop-chat.js) — 부위 이름은 칸 위 field-label. 숫자칸 id = <p>-size-number(부품 계약 _typo-section.js:216) */
+const _typoSize = (p, label, size, sizeMin, sizeMax) => `
+      <span class="prop-field-label">${label}</span>${buildTypographySectionHtml({
+        p, bare: true, size, sizeMin, sizeMax,
+        showFont: false, showWeight: false, showStyleGroup: false,
+        showLetterSpacing: false, showLineHeight: false, showHighlight: false,
+        omitHidden: true,
+      })}`;
 
 const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX, BAR_THICKNESS_DEFAULT, BAR_THICKNESS_V_MAX, LABEL_SIZE_DEFAULT, LABEL_SIZE_MIN, LINE_PADX_DEFAULT, PCT_SIZE_FACTOR, PIE_HOLE_MIN, PIE_HOLE_MAX, PIE_HOLE_DEFAULT, PIE_GAP, PIE_GAP_MIN, PIE_GAP_MAX, PIE_START_MIN, PIE_START_MAX, PIE_GROW_MAX, PIE_PULL_MAX, PIE_LEG_GAP_MIN, PIE_LEG_GAP_MAX, PIE_LEG_GAP_DEFAULT, SHAPE_SVG_MAX, SHAPE_FILL_MAX_DEFAULT, SHAPE_TRACK_OPACITY, SEG_GAP_DEFAULT, SEG_GAP_MIN, SEG_GAP_MAX } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
 
@@ -59,13 +68,8 @@ function barSettingsHTML({ chartType, barThickness, thicknessMax = BAR_THICKNESS
         ${checkHTML({ id: 'grb-seg-wave-toggle', label: '경계 물결', checked: segWave })}
       </div>`}
 `,
-    typography: `
-      <div class="prop-row">
-        <span class="prop-label">숫자 크기</span>
-        <input type="range" class="prop-slider" id="grb-pct-size-slider" min="${pctMin}" max="120" step="2" value="${pctSize}">
-        <input type="number" class="prop-number" id="grb-pct-size-number" min="${pctMin}" max="120" value="${pctSize}">
-      </div>
-`,
+    typography: _typoSize('grb-pct', '숫자', pctSize, pctMin, 120),   // 접두 grb-pct ⇒ 숫자칸 id grb-pct-size-number 옛 그대로 · 옛 슬라이더 걷음
+
     fill: chartType === 'bar-pair' ? '' : `
       <div class="prop-row">
         <span class="prop-label">바 색상</span>
@@ -540,13 +544,7 @@ ${_bar.size || ''}`),
     ${chartType === 'line' ? `
       ${layoutPadSlotHTML({ xId: 'grb-padx-number', x: padX, max: 80 })}
 ` : ''}`),
-      sec('typography', `
-      <div class="prop-row">
-        <span class="prop-label">라벨</span>
-        <input type="range" class="prop-slider" id="grb-label-slider" min="${LABEL_SIZE_MIN}" max="28" step="1" value="${labelSize}">
-        <input type="number" class="prop-number" id="grb-label-number" min="${LABEL_SIZE_MIN}" max="28" value="${labelSize}">
-      </div>
-${_bar.typography || ''}`),
+      sec('typography', `${_typoSize('grb-label', '라벨', labelSize, LABEL_SIZE_MIN, 28)}${_bar.typography || ''}`),   // 라벨 숫자칸 = grb-label-size-number(옛 grb-label-number · 부품 계약) · 저장 키 labelSize 그대로
       sec('fill', `
       <div class="prop-row" title="값 라벨(숫자) + 카테고리 라벨 둘 다 일괄 적용. 아래 항목별로 따로 설정 가능">
         <span class="prop-label">라벨 색상</span>
@@ -944,18 +942,16 @@ ${pieTagTypoRowsHTML(block)}
   });
 
   // 숫자 크기 (bar-h·bar-v·bar-pair)
-  const psSlider = document.getElementById('grb-pct-size-slider');
   const psNumber = document.getElementById('grb-pct-size-number');
-  if (psSlider) {
+  if (psNumber) {
     const applyPctSize = v => {
       v = Math.min(120, Math.max((block.dataset.chartType === 'bar-h' ? 20 : 8), v));
       block.dataset[_vKey('pctSize','vPctSize')] = v;
       window.renderGraph(block);
-      psSlider.value = v; psNumber.value = v;
     };
-    psSlider.addEventListener('input',  () => applyPctSize(parseInt(psSlider.value)));
-    psNumber.addEventListener('change', () => { applyPctSize(parseInt(psNumber.value)); window.pushHistory(); });
-    psSlider.addEventListener('change', () => window.pushHistory());
+    /* input = 바로 그림(화살표 스텝·Enter 합성 input — prop-number-commit-guard.js) · change = 이력 한 번 */
+    psNumber.addEventListener('input',  () => applyPctSize(parseInt(psNumber.value)));
+    psNumber.addEventListener('change', () => window.pushHistory());
   }
 
   // 바 두께 (bar-h·bar-v·bar-pair) — H1 상한 = 세로·비교는 칸 폭까지(가로는 60)
@@ -1220,18 +1216,15 @@ ${pieTagTypoRowsHTML(block)}
   }
 
   // 라벨 크기
-  const lSlider = document.getElementById('grb-label-slider');
-  const lNumber = document.getElementById('grb-label-number');
+  const lNumber = document.getElementById('grb-label-size-number');
   const applyLabelSize = v => {
     v = Math.min(28, Math.max(LABEL_SIZE_MIN, v));
     block.dataset.labelSize = v;
     window.renderGraph(block);
-    lSlider.value = v; lNumber.value = v;
     _syncPieTagPhSoon(block);   // ★t4-17 X4 — 원형 순위·이름 크기 칸의 기본값(placeholder)이 라벨 크기를 따른다(한 프레임 한 번)
   };
-  lSlider.addEventListener('input',  () => applyLabelSize(parseInt(lSlider.value)));
-  lNumber.addEventListener('change', () => { applyLabelSize(parseInt(lNumber.value)); window.pushHistory(); });
-  lSlider.addEventListener('change', () => window.pushHistory());
+  lNumber?.addEventListener('input',  () => applyLabelSize(parseInt(lNumber.value)));   // 화살표 스텝·Enter 합성 input(prop-number-commit-guard.js)
+  lNumber?.addEventListener('change', () => window.pushHistory());
 
   // 라벨 색상
   if (document.getElementById('grb-vlabel-color')) {
@@ -1302,7 +1295,7 @@ window.grbPieDropSlicePanel = dropPieSlicePanel;   // 1013t1C4 고침 2 — 조�
  *   새 절 0 · 새 키 0 · 옮김 0. 강조 = 섹션 검색 «깜빡임»(ss-flash-pulse 0.7s ×3)과 같은 박자 · 선택 채움 토큰 --sel-color-fill.
  *   park = 패널로 가는 blur 면 편집을 세운다(drag-utils 는 _text-selection 을 직접 import 하지 않는다 — 모듈 하네스가 drag-utils 의 named import 를 404 로 준다). */
 function _revealGraphLabelRows() {
-  const rows = ['grb-label-slider', 'grb-xlabel-color'].map(id => document.getElementById(id)?.closest('.prop-row')).filter(Boolean);
+  const rows = ['grb-label-size-number', 'grb-xlabel-color'].map(id => document.getElementById(id)?.closest('.prop-row')).filter(Boolean);
   if (!rows.length) return;
   rows[0].scrollIntoView({ block: 'nearest' });
   const fill = getComputedStyle(document.documentElement).getPropertyValue('--sel-color-fill').trim() || 'rgba(74, 158, 255, 0.12)';

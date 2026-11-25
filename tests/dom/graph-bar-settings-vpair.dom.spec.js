@@ -85,7 +85,7 @@ for (const type of TYPES) {
     const r = await page.evaluate(() => {
       const secOf = (id) => document.getElementById(id)?.closest('.prop-section[data-sec]')?.dataset.sec ?? null;
       return {
-        secs: ['grb-bar-thickness-number', 'grb-padx-number', 'grb-item-gap-number', 'grb-pct-size-slider'].map(secOf),
+        secs: ['grb-bar-thickness-number', 'grb-padx-number', 'grb-item-gap-number', 'grb-pct-size-number'].map(secOf),   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
         seg: ['grb-seg-gap-number', 'grb-seg-wave-toggle'].map(secOf),
         colorAll: document.querySelectorAll('#grb-bar-color').length,
         colorSec: secOf('grb-bar-color'),

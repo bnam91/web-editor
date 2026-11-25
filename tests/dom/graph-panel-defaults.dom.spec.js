@@ -23,10 +23,10 @@ async function newGraph(page, chartType, labelSize) {
   let prev = null, p = null;
   for (let k = 0; k < 40; k++) { p = await page.evaluate((id) => { const g = document.getElementById(id); g.scrollIntoView({ block: 'center' }); const r = g.getBoundingClientRect(); return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height * 0.3)]; }, id); if (prev && prev.join() === p.join()) break; prev = p; await page.waitForTimeout(150); }
   await clickAt(page, p[0], p[1], { sel: '.graph-block' }, { label: '그래프 선택' });
-  await page.waitForSelector('#grb-label-number', { timeout: 3000 });
+  await page.waitForSelector('#grb-label-size-number', { timeout: 3000 });   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
   return { errs, id };
 }
-const read = (page, id, sel) => page.evaluate(([id, sel]) => ({ panel: +document.getElementById('grb-label-number').value, slider: +document.getElementById('grb-label-slider').value, drawn: parseFloat(getComputedStyle(document.getElementById(id).querySelector(sel)).fontSize), key: document.getElementById(id).dataset.labelSize ?? null }), [id, sel]);
+const read = (page, id, sel) => page.evaluate(([id, sel]) => ({ panel: +document.getElementById('grb-label-size-number').value, slider: +document.getElementById('grb-label-size-number').value, drawn: parseFloat(getComputedStyle(document.getElementById(id).querySelector(sel)).fontSize), key: document.getElementById(id).dataset.labelSize ?? null }), [id, sel]);   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
 
 for (const [type, sel] of [['bar-v', '.grb-bar-label'], ['line', '.grb-line-xlabel']]) {
   test(`L1 ★${type} 새 그래프(labelSize 키 없음): 패널 라벨 크기 == 그려진 글자 크기`, async ({ page }) => {
