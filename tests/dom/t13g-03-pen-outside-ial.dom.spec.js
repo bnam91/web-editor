@@ -122,3 +122,31 @@ test('P4 연필 왼쪽 밖 · 붓 오른쪽 밖 = 그린 자리 그대로', asyn
   }
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* 지디 판정 ①(261125 · 실앱: 옛 섹션 = 섹션 밖 자름이면 그린 자리 선이 놓는 즉시 다 잘려 «안 그려진다») — 받을 섹션이 자르면(overflowVisible 키 없음/false) 옛 조임(섹션 안쪽) + 알림 · 자르지 않으면 그린 자리(P3·P4)
+ *   P5 옛 섹션(키 없음) — 펜 왼쪽 밖 · 붓 오른쪽 밖 = 섹션 상자 안 · 잘림 0 · 토스트 «섹션 밖 보이기가 꺼진 섹션이라 안쪽에 넣었어요» · 저장 → 다시 열기 같은 자리 */
+test('P5 옛 섹션(섹션 밖 자름) — 펜·붓 = 섹션 안쪽(보임) + 알림 · 저장 → 다시 열기 같은 자리', async ({ page }) => {
+  const errs = await scene(page, 1);
+  await page.evaluate(() => { delete document.getElementById('sP1').dataset.overflowVisible; window.__toasts = []; const t = window.showToast; window.showToast = (m, ...a) => { window.__toasts.push(String(m)); return t?.(m, ...a); }; });
+  const sec = await page.evaluate(() => { const r = document.getElementById('sP1').getBoundingClientRect(); return { l: Math.floor(r.left), r: Math.ceil(r.right) }; });
+  const got = {};
+  for (const [tool, side, n] of [['pen', 'left', 3], ['brush', 'right', 25]]) {
+    const pts = await sidePts(page, side, n);
+    expect(pts.every((p) => p.out), `[전제] ${tool} 점 = 캔버스 밖`).toBe(true);
+    if (tool === 'pen') { await page.evaluate(() => window.enterVectorPenMode()); for (const p of pts) await page.mouse.click(p.x, p.y); await page.keyboard.press('Enter'); await page.evaluate(() => window.exitVectorPenMode?.()); }
+    else { await page.evaluate(() => window.enterFreehand('brush')); await page.mouse.move(pts[0].x, pts[0].y); await page.mouse.down(); for (const p of pts.slice(1)) await page.mouse.move(p.x, p.y); await page.mouse.up(); await page.evaluate(() => window.exitFreehand?.()); }
+    await expect.poll(() => vecIn(page).then((v) => v.length), `[전제] ${tool} 벡터 생김`).toBe(tool === 'pen' ? 1 : 2);
+    const id = await lastVecId(page), r = await sideRect(page, id);
+    expect(r.l >= sec.l - 1 && r.r <= sec.r + 1, `★${tool} 옛 섹션 = 섹션 상자 안(${sec.l}~${sec.r}) ↔ 벡터 ${r.l}~${r.r}`).toBe(true);
+    expect(await page.evaluate((id) => { const v = document.getElementById(id); return (v.closest('[data-overlay-block="true"]') || v).style.getPropertyValue('--sec-clip'); }, id), `★${tool} 잘림 0(--sec-clip 없음)`).toBe('');
+    got[tool] = { id, r };
+  }
+  expect(await page.evaluate(() => window.__toasts.filter((m) => m.includes('섹션 밖 보이기가 꺼진 섹션이라 안쪽에 넣었어요')).length), '★알림 = 펜·붓 한 번씩').toBe(2);
+  await reopenFile(page);
+  await waitStableRect(page, '#sP1');
+  for (const tool of ['pen', 'brush']) {
+    const r = await sideRect(page, got[tool].id);
+    expect([r.l, r.r, r.t], `★저장 → 다시 열기 뒤 ${tool} 같은 자리`).toEqual([got[tool].r.l, got[tool].r.r, got[tool].r.t]);
+  }
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
