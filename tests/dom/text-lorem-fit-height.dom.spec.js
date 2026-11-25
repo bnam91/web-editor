@@ -3,7 +3,7 @@
  *   고침: js/props/prop-text-wireup-lorem.js applyLorem·loremRefit·loremMark(표식 data-lorem = 단위·글·씨앗·개수·최대·넣은 글 해시) · 패널 개수 = 슬라이더+숫자 · js/overlay-handles.js 아래 변 끌기가 loremRefit 먼저.
  * H1 높이 정한 상자(200) + 채우기 → 높이 200 그대로 · 글이 상자 안 · 꽉(한 조각 더면 넘침) · 슬라이더 0~최대 · 값 = 최대 · 표식 있음
  * H2 한 줄 상자(100) + 문단 → 낱말로 채움 · 높이 그대로
- * H3 auto 상자 · 개수 3 → 마침표 3 · 슬라이더 1~30 · 상자가 글을 따름 · 표식 m = null
+ * H3 auto 상자 · 채우기 = 그 순간 높이를 굳힘 · 꽉 · 슬라이더 0~최대(★기대 바뀜 174 · 현빈 261125 ⓐ — 옛: 개수 3 · 상자가 글을 따름)
  * H4 더미 그대로 + 아래 변 −80 → 정한 높이가 줄고 더미가 그 높이로 다시 꽉(개수 줄어듦) · +160 → 다시 꽉(늘어남) · 슬라이더 최대 따라감
  * H5 사용자 글 — 한 글자 고치면 표식 버림 → 아래 변을 위로 끌어도 글 높이 아래로 안 줄어듦(자름 0) · 다시 채우기 0
  * H6 슬라이더로 줄이기 — 더미 그대로면 끄는 대로 개수 줄어듦 · 높이 그대로
@@ -34,7 +34,8 @@ async function scene(page, fixedH) {
 }
 const run = async (page) => { await page.click('#txt-lorem-run'); await raf(page); };
 const st = (page) => page.evaluate(() => {
-  const f = document.querySelector('#sH .frame-block[data-text-frame]'), b = document.getElementById('tbH'), mh = f.style.minHeight; f.style.minHeight = ''; const content = f.offsetHeight; f.style.minHeight = mh;
+  const b = document.getElementById('tbH'), f = b.closest('.frame-block[data-text-frame]'),   // tbH 자기 프레임(IAL 이 프레임 자리를 옮겨도 같은 것)
+    mh = f.style.minHeight; f.style.minHeight = ''; const content = f.offsetHeight; f.style.minHeight = mh;
   const t = b.textContent || '', sl = document.getElementById('txt-lorem-count-slider');
   let mk = null; try { mk = JSON.parse(b.dataset.lorem || 'null'); } catch (_) {}
   return { h: f.offsetHeight, content, fh: f.dataset.fixedH ?? null, dots: (t.match(/\./g) || []).length, words: t.trim() ? t.trim().split(/\s+/).length : 0, mk, valid: !!window.loremMark?.(b), sl: sl ? { min: sl.min, max: sl.max, v: sl.value } : null };
@@ -70,15 +71,19 @@ test('H2 한 줄 상자 + 문단 → 낱말로 · 높이 그대로', async ({ pa
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-test('H3 auto 상자 — 개수 3 · 슬라이더 1~30 · 상자가 글을 따름', async ({ page }) => {
+test('H3 auto 상자 — 채우기 = 그 순간 높이를 굳힘 · 높이 그대로 · 꽉 · 슬라이더 0~최대 = 최대', async ({ page }) => {
+  /* ★기대 바뀜(174 t13E-08 · 현빈 결정 261125 21:27 «ⓐ 높이 지키기 우선»): 옛 = «개수 3 · 높이 키 없음 · 상자가 글을 따라 커짐»(지디 안전 기본값) → 채우기 순간 높이를 정한 높이로 굳히고 그 높이에 꽉 */
   const { errs } = await scene(page, 0);
+  await page.evaluate(() => { const e = document.querySelector('#tbH [class^="tb-"]'); e.innerHTML = '가<br>나<br>다<br>라'; delete e.dataset.isPlaceholder; });   // 사용자 글 네 줄 = auto 상자 몇 줄 높이
   const a0 = await st(page);
-  await page.fill('#txt-lorem-count', '3');
+  expect(a0.fh, '[전제] 높이 auto').toBeNull();
   await run(page);
   const a = await st(page);
-  console.log('[H3 실측]', JSON.stringify({ a0, a }));
-  expect({ dots: a.dots, fh: a.fh, m: a.mk?.m, min: a.sl.min, max: a.sl.max }, '★마침표 3 · 높이 키 없음 · m null · 1~30').toEqual({ dots: 3, fh: null, m: null, min: '1', max: '30' });
-  expect(a.h > a0.h, `★상자가 글을 따라 커짐 ${a0.h}→${a.h}`).toBe(true);
+  console.log('[H3 실측]', JSON.stringify({ a0: a0.h, a: { h: a.h, fh: a.fh, mk: a.mk, sl: a.sl } }));
+  expect([a.h, a.fh], `★높이 그대로 · 정한 높이 = 채우기 전 ${a0.h}`).toEqual([a0.h, String(a0.h)]);
+  expect(a.content <= a0.h + 1 && a.valid, '★글이 상자 안 · 더미 표식').toBe(true);
+  expect(a.sl, '★슬라이더 0~최대 · 값 = 최대(꽉)').toEqual({ min: '0', max: String(a.mk.m), v: String(a.mk.m) });
+  expect(a.mk.m >= 1, `★최대 ≥ 1 ${JSON.stringify(a.mk)}`).toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
@@ -142,5 +147,38 @@ test('H7 저장·열기·⌘Z 가 표식을 옮김 · 옛 저장본 = 사용자 
   console.log('[H7 실측]', JSON.stringify(r));
   expect(r, '★⌘Z = 넣기 전(표식 없음) · ⌘⇧Z = 다시 · 저장·열기 = 그대로 · 표식 없음 = 사용자 글').toEqual({
     filled: { has: true, valid: true }, undone: { has: false, valid: false }, redone: { has: true, valid: true }, reopened: { has: true, valid: true }, old: { valid: false } });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* ★0.9.13 마감 채점 ❌(지디 261125 · 아이맥 GRADE-0913close-3 E08 · 판 dev 1cd189937) — 현빈 원문 «높이에 맞춰 양만 채우고 블럭 높이는 고정»
+ *   E08-1 흐름 Body(높이 auto) «채우기»(문장·2) ×4 → 230/173/173/230(넣을 때마다 들쭉날쭉) · E08-2 IAL 켬 → 아래 변 +100(346) → «채우기» ×3 → 288/346/288
+ * H8 auto 상자 — 채우기 ×4 → 높이 = 채우기 전 높이 그대로(넣을 때마다 같음) · 글이 상자 안
+ * H9 IAL 켬 + 아래 변 +100 → 채우기 ×3 → 높이 = 끈 높이 그대로 · 글이 상자 안 */
+const fillN = async (page, n) => { const hs = []; for (let i = 0; i < n; i++) { await run(page); hs.push(await st(page)); } return hs; };
+test('H8 (174 마감) auto 상자 — 채우기 ×4 = 높이 그대로(채우기 전 높이) · 글 상자 안', async ({ page }) => {
+  const { errs } = await scene(page, 0);
+  const pre = await st(page);
+  expect(pre.fh, '[전제] 높이 auto(정한 높이 없음)').toBeNull();
+  const hs = await fillN(page, 4);
+  console.log('[H8 실측]', JSON.stringify({ pre: pre.h, hs: hs.map((h) => [h.h, h.content, h.dots]) }));
+  expect(hs.map((h) => h.h), `★넣을 때마다 높이 = 채우기 전 ${pre.h}`).toEqual([pre.h, pre.h, pre.h, pre.h]);
+  expect(hs.every((h) => h.content <= pre.h + 1), '★글이 상자 안').toBe(true);
+  expect(hs.every((h) => h.valid), '★더미 표식').toBe(true);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+test('H9 (174 마감) IAL 켬 + 아래 변 +100 → 채우기 ×3 = 끈 높이 그대로 · 글 상자 안', async ({ page }) => {
+  const { errs } = await scene(page, 0);
+  const tg = await page.evaluate(() => { const e = document.getElementById('txt-overlay-toggle'); if (!e) return null; e.scrollIntoView({ block: 'center' }); const q = e.getBoundingClientRect(); return [q.left + q.width / 2, q.top + q.height / 2]; });   // t13d-06 toggleTxt 와 같은 손
+  expect(tg, '[전제] 글자 패널 IAL 단추').toBeTruthy(); await page.mouse.click(tg[0], tg[1]); await raf(page);
+  expect(await page.evaluate(() => document.getElementById('tbH').closest('.frame-block[data-text-frame]').dataset.overlayBlock), '[전제] IAL 켬').toBe('true');
+  await run(page);   // 그레이드 E08-2 순서: 더미가 들어 있는 상자를 끌었다
+  await dragS(page, 100);
+  const after = await st(page);
+  await page.evaluate(() => { window.selectBlock('tbH'); window.showTextProperties?.(document.getElementById('tbH')); });
+  await page.waitForFunction(() => !!document.getElementById('txt-lorem-run'), null, { polling: 100, timeout: 5000 });
+  const hs = await fillN(page, 3);
+  console.log('[H9 실측]', JSON.stringify({ after: [after.h, after.fh], hs: hs.map((h) => [h.h, h.content, h.fh]) }));
+  expect(hs.map((h) => h.h), `★채울 때마다 높이 = 끈 높이 ${after.h}`).toEqual([after.h, after.h, after.h]);
+  expect(hs.every((h) => h.content <= after.h + 1), '★글이 상자 안').toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

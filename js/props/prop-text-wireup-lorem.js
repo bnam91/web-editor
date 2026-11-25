@@ -114,8 +114,13 @@ export function wireLoremSection({ tb, propPanel }) {
     if (live(null)) { window.pushHistory?.(); return; }   // 더미면 새 단위로 다시(정한 높이 = 꽉 · auto = 지금 개수)
     if (_cap(tb)) set(0, MAX(), MAX()); else set(1, MAX(), Math.min(MAX(), Number(count?.value) || 2));
   });
-  btn.addEventListener('click', () => {   // 처음 넣기 · 다시 섞기(새 씨앗) — 정한 높이 = 꽉 · auto = 칸 개수
-    const r = applyLorem(tb, { unit: U(), lang: lang?.value, n: _cap(tb) ? null : Number(count?.value) || 2 });
+  btn.addEventListener('click', () => {   // 처음 넣기 · 다시 섞기(새 씨앗) — 늘 «지금 높이에 꽉»
+    /* ★174 t13E-08 마감 ❌(지디 261125 · 아이맥 E08 «채우기 ×4 = 230/173/173/230») — 현빈 원문 «높이에 맞춰 양만 채우고 블럭 높이는 고정».
+       옛 2차(지디 안전 기본값 · SPEC-text-height-lorem-vs-typed-261123 «현빈이 정하지 않은 곳») = auto 상자는 개수만큼 넣고 상자가 글을 따름 → 넣을 때마다 높이가 바뀜.
+       ⇒ 높이 auto 상자면 «채우기» 순간의 상자 높이를 정한 높이로 굳힌 뒤(손잡이와 같은 두 키 data-fixed-h + min-height) 그 높이에 꽉(SPEC 시안B «먼저 높이를 정한 뒤 채운다»).
+       개수 칸·슬라이더는 정한 높이 상자 규칙(0~최대)으로 넘어간다. applyLorem(API)은 그대로(부르는 쪽이 정한다). */
+    if (!_cap(tb)) { const box = _boxOf(tb), h = Math.max(20, Math.round(box.offsetHeight)); box.dataset.fixedH = String(h); box.style.minHeight = h + 'px'; }
+    const r = applyLorem(tb, { unit: U(), lang: lang?.value, n: null });
     if (!r) return;
     _panelSync(r);
     window.triggerAutoSave?.();
