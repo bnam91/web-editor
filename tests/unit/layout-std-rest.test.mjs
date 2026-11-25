@@ -47,3 +47,11 @@ test('L3 제 끝 단추(end) — 블럭 단추 id 그대로 · data-part end-slo
   assert.match(h, /<button type="button" class="prop-chain-btn" id="sec-pin-btn" data-part="end-slot" aria-pressed="false" aria-label="높이 고정" title="높이 고정">📌<\/button>/);
   assert.ok(!h.includes('id="s-ratio"'), '끝 단추가 있으면 사슬은 없다');
 });
+
+test('S2 섹션 크기 줄 — layoutSizeRowHTML(W 읽기전용 sec-width-value · H sec-height-value · 끝 = 📌 sec-pin-btn) · 옛 손 줄 0', () => {
+  const s = read('prop-section.js');
+  assert.match(s, /layoutSizeRowHTML\(\{[^)]*id: 'sec-width-value'[^)]*readonly: true/);
+  assert.match(s, /id: 'sec-height-value'/);
+  assert.match(s, /end: \{ id: 'sec-pin-btn'/);
+  assert.ok(!/<input type="number" id="sec-(?:width|height)-value"/.test(s), '옛 손으로 쓴 칸이 남았다');
+});
