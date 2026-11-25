@@ -52,3 +52,24 @@ test('EN3 모달 높이 Hug — H 칸 placeholder «Hug» · 사슬 막힘 까�
   expect(await page.evaluate(() => document.querySelector('[data-field="layout-h"] input')?.getAttribute('title')), '★EN3 막힌 칸 까닭').toContain('(Hug)');
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* 지디 판정(남은 목록 · FigCraft 기준): ① 그리드 행 높이 칸 placeholder 자동 → Hug ② 배너02 사슬 까닭 문장 속 자동 → (Hug) */
+test('EN4 그리드 행 높이 칸 placeholder «Hug»(· 실측 높이)', async ({ page }) => {
+  const errs = await boot(page);
+  await page.evaluate(() => { window.addGridBlock(); const g = [...document.querySelectorAll('#canvas .grid-block')].pop(); g.id = 'enG'; });
+  await page.evaluate(() => { window.deselectAll(); window.selectBlock('enG'); });
+  await page.waitForSelector('.grd-row-h-item', { state: 'attached' });
+  const ph = await page.evaluate(() => [...document.querySelectorAll('.grd-row-h-item')].map((i) => i.placeholder));
+  expect(ph.length, '[전제] 행 칸 있음').toBeGreaterThan(0);
+  for (const p of ph) expect(p, `★EN4 행 placeholder «${p}»`).toMatch(/^Hug( · \d+)?$/);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('EN5 배너02 사슬 막힘 까닭 = 문장 한국어 · 모드 낱말 (Hug)', async ({ page }) => {
+  const errs = await boot(page);
+  const why = await page.evaluate(async () => { const m = await import('./js/props/prop-banner02.js'); return m.BN2_CHAIN_WHY ?? null; });
+  const src = why ?? await page.evaluate(async () => (await (await fetch('./js/props/prop-banner02.js')).text()).match(/const BN2_CHAIN_WHY = '([^']*)'/)?.[1] ?? null);
+  expect(src, '★EN5 문장 속 모드 낱말').toContain('(Hug)');
+  expect(src, '★EN5 «자동» 없음').not.toContain('자동');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
