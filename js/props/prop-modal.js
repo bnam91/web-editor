@@ -43,6 +43,7 @@ import { applyModalVariant, _effDefault, MODAL_DEFAULTS, MODAL_LIMITS, clampModa
 import { MODAL_PROFILE_SIDES, MODAL_PROFILE_SIZE_LIMIT,
          modalProfileSize, modalProfileSide, modalProfileKind, setModalProfile } from '../blocks/modal-block.js';
 import { layoutSizeRowHTML, layoutPadSlotHTML, layoutGapSlotHTML, wireLayoutSection, ratioLockOn, setRatioLock, LAY_FULLW_WHY } from './_layout-section.js';   // 표준 Layout L2·L3·L4
+import { effectRowHTML } from './_effects-section.js';   // 표준 Effects 줄(0.9.14 224)
 const L = MODAL_LIMITS;
 
 /* 스와치·hex 칸에 «보여 줄» 색.
@@ -283,18 +284,18 @@ export function showModalProperties(block) {
            «다른 그림자»가 이미 있어 가르는 말이 필요했기 때문이다. 모달에는 그 말이 없어
            (실측: modal-block.js·prop-modal.js 에 shadow/box-shadow 0건) 제목이 짧다.
          ⛔안내문 행을 두지 마라 — prop-label 은 폭 ~56px 라 문장이 잘린다(prop-zoom.js 실측 주석). -->
-      <span class="prop-field-label">Shadow</span>
+      ${effectRowHTML({ id: 'mdl-fx-shadow', label: 'Shadow', body: `
       <div class="prop-row">
         <div class="prop-align-group" id="mdl-drop-group">
           <button class="prop-align-btn${dropShadow === 'none'   ? ' active' : ''}" data-val="none">없음</button>
           <button class="prop-align-btn${dropShadow === 'soft'   ? ' active' : ''}" data-val="soft">부드럽게</button>
           <button class="prop-align-btn${dropShadow === 'strong' ? ' active' : ''}" data-val="strong">강하게</button>
         </div>
-      </div>
+      </div>` })}
     <!-- 장식(1012t1Z5) — 꼬리 · 테이프. 모달의 옵션이다(버즈 묶음 안팎 같다). 그리는 것은 renderModalBlock.
          단추 묶음은 절 «직속»이고 라벨은 윗줄(.prop-field-label) — 넷이 한 줄에 들어가야 한다.
          단추 속성은 data-tail / data-tape 다(이 파일의 data-val 은 그림자 3단의 것이다). -->
-      <span class="prop-field-label">Decoration</span>
+      ${effectRowHTML({ id: 'mdl-fx-deco', label: 'Decoration', body: `
       <span class="prop-field-label">꼬리</span>
       <div class="prop-align-group" id="mdl-deco-tail-group">
         <button class="prop-align-btn${decoTail === 'none'  ? ' active' : ''}" data-tail="none">없음</button>
@@ -307,7 +308,7 @@ export function showModalProperties(block) {
         <button class="prop-align-btn${decoTape === 'left'   ? ' active' : ''}" data-tape="left">왼쪽</button>
         <button class="prop-align-btn${decoTape === 'center' ? ' active' : ''}" data-tape="center">가운데</button>
         <button class="prop-align-btn${decoTape === 'right'  ? ' active' : ''}" data-tape="right">오른쪽</button>
-      </div>
+      </div>` })}
 `),
     ],
   });

@@ -8,6 +8,7 @@ import { layoutSizeRowHTML, wireLayoutSection } from './_layout-section.js';   /
 import { appearanceSectionHTML, wireAppearanceSection } from './_appearance-section.js';   // A4 Opacity
 import { checkerBg } from '../checker-tokens.js';
 import { captureSectionImage } from '../io/capture-safety.js';
+import { effectRowHTML } from './_effects-section.js';   // 표준 Effects 줄(0.9.14 224)
 
 export function showMockupProperties(block) {
   const deviceKey = block.dataset.device || 'iphone';
@@ -68,12 +69,12 @@ export function showMockupProperties(block) {
       </div>`),
       sec('appearance', appearanceSectionHTML({ prefix: 'mkp', op: { value: window.readBlockOpacity?.(block) ?? 100 } })),   // A4 Opacity
       // 그림자
-      sec('effects', `
+      sec('effects', effectRowHTML({ id: 'mkp-fx-shadow', label: '그림자', body: `
       <div class="prop-align-group" id="mkp-shadow-group">
         <button class="prop-align-btn${shadow === 'none'  ? ' active' : ''}" data-val="none">없음</button>
         <button class="prop-align-btn${shadow === 'soft'  ? ' active' : ''}" data-val="soft">부드럽게</button>
         <button class="prop-align-btn${shadow === 'strong'? ' active' : ''}" data-val="strong">강하게</button>
-      </div>`),
+      </div>` })),
     ],
   });
 
