@@ -73,7 +73,7 @@ async function boot(page) {
 
 async function openSection(page, id) {
   await page.evaluate((id) => window.__open(document.getElementById(id)), id);
-  await page.waitForSelector('#sec-padb-slider', { state: 'attached' });
+  await page.waitForSelector('#sec-padb-number', { state: 'attached' });   // ★기대 바뀜(표준 Layout · 탑 워커 261125)
 }
 async function openPage(page) {
   await page.evaluate(() => window.__openPage());
@@ -114,7 +114,7 @@ test('B1 ★아래 패딩 슬라이더가 띠를 띄운다 (양성대조: 좌우
 
   /* ★양성대조 — 같은 자(getComputedStyle ::before)로 좌우를 먼저 잡는다.
      ⇐ 이게 빨강이면 아래 단언이 통째로 공회전이다. */
-  await fire(page, 'sec-padx-slider', 40);
+  await fire(page, 'sec-padx-number', 40);   // ★기대 바뀜(표준 Layout · 탑 워커 261125)
   const x = await bands(page, 'sec_1');
   expect(x.on, '★양성대조 실패 — 좌우를 움직였는데 gdt-pad-on 이 안 붙었다').toBe(true);
   expect(x.left, '★양성대조 실패 — 좌우 띠 두께가 40px 이 아니다').toBe('40px');
@@ -127,7 +127,7 @@ test('B1 ★아래 패딩 슬라이더가 띠를 띄운다 (양성대조: 좌우
   expect(cleared.varL, '★전제 — 좌우 변수가 안 걷혔다').toBe('');
 
   /* ★본 측정 — 아래 패딩 */
-  await fire(page, 'sec-padb-slider', 80);
+  await fire(page, 'sec-padb-number', 80);   // ★기대 바뀜(표준 Layout · 탑 워커 261125)
   const b = await bands(page, 'sec_1');
   expect(b.secPadB, '★아래 패딩이 DOM 에 안 먹었다 — 이 아래 단언이 무의미하다').toBe('80px');
   expect(b.on, '★아래를 움직였는데 gdt-pad-on 이 안 붙었다').toBe(true);
@@ -153,7 +153,7 @@ test('B2 ★「패딩 비주얼 끔」이면 아래 띠도 안 뜬다 (게이트
 
   /* ★양성대조 — 켜진 채로는 아래 띠가 «뜬다» */
   await openSection(page, 'sec_1');
-  await fire(page, 'sec-padb-slider', 60);
+  await fire(page, 'sec-padb-number', 60);   // ★기대 바뀜(표준 Layout · 탑 워커 261125)
   expect((await bands(page, 'sec_1')).bottom, '★양성대조 실패 — 켜짐인데 아래 띠가 안 뜬다').toBe('60px');
   await page.waitForTimeout(700);
 
@@ -167,7 +167,7 @@ test('B2 ★「패딩 비주얼 끔」이면 아래 띠도 안 뜬다 (게이트
   expect(await page.evaluate(() => window.readPadHintOn()), '★끔이 저장되지 않았다').toBe(false);
 
   await openSection(page, 'sec_1');
-  await fire(page, 'sec-padb-slider', 120);
+  await fire(page, 'sec-padb-number', 120);   // ★기대 바뀜(표준 Layout · 탑 워커 261125)
   const off = await bands(page, 'sec_1');
   expect(off.secPadB, '★꺼도 패딩 «자체»는 먹어야 한다(띠만 안 뜨는 것이다)').toBe('120px');
   expect(off.on, '★꺼 뒀는데 gdt-pad-on 이 붙었다').toBe(false);
@@ -181,7 +181,7 @@ test('B2 ★「패딩 비주얼 끔」이면 아래 띠도 안 뜬다 (게이트
 test('B3 ★400ms 뒤 아래 띠를 거두고, «켜진 채로» 직렬화해도 저장본에 0건이다', async ({ page }) => {
   const errs = await boot(page);
   await openSection(page, 'sec_1');
-  await fire(page, 'sec-padb-slider', 80);
+  await fire(page, 'sec-padb-number', 80);   // ★기대 바뀜(표준 Layout · 탑 워커 261125)
 
   const r = await page.evaluate(() => {
     const sec = document.getElementById('sec_1');
@@ -239,8 +239,8 @@ test('B4 ★패딩 색을 고르면 «좌우와 아래 둘 다» 바뀌고 ★�
   await fire(page, 'page-pad-hint-color', '#14b8a6');
 
   await openSection(page, 'sec_1');
-  await fire(page, 'sec-padx-slider', 40);
-  await fire(page, 'sec-padb-slider', 80);
+  await fire(page, 'sec-padx-number', 40);   // ★기대 바뀜(표준 Layout · 탑 워커 261125)
+  await fire(page, 'sec-padb-number', 80);   // ★기대 바뀜(표준 Layout · 탑 워커 261125)
   const b = await bands(page, 'sec_1');
   expect(b.leftColor, '★고른 색이 «좌우» 띠에 안 먹었다').toBe('rgba(20, 184, 166, 0.1)');
   expect(b.bottomColor, '★고른 색이 «아래» 띠에 안 먹었다 — 좌우에만 먹으면 그게 결함이다').toBe('rgba(20, 184, 166, 0.1)');
@@ -267,7 +267,7 @@ test('B5 ★그리드 색을 고르면 그리드만 바뀌고 ★패딩 띠는 �
   expect(grid, '★고른 그리드 색이 안 먹었다').toContain('rgba(0, 0, 255, 0.1)');
 
   await openSection(page, 'sec_1');
-  await fire(page, 'sec-padb-slider', 80);
+  await fire(page, 'sec-padb-number', 80);   // ★기대 바뀜(표준 Layout · 탑 워커 261125)
   expect((await bands(page, 'sec_1')).bottomColor,
     '★그리드 색을 골랐더니 패딩 띠까지 바뀌었다 — 변수가 섞였다').toBe('rgba(0, 214, 255, 0.1)');
   expect(await page.evaluate(() => localStorage.getItem('gdt.gridColor'))).toBe('#0000ff');
@@ -381,8 +381,8 @@ test('B7 ★띠를 거둘 때 «고른 색»은 지워지지 않는다 (--gdt-pa
   }));
 
   await openSection(page, 'sec_1');
-  await fire(page, 'sec-padx-slider', 40);
-  await fire(page, 'sec-padb-slider', 80);
+  await fire(page, 'sec-padx-number', 40);   // ★기대 바뀜(표준 Layout · 탑 워커 261125)
+  await fire(page, 'sec-padb-number', 80);   // ★기대 바뀜(표준 Layout · 탑 워커 261125)
   const before = await read();
   expect(before.color, '★전제 — 고른 색이 문서 변수에 안 박혔다').toBe('rgba(20, 184, 166, 0.1)');
   expect(before.padVars, '★양성대조 실패 — 쓸기 전에 --gdt-pad- 변수가 0건이다').toBeGreaterThan(0);
@@ -401,7 +401,7 @@ test('B7 ★띠를 거둘 때 «고른 색»은 지워지지 않는다 (--gdt-pa
 test('B8 ★내보내기 가드(withGuideOff)가 아래 띠도 끈다 — 클래스 한 곳에 매달려 있다', async ({ page }) => {
   const errs = await boot(page);
   await openSection(page, 'sec_1');
-  await fire(page, 'sec-padb-slider', 80);
+  await fire(page, 'sec-padb-number', 80);   // ★기대 바뀜(표준 Layout · 탑 워커 261125)
 
   const r = await page.evaluate(async () => {
     const m = await import('/js/io/capture-safety.js');
@@ -451,7 +451,7 @@ test('B9 ★㉡ 「어떻게 줄어드는지」 — 띠·실제패딩·숫자칸
   /* ★줄여 나간다 — 120 → 80 → 40. 「줄어드는 게 보이나」가 요구의 글자다. */
   const seen = [];
   for (const v of [120, 80, 40]) {
-    await fire(page, 'sec-padb-slider', v);
+    await fire(page, 'sec-padb-number', v);   // ★기대 바뀜(표준 Layout · 탑 워커 261125)
     const a = await axes(page);
     seen.push({ v, ...a });
     expect(a.band, `★${v} 에서 ★띠 두께가 값과 다르다 — 화면이 「얼마」를 안 말한다`).toBe(`${v}px`);
@@ -471,14 +471,14 @@ test('B9 ★㉡ 「어떻게 줄어드는지」 — 띠·실제패딩·숫자칸
   /* ★0 자리를 ★잰다(⛔고치지 않는다 — 기존 동작이고 내 변경 밖이다).
      `applyPadB` 는 `padBNumber.value = v || ''` 이라 ★0 에서 숫자칸이 ★빈 칸이 된다.
      ⇒ 이 단언은 그 «지금 동작»을 ★못으로 박아 둔다. 바뀌면(고치든 깨지든) ★여기가 말해 준다. */
-  await fire(page, 'sec-padb-slider', 0);
+  await fire(page, 'sec-padb-number', 0);   // ★기대 바뀜(표준 Layout · 탑 워커 261125)
   const z = await axes(page);
   console.log('B9 ★0 자리 실측:', JSON.stringify(z));
   expect(z.band, '★0 인데 띠가 남았다').toBe('0px');
   expect(z.real, '★0 인데 실제 패딩이 남았다').toBe('0px');
   expect(z.num,
     '★0 에서 숫자칸이 «빈 칸»이 아니다 — 지금 동작(`v || \'\'`)이 바뀌었다. '
-    + '고친 것이면 이 단언을 그 값으로 갈고, 아니면 회귀다').toBe('');
+    + '고친 것이면 이 단언을 그 값으로 갈고, 아니면 회귀다').toBe('0');   // ★기대 바뀜(표준 Layout · 탑 워커 261125 — 부품 칸은 친 값 그대로 · 옛 `v || ''` 빈 칸 걷힘)
 
   expect(errs, '★페이지 에러: ' + errs.join(' | ')).toEqual([]);
 });

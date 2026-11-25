@@ -37,7 +37,7 @@ const gridOn = (page, on) => page.evaluate((on) => { window.deselectAll?.(); win
 const setPagePadX = (page, v) => page.evaluate((v) => { window.deselectAll?.(); window.showPageProperties();
   const s = document.getElementById('page-padx-number'); s.value = v; s.dispatchEvent(new Event('input', { bubbles: true })); }, v);   // ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음) — 숫자 칸 input = 범위 안이면 즉시
 const setSecPadX = (page, id, v) => page.evaluate(async ([id, v]) => { await window.showSectionProperties(document.getElementById(id));
-  const s = document.getElementById('sec-padx-slider'); s.value = v; s.dispatchEvent(new Event('input', { bubbles: true })); }, [id, v])
+  const s = document.getElementById('sec-padx-number'); s.value = v; s.dispatchEvent(new Event('input', { bubbles: true })); }, [id, v])   // ★기대 바뀜(표준 Layout · 탑 워커 261125)
   .then(() => page.waitForTimeout(700));   // ★패딩 비주얼(분홍 띠)이 400ms 뒤 꺼질 때까지 — 안 기다리면 그 띠를 칼럼색으로 센다(실측 첫 판: ±80px)
 const setAssetExclude = (page, on) => page.evaluate((on) => { window.deselectAll?.(); window.showPageProperties();
   const c = document.getElementById('page-padx-asset'); c.checked = on; c.dispatchEvent(new Event('change', { bubbles: true })); }, on);

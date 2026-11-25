@@ -84,13 +84,13 @@ async function boot(page) {
 /** 섹션 프로퍼티 패널을 «진짜로» 연다. 슬라이더가 나올 때까지 기다린다. */
 async function openPanel(page, secId) {
   await page.evaluate((id) => window.__open(document.getElementById(id)), secId);
-  await page.waitForSelector('#sec-padx-slider', { state: 'attached' });
+  await page.waitForSelector('#sec-padx-number', { state: 'attached' });   // ★기대 바뀜(표준 Layout · 탑 워커 261125)
 }
 
 /** 진짜 슬라이더에 진짜 input 이벤트를 흘린다(사람이 끄는 것과 같은 경로). */
 async function slide(page, v) {
   await page.evaluate((v) => {
-    const s = document.getElementById('sec-padx-slider');
+    const s = document.getElementById('sec-padx-number');   // ★기대 바뀜(표준 Layout · 탑 워커 261125)
     s.value = String(v);
     s.dispatchEvent(new Event('input', { bubbles: true }));
   }, v);
@@ -116,7 +116,7 @@ test('D1 ★슬라이더를 «진짜로» 움직이면 띠 두께 = 패딩값 (�
 
   /* ★입력이 살아 있다 — 슬라이더가 진짜로 있고, 만지기 전엔 띠가 «없다».
      이 음성대조가 없으면 아래 40px 이 「원래 그랬던 것」과 구별되지 않는다. */
-  expect(await page.locator('#sec-padx-slider').count()).toBe(1);
+  expect(await page.locator('#sec-padx-number').count()).toBe(1);   // ★기대 바뀜(표준 Layout · 탑 워커 261125)
   const before = await bandOf(page, 'sec_1');
   expect(before.on, '만지기 전인데 body 에 gdt-pad-on 이 있다').toBe(false);
   expect(before.left, '만지기 전인데 띠가 있다').toBe('0px');

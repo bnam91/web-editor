@@ -3,6 +3,7 @@ import { exportFormatOptionsHTML, isAnimFormat } from '../io/export-formats.js';
 import { syncSectionCheckerTextTone } from '../canvas-contrast.js';   /* T6 — 섹션 안 글자 밝기 자동(판정은 그 파일 한 자리) */
 import { blockHeaderHTML, escHtml, sliderRowHTML, checkHTML } from './_helpers.js';
 import { renderPanel, sec as panelSec, panelRenderGen } from './_panel-frame.js';
+import { layoutPadSlotHTML, layoutSlotNumberHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout 패딩(탑 워커 261125)
 import { forgetLabelAutoColor } from './label-auto-color.js';
 import { wireHexText, parseHex6, formatHex6, colorFieldHTML, wireColorField } from './color-picker.js';
 import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';   /* 섹션 보강(현빈 261123 · d92ea91) — 배경색 VAR·최근 줄(텍스트 Fill 과 같은 벌) */
@@ -781,12 +782,8 @@ async function showSectionProperties(sec) {
       </div>
 `),
       panelSec('padding', `
-      ${sliderRowHTML('좌우패딩', 'sec-padx-slider', 'sec-padx-number', { min: 0, max: 100, step: 2, value: secPadX })}
-      <div class="prop-row">
-        <span class="prop-label">아래 패딩</span>
-        <input type="range" class="prop-slider" id="sec-padb-slider" min="0" max="200" step="4" value="${secPadB}">
-        <input type="number" class="prop-number" id="sec-padb-number" min="0" max="200" value="${secPadB}">
-      </div>
+      ${layoutPadSlotHTML({ xId: 'sec-padx-number', x: secPadX, max: 100 })}   <!-- 표준 Layout 패딩 슬롯(좌우만 · 슬라이더 걷음 · id·범위·저장 무변) -->
+      ${layoutSlotNumberHTML({ id: 'sec-padb-number', label: '아래 패딩', value: secPadB, max: 200, step: 4 })}   <!-- 아래만 = 면별 패딩은 부품 보류라 슬롯 숫자 -->
       <!-- 섹션 보강(현빈 261123 · v117a) — Clip content 줄은 Layout 묶음 «맨 아래»(Padding 뒤)로 자리만 옮김 · 기본값·극성은 그대로(기본 끔은 태양 ty/0913b-clip-default 몫) -->
       <div class="prop-row" title="켜면 섹션 경계 밖으로 나간 부분을 캔버스·미리보기에서 자릅니다. 끄면 캔버스·미리보기에서 밖까지 보입니다(작업 보조). 내보내기 PNG는 항상 섹션 크기로 잘림.">
         <!-- 현빈 261123 D-3(Figma «Clip content») — Layout 절 맨 아래 · 체크 = 자름(새 섹션 기본 = 켬) · 저장 키는 옛 data-overflow-visible 그대로(켬 = !그 값 · 옛 프로젝트 열림 보존)
@@ -863,12 +860,10 @@ async function showSectionProperties(sec) {
   _wireSecFold('sec-export-toggle', 'sec-export-form', 'Export 펼치기', 'Export 접기');
   _wireSecFold('sec-tpl-toggle', 'sec-tpl-form', '섹션 템플릿으로 저장 — 펼치기', 'Templates 접기');
 
-  // 좌우 패딩 이벤트
-  const padXSlider = document.getElementById('sec-padx-slider');
+  // 좌우 패딩 이벤트 — 표준 Layout 배선(input = 그림 · change = pushHistory 한 번 · 라벨 끌기)
   const padXNumber = document.getElementById('sec-padx-number');
-  if (padXSlider && inner) {
+  if (padXNumber && inner) {
     const applyPadX = v => {
-      v = Math.min(100, Math.max(0, isNaN(v) ? 0 : v));
       // 0도 명시 override로 저장 (페이지 padX inherit 방지)
       inner.style.paddingLeft  = v + 'px';
       inner.style.paddingRight = v + 'px';
@@ -889,30 +884,16 @@ async function showSectionProperties(sec) {
           if (!ab.style.width || ab.style.width.includes('calc')) ab.style.width = '';
         }
       });
-      padXSlider.value = v;
-      padXNumber.value = v;
     };
-    padXSlider.addEventListener('input',  e => applyPadX(parseInt(e.target.value)));
-    padXSlider.addEventListener('change', () => pushHistory());
-    padXNumber.addEventListener('change', e => { applyPadX(parseInt(e.target.value)); pushHistory(); });
-
+    wireLayoutSection({ commit: () => pushHistory(), w: { numberId: 'sec-padx-number', max: 100, apply: applyPadX, read: () => parseInt(inner.dataset.paddingX) || parseInt(inner.style.paddingLeft) || 0 } });
   }
 
-  // 아래 여백 이벤트
-  const padBSlider = document.getElementById('sec-padb-slider');
-  const padBNumber = document.getElementById('sec-padb-number');
-  if (padBSlider) {
-    const applyPadB = v => {
-      v = Math.min(200, Math.max(0, isNaN(v) ? 0 : v));
-      sec.style.paddingBottom = v ? v + 'px' : '';
-      _showPadBHint(sec, v);                                         // 만지는 «동안»만 아래 패딩 띠를 비춘다
-      padBSlider.value = v;
-      padBNumber.value = v || '';
-    };
-    padBSlider.addEventListener('input',  e => applyPadB(parseInt(e.target.value)));
-    padBSlider.addEventListener('change', () => pushHistory());
-    padBNumber.addEventListener('change', e => { applyPadB(parseInt(e.target.value)); pushHistory(); });
-  }
+  // 아래 여백 이벤트 — 같은 배선
+  const applyPadB = v => {
+    sec.style.paddingBottom = v ? v + 'px' : '';
+    _showPadBHint(sec, v);                                           // 만지는 «동안»만 아래 패딩 띠를 비춘다
+  };
+  wireLayoutSection({ commit: () => pushHistory(), w: { numberId: 'sec-padb-number', max: 200, step: 4, apply: applyPadB, read: () => parseInt(sec.style.paddingBottom) || 0 } });
 
   // Clip content(현빈 261123 D-3) — 체크 = 자름 = 옛 «섹션 밖 보이기» 꺼짐 = data-overflow-visible 없음. 끄면 이 섹션만 캔버스·미리보기 밖까지(내보내기는 늘 자름). CSS 가 정해 rerender 불필요.
   document.getElementById('sec-clip-content')?.addEventListener('change', e => {
