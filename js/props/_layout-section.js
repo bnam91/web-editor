@@ -22,7 +22,7 @@ const LAY_NUM_ICON = _layIcon('<path d="M2 4.5h8M2 7.5h8M4.5 2 3.5 10M8.5 2l-1 8
 const _LAY_ONE_ICON = { w: LAY_W_ICON, h: LAY_H_ICON, px: LAY_NUM_ICON };
 const LAY_MODE_ICON = _layIcon('<path d="M1.5 6h9M1.5 3.5v5M10.5 3.5v5"/>');
 export const LAY_CHAIN_WHY = '비율 사슬 — 켜면 W 를 바꿀 때 H 가 비율대로(H 도 같다)';
-export const LAY_AUTO_WHY = '높이는 내용이 정해요(자동) — 비율 사슬 막힘';
+export const LAY_AUTO_WHY = '높이는 내용이 정해요(Hug) — 비율 사슬 막힘';   // 모드 낱말만 영어(현빈 261125 17:36 · FigCraft Hug)
 /** 너비 = 줄 폭(100% · 꽉참) 블럭의 사슬 막힘 까닭(지디 261125 ⒜) — 소비자는 chain.blocked 에 이 말(또는 제 까닭)을 준다 */
 export const LAY_FULLW_WHY = '너비가 줄 폭에 맞춰져 있어 비율을 묶을 수 없어요';
 /* 사슬 단추 상태 — 막힘(까닭 있음)이면 aria-disabled + 까닭 툴팁 · 켬 표시 끔(저장 키는 안 건드린다) */
@@ -38,14 +38,18 @@ export function setRatioLock(block, on, dflt) {
 /* 칸 하나 — 작은 라벨 + [아이콘(끌기) 숫자] · Mixed = 빈 값 + placeholder + data-empty="invalid"(N9) · auto = 막힘 «자동» */
 const _layCell = (label, field, icon, c) => {
   const blank = c.mixed || c.auto;
-  const ph = c.mixed ? ' placeholder="Mixed" data-empty="invalid"' : c.auto ? ` placeholder="자동" data-empty="invalid" disabled title="${LAY_AUTO_WHY}"` : '';
+  const ph = c.mixed ? ' placeholder="Mixed" data-empty="invalid"' : c.auto ? ` placeholder="Hug" data-empty="invalid" disabled title="${LAY_AUTO_WHY}"` : '';
   return `<div class="ui-s2-cell"><span>${label}</span><div class="prop-icon-input" data-part="number" data-field="${field}"><span class="prop-xy-label ui-app-scrub" id="${c.id}-scrub" title="${label || field} — 좌우로 끌면 바뀐다">${icon}</span><input type="number" class="prop-number" id="${c.id}" min="${c.min ?? 0}" max="${c.max}" step="${c.step ?? 1}" value="${blank ? '' : c.value}"${ph} aria-label="${label || field}"></div></div>`;
 };
 /* 끝 칸 자리 맞춤(사슬 없는 줄도 숫자 칸 끝이 같은 자리) */
 const _LAY_SPACER = '<span class="ui-lay-spacer" aria-hidden="true"></span>';
 const _layEmpty = '<div class="ui-s2-cell" aria-hidden="true"></div>';
 
-const _layModeCell = (label, m) => (m ? `<div class="ui-s2-cell"><div class="prop-icon-input" data-field="layout-mode-${label === '너비' ? 'w' : 'h'}" title="${label} 모드 — 그 블럭에 이미 있는 모드만"><span class="prop-xy-label">${LAY_MODE_ICON}</span><select class="prop-select" id="${m.id}" aria-label="${label} 모드">${m.options.map(([v, t]) => `<option value="${v}"${v === m.value ? ' selected' : ''}>${t}</option>`).join('')}</select></div></div>` : _layEmpty);
+/* 모드 칸 — 낱말 = FigCraft(layout_panel.rs) 짧은 꼴(Fixed / Hug / Fill · 모달 높이 Min H) · 옵션 title = 긴 꼴(메뉴 낱말) · 칸 aria/title = Width/Height sizing(현빈 261125 17:36 · 지디 ⓐ)
+   options = [값, 글, title?] · 저장 값은 블럭 그대로(fixed/fill/full/auto) */
+const LAY_SIZING_LABEL = { 너비: 'Width sizing', 높이: 'Height sizing' };
+export const LAY_SIZING = Object.freeze({ fixed: ['Fixed', 'Fixed'], hug: ['Hug', 'Hug contents'], fill: ['Fill', 'Fill container'], minH: ['Min H', 'Hug contents + Min height'] });
+const _layModeCell = (label, m) => (m ? `<div class="ui-s2-cell"><div class="prop-icon-input" data-field="layout-mode-${label === '너비' ? 'w' : 'h'}" title="${LAY_SIZING_LABEL[label]} — 그 블럭에 이미 있는 모드만"><span class="prop-xy-label">${LAY_MODE_ICON}</span><select class="prop-select" id="${m.id}" aria-label="${LAY_SIZING_LABEL[label]}">${m.options.map(([v, t, ti]) => `<option value="${v}"${ti ? ` title="${ti}"` : ''}${v === m.value ? ' selected' : ''}>${t}</option>`).join('')}</select></div></div>` : _layEmpty);
 
 /**
  * W/H 한 줄(또는 한 칸) + 모드 줄. 사슬 단추 id = `${prefix}-ratio`.

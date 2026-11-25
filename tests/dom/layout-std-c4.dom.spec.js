@@ -82,7 +82,7 @@ test('LC2 modal 모드 = 드롭다운(옛 세그먼트 data-wm/data-hm 걷음) �
     key: [window.__b.dataset.wMode ?? null, window.__b.dataset.hMode ?? null],
   }));
   const s0 = await st();
-  expect(s0).toMatchObject({ seg: 0, wm: ['full', 'fixed'], wmV: 'full', hm: ['auto', 'fixed'], hmV: 'auto', wDis: true, hDis: true, hPh: '자동' });
+  expect(s0).toMatchObject({ seg: 0, wm: ['full', 'fixed'], wmV: 'full', hm: ['auto', 'fixed'], hmV: 'auto', wDis: true, hDis: true, hPh: 'Hug' });   // ★기대 바뀜(현빈 261125 17:36 크기 모드 영어)
   expect(s0.chain[0]).toBe('true');
   await page.selectOption('#mdl-wm', 'fixed');
   await page.selectOption('#mdl-hm', 'fixed');
@@ -105,7 +105,8 @@ test('LC3 grid 너비 = 표준 W 칸(옛 id · 비우면 자동 placeholder 그�
     chain: document.getElementById('grd-ratio')?.getAttribute('aria-disabled') ?? null,
     key: window.getGridWidth?.(window.__b) ?? null,
   }));
-  expect(await st()).toEqual({ old: [false, false], inPart: true, ph: '자동', v: '', mode: ['fixed', 'fill'], modeV: 'fill', chain: 'true', key: null });
+  expect(await st()).toEqual({ old: [false, false], inPart: true, ph: 'Fill', v: '', mode: ['fixed', 'fill'],   // ★기대 바뀜(크기 모드 영어 · 그리드 빈 칸 = Fill)
+    modeV: 'fill', chain: 'true', key: null });
   await page.selectOption('#grd-width-mode', 'fixed');
   await expect.poll(async () => (await st()).modeV).toBe('fixed');
   expect((await st()).key, '고정 = 지금 그려진 폭을 키로').toBeGreaterThan(0);

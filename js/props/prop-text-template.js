@@ -7,7 +7,7 @@ import { sectionOrderFor, sectionRank } from './_section-spec.js';
 /* T7 — 글머리 명부·판정은 ★한 자리(text-type-class.js). 패널과 배선이 ★같은 하나를 본다. */
 import { BULLET_LIST_STYLES, bulletListStyleOf } from './text-type-class.js';
 import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A3)
-import { layoutSizeRowHTML, layoutGapSlotHTML } from './_layout-section.js';   // 표준 Layout(L2~L4 · C3)
+import { layoutSizeRowHTML, layoutGapSlotHTML, LAY_SIZING } from './_layout-section.js';   // 표준 Layout(L2~L4 · C3)
 
 export function buildTextPanelSpec(state) {
   const {
@@ -271,7 +271,7 @@ export function buildTextPanelSpec(state) {
         <div data-own="special:Bubble">${layoutSizeRowHTML({ prefix: 'bubble', chain: { on: false, blocked: '말풍선 높이는 «최소» 높이라 비율을 묶을 수 없어요' },
           w: { id: 'bubble-w-number', min: 60, max: 860, value: bubbleW || '', auto: !bubbleSizeFixed },
           h: { id: 'bubble-h-number', min: 40, max: 2000, value: bubbleH || '', auto: !bubbleSizeFixed },
-          mode: { w: { id: 'bubble-size-mode', value: bubbleSizeFixed ? 'fixed' : 'auto', options: [['fixed', '고정'], ['auto', '자동']] } } })}</div>   <!-- data-own: 모드 칸 id 의 «size» 낱말이 Size 절로 오판되지 않게(배경색 줄과 같은 까닭 · 말풍선 크기는 Bubble 절) -->
+          mode: { w: { id: 'bubble-size-mode', value: bubbleSizeFixed ? 'fixed' : 'auto', options: [['fixed', ...LAY_SIZING.fixed], ['auto', ...LAY_SIZING.hug]] } } })}</div>   <!-- data-own: 모드 칸 id 의 «size» 낱말이 Size 절로 오판되지 않게(배경색 줄과 같은 까닭 · 말풍선 크기는 Bubble 절) -->
         <div class="prop-row" title="발신자 이름 표시 — 이름은 캔버스에서 더블클릭해 고친다">
         ${checkHTML({ id: 'bubble-show-sender', label: '발신자 이름', checked: showSender })}
       </div>

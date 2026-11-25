@@ -8,7 +8,7 @@ import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_STYLE
 /* ★1017t1h3 — 「고른 글자만」 한 벌. ⛔선택을 여기서 따로 저장하지 않는다(_text-selection.js 머리말 ⛔). */
 import { getSavedTextSelection, withTextSelection, applyStyleToRange } from './_text-selection.js';
 import { appearanceSectionHTML, appearanceHeadToolsHTML, appearanceSlotNumberHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A3 · annotation)
-import { layoutPadSlotHTML, layoutSizeRowHTML, layoutSlotNumberHTML, wireLayoutSection, LAY_AUTO_WHY } from './_layout-section.js';   // 표준 Layout 패딩 슬롯(C3)
+import { layoutPadSlotHTML, layoutSizeRowHTML, layoutSlotNumberHTML, wireLayoutSection, LAY_AUTO_WHY, LAY_SIZING } from './_layout-section.js';   // 표준 Layout 패딩 슬롯(C3)
 
 // ── 프리셋 ───────────────────────────────────────────────────────────────
 /* ★1013t1A2 — 프리셋은 «색·선·시작점»만 바꾼다. 글자 크기(옛 16)는 뺐다: 기본이 24 가 됐는데
@@ -433,7 +433,7 @@ export function showAnnotationProperties(block) {
       ${st.labelMode !== 'image' ? `
       ${layoutSizeRowHTML({ prefix: 'annot-label', chain: { on: false, blocked: LAY_AUTO_WHY },   /* ★L4b(현빈 L-2) — 옛 «자동» 단추 → 너비 모드 드롭다운(고정/자동 · 이미 있는 두 모드만) · 높이 = 글(칸 없음) · id·키(labelWidth)·범위 무변 */
         w: { id: 'annot-label-w', min: LIM.labelWidth.min, max: LIM.labelWidth.max, value: st.labelWidth ?? '', auto: st.labelWidth == null },
-        mode: { w: { id: 'annot-label-w-mode', value: st.labelWidth == null ? 'auto' : 'fixed', options: [['fixed', '고정'], ['auto', '자동']] } } })}
+        mode: { w: { id: 'annot-label-w-mode', value: st.labelWidth == null ? 'auto' : 'fixed', options: [['fixed', ...LAY_SIZING.fixed], ['auto', ...LAY_SIZING.hug]] } } })}
       ` : ''}`),
       /* ★표준 Layout 패딩 슬롯(C3 · 현빈 261124 L-4/7) — 사방 한 값 한 칸 · 옛 슬라이더 걷음 · id·키·0~24 무변 */
       sec('padding', layoutPadSlotHTML({ allId: 'annot-label-pad-num', all: st.labelPad ?? 8, max: 24 })),
