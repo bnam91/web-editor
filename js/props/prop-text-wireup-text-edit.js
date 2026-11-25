@@ -20,6 +20,7 @@ import { wireHexText, parseHex6, formatHex6, wireColorField, alphaFromText, noti
 import { forgetLabelAutoColor } from './label-auto-color.js';
 import { _stripInlineResidue } from './prop-text-utils.js';   // 부분서식 잔재 걷기 한 벌(t4-16 에서 이 파일 클로저를 옮김)
 import { detectMix, mixKeyOf, paintMixFields } from './prop-text-mix-detect.js';
+import { setFillKindName, fillKindOfCss } from './_fill-section.js';   // 표준 Fill F4 — 글자 그라데이션 이름칸(Linear/Radial)
 import {
   withTextSelection, getSavedTextSelection, clearTextSelection, spanExactlyCovering, applyStyleToRange,
 } from './_text-selection.js';
@@ -516,6 +517,7 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
       colorSwatch.style.background = g.css;
       if (g.stops[0]) { colorHex.value = g.stops[0].color.replace('#', '').toUpperCase(); _txtLastHex = g.stops[0].color; }
     }
+    setFillKindName(colorHex, g ? fillKindOfCss(g.css) : 'solid');   // 표준 Fill F4 — 그라데이션 = 이름칸 «Linear/Radial»(읽기 전용) · 단색 = HEX 로 풂
     // 형광펜은 그라데이션과 함께 못 쓴다(블럭 형광펜은 글자 모양으로 잘려 «글자 속 색»이 된다)
     const hl = document.getElementById('txt-highlight-btn');
     if (hl) {

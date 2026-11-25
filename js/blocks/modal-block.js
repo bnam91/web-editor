@@ -770,6 +770,7 @@ function renderModalBlock(block) {
     + (radius > 0 ? `border-radius:${radius}px;` : '')
     + `padding:${rootPad};`
     + (borderW > 0 ? `border:${borderW}px ${borderStyle} ${borderColor};` : '')
+    + (borderW > 0 ? _modalSideWidths(block, borderW) : '')   // 단계 4-2 면별 굵기(키 있을 때만 · 없으면 옛 바이트)
     /* ★_alignStyles «앞»에 둔다 — 그 함수는 「맨 뒤여야 한다」는 계약을 갖고 있다
        (icon-stack 의 text-align:center 가 앞의 text-align 을 이겨야 한다).
        box-shadow 는 다른 어떤 선언과도 같은 자리를 다투지 않으므로 순서에 안 걸린다. */
@@ -1192,3 +1193,11 @@ export { makeModalBlock, addModalBlock, renderModalBlock, commitModalSlot, apply
          MODAL_PROFILE_SIDES, MODAL_PROFILE_SIZE_LIMIT, modalProfileSize, modalProfileSide, modalProfileKind,
          MODAL_PROFILE_GAP_LIMIT, modalProfileGap,
          setModalProfile, syncModalIconFirstLineOffset };
+
+/* 단계 4-2 — 면별 굵기 키(strokeWidthTop/Right/Bottom/Left · js/stroke-look.js 와 같은 이름) → border-width 4값 · 키 없으면 ''(옛 바이트)
+   ⛔stroke-look.js 를 import 하지 않는다 — 이 파일을 단독으로 올리는 하네스가 있어 의존을 늘리지 않는다(같은 식 네 줄) */
+function _modalSideWidths(block, std) {
+  const d = block.dataset, K = ['strokeWidthTop', 'strokeWidthRight', 'strokeWidthBottom', 'strokeWidthLeft'];
+  if (!K.some((k) => d[k] != null)) return '';
+  return `border-width:${K.map((k) => `${d[k] != null ? Math.max(0, Number(d[k]) || 0) : std}px`).join(' ')};`;
+}

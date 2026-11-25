@@ -370,6 +370,23 @@ function placePenVectorInSection(sec, meta, x, y) {
   return block;
 }
 
+/* BRUSH-OUTSIDE-SECTION-FLOAT-01(0.9.13 211행 · 현빈 결정 261124 10:47 [4]) — 붓 그림(채운 외곽 svg · 점 편집 없음)을 그 섹션 x·y 에 «떠 있는» 벡터로.
+ *  placePenVectorInSection 과 같은 꼴(섹션 상자 안 조임 · 이력은 부르는 쪽 push-after 한 칸) — svg 그대로(⛔addVectorFromSvgText 는 P5 로 펜 점 벡터로 바꿔 섹션 안 붓과 꼴이 달라진다). */
+function placeSvgVectorInSection(sec, svg, w, h, x, y, label = 'Brush') {
+  if (!sec || typeof svg !== 'string' || !/^\s*<svg[\s>]/i.test(svg)) return null;
+  const { row, block } = makeVectorBlock({ svg, color: '#1a1a1a', w, h, label });
+  renderVector(block);
+  window.deselectAll?.();
+  insertAfterSelected(sec, row);
+  bindBlock(block);
+  if (enterFloat(posElOf(block))) {
+    const cl = (v, max) => Math.max(0, Math.min(Math.max(0, max), v));
+    _applyOverlayPos(block, cl(x, sec.offsetWidth - w), cl(y, sec.offsetHeight - h));
+  }
+  window.buildLayerPanel?.();
+  return block;
+}
+
 /* ── SVG → 패스 (VECTOR-SVG-TO-PATH-P5-01) ──────────────────────────────────────
    들여온 SVG 가 «펜 패스로 똑같이 다시 그려지는» 꼴이면 처음부터 펜 벡터(penNodes)로 넣는다 — 점 편집이 된다(변환 단추 없음 · 현빈 11/19).
    허용 = 뿌리 svg 안에 <path> 하나(title·desc 는 됨) · 하위 경로 하나(M 하나 · Z 는 끝에만) · 명령 M L H V C S Q T Z(큰·작은) ·
@@ -725,7 +742,8 @@ function updateVectorBlock(blockId, partial = {}) {
 window.makeVectorBlock = makeVectorBlock;
 window.addVectorBlock  = addVectorBlock;
 window.addVectorFromSvgText = addVectorFromSvgText;
-window.placePenVectorInSection = placePenVectorInSection;   // t13A-04 — scratch-pad onUp(스크래치 펜 항목 → 섹션)
+window.placePenVectorInSection = placePenVectorInSection;
+window.placeSvgVectorInSection = placeSvgVectorInSection;   // 붓 섹션 밖(freehand-tool)   // t13A-04 — scratch-pad onUp(스크래치 펜 항목 → 섹션)
 window.renderVector    = renderVector;
 window.vectorStrokeK   = vectorStrokeK;
 window.setVectorColor  = setVectorColor;   // 색 바꾸기 한 문(prop-vector · MCP update)

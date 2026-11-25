@@ -147,6 +147,15 @@ function _penHost(e) {
 }
 const _isScratchHost = (h) => !!h && h.id === 'canvas-scaler';
 
+/** 섹션 밖 그림의 «받을 섹션» — 화면 y(그린 것 세로 가운데)가 걸친 섹션, 없으면 위·아래 가장 가까운 것(바깥 .svg 드랍과 같은 규칙) · 섹션 0 이면 null.
+ *  펜·연필(t13G-03)·붓(BRUSH-OUTSIDE-SECTION-FLOAT-01)이 같이 쓴다. */
+export function penNearestSection(midY) {
+  const secs = [...document.querySelectorAll('#canvas .section-block')];
+  if (!secs.length) return null;
+  const dist = (s) => { const q = s.getBoundingClientRect(); return midY < q.top ? q.top - midY : midY > q.bottom ? midY - q.bottom : 0; };
+  return secs.reduce((a, s) => (dist(s) < dist(a) ? s : a));
+}
+
 function _onMouseDown(e) {
   if (!_mode || e.button !== 0) return;
   const sec = _penHost(e);
@@ -499,12 +508,9 @@ function _finalizeDraw() {
      자리 = 그린 화면 자리 그대로, 섹션 상자 안으로만 조임(placePenVectorInSection). 이력 = 놓은 «뒤» 한 칸(스크래치→섹션 변환과 같은 push-after).
      shortcut: 섹션이 하나도 없을 때만 옛 길(스크래치 펜 항목) — 그릴 섹션이 생기는 설계가 필요하면 그때. */
   if (_isScratchHost(sec)) {
-    const secs = [...document.querySelectorAll('#canvas .section-block')];
-    if (secs.length && typeof window.placePenVectorInSection === 'function') {
-      const z = _zoom(), hr = sec.getBoundingClientRect();
-      const midY = hr.top + ((bb.minY + bb.maxY) / 2) * z;
-      const dist = (s) => { const q = s.getBoundingClientRect(); return midY < q.top ? q.top - midY : midY > q.bottom ? midY - q.bottom : 0; };
-      const tgt = secs.reduce((a, s) => (dist(s) < dist(a) ? s : a));
+    const z = _zoom(), hr = sec.getBoundingClientRect();
+    const tgt = penNearestSection(hr.top + ((bb.minY + bb.maxY) / 2) * z);
+    if (tgt && typeof window.placePenVectorInSection === 'function') {
       const tr = tgt.getBoundingClientRect();
       const vb = window.placePenVectorInSection(tgt, { nodes: norm, closed: !!closed, sw: strokeWidth, color, fill, w, h },
         Math.round((hr.left + (bb.minX - pad) * z - tr.left) / z), Math.round((hr.top + (bb.minY - pad) * z - tr.top) / z));
@@ -953,6 +959,7 @@ window.commitPenNodes = (host, nodes, closed = false) => {
   return _finalizeDraw();
 };
 window.exitPenEditMode     = exitPenEditMode;
+window.penNearestSection   = penNearestSection;   // 붓(freehand-tool) 섹션 밖 = 같은 받을 섹션 규칙
 window.nodesToSvgPath      = nodesToSvgPath;
 window.penToolExitToSelect = penToolExitToSelect;
 window.penEditFromContext  = penEditFromContext;

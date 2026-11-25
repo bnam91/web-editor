@@ -24,6 +24,7 @@ import { _fontDisplayName } from './prop-text-utils.js';
 import { escHtml } from './_helpers.js';
 
 /** mix 기본값 — 셋 다 «안 섞임». 호출부가 안 주면 이걸 쓴다. */
+import { fillSectionHTML } from './_fill-section.js';   // 표준 Fill F4 — ⛔이 파일을 vm·사본으로 올리는 하네스는 _fill-section.js 도 함께(261124 grad-stop 하네스 교훈)
 const _NO_MIX = { color: { mixed: false }, fontSize: { mixed: false }, fontWeight: { mixed: false } };
 
 /**
@@ -365,7 +366,7 @@ ${_body}
  * @param {boolean} o.showGradRecent ★「최근 그라데이션」 줄 표시. ⛔기본 false = 이전과 «바이트 동일»
  *                              (텍스트 패널만 true — 글자 그라데이션 배선이 wireTextEditSection 에만 있다)
  */
-export function buildFillSectionHtml({ p, colorHex, alpha, colorHexVal, colorHexPh, mix, showGradRecent = false, bare = false, colorLabel = true } = {}) {   // colorLabel false = «글자색» 라벨 글 걷음(텍스트 패널만 · 재설계 1차 ⑩)
+export function buildFillSectionHtml({ p, colorHex, alpha, colorHexVal, colorHexPh, mix, showGradRecent = false, bare = false } = {}) {   // 옛 colorLabel 옵션 = 표준 Fill F4 로 라벨이 늘 없어져 걷음(부르는 쪽이 넘겨도 무시)
   const _mix = mix || _NO_MIX;
   /* ★스와치(colorHex)와 hex 칸(colorHexVal)이 «다른 것»을 말할 수 있다 — 층이 다르기 때문이다:
      스와치는 「지금 무슨 색인가」(진실), hex 칸은 「누가 그 색을 정했나」(명시/역할 기본).
@@ -375,20 +376,18 @@ export function buildFillSectionHtml({ p, colorHex, alpha, colorHexVal, colorHex
   const _colorSwatchBg = _mix.color.mixed ? 'linear-gradient(135deg,#bbb 25%,#777 25%,#777 50%,#bbb 50%,#bbb 75%,#777 75%)' : colorHex;
   const _swatchExtraClass = _mix.color.mixed ? ' swatch-mix' : '';
 
+  /* 표준 Fill F4(현빈 GO 261124 · 이름 «Fill» = 글자색) — 옛 «글자색» 라벨 줄 → 표준 겹 줄(.ui-fill-layer · 색 칸 id 그대로 · 이름 = 칸 aria-label «글자색») · 눈 막힘(F6) · − 막힘(글자색 «없음» = 글자가 안 보임 · 지디 261124 (가) · «외곽선 글자»는 Stroke 켬 규칙과 따로 카드) */
   const _body = `
-      <div class="prop-color-row"${colorLabel ? `>
-        <span class="prop-label">글자색</span>` : ' title="글자색">'}
-        <div class="prop-color-field">
+      ${fillSectionHTML({ prefix: `${p}-fill`, removeWhy: '글자가 안 보이게 되는 길이라 지금은 못 지워요', colorHtml: `<div class="prop-color-field">
           <div class="prop-color-swatch${_swatchExtraClass}" style="background:${_colorSwatchBg}" title="${_mix.color.mixed?'Mix — 일부 선택 후 색상 변경':''}">
-            <input type="color" id="${p}-color" value="${colorHex}"${colorLabel ? '' : ' aria-label="글자색"'}>
+            <input type="color" id="${p}-color" value="${colorHex}" aria-label="글자색">
           </div>
           <input type="text" class="prop-color-hex" id="${p}-color-hex" value="${_colorHexVal}" placeholder="${_colorHexPh}" maxlength="7" aria-label="Color">
           <label class="prop-color-alpha" title="Opacity">
             <input type="text" class="prop-color-alpha-input" id="${p}-color-alpha" value="${alpha}" aria-label="Opacity">
             <span class="prop-color-alpha-suffix">%</span>
           </label>
-        </div>
-      </div>
+        </div>` })}
       <div class="cv-chips" id="${p}-color-chips" hidden></div>${showGradRecent ? `
       <div class="cv-chips ts-recent-row" id="${p}-grad-recent-row" hidden></div>` : ''}`;
   if (bare) return _body;   /* ★bare — 위 Typography 와 같은 규약(틀이 껍데기를 그린다 · 기본은 바이트 동일) */

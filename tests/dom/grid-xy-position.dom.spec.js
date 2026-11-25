@@ -31,9 +31,11 @@ const showAsset = (page) => page.evaluate(() => { const a = document.getElementB
 test('P1 흐름에선 둘 다 X/Y 없음 · 띄우면 둘 다 같은 꼴로 생긴다', async ({ page }) => {
   await setup(page);
   await showAsset(page); await expect(page.locator('#asset-float-toggle')).toHaveCount(1);
-  expect(await page.evaluate(xyShape, 'asset'), '에셋 — 흐름에선 X/Y 없음').toBeNull();
+  /* ★2026-11-24 기대 바뀜 — 표준 Position 6-2(현빈 확정 · 0.9.14 73행 P2): 흐름 안 X/Y = «있음 + disabled»(숨김 아님) */
+  const flowXY = (p) => page.evaluate((p) => { const x = document.getElementById(p + '-x-number'); return x ? x.disabled : null; }, p);
+  expect(await flowXY('asset'), '에셋 — 흐름에선 X/Y disabled(옛: 없음)').toBe(true);
   await showGrid(page); await expect(page.locator('#grd-float-toggle')).toHaveCount(1);
-  expect(await page.evaluate(xyShape, 'grd'), '그리드 — 흐름에선 X/Y 없음(에셋과 같다)').toBeNull();
+  expect(await flowXY('grd'), '그리드 — 흐름에선 X/Y disabled(에셋과 같다)').toBe(true);
   await page.click('#grd-float-toggle'); await expect(page.locator('#grd-x-number')).toHaveCount(1);
   const grid = await page.evaluate(xyShape, 'grd');
   await showAsset(page); await page.click('#asset-float-toggle'); await expect(page.locator('#asset-x-number')).toHaveCount(1);

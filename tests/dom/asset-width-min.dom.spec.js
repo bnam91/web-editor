@@ -164,7 +164,7 @@ test.describe('T-078 ㉠ — 에셋 폭 하한 60', () => {
     await boot(page); await mount(page, 60);
     await page.evaluate(() => {
       document.querySelector('#asset-align-group .prop-align-btn[data-align="left"]').click();
-      const st = document.getElementById('asset-stroke-slider');
+      const st = document.getElementById('asset-stroke-num');   // ★기대 바뀜(현빈 261123 표준 Stroke 부품 · 8910 strokestd2): 굵기 = 숫자 칸 하나(옛 슬라이더 걷음) — «외곽선만 만져도 폭 그대로»는 같은 뜻
       st.value = '4'; st.dispatchEvent(new Event('input', { bubbles: true }));
     });
     const r = await read(page);
@@ -331,7 +331,7 @@ test.describe('T-078 ㉠ — 현빈 신고 경로 통째로 (스크래치 60px �
     // 패널에서 «폭이 아닌» 것만 만진다 — 정렬 → 외곽선 → 모서리
     await page.evaluate(() => {
       document.querySelector('#asset-align-group .prop-align-btn[data-align="right"]').click();
-      const st = document.getElementById('asset-stroke-slider');
+      const st = document.getElementById('asset-stroke-num');   // ★기대 바뀜(표준 Stroke 부품 — 옛 슬라이더 걷음 · 숫자 칸)
       st.value = '2'; st.dispatchEvent(new Event('input', { bubbles: true }));
       const r = document.getElementById('asset-r-slider');
       r.value = '8'; r.dispatchEvent(new Event('input', { bubbles: true }));

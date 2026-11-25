@@ -5,9 +5,13 @@
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor,
          wireHexText, parseHex6, formatHex6 } from './color-picker.js';
+import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_STYLES_CSS, STROKE_POP_WHY } from './_stroke-section.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast } from './_fill-section.js';
+import { hasSides, readSides, writeSides, sidesMixed } from '../stroke-look.js';
 /* ★1017a5 — ★배경 크기 칸의 ★현재값·기본값은 js/frame-bg.js 가 정본(⛔사본 금지 · 그 머리말 :22). */
 import { frameBgSize } from '../frame-bg.js';
-import { alignBtn, blockHeaderHTML, overlayToggleBtnHTML, escHtml, rotRowHTML, wireRotRow, checkHTML } from './_helpers.js';
+import { alignBtn, blockHeaderHTML, escHtml, wireRotRow, checkHTML } from './_helpers.js';
+import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from './_position-section.js';   // 표준 Position 절(0.9.14 73행 P1 · 첫 소비자)
 import { renderPanel, sec, unwrapSection, expandSection } from './_panel-frame.js';   /* unwrapSection — _typo-section 빌더가 «절 통째»를 주므로 몸통만(U0c) */
 /* ★오버레이(플로팅) — T3(현빈 섹션메모 `sec_3e0suk0` 「모달 오버레이 기능이 안 보인다」 · 2026-10-07).
    ★★진입·이탈·드래그를 ★여기서 짜지 않는다 — `js/overlay-float.js` 가 ★정본이고 ★그 파일이
@@ -19,7 +23,7 @@ import { renderPanel, sec, unwrapSection, expandSection } from './_panel-frame.j
    ⛔id 는 ★`mdl-float-toggle` 이다 — `_helpers.js` 가 적어 둔 그 함정(에셋이 `asset-overlay-toggle` 을
      ★못 쓴 까닭 = 이미 「이미지 위 어두운 막」 체크박스가 그 id 를 갖고 있다)을 피해 ★`-float-` 꼴로 간다.
      ★실측: `mdl-float-toggle`·`mdl-x-number`·`mdl-y-number` 셋 다 레포 안 ★0건이었다. */
-import { wireFloatToggle, wireFloatPosition, floatPositionRowHTML, posElOf, isFloat }
+import { wireFloatToggle, wireFloatPosition, posElOf, isFloat }
   from '../overlay-float.js';
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
 import { wireFontPicker } from './_font-picker.js';
@@ -113,7 +117,6 @@ export function showModalProperties(block) {
   const _mdlPosEl   = posElOf(block);
   const _mdlIsFloat = !!(_mdlPosEl && isFloat(_mdlPosEl));
   /* ★X/Y 줄도 ★공용 조립기다 — 떠 있지 않으면 ★빈 문자열을 돌려준다(그 함수가 스스로 가른다). */
-  const _mdlFloatRow = floatPositionRowHTML({ prefix: 'mdl', posEl: _mdlPosEl });
   const isIcon = (v === 'icon' || v === 'icon-stack');
   const isGrid = (v === 'grid-2');
   const isRaster = block.dataset.raster === '1';
@@ -212,9 +215,9 @@ export function showModalProperties(block) {
       </div>
       <button class="prop-action-btn danger" id="mdl-pf-clear" style="margin-top:4px;">프로필 제거</button>` : ''}
 ` : '')),
-      sec('position', `${_mdlFloatRow}${/* 현빈 261123 S1-4 — 시안 8910 floatalign 순서(Alignment 6칸 → X/Y → Rotation) · 옛 .prop-row 감쌈은 공용 줄(라벨+6칸+X/Y)을 한 가로줄에 눌러 6칸이 찌그러졌다(실물 png) */ ''}
-      <span class="prop-field-label">Rotation</span>${rotRowHTML({ p: 'mdl', numberId: 'mdl-rot-number', value: parseInt(block.dataset.rotation || '0'), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' })}
-`, { headTools: overlayToggleBtnHTML({ id: 'mdl-float-toggle', active: _mdlIsFloat }) }),
+      /* ★표준 Position 절(0.9.14 73행 · 현빈 261124) — 머리 [슬라이드 모드][IAL] · 흐름이면 정렬 6·X/Y disabled(6-2) · 떠 있으면 S1-4 그대로 · 회전 = 옛 rotRowHTML(+ 슬라이드 모드 슬라이더) · id·키 무변 */
+      sec('position', positionSectionHTML({ prefix: 'mdl', posEl: _mdlPosEl, rot: { p: 'mdl', numberId: 'mdl-rot-number', value: parseInt(block.dataset.rotation || '0'), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' } }),
+        { headTools: positionHeadToolsHTML({ prefix: 'mdl', ialId: 'mdl-float-toggle', ialOn: _mdlIsFloat }) }),
       sec('size', `
       <div class="prop-row">
         <span class="prop-label">너비</span>
@@ -270,9 +273,8 @@ export function showModalProperties(block) {
 `),
       sec('typography', _typo.body),
       sec('fill', `
-      <div class="prop-row"><span class="prop-label">배경색</span>${colorFieldHTML({ idPrefix: 'mdl-bg', hex: bg, alpha: parseAlphaFromColor(bg) })}</div>
-      <span class="prop-field-label">Image</span>
-      <button class="prop-action-btn secondary" id="mdl-bg-img-btn">이미지 선택</button>
+      ${fillSectionHTML({ prefix: 'mdl-fill', on: bg !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'mdl-bg', hex: bg, alpha: parseAlphaFromColor(bg) }) })}
+      <div class="ui-fill-slot" data-slot="below" data-slot-kind="bg-image"><div class="prop-row"><span class="prop-label">이미지</span><button class="prop-action-btn secondary" id="mdl-bg-img-btn" style="flex:1">이미지 선택</button></div>
       <input type="file" id="mdl-bg-img-input" accept="image/*" style="display:none">
       ${hasBgImg ? `
         <div class="prop-row">
@@ -284,9 +286,9 @@ export function showModalProperties(block) {
             ${_bgSizeCustom ? `<option value="${_bgSizeNow}" selected>직접 조절</option>` : ''}
           </select>
         </div>
-        <button class="prop-action-btn secondary" id="mdl-bg-pos-btn" style="margin-top:6px;">${block._secBgEditing ? '배경이미지 편집 완료' : '배경이미지 편집'}</button>
+        <div class="prop-row"><span class="prop-label">위치</span><button class="prop-action-btn secondary" id="mdl-bg-pos-btn" style="flex:1">${block._secBgEditing ? '배경이미지 편집 완료' : '배경이미지 편집'}</button></div>
         <button class="prop-action-btn danger" id="mdl-bg-img-clear" style="margin-top:4px;">이미지 제거</button>
-      ` : ''}
+      ` : ''}</div>
 ` + (isIcon ? `
       <div class="prop-row">
         <span class="prop-label">아이콘색</span>
@@ -295,23 +297,14 @@ export function showModalProperties(block) {
           : colorFieldHTML({ idPrefix: 'mdl-ic', hex: iconColor, alpha: parseAlphaFromColor(iconColor) })}
       </div>
 ` : '') + `
-      <span class="prop-field-label">Text</span>` + _fill.body),
-      sec('stroke', `
-      <div class="prop-row">
-        <span class="prop-label">두께</span>
-        <input type="range" class="prop-slider" id="mdl-bw-slider" min="0" max="12" step="1" value="${borderW}">
-        <input type="number" class="prop-number" id="mdl-bw-number" min="0" max="12" value="${borderW}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">스타일</span>
-        <div class="prop-type-group">
-          <button class="prop-type-btn ${borderStyle === 'solid' ? 'active' : ''}" data-bs="solid">실선</button>
-          <button class="prop-type-btn ${borderStyle === 'dashed' ? 'active' : ''}" data-bs="dashed">점선</button>
-          <button class="prop-type-btn ${borderStyle === 'dotted' ? 'active' : ''}" data-bs="dotted">점</button>
-        </div>
-      </div>
-      <div class="prop-row"><span class="prop-label">테두리색</span>${colorFieldHTML({ idPrefix: 'mdl-bc', hex: borderColor, alpha: parseAlphaFromColor(borderColor) })}</div>
-`),
+      <span class="prop-field-label">Text</span>` + _fill.body, { headTools: fillHeadToolsHTML({ prefix: 'mdl-fill', on: bg !== 'transparent' }) }),   // 표준 Fill F2 — 배경 = 표준 줄 · 아이콘색·Text = 부위 색(그대로)
+      /* ★표준 Stroke 절 부품(현빈 261123 GO · 8910 strokestd2) — 머리 ＋/−(없음 = borderW 0 명시 · 키 없는 옛 저장본은 변형 기본 그대로 · §4c 없음 열) · 옛 «스타일» 단추 묶음 = line-style 슬롯(단계 3 팝오버로)
+         위치 = 칸만 막힘: 모달 테두리는 CSS border(box-sizing:border-box) = 안쪽 · 옛 id(mdl-bw-number · mdl-bc · [data-bs]) 지킴 */
+      sec('stroke', strokeSectionHTML({ prefix: 'mdl-stroke', color: borderColor, alpha: parseAlphaFromColor(borderColor), width: borderW, maxWidth: 12, align: 'inside', canAlign: false,
+        alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 안쪽', on: borderW > 0, widthId: 'mdl-bw-number', colorId: 'mdl-bc',
+        pop: { styles: STROKE_STYLES_CSS, style: borderStyle || 'solid', styleId: 'mdl-border-style', why: STROKE_POP_WHY.css },
+        sides: { w: hasSides(block.dataset) ? readSides(block.dataset, borderW) : null, std: borderW, open: hasSides(block.dataset), mixed: sidesMixed(block.dataset, borderW) } }),   // 단계 4-2 □ 면별   // 단계 3-1: 옛 «스타일» 단추 셋([data-bs] 실선·점선·점) → ⫶ 팝오버 «스타일» select(값 그대로)
+        { headTools: strokeHeadToolsHTML({ prefix: 'mdl-stroke', on: borderW > 0 }) }),
       sec('effects', `
     <!-- ★그림자 — 현빈 발주 2026-09-09. 줌블럭의 「도형 그림자」와 «같은 하네스»다:
            prop-align-group + prop-align-btn[data-val] 세 개, 어휘도 없음/부드럽게/강하게 그대로
@@ -364,7 +357,15 @@ export function showModalProperties(block) {
     });
   };
   wireColor('mdl-bg', 'bg');
-  wireColor('mdl-bc', 'borderColor');
+  /* 표준 Fill F2 — 배경 «없음» = bg 'transparent'(렌더 = CSS 그대로 · Figma = 옛 길 a:0) · ＋ = 지난 색 · 없으면 그 변형 기본 */
+  wireFillSection({ prefix: 'mdl-fill', adapter: {
+    none: () => { fillLast.set(block.id, bg); block.dataset.bg = 'transparent'; rerender(); window.scheduleAutoSave?.(); showModalProperties(block); },
+    add: () => { block.dataset.bg = fillLast.get(block.id, _effDefault(v, 'bg')); rerender(); window.scheduleAutoSave?.(); showModalProperties(block); },
+    commit: () => window.pushHistory?.() } });
+  /* 표준 Stroke 부품 배선 — 어댑터 = 옛 wireColor/wireNum 이 하던 쓰기 그대로(dataset.borderColor·borderW · rerender · commit) · 없음 = borderW 0 */
+  wireStrokeSection({ prefix: 'mdl-stroke', alpha: parseAlphaFromColor(block.dataset.borderColor || ''), maxWidth: 12, widthId: 'mdl-bw-number', colorId: 'mdl-bc', onWidth: 2,
+    adapter: { color: (c) => { block.dataset.borderColor = c; rerender(); }, width: (v) => { block.dataset.borderW = String(v); rerender(); }, commit,
+      sides: { read: () => { const sd = Number(block.dataset.borderW) || 0; return hasSides(block.dataset) ? readSides(block.dataset, sd) : null; }, write: (o) => { writeSides(block.dataset, o, Number(block.dataset.borderW) || 0); rerender(); }, std: () => Number(block.dataset.borderW) || 0 } } });
   if (isIcon && !isRaster) wireColor('mdl-ic', 'iconColor');
 
   /* ── 배경이미지(1017a5) — ★★꼴은 prop-frame.js:833~901 을 ★본으로(발주서 design_refs).
@@ -427,7 +428,6 @@ export function showModalProperties(block) {
   wireNum('radius', 'radius', L.radius.min, L.radius.max);
   wireNum('padx', 'padX', 0, 80);
   wireNum('pady', 'padY', 0, 80);
-  wireNum('bw', 'borderW', 0, 12);
   if (isGrid) wireNum('gap', 'gap', 0, 40);
   if (isIcon) wireNum('isize', 'iconSize', 12, 96);
 
@@ -617,11 +617,8 @@ export function showModalProperties(block) {
   });
 
   // ── 테두리 스타일 / 정렬 ──
-  propPanel.querySelectorAll('[data-bs]').forEach(btn => btn.addEventListener('click', () => {
-    block.dataset.borderStyle = btn.dataset.bs;
-    propPanel.querySelectorAll('[data-bs]').forEach(b => b.classList.toggle('active', b === btn));
-    rerender(); commit();
-  }));
+  /* 테두리 스타일 — ⫶ 팝오버 «스타일» select(단계 3-1 · 옛 [data-bs] 단추 셋과 같은 쓰기: dataset.borderStyle · rerender · commit) */
+  document.getElementById('mdl-border-style')?.addEventListener('change', (e) => { block.dataset.borderStyle = e.target.value; rerender(); commit(); });
   /* ── 그림자 3단 ──
      ★줌의 #zm-drop-group 배선(prop-zoom.js:290-302)과 «같은 하네스»다: 선택자를 id 로 좁히고,
        active 를 갈아끼우고, dataset 에 쓴다.
@@ -754,6 +751,7 @@ export function showModalProperties(block) {
   }
   /* 떠 있을 때만 나오는 X/Y 두 칸 — 텍스트·도형 Position 절과 «같은 규약»(overlay-float.js). */
   wireFloatPosition({ block, xId: 'mdl-x-number', yId: 'mdl-y-number' });
+  wirePositionSection({ prefix: 'mdl', numberId: 'mdl-rot-number', rerender: () => showModalProperties(block) });   // 슬라이드 모드 토글·슬라이더만(나머지 = 위 옛 배선)
   _syncProfileAddChip(block, isPlainish);
 }
 

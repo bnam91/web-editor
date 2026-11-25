@@ -178,7 +178,7 @@ const bgReach = (page) => page.evaluate(() => {
   const body = document.querySelector('#panel-right .panel-body');
   if (!body) return { section: false };
   const secs = [...body.querySelectorAll('.prop-section')];
-  const sec = secs.find(s => /배경|그라데이션|gradient/i.test(s.innerText));
+  const sec = secs.find(s => s.dataset.sec === 'fill' || /배경|그라데이션|gradient/i.test(s.innerText));   // ★전제(표준 Fill F2-2): «배경색» 라벨 걷힘 → 절 이름으로도
   if (!sec) return { section: false, panelText: body.innerText.replace(/\s*\n+\s*/g, ' | ') };
   const box = (el) => { const r = el.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height) }; };
   const swatch = sec.querySelector('.prop-color-swatch');
@@ -195,7 +195,7 @@ const bgReach = (page) => page.evaluate(() => {
   });
   return {
     section: true,
-    label: (sec.innerText.match(/[^\n|]*배경[^\n|]*/) || [''])[0].trim(),
+    label: (sec.innerText.match(/[^\n|]*배경[^\n|]*/) || [sec.querySelector('.prop-sec-title-text, .prop-section-title')?.textContent || ''])[0].trim(),   // 라벨 없으면 절 제목(표준 Fill)
     swatch: swatch ? box(swatch) : null,
     swatchId: swatch ? (swatch.querySelector('input[type=color]')?.id || '') : '',
     clear: clearBtn ? box(clearBtn) : null,
@@ -221,7 +221,7 @@ const bgState = (page) => page.evaluate(() => {
 async function openBgPicker(page) {
   const pos = await page.evaluate(() => {
     const body = document.querySelector('#panel-right .panel-body');
-    const sec = [...body.querySelectorAll('.prop-section')].find(s => /배경/.test(s.innerText));
+    const sec = [...body.querySelectorAll('.prop-section')].find(s => s.dataset.sec === 'fill' || /배경/.test(s.innerText));   // ★전제(표준 Fill F2-2 · 지디 261124): 배경 줄 «배경색» 라벨 걷힘(시안 #mkp-fillstd 겹 줄 = 라벨 없음) → 절 이름(data-sec=fill)으로도
     const sw = sec && sec.querySelector('.prop-color-swatch');
     if (!sw) return null;
     const r = sw.getBoundingClientRect();
@@ -243,7 +243,7 @@ async function closePicker(page) {
 async function typeBgHex(page, hex) {
   await page.evaluate((h) => {
     const body = document.querySelector('#panel-right .panel-body');
-    const sec = [...body.querySelectorAll('.prop-section')].find(s => /배경/.test(s.innerText));
+    const sec = [...body.querySelectorAll('.prop-section')].find(s => s.dataset.sec === 'fill' || /배경/.test(s.innerText));   // ★전제(표준 Fill F2-2 · 지디 261124): 배경 줄 «배경색» 라벨 걷힘(시안 #mkp-fillstd 겹 줄 = 라벨 없음) → 절 이름(data-sec=fill)으로도
     const inp = sec.querySelector('.prop-color-hex');
     inp.value = h;
     inp.dispatchEvent(new Event('input', { bubbles: true }));
@@ -350,7 +350,7 @@ test.describe('T-011 이미지 넣은 에셋 블럭 ↔ 배경 그라데이션�
     // ④ 눌러서 «실제로» 지워지는가.
     const clickedText = await page.evaluate(() => {
       const body = document.querySelector('#panel-right .panel-body');
-      const sec = [...body.querySelectorAll('.prop-section')].find(s => /배경/.test(s.innerText));
+      const sec = [...body.querySelectorAll('.prop-section')].find(s => s.dataset.sec === 'fill' || /배경/.test(s.innerText));   // ★전제(표준 Fill F2-2 · 지디 261124): 배경 줄 «배경색» 라벨 걷힘(시안 #mkp-fillstd 겹 줄 = 라벨 없음) → 절 이름(data-sec=fill)으로도
       const btn = [...sec.querySelectorAll('button')].find(b => {
         const t = (b.textContent || '').trim();
         if (/^(asset-(remove|replace|upload|pos)-btn)$/.test(b.id)) return false;
@@ -394,7 +394,7 @@ test.describe('T-011 이미지 넣은 에셋 블럭 ↔ 배경 그라데이션�
     // ⒞ 패널이 보여 주는 값이 «지금 칠해진 값»과 같은 말을 해야 한다.
     const swatchBg = await page.evaluate(() => {
       const body = document.querySelector('#panel-right .panel-body');
-      const sec = [...body.querySelectorAll('.prop-section')].find(s => /배경/.test(s.innerText));
+      const sec = [...body.querySelectorAll('.prop-section')].find(s => s.dataset.sec === 'fill' || /배경/.test(s.innerText));   // ★전제(표준 Fill F2-2 · 지디 261124): 배경 줄 «배경색» 라벨 걷힘(시안 #mkp-fillstd 겹 줄 = 라벨 없음) → 절 이름(data-sec=fill)으로도
       const sw = sec && sec.querySelector('.prop-color-swatch');
       return sw ? getComputedStyle(sw).backgroundImage : '';
     });
@@ -407,7 +407,7 @@ test.describe('T-011 이미지 넣은 에셋 블럭 ↔ 배경 그라데이션�
     // ① 배경 절·스와치·초기화 버튼이 «눌릴 크기»로 있다.
     const reach = await bgReach(page);
     expect(reach.section, '이미지 없는 에셋 패널에 배경 절이 없다').toBe(true);
-    expect(reach.label, '「배경색」 라벨').toContain('배경');
+    expect(reach.label, '「배경색」 라벨 — 표준 Fill 이면 절 제목 «Fill»').toMatch(/배경|Fill/);   // ★기대 바뀜(표준 Fill F2-2 · 지디 261124 · 시안 #mkp-fillstd: 겹 줄 라벨 없음 · 이름 = 절 «Fill»)
     expect(reach.swatch.w, '스와치 폭').toBeGreaterThan(8);
     expect(reach.clear, '초기화 버튼은 걷혔다(1120b A6)').toBeNull();
 

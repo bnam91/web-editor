@@ -28,6 +28,7 @@ import { wireFontPicker } from './_font-picker.js';
 import { fontChain } from './prop-text-utils.js';
 import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
 import { parseAlphaFromColor, swatchHex, wireHexText, parseHex6, formatHex6 } from './color-picker.js';
+import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokePopover, STROKE_STYLES_CSS, STROKE_POP_WHY, edgeSelectHTML, wireEdgeSelect } from './_stroke-section.js';   // 표준 Stroke 부품(color-picker 무 import — 이 파일 규율 지킴)
 
 /* ══ 줄(line) 선택 — 「지금 우측 패널이 보고 있는 줄」 ═══════════════════════
  * ★블록별로 «주소»(r,c,li)를 기억한다. prop-banner02.js 의 _bn2ActiveLine 선례(어휘까지 빌린다).
@@ -2868,41 +2869,20 @@ ${_borderRowHtml(bd)}
 const _GRD_OUTLINE_LABEL = { top: '위 외곽선', right: '오른쪽 외곽선', bottom: '아래 외곽선', left: '왼쪽 외곽선' };
 function _grdOutlineSectionHtml(block) {
   const o = gridBlockOutline(block);
-  const nOn = GRID_OUTLINE_SIDES.filter(sd => o.on[sd]).length;
-  const tip = `굵기·색·꼴은 「모든 칸 테두리」 값을 따릅니다(지금 ${o.width}px ${o.style})`;
-  const side = (sd) => borderBtn(sd, { label: _GRD_OUTLINE_LABEL[sd], title: `${_GRD_OUTLINE_LABEL[sd]} 켜기/끄기 — ${tip}`, active: o.on[sd],
-    attrs: { 'data-outline-side': sd, 'aria-pressed': o.on[sd] ? 'true' : 'false' } });
   return `
     <div class="prop-section" data-scope="block">
-      <div class="prop-section-title" title="블럭 «바깥» 네 변 — 칸 테두리·칸 사이 줄과 따로 켭니다">블럭 외곽선</div>
-      <div class="prop-row">
-        <div class="prop-align-group" id="grd-outline-group" role="group" aria-label="블럭 외곽선">
-          ${side('top')}
-          ${side('bottom')}
-          ${side('left')}
-          ${side('right')}
-          ${borderBtn('all', { label: '사방', title: `사방 — 네 변 모두 켜기 (${tip})`, active: nOn === 4, attrs: { 'data-outline-all': '1' } })}
-          ${borderBtn('none', { label: '없음', title: '없음 — 네 변 모두 끄기', active: nOn === 0, attrs: { 'data-outline-all': '0' } })}
-        </div>
-      </div>
+      <div class="prop-section-title" title="블럭 «바깥» 네 변 — 칸 테두리·칸 사이 줄과 따로 켭니다 · 굵기·색·꼴은 「모든 칸 테두리」 값을 따릅니다(지금 ${o.width}px ${o.style})">블럭 외곽선</div>
+      ${/* 단계 4(표준 Stroke · 시안 strokestd2 9) — 옛 단추 여섯 = edge-select 슬롯(바깥 넷 · 모두/없음) · 옛 id grd-outline-group · 옛 속성 data-outline-side/-all 지킴(시험·외부가 찾는다) */
+      edgeSelectHTML({ prefix: 'grd-outline', edges: GRID_OUTLINE_SIDES, on: GRID_OUTLINE_SIDES.filter(sd => o.on[sd]), groupId: 'grd-outline-group', label: '', labels: { ..._GRD_OUTLINE_LABEL, all: '사방', none: '없음' },
+        btnAttrs: (k) => (GRID_OUTLINE_SIDES.includes(k) ? `data-outline-side="${k}"` : k === 'all' ? `data-outline-all="1"` : k === 'none' ? `data-outline-all="0"` : '') })}
     </div>`;
 }
 
 /** 배선 — 목록을 만들어 updateGridBlock «한 문»으로 보낸다(⌘Z: 그 문이 앞 표본, 끝 표본 래퍼가 뒤 표본을 찍는다). */
 function _grdWireOutlineSection(block) {
-  const grp = document.getElementById('grd-outline-group');
-  if (!grp) return;
-  const commit = (list) => _grdToastCellFail(window.updateGridBlock?.(block.id, { blockOutline: list.join(',') }));
-  grp.querySelectorAll('[data-outline-side]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const cur = gridBlockOutline(block).on;
-      const sd = btn.dataset.outlineSide;
-      commit(GRID_OUTLINE_SIDES.filter(k => (k === sd ? !cur[k] : cur[k])));
-    });
-  });
-  grp.querySelectorAll('[data-outline-all]').forEach(btn => {
-    btn.addEventListener('click', () => { commit(btn.dataset.outlineAll === '1' ? GRID_OUTLINE_SIDES.slice() : []); });
-  });
+  /* 단계 4 — edge-select 배선(부품) · 쓰기 = 옛 그대로 updateGridBlock «한 문»(⌘Z 앞 표본 · 끝 표본 래퍼) → commit 따로 없음 */
+  wireEdgeSelect({ groupId: 'grd-outline-group', edges: GRID_OUTLINE_SIDES, read: () => new Set(GRID_OUTLINE_SIDES.filter(k => gridBlockOutline(block).on[k])),
+    write: (set) => _grdToastCellFail(window.updateGridBlock?.(block.id, { blockOutline: GRID_OUTLINE_SIDES.filter(k => set.has(k)).join(',') })) });
 }
 
 /* ══ 블럭 배경 (G12 · 2026-10-04) — 토글 + 켜면 «동적으로 생기는» 줄들 ══════════════════════════════
@@ -3359,29 +3339,23 @@ function _grdWirePadExclude(block) {
 }
 
 function _borderRowHtml(bd) {
+  /* ★표준 Stroke 부품(현빈 261123 · 8910 strokestd2 9 · 지디 판정) — «모든 칸 테두리» = 표준 칸 · 없음 = 굵기 0(옛 그대로 · 머리 ＋/−)
+     색 = 옛 swatch+hex 줄 그대로(알파 없음 = 새 기능 안 만듦 · 지디 ①) · 위치 = 안쪽 막힘(칸 CSS border + 전역 border-box)
+     옛 «선 꼴»·«선 자리» 줄 = 아래 슬롯(단계 3 팝오버 · 단계 4 면별) · 부품 import = color-picker 를 안 끌어옴(_stroke-section.js 머리 · 지디 ②) · 옛 id 지킴 */
   const on = bd.width > 0;
   const hex = swatchHex(bd.color, '#d0d0d0');
-  const widthRow = `
-      <div class="prop-row">
-        <span class="prop-label" title="모든 칸에 선을 두른다 — 표처럼 보이게. 0 = 없음. 간격을 0 으로 두면 선이 «한 겹»으로 붙어 표가 된다">굵기</span>
-        <input type="range" class="prop-slider" id="grd-border-w-slider" min="0" max="${GRID_BORDER_W_MAX}" step="1" value="${bd.width}">
-        <input type="number" class="prop-number" id="grd-border-w-number" min="0" max="${GRID_BORDER_W_MAX}" value="${bd.width}">
-      </div>`;
-  if (!on) return widthRow;
-  const styleOpts = [['solid', '실선'], ['dashed', '파선'], ['dotted', '점선']]
-    .map(([v, ko]) => `<option value="${v}"${bd.style === v ? ' selected' : ''}>${ko}</option>`).join('');
-  return widthRow + `
-      <div class="prop-row">
-        <span class="prop-label">선 색</span>
+  const colorHtml = `
         <div class="prop-color-swatch" style="background:${bd.color}">
           <input type="color" id="grd-border-color" value="${hex}">
         </div>
-        <input type="text" class="prop-color-hex" id="grd-border-color-hex" maxlength="7" aria-label="칸 테두리 색" value="${hex.replace('#', '').toUpperCase()}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label" title="파선·점선은 «조용히 실선으로» 떨어지지 않는다 — 저장값 그대로 그려진다">선 꼴</span>
-        <select class="prop-select" id="grd-border-style">${styleOpts}</select>
-      </div>${_borderEdgesRowHtml(bd)}`;
+        <input type="text" class="prop-color-hex" id="grd-border-color-hex" maxlength="7" aria-label="칸 테두리 색" value="${hex.replace('#', '').toUpperCase()}">`;
+  const below = on ? `
+      <div class="ui-stroke-slot" data-slot="below" data-slot-kind="grid-cell-edges">${_borderEdgesRowHtml(bd)}
+      </div>` : '';   // 단계 3-1: «선 꼴» = ⫶ 팝오버 «스타일»(옛 id grd-border-style · 옛 change 배선 그대로 · 점 유지) · «선 자리»만 슬롯
+  return strokeSectionHTML({ prefix: 'grd-stroke', colorHtml: on ? colorHtml : '', width: bd.width,   // 굵기 0 = 색 칸 «안 냄»(옛 설계 그대로 — 죽은 컨트롤 0 · grid-cell-border · ＋ 누르면 다시 그림)
+    maxWidth: GRID_BORDER_W_MAX, align: 'inside', canAlign: false,
+    alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 안쪽', on, widthId: 'grd-border-w-number', slotsBelow: below,
+    pop: { styles: STROKE_STYLES_CSS, style: bd.style, styleId: 'grd-border-style', why: STROKE_POP_WHY.css } });
 }
 
 /* ══ 칸 테두리 «선 자리» (1013t2F · 2026-10-14) — 현빈 지적: 「구분선 스타일의 … 윗변과 칼럼로우 중간 구분선들,
@@ -4179,7 +4153,7 @@ ${_flattenRowHtml(rows, cols)}
       sec('fill', `${_grdScopeWrap('line', _typo.fill)}${_anyHit ? '' : _grdBlockBgSectionHtml(block)}`),
       sec('stroke', `${_borderSectionHtml(_cellBorder)}
     ${_grdOutlineSectionHtml(block)}
-    ${_grdRuleSectionHtml(block)}`),
+    ${_grdRuleSectionHtml(block)}`, { headTools: strokeHeadToolsHTML({ prefix: 'grd-stroke', on: _cellBorder.width > 0 }) }),   // 머리 ＋/− = «모든 칸 테두리» 켬/끔(지디 261123)
       /* ★U0b — 추가 목록은 머리(headTools)로 · 걸린 카드는 몸으로 · 절 id = #<P>-fx-section(배선·spec 이 그 id 를 본다). 몸이 비어도 머리가 있으면 절이 선다. */
       _fx ? sec('effects', _grdScopeWrap(_fx.scope, _fx.body), { headTools: _fx.headTools, id: _fx.id }) : sec('effects', ''),
       /* 0.9.13 MOTION 3단계 ③ 신호등 — 블럭만 고른 상태(줄 주소 없음)에만 GIF 단추 · 틀의 Export 절(텍스트 패널 txt-anim-section 과 같은 자리) · 줄 편집 중엔 절째 없음 */
@@ -4375,23 +4349,33 @@ ${_flattenRowHtml(rows, cols)}
    *   읽는다(검사처럼 생긴 문장). 굵기 0 에서 켜는 손잡이는 «굵기» 하나다. */
   const _bdCommit = (fields) => _grdToastCellFail(window.updateGridBlock?.(block.id, fields));
 
-  const bdSlider = document.getElementById('grd-border-w-slider');
-  const bdNumber = document.getElementById('grd-border-w-number');
-  if (bdSlider && bdNumber) {
+  wireStrokePopover({ prefix: 'grd-stroke' });   // ⫶ 팝오버 열기/닫기(값 쓰기 = 아래 옛 grd-border-style change)
+  const bdNumber = document.getElementById('grd-border-w-number');   // 표준 Stroke 부품 = 숫자 칸 하나(옛 슬라이더 걷음)
+  if (bdNumber) {
     /* ★0 을 «넘나들 때만» 패널을 다시 그린다 — 색·꼴 줄이 나오고 들어가야 하기 때문이다.
        ⛔매 프레임 다시 그리지 않는다(드래그 중 슬라이더 DOM 이 교체돼 손이 끊긴다).
          그래서 판정은 «드래그가 끝난 뒤»(change)에 한 번만 한다. */
     const wasOn = gridCellBorder(block).width > 0;
-    bindSlider(bdSlider, bdNumber, (v) => {
+    const _bdW = (v) => {
       block.dataset.cellBorderWidth = String(v);
       window.renderGridBlock?.(block);
       window._grdSyncLineMark?.(block, grdGetActiveLine(block));
-    }, { min: 0, max: GRID_BORDER_W_MAX });
+    };
+    const _clampW = (raw) => { const v = parseInt(raw, 10); return Number.isNaN(v) ? 0 : Math.min(GRID_BORDER_W_MAX, Math.max(0, v)); };
     const _reopenIfToggled = () => {
       if ((gridCellBorder(block).width > 0) !== wasOn) showGridProperties(block, _curAddr);
     };
-    bdSlider.addEventListener('change', _reopenIfToggled);
-    bdNumber.addEventListener('change', _reopenIfToggled);
+    bdNumber.addEventListener('input', () => _bdW(_clampW(bdNumber.value)));
+    bdNumber.addEventListener('change', () => {   // 옛 bindSlider 숫자 칸 change 그대로(끝 표본 · 자동저장) + 0 넘나들면 다시 그림
+      bdNumber.value = _clampW(bdNumber.value); _bdW(+bdNumber.value);
+      window.pushHistory?.(); window.scheduleAutoSave?.(); _reopenIfToggled();
+    });
+    /* 머리 ＋/− — 켬 = 지난 굵기(0 이면 1) · 끔 = 굵기 0(옛 «없음» 그대로) · 이력 한 칸 · 색·꼴 줄이 나고 들어가니 다시 그림 */
+    document.getElementById('grd-stroke-on')?.addEventListener('change', (e) => {
+      const last = _clampW(bdNumber.value);
+      _bdW(e.target.checked ? (last > 0 ? last : 1) : 0);
+      window.pushHistory?.(); window.scheduleAutoSave?.(); showGridProperties(block, _curAddr);
+    });
   }
 
   const bdColorPick = document.getElementById('grd-border-color');

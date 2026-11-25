@@ -1,7 +1,9 @@
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML, sliderRowHTML, escHtml, rotRowHTML, wireRotRow, checkHTML } from './_helpers.js';
+import { blockHeaderHTML, sliderRowHTML, escHtml, wireRotRow, checkHTML } from './_helpers.js';
+import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from './_position-section.js';   // 표준 Position 절(0.9.14 73행 P3)
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_POP_WHY } from './_stroke-section.js';
 import { panelRenderedColor } from './_panel-rendered.js';
 import { sanitizeIconMarkup } from '../util/sanitize-svg.js';
 import { glowSectionHTML, wireGlowSection } from './prop-sticker-glow.js';
@@ -249,7 +251,7 @@ export function showStickerProperties(block) {
         <button class="prop-action-btn secondary" id="stk-icon-replace" style="width:100%;">아이콘 교체</button>
       </div>`);
     put('position', `
-      <span class="prop-field-label">Rotation</span>${rotRowHTML({ p: 'stk-icon', numberId: 'stk-icon-rot-num', value: parseFloat(block.dataset.rotation) || 0, flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' })}`);
+      ${positionSectionHTML({ prefix: 'stk-icon', posEl: null, xy: false, rot: { p: 'stk-icon', numberId: 'stk-icon-rot-num', value: parseFloat(block.dataset.rotation) || 0, flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' } })}`);
     put('size', `
       <div class="prop-row">
         <span class="prop-label">크기</span>
@@ -301,8 +303,10 @@ export function showStickerProperties(block) {
         ${colorFieldHTML({ idPrefix: 'stk-hl-color', hex: _stkHlShown, alpha: parseAlphaFromColor(_stkHlShown) })}
       </div>`);
   }
+  /* ★현빈 261123 — 선 형광펜(highlightB) = Stroke 절 «밖» Special «Highlight» 로 이사(선이 곧 몸 · 정본 시안 8910 strokestd2 20) · 몸 컨트롤·id·배선 그대로 · «두께» → «굵기»(이름 통일) */
+  let _hlbSpecialHTML = '';
   if (isHlB) {
-    put('stroke', `
+    _hlbSpecialHTML = `
     <div id="stk-hlb-section">
       <div class="prop-row">
         <span class="prop-label">스타일</span>
@@ -319,7 +323,7 @@ export function showStickerProperties(block) {
         </div>
       </div>
       <div class="prop-row">
-        <span class="prop-label">두께</span>
+        <span class="prop-label">굵기</span>
         <input type="range" class="prop-slider" id="stk-hlb-thick" min="1" max="100" step="1" value="${parseInt(block.dataset.thickness) || 12}">
         <input type="number" class="prop-number" id="stk-hlb-thick-num" min="1" max="200" value="${parseInt(block.dataset.thickness) || 12}">
       </div>
@@ -333,7 +337,7 @@ export function showStickerProperties(block) {
         <input type="range" class="prop-slider" id="stk-hlb-period" min="10" max="100" step="1" value="${parseFloat(block.dataset.period) || 30}">
         <input type="number" class="prop-number" id="stk-hlb-period-num" min="6" max="200" value="${parseFloat(block.dataset.period) || 30}">
       </div>
-    </div>`);
+    </div>`;
     put('fill', `
       <div class="prop-color-row">
         <span class="prop-label">색상</span>
@@ -480,18 +484,10 @@ export function showStickerProperties(block) {
         ${colorFieldHTML({ idPrefix: 'stk-t-bg', hex: (bgColor === 'transparent' ? '#ffffff' : bgColor), alpha: (bgColor === 'transparent' ? 0 : bgAlpha) })}
       </div>
     </div>`);
-    put('stroke', `
-    <div id="stk-text-stroke-section">
-      <div class="prop-row">
-        <span class="prop-label">두께</span>
-        <input type="range" class="prop-slider" id="stk-t-stk-w" min="0" max="20" step="0.5" value="${tStrokeWidth}">
-        <input type="number" class="prop-number" id="stk-t-stk-w-num" min="0" max="50" step="0.5" value="${tStrokeWidth}">
-      </div>
-      <div class="prop-color-row">
-        <span class="prop-label">색상</span>
-        ${colorFieldHTML({ idPrefix: 'stk-t-stk-c', hex: tStrokeColor, alpha: tStrokeAlpha })}
-      </div>
-    </div>`);
+    /* ★표준 Stroke 부품(현빈 261123 · 8910 strokestd2 17) — 글자 외곽선 · 없음 = strokeWidth 0(렌더 sticker-block.js:283 «> 0 일 때만» · 옛 키 그대로) · 0.5 걸음(지디 261123)
+       위치 = 바깥 막힘: 렌더가 -webkit-text-stroke 를 «두께×2» 로 긋고 paint-order:stroke fill 로 안쪽 절반을 글자 밑에 묻는다 = 보이는 건 바깥(sticker-block.js:280 실측 · 시안의 «안쪽»은 기본값 그림) */
+    put('stroke', strokeSectionHTML({ prefix: 'stk-t-stk', pop: { why: STROKE_POP_WHY.soon, styleWhy: STROKE_POP_WHY.soon }, color: tStrokeColor, alpha: tStrokeAlpha, width: tStrokeWidth, maxWidth: 50, step: 0.5, align: 'outside', canAlign: false,
+      alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 바깥', on: tStrokeWidth > 0, bodyId: 'stk-text-stroke-section', widthId: 'stk-t-stk-w-num', colorId: 'stk-t-stk-c' }));
     put('effects', `
       <div id="stk-t-shadow-detail">
         <div class="prop-row">
@@ -535,7 +531,7 @@ export function showStickerProperties(block) {
       </div>`);
     put('position', `
     <div id="stk-text-rot-section">
-      <span class="prop-field-label">Rotation</span>${rotRowHTML({ p: 'stk-t', numberId: 'stk-t-rot-num', value: tRotation, flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' })}
+      ${positionSectionHTML({ prefix: 'stk-t', posEl: null, xy: false, rot: { p: 'stk-t', numberId: 'stk-t-rot-num', value: tRotation, flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' } })}
     </div>`);
   }
   if (isGlow) put('effects', glowSectionHTML(block));
@@ -543,6 +539,7 @@ export function showStickerProperties(block) {
   for (const [k, html] of Object.entries(extra)) if (k !== 'special') put(k, html);
   /* dev B2·B3(톱니 스탬프 · 인증마크) — U5 틀 위로 옮겨 심음: 블록 고유 절(special)로, 옛 절 id 는 sec id 로 남긴다(배선이 id 로 찾는다). */
   const _stkSpecials = [];
+  if (_hlbSpecialHTML) _stkSpecials.push(sec('special', _hlbSpecialHTML, { title: 'Highlight' }));   // 선 형광펜 = Special «Highlight»(위 _hlbSpecialHTML 머리말)
   if (shape === 'burst' && !isCount) _stkSpecials.push(sec('special', `
       ${sliderRowHTML('톱니 수', 'stk-burst-teeth', 'stk-burst-teeth-num', { min: BURST_LIMITS.teeth.min, max: BURST_LIMITS.teeth.max, step: 1, value: clampBurst({ teeth: block.dataset.burstTeeth }).teeth })}
       ${sliderRowHTML('톱니 깊이 %', 'stk-burst-depth', 'stk-burst-depth-num', { min: BURST_LIMITS.depth.min, max: BURST_LIMITS.depth.max, step: 1, value: clampBurst({ depth: block.dataset.burstDepth }).depth })}
@@ -561,6 +558,8 @@ export function showStickerProperties(block) {
     kind: { id: 'stk-fav-section', headTools: `
         <button class="prop-action-btn" id="stk-fav-add" title="현재 스티커 스타일을 즐겨찾기에 추가"
           style="width:auto;padding:2px 8px;font-size:11px;${FAV_ALLOWED_SHAPES.includes(shape) ? '' : 'opacity:0.4;cursor:not-allowed;'}">★ 추가</button>` },
+    position: (isText || isIcon) ? { headTools: positionHeadToolsHTML({ prefix: isText ? 'stk-t' : 'stk-icon' }) } : {},   // 표준 Position P3 — 머리 [슬라이드](IAL 없음 · 옛도 없음)
+    stroke: isText ? { headTools: strokeHeadToolsHTML({ prefix: 'stk-t-stk', on: tStrokeWidth > 0 }) } : {},
     effects: isText ? { id: 'stk-text-shadow-section', headTools: `
         ${checkHTML({ id: 'stk-t-shadow-on', label: '켜기', checked: tShadowOn, attrs: 'aria-label="그림자 켜기"' })}` } : {},   /* ②ⓒ(현빈 261123) — 이름 없이 홀로 선 켬/끔 = 체크 + 옆에 «켜기» 글 */
   };
@@ -651,12 +650,12 @@ export function showStickerProperties(block) {
   };
   _bindTPair('stk-t-fs',    'stk-t-fs-num',    'fontSize',      8,    400, 1);
   _bindTPair('stk-t-ls',    'stk-t-ls-num',    'letterSpacing', -10,  40,  0.1);
-  _bindTPair('stk-t-stk-w', 'stk-t-stk-w-num', 'strokeWidth',   0,    50,  0.5);
   _bindTPair('stk-t-sh-x',  'stk-t-sh-x-num',  'shadowX',       -20,  20,  1);
   _bindTPair('stk-t-sh-y',  'stk-t-sh-y-num',  'shadowY',       -20,  20,  1);
   _bindTPair('stk-t-sh-b',  'stk-t-sh-b-num',  'shadowBlur',    0,    40,  1);
   _bindTPair('stk-t-rot',   'stk-t-rot-num',   'rotation',      -180, 180, 1);
   wireRotRow({ p: 'stk-t', numberId: 'stk-t-rot-num', host: () => block });   // Q17 · Q20(시안 v10)
+  wirePositionSection({ prefix: 'stk-t', numberId: 'stk-t-rot-num', rerender: () => showStickerProperties(block) });
   _bindTPair('stk-t-pad-x', 'stk-t-pad-x-num', 'padX',          0,    400, 1);
   _bindTPair('stk-t-pad-y', 'stk-t-pad-y-num', 'padY',          0,    400, 1);
   _bindTPair('stk-t-radius', 'stk-t-radius-num', 'cornerRadius', 0,   400, 1);
@@ -733,12 +732,9 @@ export function showStickerProperties(block) {
     },
     onCommit: () => { window.pushHistory?.('텍스트 스티커 배경'); window.scheduleAutoSave?.(); },
   });
-  // 텍스트 스티커 — 외곽선 색
-  wireColorField('stk-t-stk-c', {
-    initialAlpha: tStrokeAlpha,
-    onApply: (c) => { block.dataset.strokeColor = c; rerender(); },
-    onCommit: () => { window.pushHistory?.('텍스트 스티커 외곽선'); window.scheduleAutoSave?.(); },
-  });
+  // 텍스트 스티커 — 외곽선(표준 Stroke 부품 · 어댑터 = 옛 쓰기 그대로: dataset.strokeWidth/strokeColor · rerender · 이력 이름 «텍스트 스티커 외곽선»)
+  if (propPanel.querySelector('#stk-t-stk-w-num')) wireStrokeSection({ prefix: 'stk-t-stk', alpha: tStrokeAlpha, maxWidth: 50, step: 0.5, widthId: 'stk-t-stk-w-num', colorId: 'stk-t-stk-c', onWidth: 2,
+    adapter: { color: (c) => { block.dataset.strokeColor = c; rerender(); }, width: (v) => { block.dataset.strokeWidth = v; rerender(); }, commit: () => { window.pushHistory?.('텍스트 스티커 외곽선'); window.scheduleAutoSave?.(); } } });
   // 텍스트 스티커 — 그림자 on/off + 그림자 색
   propPanel.querySelector('#stk-t-shadow-on')?.addEventListener('change', e => {
     block.dataset.shadowOn = e.target.checked ? '1' : '0';
@@ -1106,6 +1102,7 @@ export function showStickerProperties(block) {
   _bindTPair('stk-icon-size', 'stk-icon-size-num', 'size',     16,   600, 1);
   _bindTPair('stk-icon-rot',  'stk-icon-rot-num',  'rotation', -180, 180, 1);
   wireRotRow({ p: 'stk-icon', numberId: 'stk-icon-rot-num', host: () => block });   // Q17 · Q20(시안 v10)
+  wirePositionSection({ prefix: 'stk-icon', numberId: 'stk-icon-rot-num', rerender: () => showStickerProperties(block) });
   // B2 — 톱니 스탬프
   _bindTPair('stk-burst-teeth', 'stk-burst-teeth-num', 'burstTeeth', BURST_LIMITS.teeth.min, BURST_LIMITS.teeth.max, 1);
   _bindTPair('stk-burst-depth', 'stk-burst-depth-num', 'burstDepth', BURST_LIMITS.depth.min, BURST_LIMITS.depth.max, 1);

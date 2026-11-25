@@ -46,7 +46,8 @@ export function showDividerProperties(block) {
         <span class="prop-label">색상</span>
         ${colorFieldHTML({ idPrefix: 'dvd', hex: lineColor, alpha: lineAlpha })}
       </div>`),
-      sec('stroke', `
+      /* ★현빈 261123 — 구분선 = Stroke 절 «밖» Special «Line» 으로 이사(선이 곧 몸 · 표준 Stroke 칸 뜻 없음 · 정본 시안 8910 strokestd2 19) · 몸 컨트롤·id·배선 그대로 · 이름 «두께» → «굵기»(지디 이름 통일) */
+      sec('special', `
       <div class="prop-row">
         <span class="prop-label">스타일</span>
         <select class="prop-select" id="dvd-style">
@@ -57,10 +58,10 @@ export function showDividerProperties(block) {
         </select>
       </div>
       <div class="prop-row">
-        <span class="prop-label">두께</span>
+        <span class="prop-label">굵기</span>
         <input type="range" class="prop-slider" id="dvd-weight-slider" min="1" max="24" step="1" value="${lineWeight}">
         <input type="number" class="prop-number" id="dvd-weight-number" min="1" max="24" value="${lineWeight}">
-      </div>`),
+      </div>`, { title: 'Line' }),
       sec('size', `
       <div class="prop-row" id="dvd-width-row" style="display:${isVertical?'none':'flex'}">
         <span class="prop-label" title="가로 선의 너비 — 끝까지 올리면 전폭">너비</span>

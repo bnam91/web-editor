@@ -181,6 +181,7 @@ test('T6 그리드 패널 — 상태 7가지의 우측 패널 HTML 이 핀과 �
   const MUT = process.env.BT2_T6_MUT;
   if (MUT === 'del') got.block = got.block.replace(/<div class="prop-row"[\s\S]*?<\/div>/, '');   // 시험용 — 줄 하나 «뺌»
   if (MUT === 'add') got.block = got.block + '<div class="prop-row" id="zz-t6-added"></div>';      // 시험용 — 줄 하나 «더함»
+  if (MUT === 'plant') got.block = got.block.replace(/(<div class="prop-row"[^>]*>)/, '$1<input type="number" id="zz-t6-planted">');   // 시험용 — Stroke 부품 «밖» 첫 줄에 칸 하나(표준 Stroke 이관 절이 구멍이 아님 = 거절돼야)
   if (MUT === 'aria') got.block = got.block.replace(/(<(?:input|button|select|textarea)\b[^>]*?) aria-label="[^"]*"/, '$1');                       // 시험용 — 컨트롤의 aria-label 하나 «뺌»(U1 ③-aria 양성대조)
   expect(Object.keys(got).length, '전제: 상태 8개').toBe(8);
   expect(got.h2.includes('grd-line-summary'), '전제: 줄을 고르면 줄바 요약이 뜬다').toBe(true);
@@ -208,11 +209,15 @@ test('T6 그리드 패널 — 상태 7가지의 우측 패널 HTML 이 핀과 �
       /* ★기대 바뀜(RP-PRD-PREEXIST-FAIL-01 · 261121) — 블록 «Template» 절(c5686f5a7 · 시안 v10 Q37 · 현빈 GO 261120)이 모든 블럭 패널 끝에 붙는다.
          지혜맥 갱신 거절 목록 = 8상태 모두 이 여섯 «만» 더해짐(지움 0) ⇒ 뜻한 ③ 더함. */
       ...['blk-tpl-toggle', 'blk-tpl-name', 'blk-tpl-folder', 'blk-tpl-folder-new', 'blk-tpl-tags', 'blk-tpl-save'].map((id) => ({ id, states: ['block', 'h2', 'body', 'gap', 'divider', 'image', 'badge', 'empty'], why: '블록 Template 절 c5686f5a7 — _panel-frame.js(Q37 · 현빈 GO 261120)' }))],
+    /* ★표준 Stroke 이관(현빈 Stroke GO 261123 · 지디 261124 (가)) — 그리드 «모든 칸 테두리»·«블럭 외곽선» = 표준 Stroke 부품: 지움 = 옛 굵기 슬라이더 1 · 외곽선 단추 키 = 부품 덧속성(data-stroke-edge/edge-preset · type=button)만 바뀜 · 더함 = Stroke 부품 범위 안 컨트롤만(머리 ＋/− · 위치 · ⫶ 팝오버 · edge 슬롯) · 라벨 ④ «굵기»(슬라이더 줄) 1 · 양성대조 BT2_T6_MUT=plant(Stroke 밖에 칸 하나) = 여전히 거절 */
+    strokeStd: { removedIds: ['grd-border-w-slider'], keyDrop: ['data-stroke-edge', 'data-edge-preset'], scope: '[data-part="stroke"], .ui-stroke-pop, .ui-stroke-slot, #grd-outline-group, label:has(> #grd-stroke-on)', labelGone: ['grd-border-w-slider'] },
+    /* ★표준 Position P2(현빈 6-2 확정 261124 · 0.9.14 73행) — 흐름 안 그리드 = 정렬 6·X/Y 를 «disabled» 로 보인다(숨김 아님) · 더함 = 이 두 줄 범위 안 컨트롤만(밖 더함은 그대로 거절) */
+    posFlow: { scope: '[data-float-align-row="flow"], [data-pos-flow]' },
     PH_CHANGE: [{ sel: '.grd-row-h-item', from: '^auto$', to: '^자동( · \\d+)?$' }],
     dataRename: { 'data-bbg-x': 'data-bbg-h', 'data-bbg-y': 'data-bbg-v', 'data-cpos-x': 'data-cpos-h', 'data-cpos-y': 'data-cpos-v' },
     LABEL_TO: { 'data-ha': '가로 정렬 · 모든 열', 'data-va': '세로 정렬 · 블록', 'grd-cell-align': '가로 정렬 · 이 칸', 'grd-cell-valign': '세로 정렬 · 이 칸', 'grd-line-align': '가로 정렬 · 이 줄', 'data-nva': '세로 정렬 · 이 열' },
     HINT_GONE: ['^가로×세로 칸 수를 고른다$', '^줄이면 잘린 칸 내용은 사라진다', '^예: 1:1:2', '^행/열 사이 간격', '^격자와 아래 블럭 사이', '^칸 하나만 바꾸려면', '^이 칸에만 적용된다', '^칸과 칸 «사이»', '^자르기 전에는', '^그림 폭이 100%', '^비우면 자동', '행을 열 \\d+개의', '^이 열에 기본값이 걸려'],   // 마지막 = 칸 꾸미기 접기 제목 「· 열 기본값 있음」으로(M4 예산)
-  };
+  }; T6_SPEC.strokeStd.scope += ', [data-part="fill"]';   /* ★표준 Fill F4(현빈 GO 261124) — 그리드 글자색 줄 = 표준 Fill 부품: 더함 면제 범위에 부품 안(눈·− 막힘 단추)만 · 탑 posFlow 줄과 떨어진 자리(판정 줄 무변) */
   if (UPDATE && fs.existsSync(GOLD('grid-panel'))) {
     const old = JSON.parse(fs.readFileSync(GOLD('grid-panel'), 'utf8'));
     const bad = await page.evaluate(({ old, got, S }) => {
@@ -223,8 +228,9 @@ test('T6 그리드 패널 — 상태 7가지의 우측 패널 HTML 이 핀과 �
         return ch ? `«${ch.sel}»` : (v ?? '');
       };
       const ctrlKey = (c) => {
-        const data = [...c.attributes].filter(a => a.name.startsWith('data-') && a.name !== 'data-scope').map(a => `${S.dataRename[a.name] || a.name}=${a.value}`).sort();
-        return JSON.stringify([c.tagName, c.id, c.getAttribute('type') || '', data, c.hasAttribute('checked'), c.hasAttribute('disabled'), c.getAttribute('value') ?? '', ph(c)]);
+        const data = [...c.attributes].filter(a => a.name.startsWith('data-') && a.name !== 'data-scope' && !S.strokeStd.keyDrop.includes(a.name)).map(a => `${S.dataRename[a.name] || a.name}=${a.value}`).sort();
+        const typ = (c.tagName === 'BUTTON' && c.closest(S.strokeStd.scope) && c.getAttribute('type') === 'button') ? '' : (c.getAttribute('type') || '');   // Stroke 부품 단추 = type=button 명시(뜻 같음)
+        return JSON.stringify([c.tagName, c.id, typ, data, c.hasAttribute('checked'), c.hasAttribute('disabled'), c.getAttribute('value') ?? '', ph(c)]);
       };
       const aria = (c) => Object.fromEntries([...c.attributes].filter(a => a.name.startsWith('aria-')).map(a => [a.name, a.value]));
       const rowKey = (l) => { const c = l.closest('.prop-row, .prop-color-row')?.querySelector('input,select,button,textarea'); if (!c) return null; if (c.id) return c.id; const d = [...c.attributes].find(a => a.name.startsWith('data-') && a.name !== 'data-scope'); return d ? d.name : null; };
@@ -238,16 +244,16 @@ test('T6 그리드 패널 — 상태 7가지의 우측 패널 HTML 이 핀과 �
         for (const c of b.querySelectorAll('input,select,button,textarea')) { if (S.added.includes(c.id) && !a.querySelector('#' + c.id)) continue; if (S.addedLater.some(x => x.id === c.id && x.states.includes(k)) && !a.querySelector('#' + c.id)) continue; const key = ctrlKey(c); if (!pool.has(key)) pool.set(key, []); pool.get(key).push(c); }
         for (const ca of a.querySelectorAll('input,select,button,textarea')) {
           const key = ctrlKey(ca), q = pool.get(key);
-          if (!q || !q.length) { out.push(`${k} ③ 컨트롤 사라짐/바뀜 ${key}`); continue; }
+          if (!q || !q.length) { if (S.strokeStd.removedIds.includes(ca.id) && !b.querySelector('#' + ca.id)) continue; out.push(`${k} ③ 컨트롤 사라짐/바뀜 ${key}`); continue; }
           const cb = q.shift(), ab = aria(cb);
           for (const [n, v] of Object.entries(aria(ca))) if (ab[n] !== v) out.push(`${k} ③-aria ${key} ${n}: 「${v}」 → ${n in ab ? `「${ab[n]}」` : '(지워짐)'}`);
         }
-        for (const [key, q] of pool) q.forEach(() => out.push(`${k} ③ 컨트롤 더해짐 ${key}`));
+        for (const [key, q] of pool) q.forEach((el) => { if (el.closest(S.strokeStd.scope) || el.closest(S.posFlow.scope)) return; out.push(`${k} ③ 컨트롤 더해짐 ${key}`); });   // + Position P2 흐름 줄 범위 안   // Stroke 부품 범위 안 더함만 면제(밖은 그대로 거절 — plant 양성대조)
         if (S.added.some(id => !b.querySelector('#' + id))) out.push(`${k} ② 스코프칩 넷이 없다`);
         // ④ 라벨
         /* ★기대 바뀜(현빈 261123 «온/오프 = 체크» · 태양 §2c) — 켬/끔 줄의 이름은 .prop-label 이 아니라 체크 옆 글(.ui-check-label)로 옮겼다 · 컨트롤(③)은 그대로 */
         const lb = new Map([...b.querySelectorAll('.prop-label, .ui-check-label')].map(l => [rowKey(l), l.textContent.trim()]));
-        for (const l of a.querySelectorAll('.prop-label')) { const key = rowKey(l); if (!key) continue; const want = S.LABEL_TO[key] || l.textContent.trim(); if (lb.get(key) !== want) out.push(`${k} ④ 라벨 ${key}: 「${l.textContent.trim()}」 → 「${lb.get(key)}」(기대 「${want}」)`); }
+        for (const l of a.querySelectorAll('.prop-label')) { const key = rowKey(l); if (!key || l.closest(S.strokeStd.scope) || (S.strokeStd.labelGone.includes(key) && !b.querySelector('#' + key)) || (key === 'grd-typo-color' && b.querySelector('#' + key)?.closest('[data-part="fill"]'))) continue;   /* ★표준 Fill F4: 글자색 «라벨 줄» → 표준 겹 줄(라벨 없음 · 이름 = 칸 aria-label) — 그 칸이 Fill 부품 안으로 간 때만 */   /* Stroke 부품 안 라벨은 stroke-std 가 잰다 — 팝오버 «점선 끝»·«꼭짓점» 줄은 첫 컨트롤 키(data-value)가 같아 짝이 엇갈린다(같은 골든끼리도 거짓 거절 · 실측) */ const want = S.LABEL_TO[key] || l.textContent.trim(); if (lb.get(key) !== want) out.push(`${k} ④ 라벨 ${key}: 「${l.textContent.trim()}」 → 「${lb.get(key)}」(기대 「${want}」)`); }
         // ⑤ 하위 제목
         const ta = subTitles(a).filter(t => !(t.text === 'Layout' || (t.text === 'Typography' && t.n === 0))).map(t => t.text).sort();   // 순서는 틀이 정한다(SECTION_ORDER) — 집합만 견준다
         const tb = subTitles(b).map(t => t.text).sort();

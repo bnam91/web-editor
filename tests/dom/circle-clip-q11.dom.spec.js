@@ -224,7 +224,7 @@ test('Q7 테두리 준 서클 끔 — 테두리 자리 = 테두리색 · 원 밖
   const errs = await scene(page);
   await installCdpCapture(page);
   await page.evaluate(OPEN.icb); await until(page, () => !!document.querySelector('#icb-border-select'));
-  await page.selectOption('#icb-border-select', 'solid');
+  await page.click('#panel-right label:has(#icb-stroke-on)');   // ★전제 바뀜(현빈 261123 표준 Stroke 부품 · 8910 strokestd2 4): 새 서클 = 테두리 없음 → 몸(스타일 select 포함) 숨김 · 사람은 머리 ＋ 로 켬 = 실선(옛 select «실선» 고르기와 같은 값 · 아래 전제 줄이 잰다)
   await until(page, () => document.querySelector('#iQ .icb-circle')?.dataset.border === 'solid');
   expect(await page.evaluate(() => getComputedStyle(document.querySelector('#iQ .icb-circle')).borderLeftWidth), '[전제] 테두리 3px').toBe('3px');
   const onLive = await ringLive(page), onPng = await ringPng(page);

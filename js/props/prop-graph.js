@@ -3,6 +3,7 @@ import { propPanel, state } from '../globals.js';
 import { blockHeaderHTML, escHtml, checkHTML } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor, swatchHex } from './color-picker.js';
+import { strokeSectionHTML, wireStrokeSection } from './_stroke-section.js';
 import { isBlurIntoPanel, parkEditing } from './_text-selection.js';
 import { graphFieldShown } from '../canvas-contrast.js';   // E149 — 색 칸 «보일 값»의 한 자리
 import '../graph-radial.js';   // 프로토 Z6-B — 「방사형」 유형의 렌더 · 패널 절(window.renderGraphRadial · graphRadialSectionHTML · wireGraphRadialSection)
@@ -611,13 +612,8 @@ ${_bar.fill || ''}
         <input type="range" class="prop-slider" id="grb-fillalpha-slider" min="0" max="100" step="1" value="${fillAlpha}">
         <input type="number" class="prop-number" id="grb-fillalpha-number" min="0" max="100" value="${fillAlpha}">
       </div>` : ''}${chartType === 'bar-v' ? gridColorRowHTML(block) : ''}${_shape.fill || ''}`),
-      sec('stroke', chartType === 'line' ? `
-      <div class="prop-row">
-        <span class="prop-label">선 두께</span>
-        <input type="range" class="prop-slider" id="grb-stroke-slider" min="1" max="12" step="1" value="${strokeWidth}">
-        <input type="number" class="prop-number" id="grb-stroke-number" min="1" max="12" value="${strokeWidth}">
-      </div>
-` : ''),
+      /* ★표준 Stroke 2-5(현빈 261124 ⓑ · 8910 #mkp-linestroke) — 꺾은선: 굵기만(색 = 계열마다 · Content) · ＋/− · 위치 · ⫶ 없음 · 옛 id grb-stroke-number · 1~12 그대로 */
+      sec('stroke', chartType === 'line' ? strokeSectionHTML({ prefix: 'grb-stroke', noColor: true, noAlign: true, width: strokeWidth, minWidth: 1, maxWidth: 12, widthId: 'grb-stroke-number' }) : ''),
       sec('effects', _isPie ? pieShadowSectionHTML(block.dataset) : ''),
       sec('special', chartType === 'line' ? `
       <div class="prop-row">
@@ -1065,19 +1061,9 @@ ${pieTagTypoRowsHTML(block)}
   }
 
   // 선 두께 (line 전용)
-  const swSlider = document.getElementById('grb-stroke-slider');
-  const swNumber = document.getElementById('grb-stroke-number');
-  if (swSlider) {
-    const applyStroke = v => {
-      v = Math.min(12, Math.max(1, v));
-      block.dataset.strokeWidth = v;
-      window.renderGraph(block);
-      swSlider.value = v; swNumber.value = v;
-    };
-    swSlider.addEventListener('input',  () => applyStroke(parseInt(swSlider.value)));
-    swNumber.addEventListener('change', () => { applyStroke(parseInt(swNumber.value)); window.pushHistory(); });
-    swSlider.addEventListener('change', () => window.pushHistory());
-  }
+  /* 표준 Stroke 2-5 — 부품 배선(어댑터 = 옛 applyStroke 그대로: dataset.strokeWidth · renderGraph · change = 이력 한 칸) */
+  if (document.getElementById('grb-stroke-number')) wireStrokeSection({ prefix: 'grb-stroke', widthId: 'grb-stroke-number', minWidth: 1, maxWidth: 12, noColor: true,
+    adapter: { width: (v) => { block.dataset.strokeWidth = Math.min(12, Math.max(1, v)); window.renderGraph(block); }, commit: () => window.pushHistory() } });
 
   // 도너츠 토글 (원형 전용 · 1013t1C1) — 켜면 pieDonut '1', 끄면 키 삭제. 옛 유형 'donut' 은 여기서 'pie' 로 옮겨 쓴다(구멍 값 pieHole 은 꺼도 남는다).
   const pdToggle = document.getElementById('grb-pie-donut-toggle');

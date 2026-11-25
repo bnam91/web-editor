@@ -74,7 +74,7 @@ test('T0 ★전제 — ★앱 길로 ★방사형 블럭을 만들고 ★★호 
 
 test('T1 ★★★t4-10 — ★호 모드 패널에 ★「기본은 반원입니다」 힌트가 ★없다 (★고침 전엔 ★빨강)', async ({ page }) => {
   await bootApp(page);
-  const r = await arcPanel(page);
+  const live = await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach(s => s.remove()); await window.addSection(); window.selectSection([...c.querySelectorAll('.section-block')].pop()); window.addGradientBlock(); const g = [...document.querySelectorAll('.gradient-block')].pop(); window.showGradientProperties(g); return document.querySelectorAll('#panel-right .prop-hint').length; }); const r = await arcPanel(page);   // ★전제(표준 Fill F2-3 · 지디 261124 (B)): radial 패널엔 이제 정적 힌트 0(«배경이 투명» → 표준 «칠 없음» 줄) → 살아있음 가드 = 같은 페이지 그라데이션 블럭 패널(정적 hintHTML 둘)에서 .prop-hint ≥1
   expect(r.fail, `★전제: ${r.fail}`).toBeUndefined();
   expect(r.shape, '★전제: 호 모드가 아니다').toBe('arc');
 
@@ -83,9 +83,9 @@ test('T1 ★★★t4-10 — ★호 모드 패널에 ★「기본은 반원입니
 
   /* ★★⑴ ★0건을 ★「없다」로 ★닫지 않는다 — ★이 패널에 ★.prop-hint 가 ★하나라도 있나를 ★먼저 본다.
      ⛔없으면 ★「힌트 선택자가 바뀌었다」와 ★구분이 안 된다 ⇒ ★그때는 ★이 자가 ★죽은 것이다. */
-  const anyHint = await page.evaluate(() => document.querySelectorAll('#panel-right .prop-hint').length);
+  const anyHint = live;   // ★전제(위 줄): .prop-hint 로 세는 자가 산다 = 그라데이션 패널에서 잰 수
   expect(anyHint,
-    '★이 패널에 .prop-hint 가 0개다 — ★선택자가 바뀌었나(그러면 아래 「없다」는 ★안 재고 있다)'
+    '★같은 페이지 그라데이션 패널에 .prop-hint 가 0개다 — ★선택자가 바뀌었나(그러면 아래 「없다」는 ★안 재고 있다)'
   ).toBeGreaterThanOrEqual(1);
 
   /* ★★★⑵ ★본 단언 — ★현빈이 ★지목한 ★그 문장만. ⛔「radial 힌트 전부」로 ★넓히지 않는다. */

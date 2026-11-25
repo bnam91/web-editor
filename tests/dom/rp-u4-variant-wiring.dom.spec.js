@@ -24,15 +24,15 @@ const V = [
   { name: 'shape 별', make: `return add('shape-block', () => window.addShapeBlock('star'));`, open: 'showShapeProperties', ctl: { id: 'shape-star-count-slider', value: '3' } },
   { name: 'shape 가림막', make: `return add('shape-block', () => window.addShapeBlock('rectangle'));`, open: 'showShapeProperties', ctl: { id: 'shape-redact-toggle', click: true } },
   { name: 'zoom', make: `return add('zoom-block', () => window.addZoomBlock());`, open: 'showZoomProperties', ctl: { sel: '#zm-bd-on', click: true } },
-  { name: 'annotation 일반', make: `return annot({});`, open: 'showAnnotationProperties', ctl: { id: 'annot-stroke-w', value: '3' } },
-  { name: 'annotation 치수선', make: `return annot({ annotKind: 'dim' });`, open: 'showAnnotationProperties', ctl: { id: 'annot-stroke-w', value: '3' } },
-  { name: 'annotation 이미지 라벨', make: `const b = annot({}); b.dataset.labelMode = 'image'; return b;`, open: 'showAnnotationProperties', ctl: { id: 'annot-stroke-w', value: '3' } },
+  { name: 'annotation 일반', make: `return annot({});`, open: 'showAnnotationProperties', ctl: { id: 'annot-stroke-w-num', value: '3' } },   // ★기대 바뀜(표준 Stroke 2-5): 선 굵기 = 숫자 칸 하나(옛 슬라이더 걷음)
+  { name: 'annotation 치수선', make: `return annot({ annotKind: 'dim' });`, open: 'showAnnotationProperties', ctl: { id: 'annot-stroke-w-num', value: '3' } },   // ★기대 바뀜(표준 Stroke 2-5): 선 굵기 = 숫자 칸 하나(옛 슬라이더 걷음)
+  { name: 'annotation 이미지 라벨', make: `const b = annot({}); b.dataset.labelMode = 'image'; return b;`, open: 'showAnnotationProperties', ctl: { id: 'annot-stroke-w-num', value: '3' } },   // ★기대 바뀜(표준 Stroke 2-5): 선 굵기 = 숫자 칸 하나(옛 슬라이더 걷음)
   { name: 'iconify', make: `return add('icon-block', () => window.addIconifyBlock());`, open: 'showIconifyProperties', ctl: { id: 'icn-rot-number', value: '30' } },   // ★기대 바뀜(Q20 · 시안 v10)
   { name: 'mockup', make: `return add('mockup-block', () => window.addMockupBlock());`, open: 'showMockupProperties', ctl: { id: 'mkp-width-slider', value: '300' } },
   { name: 'gradient', make: `return add('gradient-block', () => window.addGradientBlock());`, open: 'showGradientProperties', ctl: { id: 'grad-width-slider', value: '500' } },
   { name: 'divider', make: `return add('divider-block', () => window.addDividerBlock());`, open: 'showDividerProperties', ctl: { id: 'dvd-style', value: 'dashed' } },
   { name: 'vector 일반', make: `return add('vector-block', () => window.addVectorBlock(${JSON.stringify(SVG)}, { w: 120, h: 120 }));`, open: 'showVectorProperties', ctl: { id: 'vb-rotate-deg', value: '30' } },
-  { name: 'vector 펜 패스', make: `const b = add('vector-block', () => window.addVectorBlock(${JSON.stringify(SVG)}, { w: 120, h: 120 })); b.dataset.penNodes = JSON.stringify([{ x: 0, y: 0 }, { x: 10, y: 10 }]); b.dataset.penClosed = '1'; return b;`, open: 'showVectorProperties', ctl: { id: 'vb-stroke-w', value: '5' } },
+  { name: 'vector 펜 패스', make: `const b = add('vector-block', () => window.addVectorBlock(${JSON.stringify(SVG)}, { w: 120, h: 120 })); b.dataset.penNodes = JSON.stringify([{ x: 0, y: 0 }, { x: 10, y: 10 }]); b.dataset.penClosed = '1'; return b;`, open: 'showVectorProperties', ctl: { id: 'vb-stroke-w-num', value: '5' } },   // ★기대 바뀜(표준 Stroke 2-5): 선 굵기 = 숫자 칸 하나(옛 슬라이더 걷음)
   { name: 'joker', make: `return add('joker-block', () => window.addJokerBlock());`, open: 'showJokerProperties', ctl: { id: 'joker-x-slider', value: '100' } },
   { name: 'icon-circle', make: `return add('icon-circle-block', () => window.addIconCircleBlock());`, open: 'showIconCircleProperties', ctl: { id: 'icb-border-select', value: 'solid' } },
 ];

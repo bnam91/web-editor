@@ -82,7 +82,7 @@ test('T2 ★텍스트·도형·에셋 세 패널이 전부 같은 토글 버튼�
   assert.match(SRC.helpers, /export function overlayToggleBtnHTML/, '버튼 SSOT 함수가 없다');
   // 버튼 «그림»
   for (const k of ['textTpl', 'shape', 'asset']) {
-    assert.match(SRC[k], /overlayToggleBtnHTML\(\s*\{/, `${k} 이 overlayToggleBtnHTML 을 안 부른다`);
+    assert.match(SRC[k], /overlayToggleBtnHTML\(\s*\{|positionHeadToolsHTML\(\s*\{[^}]*ialId:/, `${k} 이 overlayToggleBtnHTML 을 안 부른다`); /* 2026-11-24 기대 바뀜 — 표준 Position P3b: 부품 positionHeadToolsHTML({ ialId }) · positionSectionHTML({ prefix }) 도 같은 SSOT(안에서 overlayToggleBtnHTML·floatPositionRowHTML) */
     assert.doesNotMatch(SRC[k], /class="prop-chain-btn prop-chain-btn--overlay/,
       `${k} 에 버튼 «리터럴 사본»이 남아 있다 — overlayToggleBtnHTML 로 부르라`);
   }
@@ -93,7 +93,7 @@ test('T2 ★텍스트·도형·에셋 세 패널이 전부 같은 토글 버튼�
 });
 
 test('T2-b ★버튼 id 셋이 서로 다르고, 에셋은 Text Overlay 의 id 를 «재사용하지 않는다»', () => {
-  const idOf = (src) => [...src.matchAll(/overlayToggleBtnHTML\(\s*\{\s*id:\s*'([^']+)'/g)].map(m => m[1]);
+  const idOf = (src) => [...src.matchAll(/overlayToggleBtnHTML\(\s*\{\s*id:\s*'([^']+)'|positionHeadToolsHTML\(\s*\{[^}]*ialId:\s*'([^']+)'/g)].map(m => m[1] || m[2]); /* 2026-11-24 기대 바뀜 — 표준 Position P3b: 부품 positionHeadToolsHTML({ ialId }) · positionSectionHTML({ prefix }) 도 같은 SSOT(안에서 overlayToggleBtnHTML·floatPositionRowHTML) */
   const ids = [...idOf(SRC.textTpl), ...idOf(SRC.shape), ...idOf(SRC.asset)];
   assert.equal(ids.length, 3, `토글 호출이 3개가 아니다: ${JSON.stringify(ids)}`);
   assert.equal(new Set(ids).size, 3, `버튼 id 가 겹친다: ${JSON.stringify(ids)}`);
@@ -209,7 +209,8 @@ test('T9 ★도형·에셋 패널에도 오버레이 X/Y 두 칸이 있고, 동�
   assert.match(SRC.float, /export function floatPositionRowHTML/, '좌표칸 마크업 SSOT 가 없다');
   assert.match(SRC.float, /export function wireFloatPosition/, '좌표칸 배선 SSOT 가 없다');
   for (const k of ['shape', 'asset']) {
-    assert.match(SRC[k], /floatPositionRowHTML\(\{ prefix: '(shape|asset)', posEl: floatPosEl \}\)/,
+    /* ★2026-11-24 기대 바뀜 — 표준 Position P2(0.9.14 73행): 에셋은 flowAlign:false(흐름용 가로 3칸이 따로 산다) 인자를 더 넘긴다 */
+    assert.match(SRC[k], /floatPositionRowHTML\(\{ prefix: '(shape|asset)', posEl: floatPosEl(, flowAlign: false)? \}\)|positionSectionHTML\(\{ prefix: '(shape|asset)', posEl: floatPosEl/,
       `${k} 패널이 오버레이 좌표칸을 안 낸다 — 도형·에셋은 드래그로만 자리를 잡을 수 있다`);
     assert.match(SRC[k], /wireFloatPosition\(\{ block/, `${k} 패널이 좌표칸을 안 배선한다`);
   }
@@ -223,7 +224,7 @@ test('T10 ★아이콘 패널이 공용 토글·X/Y 를 부르고, 떠 있으면
   const icon = S('js/props/prop-iconify.js');
   assert.ok(icon.length > 500, '전제 — prop-iconify.js 를 읽었다');
   // 정적 import 가 아니라 window 로 부른다(unit 하네스 축소 복사 때문 — prop-grid 선례)
-  assert.match(icon, /overlayToggleBtnHTML\?\.\(\s*\{\s*id:\s*'icn-float-toggle'/, '아이콘 패널에 icn-float-toggle 이 없다');
+  assert.match(icon, /overlayToggleBtnHTML\?\.\(\s*\{\s*id:\s*'icn-float-toggle'|positionHeadToolsHTML\(\s*\{[^}]*ialId:\s*'icn-float-toggle'/, '아이콘 패널에 icn-float-toggle 이 없다'); /* 2026-11-24 기대 바뀜 — 표준 Position P3b: 부품 positionHeadToolsHTML({ ialId }) · positionSectionHTML({ prefix }) 도 같은 SSOT(안에서 overlayToggleBtnHTML·floatPositionRowHTML) */
   assert.match(icon, /floatPositionRowHTML\?\.\(\s*\{\s*prefix:\s*'icn'/, "아이콘 패널에 floatPositionRowHTML(prefix 'icn') 이 없다");
   assert.match(icon, /wireFloatToggle\?\.\(\s*\{[^}]*buttonId:\s*'icn-float-toggle'/, '아이콘 패널이 wireFloatToggle 을 안 부른다');
   assert.match(icon, /wireFloatPosition\?\.\(\s*\{[^}]*xId:\s*'icn-x-number'/, '아이콘 패널이 wireFloatPosition 을 안 부른다');
@@ -240,8 +241,9 @@ test('T10 ★아이콘 패널이 공용 토글·X/Y 를 부르고, 떠 있으면
 test('T11 ★벡터 패널이 공용 토글·X/Y 를 부르고, 드래그 X/Y 되비침 명부에 vb- 가 있다', () => {
   const vec = S('js/props/prop-vector.js');
   assert.ok(vec.length > 500, '전제 — prop-vector.js 를 읽었다');
-  assert.match(vec, /overlayToggleBtnHTML\?\.\(\s*\{\s*id:\s*'vb-float-toggle'/, '벡터 패널에 vb-float-toggle 이 없다');
-  assert.match(vec, /floatPositionRowHTML\(\s*\{\s*prefix:\s*'vb'/, "벡터 패널에 floatPositionRowHTML(prefix 'vb') 이 없다");
+  /* ★2026-11-24 기대 바뀜 — 표준 Position P3(0.9.14 73행): 벡터 패널은 부품(_position-section.js)으로 — 토글 = positionHeadToolsHTML({ …, ialId: 'vb-float-toggle' }) · 자리 줄 = positionSectionHTML({ prefix: 'vb' })(안에서 공용 floatPositionRowHTML 을 부른다) */
+  assert.match(vec, /overlayToggleBtnHTML\?\.\(\s*\{\s*id:\s*'vb-float-toggle'|positionHeadToolsHTML\(\s*\{[^}]*ialId:\s*'vb-float-toggle'/, '벡터 패널에 vb-float-toggle 이 없다');
+  assert.match(vec, /floatPositionRowHTML\(\s*\{\s*prefix:\s*'vb'|positionSectionHTML\(\s*\{\s*prefix:\s*'vb'/, "벡터 패널에 floatPositionRowHTML(prefix 'vb') 이 없다");
   assert.match(vec, /wireFloatToggle\?\.\(\s*\{[^}]*buttonId:\s*'vb-float-toggle'/, '벡터 패널이 wireFloatToggle 을 안 부른다');
   assert.match(vec, /wireFloatPosition\?\.\(\s*\{[^}]*xId:\s*'vb-x-number'/, '벡터 패널이 wireFloatPosition 을 안 부른다');
   assert.doesNotMatch(vec, /class="prop-chain-btn prop-chain-btn--overlay/, '버튼 리터럴 사본 금지 — overlayToggleBtnHTML 로');

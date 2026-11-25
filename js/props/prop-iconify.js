@@ -1,7 +1,9 @@
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
+import { blockHeaderHTML, wireRotRow } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { strokeSectionHTML, wireStrokeSection } from './_stroke-section.js';
+import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from './_position-section.js';   // 표준 Position 절(0.9.14 73행 P3)
 import { sanitizeSvgString } from '../util/sanitize-svg.js';
 import { normIconStroke, isStrokeIcon, iconStrokeOf, applyIconStroke, msFillState, msNameFor, ICON_STROKE_MIN, ICON_STROKE_MAX, ICON_STROKE_STEP } from '../blocks/icon-variant.js';   /* ICON-FEATHER-MATERIAL(261121) 선 두께·채움 */
 
@@ -59,13 +61,7 @@ export function showIconifyProperties(block) {
       // 플로팅 토글 = Position 절 머리 손잡이(§2-1 — 플로팅·X/Y·회전은 Position)
       sec('position', `
       ${window.floatPositionRowHTML?.({ prefix: 'icn', posEl: block }) || ''}
-      <div class="prop-align-group" id="icn-rotation-group">
-        <button class="prop-align-btn${rotation ===   0 ? ' active' : ''}" data-deg="0">0°</button>
-        <button class="prop-align-btn${rotation ===  90 ? ' active' : ''}" data-deg="90">90°</button>
-        <button class="prop-align-btn${rotation === 180 ? ' active' : ''}" data-deg="180">180°</button>
-        <button class="prop-align-btn${rotation === 270 ? ' active' : ''}" data-deg="270">270°</button>
-      </div>
-      <span class="prop-field-label">Rotation</span>${rotRowHTML({ p: 'icn', numberId: 'icn-rot-number', value: (rotation > 180 ? rotation - 360 : rotation), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' })}`, { headTools: window.overlayToggleBtnHTML?.({ id: 'icn-float-toggle', active: floating }) || '' }),
+      ${/* 0/90/180/270 단추 4 걷음(현빈 GO 261124 14:25 · 키 rotation 무변 · 90° 돌리기 = 회전 줄 ↻) */ ''}${positionSectionHTML({ prefix: 'icn', posEl: block, xy: false, rot: { p: 'icn', numberId: 'icn-rot-number', value: (rotation > 180 ? rotation - 360 : rotation), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' } })}`, { headTools: positionHeadToolsHTML({ prefix: 'icn', ialId: 'icn-float-toggle', ialOn: floating }) }),   // 표준 Position P3(슬라이드 모드 씀 · 90° 단추 4 걷음 = 현빈 GO 261124 14:25)
       sec('size', `
       <div class="prop-row">
         <span class="prop-label">크기</span>
@@ -88,12 +84,8 @@ export function showIconifyProperties(block) {
           </button>
         </div>
       </div>`),
-      sec('stroke', strokeable ? `
-      <div class="prop-row">
-        <span class="prop-label">선 두께</span>
-        <input type="range" class="prop-slider" id="icn-stroke-w-slider" min="${ICON_STROKE_MIN}" max="${ICON_STROKE_MAX}" step="${ICON_STROKE_STEP}" value="${strokeW}">
-        <input type="number" class="prop-number" id="icn-stroke-w-number" min="${ICON_STROKE_MIN}" max="${ICON_STROKE_MAX}" step="${ICON_STROKE_STEP}" value="${strokeW}">
-      </div>` : ''),
+      /* ★표준 Stroke 2-5(현빈 261124 ⓑ · 8910 #mkp-linestroke) — 선 아이콘: 굵기만(색 = Fill 의 아이콘 한 색) · ＋/− · 위치 · ⫶ 없음 · 옛 id icn-stroke-w-number · 걸음·한도 = icon-variant 상수 그대로 */
+      sec('stroke', strokeable ? strokeSectionHTML({ prefix: 'icn-stroke', noColor: true, noAlign: true, width: strokeW, minWidth: ICON_STROKE_MIN, maxWidth: ICON_STROKE_MAX, step: ICON_STROKE_STEP, widthId: 'icn-stroke-w-number' }) : ''),
       sec('fill', `${fillState ? `
       <div class="prop-row">
         <span class="prop-label">채움</span>
@@ -363,14 +355,9 @@ export function showIconifyProperties(block) {
   sSlider.addEventListener('change', () => window.pushHistory?.());
 
   // ICON-FEATHER-MATERIAL — 선 두께(라이브 input · 끝 표본 change · 크기 칸과 같은 이력 규약)
-  const swS = propPanel.querySelector('#icn-stroke-w-slider'), swN = propPanel.querySelector('#icn-stroke-w-number');
-  if (swS && swN) {
-    const applyStroke = (v) => { const w = normIconStroke(v); if (w == null) return; block.dataset.iconStroke = String(w); applyIconStroke(block); swS.value = w; swN.value = w; };
-    swS.addEventListener('mousedown', () => window.pushHistory?.());
-    swS.addEventListener('input', () => applyStroke(swS.value));
-    swS.addEventListener('change', () => { window.pushHistory?.(); window.triggerAutoSave?.(); });
-    swN.addEventListener('change', () => { applyStroke(swN.value); window.pushHistory?.(); window.triggerAutoSave?.(); });
-  }
+  /* 표준 Stroke 2-5 — 부품 배선(어댑터 = 옛 applyStroke 그대로: normIconStroke → dataset.iconStroke → applyIconStroke · change = 이력 한 칸 + 자동저장) */
+  if (propPanel.querySelector('#icn-stroke-w-number')) wireStrokeSection({ prefix: 'icn-stroke', widthId: 'icn-stroke-w-number', minWidth: ICON_STROKE_MIN, maxWidth: ICON_STROKE_MAX, step: ICON_STROKE_STEP, noColor: true,
+    adapter: { width: (v) => { const w = normIconStroke(v); if (w == null) return; block.dataset.iconStroke = String(w); applyIconStroke(block); }, commit: () => { window.pushHistory?.(); window.triggerAutoSave?.(); } } });
   // ICON-FEATHER-MATERIAL — Material Symbols 채움/선: 이름 꼴을 바꿔 그 SVG 를 받아 갈아 끼움(updateIconifyBlock 이 이력·저장 · 색·크기·회전 그대로)
   propPanel.querySelectorAll('#icn-ms-fill-group [data-ms-fill]').forEach((btn) => btn.addEventListener('click', async () => {
     const next = msNameFor(block.dataset.iconName, btn.dataset.msFill);
@@ -393,27 +380,15 @@ export function showIconifyProperties(block) {
     });
   }
 
-  // 회전 — 공유 헬퍼(applyRotationDeg, dataset.rotation)로 통일. 프리셋 버튼(0/90/180/270)·
+  // 회전 — 공유 헬퍼(applyRotationDeg, dataset.rotation)로 통일. (0/90/180/270 단추 4 = 걷음 · 현빈 GO 261124 14:25 · 90° = 회전 줄 ↻ 단추)·
   // 자유 슬라이더/숫자(icn-rot-*)·코너 핫존(asset-rotate.js)이 같은 상태를 쓴다.
   const _icnRotS = propPanel.querySelector('#icn-rot-slider');
   const _icnRotN = propPanel.querySelector('#icn-rot-number');
   const _icnSyncUI = (deg, typing) => {
-    const norm = ((deg % 360) + 360) % 360;         // 프리셋 버튼은 0/90/180/270 표기
     const signed = deg > 180 ? deg - 360 : deg;     // 슬라이더는 -180..180
-    propPanel.querySelectorAll('#icn-rotation-group .prop-align-btn').forEach(b => {
-      b.classList.toggle('active', parseInt(b.dataset.deg) === norm);
-    });
     if (_icnRotS) _icnRotS.value = signed;
     if (_icnRotN && !typing) _icnRotN.value = signed;   // QA2 M4 — 치는 중엔 칸을 다시 안 쓴다(«-30» 을 칠 수 있게) · 끝낼 때(change) 범위로 정규화
   };
-  const applyRotation = deg => {
-    window.applyRotationDeg?.(block, deg);
-    _icnSyncUI(parseInt(deg) || 0);
-    window.pushHistory?.();
-  };
-  propPanel.querySelectorAll('#icn-rotation-group .prop-align-btn').forEach(btn => {
-    btn.addEventListener('click', () => applyRotation(parseInt(btn.dataset.deg)));
-  });
   const _icnFree = (v, typing) => {
     v = Math.min(180, Math.max(-180, parseInt(v) || 0));
     window.applyRotationDeg?.(block, v);
@@ -423,7 +398,8 @@ export function showIconifyProperties(block) {
   _icnRotN?.addEventListener('input',  () => _icnFree(_icnRotN.value, true));
   _icnRotS?.addEventListener('change', () => window.pushHistory?.());
   _icnRotN?.addEventListener('change', () => { _icnFree(_icnRotN.value); window.pushHistory?.(); });
-  wireRotRow({ p: 'icn', numberId: 'icn-rot-number', host: () => block });   // Q17 · Q20(시안 v10 — 슬라이더 없음 · 0/90/180/270 묶음은 Q19 미결이라 그대로)
+  wireRotRow({ p: 'icn', numberId: 'icn-rot-number', host: () => block });
+  wirePositionSection({ prefix: 'icn', numberId: 'icn-rot-number', rerender: () => window.showIconifyProperties?.(block) });   // Q17 · Q20(시안 v10 — 슬라이더 없음 · 0/90/180/270 묶음은 Q19 미결이라 그대로)
 
   // 교체 버튼
   const openModal = () => window.openIconifyModal?.();

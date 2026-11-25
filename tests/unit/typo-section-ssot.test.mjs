@@ -217,7 +217,7 @@ function buildSection(name, arg) {
     .replace(/^import[^\n]*\n/gm, '').replace(/^export\s+/gm, '');
   const ctx = { window: {}, console };
   vm.createContext(ctx);
-  vm.runInContext(`${utils}\n;${helpers}\n;${body}\n;globalThis.__F = { buildTypographySectionHtml, buildFillSectionHtml };`,
+  vm.runInContext(`${utils}\n;${helpers}\n;${readSrc(ROOT, 'js/props/_fill-section.js').replace(/^import[^\n]*\n/gm, '').replace(/^export\s+/gm, '')}\n;${body}\n;globalThis.__F = { buildTypographySectionHtml, buildFillSectionHtml };`,   // ★전제(표준 Fill F4): 빌더가 fillSectionHTML 을 부른다
     ctx, { filename: 'js/props/_typo-section.js' });
   return ctx.__F[name](arg);
 }

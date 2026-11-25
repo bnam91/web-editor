@@ -1,8 +1,10 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML, rotRowHTML, wireRotRow, checkHTML } from './_helpers.js';
+import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from './_position-section.js';   // 표준 Position P3
 import { renderPanel, sec } from './_panel-frame.js';
 import { pushHistory } from '../editor.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { strokeSectionHTML, wireStrokeSection, STROKE_POP_WHY } from './_stroke-section.js';
 
 /** 아무 css 색 → colorField 가 받는 #rrggbb(알파는 parseAlphaFromColor 가 따로 읽는다) */
 function _hex(c) {
@@ -69,7 +71,7 @@ export function showVectorProperties(block) {
       <div class="prop-row">
         <span class="prop-label">색 ${k + 1}</span>
         ${colorFieldHTML({ idPrefix: `vb-g${k}`, hex: _hex(g.color), alpha: parseAlphaFromColor(g.color) })}
-      </div>`).join('') : `
+      </div>`).join('') : hasPen ? '' : `
       <div class="prop-row">
         <span class="prop-label">색</span>
         ${colorFieldHTML({ idPrefix: 'vb', hex: color, alpha: colorAlpha })}
@@ -77,23 +79,13 @@ export function showVectorProperties(block) {
       <div class="prop-row" style="margin-top:6px;" title="닫힌 패스 채움 토글">
         ${checkHTML({ id: 'vb-pen-fill', label: '채움', checked: fillOn })}
       </div>` : ''}`),
-      sec('stroke', stroke.has ? `
-      <div class="prop-row">
-        <span class="prop-label">선 두께</span>
-        <input type="range" class="prop-slider" id="vb-stroke-w" min="0.5" max="40" step="0.5" value="${stroke.width}">
-        <input type="number" class="prop-number" id="vb-stroke-w-num" min="0.5" max="40" step="0.5" value="${stroke.width}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">끝모양</span>
-        <select class="prop-select" id="vb-stroke-cap" style="flex:1">${optHtml(capOpts, stroke.cap)}</select>
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">선 꼴</span>
-        <select class="prop-select" id="vb-stroke-dash" style="flex:1">${optHtml(dashOpts, stroke.dash)}</select>
-      </div>` : ''),
-      sec('position', `${OF?.floatPositionRowHTML({ prefix: 'vb', posEl: floatPosEl }) || ''}
-      <span class="prop-field-label">Rotation</span>${/* Q17 · Q20(시안 v10) — 각도 칸 + 90° · 반전 한 줄(옛 id · 옛 배선 그대로) */
-      rotRowHTML({ numberId: 'vb-rotate-deg', value: rotateDeg, min: -360, max: 360, flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1', ids: { r90: 'vb-rotate-90', fh: 'vb-flip-h', fv: 'vb-flip-v' } })}`, { headTools: window.overlayToggleBtnHTML?.({ id: 'vb-float-toggle', active: floating }) || '' }),
+      /* ★표준 Stroke 2-5(현빈 261124 ⓑ · 8910 #mkp-linestroke) — 선 블럭: ＋/− 없음 · 위치 칸 없음(가운데 고정) · 펜 = 색 줄(옛 Fill «색» 한 칸을 옮김 — 같은 id vb · 한 값 한 손잡이) · 가져온 SVG = 굵기만(색은 Fill = 그림 전체 바꾸기)
+         ⫶ 설정 = 끝모양(늘 보임) · 선 꼴(옛 값 solid/dash/dot · 옛 id vb-stroke-dash) · 꼭짓점·점선 길이 = 막힘(렌더 고정 round · 길이 = 굵기 파생) · 옛 id vb-stroke-w-num */
+      sec('stroke', stroke.has ? strokeSectionHTML({ prefix: 'vb-stroke', color, alpha: colorAlpha, colorId: 'vb', noColor: !hasPen, noAlign: true, width: stroke.width, minWidth: 0.5, maxWidth: 40, step: 0.5, widthId: 'vb-stroke-w-num',
+        pop: { styles: [['solid', '— 실선'], ['dash', '- - 대시'], ['dot', '· · 점']], style: stroke.dash, styleId: 'vb-stroke-dash', live: { cap: true }, look: { cap: ({ butt: 'none', round: 'round', square: 'square' })[stroke.cap] || 'round' },
+          capAlways: true, capLabel: '끝모양', why: STROKE_POP_WHY.soon } }) : ''),
+      sec('position', positionSectionHTML({ prefix: 'vb', posEl: floatPosEl, xy: true, rot: { numberId: 'vb-rotate-deg', value: rotateDeg, min: -360, max: 360, flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1', ids: { r90: 'vb-rotate-90', fh: 'vb-flip-h', fv: 'vb-flip-v' } } }),
+        { headTools: positionHeadToolsHTML({ prefix: 'vb', ialId: 'vb-float-toggle', ialOn: floating }) })   /* 표준 Position P3(0.9.14 73행) — 머리 [슬라이드 모드][IAL] · 회전 = 옛 줄 + 슬라이드 모드 슬라이더 · id·키 무변 */,
     ],
   });
 
@@ -177,24 +169,13 @@ export function showVectorProperties(block) {
     window.enterPenEditMode?.(block);
   });
   // F13: 선 두께 슬라이더 ↔ 숫자 동기 (annotation 패널과 동형). input=라이브, change=히스토리 1회.
-  const strokeSlider = document.getElementById('vb-stroke-w');
-  const strokeNum    = document.getElementById('vb-stroke-w-num');
-  function applyStroke(v) {
-    if (!Number.isFinite(v) || v <= 0) return;
-    if (strokeSlider) strokeSlider.value = v;
-    if (strokeNum)    strokeNum.value    = v;
-    if (window.setVectorStroke?.(block, { width: v })) { window.renderVector(block); window.scheduleAutoSave?.(); }
-  }
-  for (const [id, key] of [['vb-stroke-cap', 'cap'], ['vb-stroke-dash', 'dash']]) {
-    document.getElementById(id)?.addEventListener('change', (e) => {
-      if (!window.setVectorStroke?.(block, { [key]: e.target.value })) return;
-      window.renderVector(block); window.scheduleAutoSave?.(); pushHistory();
-    });
-  }
-  strokeSlider?.addEventListener('input', () => applyStroke(parseFloat(strokeSlider.value)));
-  strokeNum?.addEventListener('input',    () => applyStroke(parseFloat(strokeNum.value)));
-  strokeSlider?.addEventListener('change', () => pushHistory());
-  strokeNum?.addEventListener('change',    () => pushHistory());
+  /* 표준 Stroke 2-5 — 부품 배선 · 어댑터 = 옛 setVectorStroke 한 문 그대로(굵기·끝모양·선 꼴 · input = 라이브 · change = 이력 한 칸) · 색은 펜일 때만(옛 vb wireColorField 가 그대로 씀 → 여기선 색 배선 안 함) */
+  if (document.getElementById('vb-stroke-w-num')) wireStrokeSection({ prefix: 'vb-stroke', widthId: 'vb-stroke-w-num', minWidth: 0.5, maxWidth: 40, step: 0.5, noColor: true,
+    adapter: {
+      width: (v) => { if (Number.isFinite(v) && v > 0 && window.setVectorStroke?.(block, { width: v })) { window.renderVector(block); window.scheduleAutoSave?.(); } },
+      look: (part) => { const p = {}; if (part.style) p.dash = part.style; if (part.cap) p.cap = ({ none: 'butt', round: 'round', square: 'square' })[part.cap]; if (Object.keys(p).length && window.setVectorStroke?.(block, p)) { window.renderVector(block); window.scheduleAutoSave?.(); } },
+      commit: () => pushHistory(),
+    } });
   // F9: 채움 토글 표준 스위치(checkbox change)
   document.getElementById('vb-pen-fill')?.addEventListener('change', (e) => {
     const on = e.target.checked;
@@ -225,6 +206,7 @@ export function showVectorProperties(block) {
 
   // ── 반전 ──────────────────────────────────────────────────────────────────────
   wireRotRow({ numberId: 'vb-rotate-deg', host: () => block, scrubOnly: true });   // 아이콘 끌기만(90°·반전은 옛 배선)
+  wirePositionSection({ prefix: 'vb', numberId: 'vb-rotate-deg', rerender: () => window.showVectorProperties?.(block) });   // 슬라이드 모드 토글·슬라이더만
   document.getElementById('vb-flip-h')?.addEventListener('click', () => {
     block.dataset.flipH = block.dataset.flipH === '1' ? '0' : '1';
     document.getElementById('vb-flip-h')?.classList.toggle('active', block.dataset.flipH === '1');

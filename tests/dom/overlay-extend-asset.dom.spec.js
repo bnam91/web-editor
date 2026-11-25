@@ -445,7 +445,8 @@ test('A9 ★떠 있을 때만 패널에 X/Y 두 칸이 나오고, 그 칸이 좌
     return { beforeHtml, html, seeded, moved, afterErase, restored: xN.value };
   });
   expect(errs, `페이지 에러: ${errs.join(' | ')}`).toEqual([]);
-  expect(r.beforeHtml, '오토레이아웃 상태에서도 좌표칸을 냈다 — 그때는 뜻이 없는 값이다').toBe('');
+  /* ★2026-11-24 기대 바뀜 — 표준 Position 6-2(현빈 확정 · 0.9.14 73행 P2): 흐름 안 X/Y = «있음 + disabled»(숨김 아님) — 흐름에선 «쓸 수 있는» 좌표칸이 아니라 disabled 칸이다 */
+  expect(/data-pos-flow="1"/.test(r.beforeHtml) && /id="asset-x-number"[^>]*disabled/.test(r.beforeHtml), '오토레이아웃 상태 = disabled 좌표칸(뜻이 없는 값을 쓸 수 없게)').toBe(true);
   expect(r.html).toContain('id="asset-x-number"');
   expect(r.html).toContain('id="asset-y-number"');
   expect(r.seeded.x, '현재 좌표로 씨를 안 뿌렸다').not.toBe('');

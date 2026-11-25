@@ -5,7 +5,11 @@ import { propPanel } from '../globals.js';
 import { syncFrameBgVars, frameBgSize, applyFrameBgImageInline, setFrameBgOpacity } from '../frame-bg.js';
 import { clipsContent } from '../clip-content.js';   /* ★★켬 판정의 ★단 한 자리(2026-10-10 c2 · 지디 ㉠) */   /* ★프레임 배경 ★먹이는 한 자리(2026-10-10 ③) */
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { bindSlider, alignBtn, blockHeaderHTML, sliderRowHTML, overlayToggleBtnHTML, rotRowHTML, wireRotRow, checkHTML, wireCheck } from './_helpers.js';
+import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_STYLES_CSS, STROKE_POP_WHY } from './_stroke-section.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, setFillKindName, fillLast, fillKindOfCss } from './_fill-section.js';
+import { hasSides, readSides, writeSides, cssSideWidths, sidesMixed } from '../stroke-look.js';
+import { bindSlider, alignBtn, blockHeaderHTML, sliderRowHTML, overlayToggleBtnHTML, wireRotRow, checkHTML, wireCheck } from './_helpers.js';
+import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from './_position-section.js';   // 표준 Position 절(0.9.14 73행 P3)
 import { applyFrameTransform, frameAlignOffset, framePadding, applyFrameHAlignToChild } from '../frame-geometry.js';
 import { isShapeFrame as _isShapeFrameEl } from '../shape-frame.js';
 /* 버즈(1012t1Z5) — 버즈 표식 프레임이면 머리 바로 뒤에 「Buzz」 절을 그린다(절의 마크업 · 배선은 그 파일의 것). */
@@ -386,6 +390,7 @@ function _renderAutoPanel(ss) {
   const bgGradCss = [ss.dataset.bg, ss.style.backgroundImage].find(v => /gradient\s*\(/i.test(v || '')) || '';
   const hexBg  = bgGradCss ? '#ffffff' : rgbToHex(rawBg);   // 그라데이션이면 wireColorField 가 첫 스탑 색으로 덮는다
   const bgAlpha = bgGradCss ? 100 : parseAlphaFromColor(rawBg);
+  const fillOn = !!bgGradCss || rawBg !== 'transparent';   // 표준 Fill F2 — «없음» = 'transparent'(새 프레임 기본도 이 값 = 머리 ＋ 만) · 알파 0 rgba = 켬·0%(옛 바이트)
   const padY   = Math.round(panelRenderedPx(ss, 'paddingTop'));   // 묶음 B E115 — 그려진 위 여백(_frameDecorCss 는 dataset.padding+인라인 padding 으로 그린다 · 옛 표시는 dataset.padY 만 → 0)
   /* ★★2026-10-11 — ★여기 ★있던 식을 ★★`js/drag-utils.js` ★`framePadXData` 로 ★★파생시켰다.
      ⚰️★옛 줄: ★`parseInt(ss.dataset.padX) || parseInt(ss.style.paddingLeft) || 0`   // F5: 데이터 칸이 없던 옛 프레임은 인라인 padding 을 읽는다
@@ -409,7 +414,7 @@ function _renderAutoPanel(ss) {
   /* ★2026-10-10 ③ — ★배경 크기 칸. ★값은 ★dataset 이 정본(공용 `frameBgSize`)이고 ★여기선 ★그릴 때만 읽는다 */
   const _bgSizeNow = frameBgSize(ss);
   const _bgSizeCustom = /px/.test(_bgSizeNow);
-  const borderWidth = Math.round(panelRenderedPx(ss, 'borderTopWidth'));   // 묶음 B E114 — 그려진 테두리(쓰기 키는 dataset.borderW · 옛 표시는 dataset.borderWidth 를 읽어 늘 0)
+  const borderWidth = hasSides(ss.dataset) ? (Number(ss.dataset.borderWidth) || 0) : Math.round(panelRenderedPx(ss, 'borderTopWidth'));   /* 단계 4-2: 면별이면 그려진 위 변 ≠ 표준 → 표준 = 저장 키 borderWidth */   // 묶음 B E114 — 그려진 테두리(쓰기 키는 dataset.borderW · 옛 표시는 dataset.borderWidth 를 읽어 늘 0)
   const borderStyle = ss.dataset.borderStyle || 'solid';
   const rawBorderColor = ss.style.borderColor || ss.dataset.borderColor || '#888888';
   const hexBorderColor = rgbToHex(rawBorderColor);
@@ -518,26 +523,11 @@ function _renderAutoPanel(ss) {
         <input type="number" class="prop-number" id="ss-banner-inner-x-num" min="0" max="${bannerInnerXMax}" value="${bannerInnerX}">
       </div>
 ` : '') + `
-      <!-- 병합(탑 261122): 값 = 떠 있으면 offset(4d4e9a438) · 아니면 translate · 1120b P4(현빈 261120 「x,y 로우는 텍스트블럭 것 재사용」) — 텍스트 Position 절과 같은 두 칸 마크업(prop-lhls-row · 칸 안 X/Y) · id·배선 그대로 · .prop-number = 포커스 때 전체선택 유지(텍스트 너비 칸과 같은 짝) -->
-      <div class="prop-lhls-row">
-        <div class="prop-lhls-col">
-          <div class="prop-icon-input">
-            <span class="prop-xy-label">X</span>
-            <input type="number" class="prop-number" id="ss-pos-x" value="${_groupFloat ? (parseInt(ss.dataset.offsetX) || 0) : (parseInt(ss.dataset.translateX) || 0)}" aria-label="X position">
-          </div>
-        </div>
-        <div class="prop-lhls-col">
-          <div class="prop-icon-input">
-            <span class="prop-xy-label">Y</span>
-            <input type="number" class="prop-number" id="ss-pos-y" value="${_groupFloat ? (parseInt(ss.dataset.offsetY) || 0) : (parseInt(ss.dataset.translateY) || 0)}" aria-label="Y position">
-          </div>
-        </div>
-      </div>
-      <span class="prop-field-label">Rotation</span>${/* Q17 · Q20(시안 v10) — 각도 칸 + 90° · 반전 한 줄(옛 id · 옛 배선 그대로) */
-      rotRowHTML({ numberId: 'ss-rotate-deg', value: parseInt(ss.dataset.rotateDeg) || 0, min: -360, max: 360, flipH: ss.dataset.flipH === '1', flipV: ss.dataset.flipV === '1', ids: { r90: 'ss-rotate-90', fh: 'ss-flip-h', fv: 'ss-flip-v' } })}
+      ${/* 병합(탑 261122) · 1120b P4 X/Y = 부품 liveXY 예외(값 = 떠 있으면 offset · 아니면 translate · 현빈 261121 · 261124 14:13 (나)) · Q17 · Q20(시안 v10) — 각도 칸 + 90° · 반전 한 줄(옛 id · 옛 배선 그대로) · 표준 Position P3 부품(슬라이드 모드) */
+      positionSectionHTML({ prefix: 'ss', posEl: null, xy: false, liveXY: { xId: 'ss-pos-x', yId: 'ss-pos-y', x: _groupFloat ? (parseInt(ss.dataset.offsetX) || 0) : (parseInt(ss.dataset.translateX) || 0), y: _groupFloat ? (parseInt(ss.dataset.offsetY) || 0) : (parseInt(ss.dataset.translateY) || 0) }, rot: { numberId: 'ss-rotate-deg', value: parseInt(ss.dataset.rotateDeg) || 0, min: -360, max: 360, flipH: ss.dataset.flipH === '1', flipV: ss.dataset.flipV === '1', ids: { r90: 'ss-rotate-90', fh: 'ss-flip-h', fv: 'ss-flip-v' } } })}
 `, {
         /* 플로팅 토글 = Position 머리 손잡이(§2-1) */
-        headTools: _canFloat ? overlayToggleBtnHTML({ id: 'ss-float-toggle', active: _groupFloat, title: 'Ignore Auto Layout — ' + (_isGroupFrame ? '그룹' : '프레임') + '을 자동배치에서 빼서 그 자리에 둔다(옛 «오버레이»). 다시 누르면 원래 자리로 돌아간다.' }) : '',
+        headTools: positionHeadToolsHTML({ prefix: 'ss' }) + (_canFloat ? overlayToggleBtnHTML({ id: 'ss-float-toggle', active: _groupFloat, title: 'Ignore Auto Layout — ' + (_isGroupFrame ? '그룹' : '프레임') + '을 자동배치에서 빼서 그 자리에 둔다(옛 «오버레이»). 다시 누르면 원래 자리로 돌아간다.' }) : ''),
       }),
       sec('size', `
       <div class="prop-row">
@@ -597,17 +587,13 @@ function _renderAutoPanel(ss) {
       </div>`}
 `),
       sec('fill', `
-      <div class="prop-color-row">
-        <span class="prop-label">${bgAlpha === 0 ? '배경색 (투명)' : '배경색'}</span>
-        ${colorFieldHTML({ idPrefix: 'ss-bg', hex: hexBg, alpha: bgAlpha, gradientCss: bgGradCss })}
-      </div>
+      ${fillSectionHTML({ prefix: 'ss-fill', on: fillOn, kind: fillKindOfCss(bgGradCss), colorHtml: colorFieldHTML({ idPrefix: 'ss-bg', hex: hexBg, alpha: bgAlpha, gradientCss: bgGradCss }) })}
       <div class="prop-row">
         <span class="prop-label">배경 투명도</span>
         <input type="range" class="prop-slider" id="ss-bgopa-slider" min="0" max="100" step="1" value="${bgOpacity}">
         <input type="number" class="prop-number" id="ss-bgopa-num" min="0" max="100" value="${bgOpacity}">
       </div>
-      <span class="prop-field-label">Image</span>
-      <button class="prop-action-btn secondary" id="ss-bg-img-btn">이미지 선택</button>
+      <div class="ui-fill-slot" data-slot="below" data-slot-kind="bg-image"><div class="prop-row"><span class="prop-label">이미지</span><button class="prop-action-btn secondary" id="ss-bg-img-btn" style="flex:1">이미지 선택</button></div>
       <input type="file" id="ss-bg-img-input" accept="image/*" style="display:none">
       ${ss.dataset.bgImg ? '' : `<div id="ss-bg-empty-box">
       <button class="prop-action-btn ${_bgEmpty ? 'primary' : 'secondary'}" id="ss-bg-img-empty" style="margin-top:4px;"
@@ -635,29 +621,17 @@ function _renderAutoPanel(ss) {
             ${_bgSizeCustom ? `<option value="${_bgSizeNow}" selected>직접 조절</option>` : ''}
           </select>
         </div>
-        <button class="prop-action-btn secondary" id="ss-bg-pos-btn" style="margin-top:4px;">배경이미지 편집</button>
+        <div class="prop-row"><span class="prop-label">위치</span><button class="prop-action-btn secondary" id="ss-bg-pos-btn" style="flex:1">배경이미지 편집</button></div>
         <!-- 1120b P3(현빈 261120) — 「이미지 제거」(#ss-bg-img-clear) 단추 걷음 -->
-      ` : ''}
-`),
-      sec('stroke', `
-      <div class="prop-row">
-        <span class="prop-label">두께</span>
-        <input type="range" class="prop-slider" id="ss-border-w-slider" min="0" max="20" step="1" value="${borderWidth}">
-        <input type="number" class="prop-number" id="ss-border-w-num" min="0" max="20" value="${borderWidth}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">스타일</span>
-        <select class="prop-select" id="ss-border-style">
-          <option value="solid"  ${borderStyle === 'solid'  ? 'selected' : ''}>Solid</option>
-          <option value="dashed" ${borderStyle === 'dashed' ? 'selected' : ''}>Dashed</option>
-          <option value="dotted" ${borderStyle === 'dotted' ? 'selected' : ''}>Dotted</option>
-        </select>
-      </div>
-      <div class="prop-color-row" style="margin-top:6px;">
-        <span class="prop-label">색상</span>
-        ${colorFieldHTML({ idPrefix: 'ss-border', hex: hexBorderColor, alpha: borderAlpha })}
-      </div>
-`),
+      ` : ''}</div>
+`, { headTools: fillHeadToolsHTML({ prefix: 'ss-fill', on: fillOn }) }),   // 표준 Fill F2 — 칠 없음이면 머리 ＋ 만(이미지·투명도 줄은 그대로 = 슬롯)
+      /* ★표준 Stroke 절 부품(현빈 261123 GO · 8910 strokestd2) — 색 한 줄 · [위치|굵기] · 머리 ＋/−(없음 = 굵기 0 · §4c 없음 열) · 옛 «스타일» select 는 line-style 슬롯(단계 3 팝오버에서 «스타일» 칸으로 흡수)
+         위치 = 칸만 막힘: 프레임 테두리는 CSS border(box-sizing:border-box) = 안쪽 · 옛 id(ss-border-w-num · ss-border 색 · ss-border-style) 지킴 */
+      sec('stroke', strokeSectionHTML({ prefix: 'ss-stroke', color: hexBorderColor, alpha: borderAlpha, width: borderWidth, maxWidth: 20, align: 'inside', canAlign: false,
+        alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 안쪽', on: borderWidth > 0, widthId: 'ss-border-w-num', colorId: 'ss-border',
+        pop: { styles: STROKE_STYLES_CSS, style: borderStyle, styleId: 'ss-border-style', why: STROKE_POP_WHY.css },
+        sides: { w: hasSides(ss.dataset) ? readSides(ss.dataset, borderWidth) : null, std: borderWidth, open: hasSides(ss.dataset), mixed: sidesMixed(ss.dataset, borderWidth) } }),   // 단계 4-2 □ 면별(CSS border-width 4값)   // 단계 3-1: «스타일» = ⫶ 팝오버(옛 id ss-border-style → 옛 change 배선 그대로) · 점(dotted) 유지
+        { headTools: strokeHeadToolsHTML({ prefix: 'ss-stroke', on: borderWidth > 0 }) }),
       sec('effects', _fx.body, { id: _fx.id, headTools: _fx.headTools }),
       sec('special', isBuzzFrame(ss) ? buzzSectionHTML(ss) : '', { title: 'Buzz' }),
       sec('template', `
@@ -869,6 +843,7 @@ function _renderAutoPanel(ss) {
     window.pushHistory?.();
   });
   wireRotRow({ numberId: 'ss-rotate-deg', host: () => ss, scrubOnly: true });   // 아이콘 끌기만(90°·반전은 위 옛 배선)
+  wirePositionSection({ prefix: 'ss', numberId: 'ss-rotate-deg', rerender: () => _renderAutoPanel(ss) });
   // 초기 flip 상태 반영
   if (ss.dataset.flipH === '1') document.getElementById('ss-flip-h')?.classList.add('active');
   if (ss.dataset.flipV === '1') document.getElementById('ss-flip-v')?.classList.add('active');
@@ -962,48 +937,54 @@ function _renderAutoPanel(ss) {
   if (bgPosBtn)   bgPosBtn.addEventListener('click', () => _frameBgEdit(ss));
 
   // 배경색 (solid + gradient)
+  const applyBgSolid = (c) => {
+    // 이전 그라데이션 제거 후 솔리드 적용
+    ss.style.backgroundImage = '';
+    ss.style.backgroundColor = c;
+    ss.dataset.bg = c;
+    _syncFrameBgVars();
+    window.scheduleAutoSave?.();
+  };
   wireColorField('ss-bg', {
     initialAlpha: bgAlpha,
     gradientValue: bgGradCss,   // T-059 2라운드: 재선택 후에도 그라데이션 탭·스탑으로 열린다
-    onApply: (c) => {
-      // 이전 그라데이션 제거 후 솔리드 적용
-      ss.style.backgroundImage = '';
-      ss.style.backgroundColor = c;
-      ss.dataset.bg = c;
-      _syncFrameBgVars();
-      window.scheduleAutoSave?.();
-    },
+    onApply: (c) => { applyBgSolid(c); setFillKindName(document.getElementById('ss-bg-hex'), 'solid'); },
     onGradient: (css, commit) => {
       // 그라데이션은 backgroundColor가 아니라 background로 적용
       ss.style.backgroundColor = '';
       ss.style.background = css;
       ss.dataset.bg = css;
       _syncFrameBgVars();
+      setFillKindName(document.getElementById('ss-bg-hex'), fillKindOfCss(css));
       window.scheduleAutoSave?.();
       if (commit) window.pushHistory?.();
     },
     onCommit: () => window.pushHistory?.(),
   });
 
+  /* 표준 Fill F2 — − = 'transparent'(옛 단색 쓰기 길 그대로 = 그라데이션도 걷힘 · 이미지 = 슬롯이라 그대로) · ＋ = 지난 색 · 없으면 #FFFFFF(Figma 프레임 기본) */
+  wireFillSection({ prefix: 'ss-fill', adapter: {
+    none: () => { fillLast.set(ss.id, bgGradCss || hexBg); applyBgSolid('transparent'); if (ss.dataset.bgImg) applyFrameBgImageInline?.(ss); showFrameProperties(ss); },
+    add: () => { const c = fillLast.get(ss.id, '#ffffff'); if (/gradient\s*\(/i.test(c)) { ss.style.backgroundColor = ''; ss.style.background = c; ss.dataset.bg = c; _syncFrameBgVars(); window.scheduleAutoSave?.(); } else applyBgSolid(c); showFrameProperties(ss); },
+    commit: () => window.pushHistory?.() } });
+
   // 보더
-  const borderWSlider  = document.getElementById('ss-border-w-slider');
-  const borderWNum     = document.getElementById('ss-border-w-num');
   const borderStyleEl  = document.getElementById('ss-border-style');
-  let _borderColor = hexBorderColor;
+  let _borderColor = hexBorderColor, _borderW = borderWidth;
   const applyBorder = () => {
-    const w = parseInt(borderWNum.value) || 0;
+    const w = _borderW;
     const s = borderStyleEl.value;
     const c = _borderColor;
     ss.dataset.borderWidth = w; ss.dataset.borderStyle = s; ss.dataset.borderColor = c;
     ss.style.border = w > 0 ? `${w}px ${s} ${c}` : '';
+    const _sw = w > 0 ? cssSideWidths(ss.dataset, w) : '';   // 단계 4-2 면별 굵기(키 있을 때만 · 없으면 옛 바이트)
+    if (_sw) ss.style.borderWidth = _sw;
   };
-  bindSlider(borderWSlider, borderWNum, () => applyBorder(), { min: 0, max: 20 });
   borderStyleEl.addEventListener('change', () => { applyBorder(); window.pushHistory?.(); window.scheduleAutoSave?.(); });
-  wireColorField('ss-border', {
-    initialAlpha: borderAlpha,
-    onApply: (c) => { _borderColor = c; applyBorder(); },
-    onCommit: () => window.pushHistory?.(),
-  });
+  /* 표준 Stroke 부품 배선 — 어댑터 = 위 applyBorder 그대로(저장 키 borderWidth·borderStyle·borderColor 무변) · 없음 = 굵기 0(칸 값은 그대로 → 다시 켜면 지난 굵기) */
+  wireStrokeSection({ prefix: 'ss-stroke', alpha: borderAlpha, maxWidth: 20, widthId: 'ss-border-w-num', colorId: 'ss-border', onWidth: 1,
+    adapter: { color: (c) => { _borderColor = c; applyBorder(); }, width: (v) => { _borderW = v; applyBorder(); }, commit: () => { window.pushHistory?.(); window.scheduleAutoSave?.(); },
+      sides: { read: () => (hasSides(ss.dataset) ? readSides(ss.dataset, _borderW) : null), write: (o) => { writeSides(ss.dataset, o, _borderW); applyBorder(); }, std: () => _borderW } } });
 
   // 코너
   const radiusSlider = document.getElementById('ss-radius-slider');

@@ -4,6 +4,7 @@ import { propPanel } from '../globals.js';
 import { blockHeaderHTML, escHtml, checkHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_STYLES_CSS, STROKE_POP_WHY } from './_stroke-section.js';
 /* ★1017t1h3 — 「고른 글자만」 한 벌. ⛔선택을 여기서 따로 저장하지 않는다(_text-selection.js 머리말 ⛔). */
 import { getSavedTextSelection, withTextSelection, applyStyleToRange } from './_text-selection.js';
 
@@ -495,39 +496,13 @@ export function showAnnotationProperties(block) {
         ${colorFieldHTML({ idPrefix: 'annot-label-bg', hex: _hex(st.labelBg), alpha: labelBgAlpha, placeholder: '없음' })}
       </div>`),
       // 옛 「선」 + 라벨 테두리
-      sec('stroke', `
-      <div class="prop-color-row">
-        <span class="prop-label">선 색</span>
-        ${colorFieldHTML({ idPrefix: 'annot-stroke', hex: _hex(st.strokeColor), alpha: strokeAlpha })}
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">선 두께</span>
-        <input type="range" class="prop-slider" id="annot-stroke-w" min="0.5" max="8" step="0.5" value="${st.strokeWidth}">
-        <input type="number" class="prop-number" id="annot-stroke-w-num" min="0.5" max="8" step="0.5" value="${st.strokeWidth}">
-      </div>
-      <div class="prop-color-row">
-        <span class="prop-label">테두리</span>
-        ${colorFieldHTML({ idPrefix: 'annot-label-border', hex: _hex(st.labelBorderColor), alpha: labelBorderAlpha, placeholder: '없음' })}
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">테두리 선</span>
-        <div class="prop-align-group" id="annot-border-style-group">
-          <button class="prop-align-btn ${st.labelBorderStyle === 'solid' ? 'active' : ''}" data-style="solid" title="실선">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><line x1="1" y1="7" x2="13" y2="7"/></svg>
-          </button>
-          <button class="prop-align-btn ${st.labelBorderStyle === 'dashed' ? 'active' : ''}" data-style="dashed" title="대시">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="3 2"><line x1="1" y1="7" x2="13" y2="7"/></svg>
-          </button>
-          <button class="prop-align-btn ${st.labelBorderStyle === 'dotted' ? 'active' : ''}" data-style="dotted" title="점선">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="0.5 2.5"><line x1="1.5" y1="7" x2="12.5" y2="7"/></svg>
-          </button>
-        </div>
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">테두리 폭</span>
-        <input type="range" class="prop-slider" id="annot-border-w" min="0" max="8" step="0.5" value="${st.labelBorderWidth}">
-        <input type="number" class="prop-number" id="annot-border-w-num" min="0" max="8" step="0.5" value="${st.labelBorderWidth}">
-      </div>`),
+      /* ★표준 Stroke 2-5(현빈 261124 ⓑ · 8910 #mkp-linestroke) — 주석 선: 색 + 굵기 · ＋/− · 위치 · ⫶ 없음(선 = 가운데 고정) · 옛 id annot-stroke(색) · annot-stroke-w-num
+         «Label border» = 표준 ＋/− 있는 절(없음 = 굵기 0 · 색 알파 0 은 색의 일 — 지디에 갈림 줄 올림) · 선 꼴 = ⫶ 팝오버(실선·대시·점 · 옛 값) · 옛 id annot-label-border(색 · placeholder 없음) · annot-border-w-num */
+      sec('stroke', strokeSectionHTML({ prefix: 'annot-line', noAlign: true, colorId: 'annot-stroke', color: _hex(st.strokeColor), alpha: strokeAlpha, width: st.strokeWidth, minWidth: 0.5, maxWidth: 8, step: 0.5, widthId: 'annot-stroke-w-num' })),
+      sec('special', `<div data-own="special:Label Border">${strokeSectionHTML({ prefix: 'annot-lb',   /* 패널 틀 규칙 = stroke 절은 한 번만 → 블럭 고유 «Label Border» = special(제목 붙은 절 · 머리 ＋/− 그대로) · data-own = 칸 소유를 이 절로(Endpoints 선례) */ noAlign: true, colorId: 'annot-label-border', colorHtml: colorFieldHTML({ idPrefix: 'annot-label-border', hex: _hex(st.labelBorderColor), alpha: labelBorderAlpha, placeholder: '없음' }),
+        width: st.labelBorderWidth, minWidth: 0, maxWidth: 8, step: 0.5, widthId: 'annot-border-w-num', on: st.labelBorderWidth > 0,
+        pop: { styles: STROKE_STYLES_CSS.map(([v, t]) => [v, v === 'dashed' ? '- - 대시' : t]), style: st.labelBorderStyle || 'solid', styleId: 'annot-border-style', why: STROKE_POP_WHY.css } })}</div>`,
+        { title: 'Label Border', headTools: strokeHeadToolsHTML({ prefix: 'annot-lb', on: st.labelBorderWidth > 0 }) }),
       // 옛 「시작점」/「양끝」 → 블록 고유 절 «Endpoints». 끝 크기(annot-anchor-size)는 data-own 으로 Endpoints 소유
       sec('special', `
       <!-- data-own: 끝 «모양» 고르개 — data-shape="glow" 는 끝 모양 이름이지 Glow 효과가 아니다(소유 표의 glow 단어가 Effects 로 끈다) -->
@@ -649,15 +624,9 @@ export function showAnnotationProperties(block) {
   });
 
   // 선 두께
-  const sw = propPanel.querySelector('#annot-stroke-w');
-  const swN = propPanel.querySelector('#annot-stroke-w-num');
-  sw.addEventListener('input',  () => { swN.value = sw.value; _writeProps(block, { strokeWidth: parseFloat(sw.value) }); });
-  sw.addEventListener('change', () => window.pushHistory?.('선 두께'));
-  swN.addEventListener('input', () => {
-    const v = Math.min(8, Math.max(0.5, parseFloat(swN.value) || 0.5));
-    sw.value = v; _writeProps(block, { strokeWidth: v });
-  });
-  swN.addEventListener('change', () => window.pushHistory?.('선 두께'));
+  /* 표준 Stroke 2-5 — 선 굵기 = 부품(어댑터 = 옛 _writeProps strokeWidth · change = 이력 «선 두께») · 색은 위 옛 wireColorField('annot-stroke') 그대로(부품 색 배선 안 함) */
+  wireStrokeSection({ prefix: 'annot-line', widthId: 'annot-stroke-w-num', minWidth: 0.5, maxWidth: 8, step: 0.5, noColor: true,
+    adapter: { width: (v) => _writeProps(block, { strokeWidth: v }), commit: () => window.pushHistory?.('선 두께') } });
 
   // 시작점 모양 (공용 .prop-align-btn)
   propPanel.querySelectorAll('#annot-shape-group .prop-align-btn').forEach(btn => {
@@ -824,26 +793,11 @@ export function showAnnotationProperties(block) {
   });
 
   // 선 스타일 토글
-  propPanel.querySelectorAll('#annot-border-style-group .prop-align-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      propPanel.querySelectorAll('#annot-border-style-group .prop-align-btn').forEach(b => b.classList.toggle('active', b === btn));
-      window.pushHistory?.('선 스타일');
-      _writeProps(block, { labelBorderStyle: btn.dataset.style });
-    });
-  });
 
   // 선 두께
-  const bw = propPanel.querySelector('#annot-border-w');
-  const bwN = propPanel.querySelector('#annot-border-w-num');
-  if (bw && bwN) {
-    bw.addEventListener('input',  () => { bwN.value = bw.value; _writeProps(block, { labelBorderWidth: parseFloat(bw.value) }); });
-    bw.addEventListener('change', () => window.pushHistory?.('선 두께'));
-    bwN.addEventListener('change', () => {
-      const v = Math.min(8, Math.max(0, parseFloat(bwN.value) || 0));
-      bw.value = v; _writeProps(block, { labelBorderWidth: v });
-      window.pushHistory?.('선 두께');
-    });
-  }
+  /* 표준 Stroke 2-5 — «Label border» = 부품(머리 ＋/− · 없음 = 굵기 0 · 켜면 지난 굵기 · 없으면 1) · 선 꼴 = ⫶ 팝오버 · 쓰기 = 옛 _writeProps · 이력 이름 옛 그대로 · 색은 위 옛 wireColorField('annot-label-border') */
+  wireStrokeSection({ prefix: 'annot-lb', widthId: 'annot-border-w-num', minWidth: 0, maxWidth: 8, step: 0.5, onWidth: 1, noColor: true,
+    adapter: { width: (v) => _writeProps(block, { labelBorderWidth: v }), look: (part) => { if (part.style) _writeProps(block, { labelBorderStyle: part.style }); }, commit: () => window.pushHistory?.('선 두께') } });
 
   // ★1017t1h5 — 여백(패딩). 건드려야만 CSS 기본(4px 8px)을 사방 동일 값으로 이긴다.
   const pad = propPanel.querySelector('#annot-label-pad');

@@ -50,7 +50,7 @@ const snap = (page) => page.evaluate(() => {
     polys: [...svg.querySelectorAll('polygon')].map(p => p.getAttribute('points')),
     frameW: parseInt(frame?.style.width) || parseInt(frame?.dataset.width) || null,
     shapeBlocksInCanvas: document.querySelectorAll('#canvas .shape-block').length,
-    labels: [...panel.querySelectorAll('.prop-label')].map(e => e.textContent.trim()),
+    labels: [...panel.querySelectorAll('.prop-label')].filter(e => !e.closest('.ui-stroke-pop')).map(e => e.textContent.trim()),   // ★전제 바뀜(표준 Stroke 단계 3 · §4c ②b): ⫶ «Stroke 설정» 팝오버의 «꼭짓점»(= 꼭짓점 모양 join · 시안 21)은 별 «꼭짓점 수»가 아님 → 팝오버 칸은 셈 밖
     hint: document.getElementById('shape-star-count-hint')?.textContent.trim() || null,
     cpModes: document.getElementById('shape-color-color')?.dataset.cpModes || null,
     cpNote: document.getElementById('shape-color-color')?.dataset.cpModesNote || null,

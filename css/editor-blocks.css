@@ -1296,8 +1296,8 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .icon-circle-block.selected .icb-clear-btn { display: block; }
 
 /* 테두리 스타일 variants */
-.icb-circle[data-border="solid"]  { border: 3px solid var(--ui-border); }
-.icb-circle[data-border="dashed"] { border: 3px dashed var(--ui-border); }
+.icb-circle[data-border="solid"]  { border: var(--icb-bw, 3px) solid var(--icb-bc, var(--ui-border)); }   /* 굵기·색 = 패널이 기본과 다를 때만 원에 변수로 씀(지디 261123 · 없으면 옛 굵기·옛 색 = 옛 저장본 그대로) */
+.icb-circle[data-border="dashed"] { border: var(--icb-bw, 3px) dashed var(--icb-bc, var(--ui-border)); }
 /* Q11(현빈 261112 「원 테두리는 남음」) — 「내용 자르기」 끔이면 넘친 그림(자손)이 원 자신의 border «위»에 칠해져 테두리를 덮는다
    (켬일 땐 overflow 가 padding 상자에서 잘라 테두리가 보였다). ⇒ 같은 테두리를 그림보다 위 층 고리로 한 번 더 그린다
    (래디얼 칸 고리처럼 «그림 밖» 층 · 선택 링 .icon-circle-block.selected::before 와 같은 꼴). 켬 = 규칙 안 걸림 = 옛 그림.
@@ -1306,7 +1306,7 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .icon-circle-block[data-clip-content="false"] > .icb-circle[data-border="dashed"]::after {
   content: '';
   position: absolute;
-  top: -3px; left: -3px; right: -3px; bottom: -3px;
+  top: calc(-1 * var(--icb-bw, 3px)); left: calc(-1 * var(--icb-bw, 3px)); right: calc(-1 * var(--icb-bw, 3px)); bottom: calc(-1 * var(--icb-bw, 3px));   /* 원 테두리 굵기 따라감 */
   box-sizing: border-box;
   border: inherit;
   border-radius: 50%;

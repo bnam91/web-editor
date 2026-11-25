@@ -371,6 +371,14 @@ export function floatAlignRowHTML() {
     + `</div>`;
 }
 if (typeof window !== 'undefined') window.floatAlignRowHTML = floatAlignRowHTML;   // overlay-float.js floatPositionRowHTML 이 window 로 부른다
+/* ★표준 Position 6-2(현빈 확정 261124 · 0.9.14 73행 P2) — 흐름 안 블럭 = 같은 정렬 6칸을 disabled + 툴팁(숨김 아님) · 까닭 글 한 벌.
+   여기(순수 모듈)에 두는 까닭: overlay-float.js 는 window 로 부르고 · 텍스트 패널·골든 하네스(vm)는 이 파일을 직접 싣는다. */
+export const POS_FLOW_WHY = '흐름 안 블럭은 자리가 흐름으로 정해져요 — 괄호 단추(Ignore Auto Layout)를 켜면 써요';
+export function flowAlignDisabledHTML() {
+  const dis = ` disabled aria-disabled="true" title="${POS_FLOW_WHY}"`;
+  return floatAlignRowHTML().replace(/<button /g, `<button${dis} `).replace('data-float-align-row="parent"', `data-float-align-row="flow" title="${POS_FLOW_WHY}"`);
+}
+if (typeof window !== 'undefined') { window.flowAlignDisabledHTML = flowAlignDisabledHTML; window.POS_FLOW_WHY = POS_FLOW_WHY; }
 
 /* ★문자열 조립은 «한 벌» — alignBtn 과 borderBtn 이 같이 쓴다(G17 에서 뽑아냄, 산출 바이트 불변).
  *   ⛔두 헬퍼에 조립을 따로 적지 마라 — 위 「하지 않는 것」 넷이 한쪽에서만 지켜지게 된다. */

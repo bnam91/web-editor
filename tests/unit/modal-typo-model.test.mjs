@@ -305,7 +305,7 @@ function buildTypoMarkup() {
   const strip = (rel) => readSrc(ROOT, rel).replace(/^import[^\n]*\n/gm, '').replace(/^export\s+/gm, '');
   const ctx = { window: {}, console };
   vm.createContext(ctx);
-  vm.runInContext(`${strip('js/props/prop-text-utils.js')}\n;${strip('js/props/_typo-section.js')}
+  vm.runInContext(`${strip('js/props/prop-text-utils.js')}\n;${strip('js/props/_fill-section.js')}\n;${strip('js/props/_typo-section.js')}
     ;globalThis.__O = buildTypographySectionHtml({ p:'mdl-typo', font:'', weight:'', size:36,
         isBold:false, isItalic:false, isStrike:false, isHighlight:false, lh:1.7, ls:0, sizeMin:10, sizeMax:60 })
       + buildFillSectionHtml({ p:'mdl-typo', colorHex:'#1c1c1e', alpha:100 });`,

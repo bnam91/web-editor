@@ -444,6 +444,12 @@ ft-restore-remeasures-at-other-width.dom.spec.js:112 X0   빨강 1/1 (u6m 전수
 ## 2026-11-21 · dev16 전수 — 이름 ＋ 수 (⛔원인 라벨 없이)
 - `ft-restore-remeasures-at-other-width` X0 — 인텔 dev16 전수(e648a47b2) 1/1 빨강 · 같은 sha 아이맥 재기 0/1.
 
+## 2026-11-24 · cert-block RH1 (tp/0914-position-std) — 이름 ＋ 수 (⛔원인 라벨 없이)
+- `cert-block.dom.spec.js:688` RH1 «모서리 손잡이로 폭 조절 · ⌘Z» — srv 표적 1 워커 flaky 1/1 · 머리 144117799 workers 1 ×8: 3/8 · 0/8 · 1/8 빨강 · 제품 파일을 ed5971b62(Position 앞)로 바꾼 판 ×8: 5/8 · 2/8 빨강.
+
+## 2026-11-24 · Position frame·zoom 표적 (tp/0914-position-std 4e1e23489) — 이름 ＋ 수 (⛔원인 라벨 없이)
+- `t13d-02-grid-handles-on-create.dom.spec.js:17` A1 — srv 표적 1 워커 flaky 1/1 · 머리 ×5 0/5 · 제품 파일 c04fbfb8b 판 ×5 0/5 빨강.
+- `u3-purple-outline-geometry.dom.spec.js:131` U2 — srv 표적 1 워커 flaky 1/1 · 머리 ×5 0/5 · 제품 파일 c04fbfb8b 판 ×5 0/5 빨강.
 ## 2026-11-23 · 통일판 2맥(아이맥·수지) 전수 — 이름 ＋ 수 (⛔원인 라벨 없이)
 - `t13d-02-grid-handles-on-create.dom.spec.js:17` A1 — 2맥(아이맥·수지) 전수(f7bda8bd8) 1/1 빨강 · 앞 판 7b69bcbd5 전수(수지 샤드) 1/1 빨강 · f7bda8bd8 수지 단독 workers 1 ×3 0/3.
 

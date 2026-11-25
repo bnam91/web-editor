@@ -4,6 +4,7 @@ import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast } from './_fill-section.js';
 
 export function showInnerCardProperties(block) {
   let lines = [];
@@ -44,8 +45,8 @@ export function showInnerCardProperties(block) {
         <input type="range" class="prop-slider" id="icd-radius-slider" min="0" max="60" step="2" value="${radius}">
         <input type="number" class="prop-number" id="icd-radius-number" min="0" max="60" value="${radius}">
       </div>`),
-      sec('fill', `
-      <div class="prop-row"><span class="prop-label">배경색</span>${colorFieldHTML({ idPrefix: 'icd-bg', hex: bg, alpha: parseAlphaFromColor(bg) })}</div>`),
+      sec('fill', fillSectionHTML({ prefix: 'icd-fill', on: bg !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'icd-bg', hex: bg, alpha: parseAlphaFromColor(bg) }) }),
+        { headTools: fillHeadToolsHTML({ prefix: 'icd-fill', on: bg !== 'transparent' }) }),   // 표준 Fill F2 — 없음 = bg 'transparent'(블럭 색 검사가 이미 받는 값)
       sec('effects', `
       <div class="prop-row">
         <span class="prop-label">그림자</span>
@@ -67,6 +68,11 @@ export function showInnerCardProperties(block) {
       onCommit: () => { window.pushHistory?.(); window.scheduleAutoSave?.(); },
     });
   }
+  /* 표준 Fill F2 — − = 'transparent' · ＋ = 지난 색 · 없으면 #FFFFFF(블럭 기본) */
+  wireFillSection({ prefix: 'icd-fill', adapter: {
+    none: () => { fillLast.set(block.id, bg); block.dataset.bg = 'transparent'; window.renderInnerCardBlock?.(block); window.scheduleAutoSave?.(); showInnerCardProperties(block); },
+    add: () => { block.dataset.bg = fillLast.get(block.id, '#ffffff'); window.renderInnerCardBlock?.(block); window.scheduleAutoSave?.(); showInnerCardProperties(block); },
+    commit: () => window.pushHistory?.() } });
   const wireNum = (prefix, key, min, max) => {
     const s = document.getElementById(`icd-${prefix}-slider`);
     const n = document.getElementById(`icd-${prefix}-number`);

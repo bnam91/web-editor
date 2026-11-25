@@ -64,7 +64,7 @@ test('R10 텍스트 패널 산출에 «Font»·«글자색» 라벨 0 · 고르�
   assert.match(html, /<input type="color" id="txt-color" value="[^"]*" aria-label="글자색">/);
   const typo = readSrc(ROOT, 'js/props/_typo-section.js');
   assert.match(typo, /fontLabel = true/, '[대조] 공용 빌더 기본 = 라벨 있음(모달·그리드 바이트 동일)');
-  assert.match(typo, /colorLabel = true/);
+  assert.doesNotMatch(typo, /colorLabel = true/, '★기대 바뀜(표준 Fill F4 · 현빈 GO 261124): 글자색 «라벨 줄» = 모든 패널에서 표준 겹 줄(라벨 없음 · 이름 = 칸 aria-label «글자색»)');
 });
 
 /* ⑥ 텍스트 Size = 너비 숫자 칸(칸 안 라벨 · 끌기) + 꺼진 높이 칸 «auto». 양성대조: 옛 슬라이더 줄로 되돌리면 빨강 */

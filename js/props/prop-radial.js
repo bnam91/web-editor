@@ -8,6 +8,9 @@
  *   캔버스 끌기(radial-block.js)가 끝나면 이 패널을 그 항목으로 다시 열어 숫자가 끈 값과 같아진다. */
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { strokeSectionHTML, wireStrokeSection, STROKE_STYLES_SVG, STROKE_POP_WHY } from './_stroke-section.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast } from './_fill-section.js';
+import { readLook, writeLook } from '../stroke-look.js';
 import { blockHeaderHTML, escHtml as _esc, checkHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import {
@@ -255,33 +258,27 @@ export function showRadialProperties(block, idx) {
       ${_pairRow('rdl-labelsize', '라벨 크기', st.labelSize, L.labelSize)}
       ${_typeRow('라벨 굵기', 'rdl-labelweight', [['bold', '굵게'], ['normal', '보통']], st.labelWeight)}`),
       sec('fill', `
-      ${_colorRow('rdl-bg', '블럭 배경', st.bg || '#ffffff', '#ffffff')}
-      ${st.bg
-    ? `<button class="prop-btn-full" id="rdl-bg-clear">배경 지우기 (투명)</button>`
-    : `<div class="prop-hint" style="padding:2px 8px;line-height:1.5">지금은 배경이 <b>투명</b>입니다 — 색을 고르면 블럭 배경이 칠해집니다.</div>`}
+      ${fillSectionHTML({ prefix: 'rdl-fill', on: !!st.bg && st.bg !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'rdl-bg', hex: _swatchHex(st.bg || '#ffffff', '#ffffff'), alpha: parseAlphaFromColor(st.bg || '#ffffff') }) })}
       ${isDot ? _colorRow('rdl-dotcolor', '점 색', st.dotColor, RADIAL_DEFAULTS.dotColor) : _colorRow('rdl-cellfill', '칸 채움', st.cellFill, RADIAL_DEFAULTS.cellFill)}
       ${st.centerMode === 'text' ? `
       ${/* 블럭 배경 꼴 — 가운데 기본값만 'transparent' 라 먼저 '' 로 바꿔 같은 빈 값 표시(#ffffff)에 닿게 한다 */ _colorRow('rdl-center-bg', '가운데 배경', (st.centerBg === 'transparent' ? '' : st.centerBg) || '#ffffff', '#ffffff')}
       ${_colorRow('rdl-center-color', '가운데 글자', st.centerColor, RADIAL_DEFAULTS.centerColor)}` : ''}
-      ${st.labelPos === 'none' ? '' : _colorRow('rdl-labelcolor', '라벨 색', st.labelColor, RADIAL_DEFAULTS.labelColor)}`),
+      ${st.labelPos === 'none' ? '' : _colorRow('rdl-labelcolor', '라벨 색', st.labelColor, RADIAL_DEFAULTS.labelColor)}`, { headTools: fillHeadToolsHTML({ prefix: 'rdl-fill', on: !!st.bg && st.bg !== 'transparent' }) }),   // 표준 Fill F2-3 — 블럭 배경 = 표준 줄(없음 = bg '' = 옛 «배경 지우기 (투명)» 단추 값 · 옛 기본) · 점 색·칸 채움·가운데·라벨 = 부위 색 그대로
+      /* ★표준 Stroke 부품(현빈 261123 · 8910 strokestd2 15) — 연결선 select = 표준 «위» 슬롯 · ★켬/끔 정본(지디 261123: none = 표준 몸 숨김 · 머리 ＋/− 안 그림 = 두 손잡이 금지)
+         굵기 = 0.5 걸음 · 하한 0.5 유지(radial-block.js:79) · 위치 = 가운데 막힘(SVG path stroke = 경계 가운데 · radial-block.js:883 실측) · 옛 «선 모양»·«선 연장°» = 아래 슬롯 · 옛 id 지킴 */
       sec('stroke', `
+      <div class="ui-stroke-slot" data-slot="above" data-slot-kind="radial-connector">
       <div class="prop-row">
         <span class="prop-label">연결선</span>
         <select class="prop-select" id="rdl-line-select">
           ${lineOpts.map(([v, t]) => `<option value="${v}"${lineCur === v ? ' selected' : ''}>${t}</option>`).join('')}
         </select>
       </div>
-      ${st.line === 'none' ? '' : `
-      ${_colorRow('rdl-line', '선 색', st.lineColor, RADIAL_DEFAULTS.lineColor)}
-      <div class="prop-row">
-        <span class="prop-label">선 모양</span>
-        <select class="prop-select" id="rdl-line-style">
-          <option value="dashed"${st.lineStyle === 'dashed' ? ' selected' : ''}>점선</option>
-          <option value="solid"${st.lineStyle === 'solid' ? ' selected' : ''}>실선</option>
-        </select>
-      </div>
-      ${_numRow('rdl-line-width', '선 두께', st.lineWidth, L.lineWidth, L.lineWidth.step)}
-      ${isArc && lineCur === 'orbit' ? _numRow('rdl-lineext-number', '선 연장°', st.lineExtend, L.lineExtend) : ''}`}`),
+      </div>${strokeSectionHTML({ prefix: 'rdl-stroke', color: _swatchHex(st.lineColor, RADIAL_DEFAULTS.lineColor), alpha: parseAlphaFromColor(st.lineColor), width: st.lineWidth,
+        maxWidth: L.lineWidth.max, minWidth: L.lineWidth.min, step: L.lineWidth.step, align: 'center', canAlign: false, alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 가운데',
+        on: st.line !== 'none', widthId: 'rdl-line-width', colorId: 'rdl-line',
+        pop: _rdlPop(block, isArc, st.line),   // 단계 3-2: 팝오버 산다(옛 id rdl-line-style · 쓰기 = adapter.look 한 길)
+        slotsBelow: isArc && lineCur === 'orbit' ? `<div class="ui-stroke-slot" data-slot="below" data-slot-kind="radial-line-extend">${_numRow('rdl-lineext-number', '선 연장°', st.lineExtend, L.lineExtend)}</div>` : '' })}`),
       sec('special', `
       ${_typeRow('가운데', 'rdl-center', _CENTER_OPTS, st.centerMode)}
       ${st.centerMode === 'none' ? '' : _pairRow('rdl-center', '크기', st.centerSize, L.centerSize)}
@@ -429,20 +426,24 @@ export function showRadialProperties(block, idx) {
     block.dataset.line = e.target.value;
     rerender(); reopen(); commit();
   });
-  $('rdl-line-style')?.addEventListener('change', (e) => {
-    block.dataset.lineStyle = e.target.value === 'solid' ? 'solid' : 'dashed';
-    rerender(); commit();
-  });
-  wireOnlyNum('rdl-line-width', 'lineWidth');
-  wireColor('rdl-line', 'lineColor');
+  /* «선 모양»(rdl-line-style) = ⫶ 팝오버 «스타일» — 쓰기는 아래 wireStrokeSection 의 adapter.look 한 길(단계 3-2 · 이중 쓰기·이력 두 칸 0) */
+  /* 표준 Stroke 부품 배선 — 어댑터 = 옛 wireOnlyNum('rdl-line-width')·wireColor('rdl-line') 의 쓰기 그대로 · 머리 없음(켬/끔 = 연결선 select) */
+  wireStrokeSection({ prefix: 'rdl-stroke', alpha: parseAlphaFromColor(block.dataset.lineColor || RADIAL_DEFAULTS.lineColor), widthId: 'rdl-line-width', colorId: 'rdl-line',
+    maxWidth: L.lineWidth.max, minWidth: L.lineWidth.min, step: L.lineWidth.step,
+    adapter: { color: (c) => { block.dataset.lineColor = c; rerender(); }, width: (v) => { block.dataset.lineWidth = String(v); rerender(); },
+      look: (part) => { _rdlWriteLook(block, isArc, { ..._rdlLook(block, isArc), ...part }); rerender(); }, commit } });
   if ($('rdl-bg-color')) {
     wireColorField('rdl-bg', {
       initialAlpha: block.dataset.bg ? parseAlphaFromColor(block.dataset.bg) : 100,
       onApply: (c) => { block.dataset.bg = c; rerender(); },
-      onCommit: () => { commit(); if (!$('rdl-bg-clear')) reopen(); },
+      onCommit: () => { commit(); },
     });
   }
-  $('rdl-bg-clear')?.addEventListener('click', () => { block.dataset.bg = ''; rerender(); reopen(); commit(); });
+  /* 표준 Fill F2-3 — − = bg ''(옛 «배경 지우기 (투명)» 단추가 쓰던 값 그대로 · 단추·힌트는 표준 «칠 없음» 줄로) · ＋ = 지난 색 · 없으면 #FFFFFF(옛 빈 값 표시) */
+  wireFillSection({ prefix: 'rdl-fill', adapter: {
+    none: () => { fillLast.set(block.id, block.dataset.bg); block.dataset.bg = ''; rerender(); reopen(); },
+    add: () => { block.dataset.bg = fillLast.get(block.id, '#ffffff'); rerender(); reopen(); },
+    commit } });
 
   // ── Asset ──
   wireType('rdl-marker', [['cell'], ['dot']], 'marker');
@@ -578,3 +579,24 @@ export function showRadialProperties(block, idx) {
 }
 
 window.showRadialProperties = showRadialProperties;
+
+/* ══ 단계 3-2 — 래디얼 연결선 «Stroke 설정» ═══════════════════════════════════════
+ * 스타일 키 = 옛 lineStyle(solid/dashed · 기본 dashed) 그대로 · «사용자» = dashed + strokeDashLen/GapLen(둘 다 있을 때) · 점선 파생 = 3w·3w(radial-block _paintRadial 옛 식)
+ * 끝 기본 = 호 butt(RADIAL_ARC_LINECAP) · 그 밖 round · 꼭짓점 = «외곽선(다각형)»만 꼭짓점이 있다(궤도 = 원 · 바큇살 = 따로 선 토막) */
+function _rdlLook(block, isArc) {
+  const ds = block.dataset, st = radialStateOf(block), w = st.lineWidth;   // 렌더러(_paintRadial)가 읽는 바로 그 정규화 값(호 프리셋 기본 solid 등)
+  const ls = st.lineStyle === 'solid' ? 'solid' : 'dashed';
+  const custom = ls === 'dashed' && ds.strokeDashLen != null && ds.strokeGapLen != null;
+  const base = readLook(ds, { cap: isArc ? 'none' : 'round' });
+  return { ...base, style: ls === 'solid' ? 'solid' : (custom ? 'custom' : 'dashed'), dash: custom ? Number(ds.strokeDashLen) : 3 * w, gap: custom ? Number(ds.strokeGapLen) : 3 * w };
+}
+function _rdlWriteLook(block, isArc, next) {
+  const ds = block.dataset;
+  ds.lineStyle = next.style === 'solid' ? 'solid' : 'dashed';
+  writeLook(ds, { ...next, style: 'solid' }, { cap: isArc ? 'none' : 'round' });   // 끝·꼭짓점·Miter 만(스타일 키는 lineStyle — strokeStyle/길이 키는 여기서 지움)
+  if (next.style === 'custom') { ds.strokeDashLen = String(Math.max(0, Number(next.dash) || 0)); ds.strokeGapLen = String(Math.max(0, Number(next.gap) || 0)); }
+}
+function _rdlPop(block, isArc, line) {
+  return { styles: [...STROKE_STYLES_SVG, ['custom', '사용자']], style: _rdlLook(block, isArc).style, styleId: 'rdl-line-style',
+    live: { dash: true, cap: true, join: line === 'outline' }, look: _rdlLook(block, isArc), joinWhy: STROKE_POP_WHY.noCorner };
+}

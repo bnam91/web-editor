@@ -1,5 +1,8 @@
 import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor, swatchHex } from './color-picker.js';
+import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_POP_WHY } from './_stroke-section.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, setFillKindName, fillLast, fillKindOfCss } from './_fill-section.js';
+import { hasSides, readSides, writeSides, cssSideWidths, sidesMixed } from '../stroke-look.js';
 import { alignBtn, overlayToggleBtnHTML, blockHeaderHTML, animGifBtnHTML, wireAnimGifBtn, checkHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
@@ -89,6 +92,7 @@ export function showAssetProperties(ab) {
   // T-059 2라운드: 그라데이션이면 _hex6 가 #000000 으로 떨어져 Solid 복귀 = 검정이었다 → wireColorField(gradientValue)가 첫 스탑으로 채운다
   const assetBgGrad = /gradient\s*\(/i.test(currentBgColor) ? currentBgColor : '';
   const currentBgAlpha = assetBgGrad ? 100 : parseAlphaFromColor(currentBgColor);
+  const fillOn = ab.dataset.bgColor !== 'transparent';   // 표준 Fill F2-2 — «없음» = bgColor 'transparent'(지디 (ㄴ) 261124) · 키 없음 = 옛 그대로 «켬·A0A0A0»(바이트·시험 무변 · 거짓 표시는 시트 ASSET-BG-NOKEY-FALSE-ON-DISPLAY-01)
   const currentFit = ab.dataset.fit || 'cover';
   // B23: 에셋 외곽선(stroke)
   const currentStrokeWidth = parseInt(ab.dataset.strokeWidth || '0');
@@ -108,19 +112,16 @@ export function showAssetProperties(ab) {
           <option value="solid">단색 — 사각형으로</option>
         </select>
       </div>
-      <div class="prop-color-row">
-        <span class="prop-label">배경색</span>
-        ${colorFieldHTML({ idPrefix: 'asset-bg', hex: assetBgGrad ? '#a0a0a0' : currentBgColor, alpha: currentBgAlpha, gradientCss: assetBgGrad })}
-      </div>
+      ${fillSectionHTML({ prefix: 'asset-fill', on: fillOn, kind: fillKindOfCss(assetBgGrad), colorHtml: colorFieldHTML({ idPrefix: 'asset-bg', hex: assetBgGrad ? '#a0a0a0' : currentBgColor, alpha: currentBgAlpha, gradientCss: assetBgGrad }) })}
       <!-- 1120b A6(현빈 261120) — 「초기화」(#asset-bg-clear) 단추 걷음 -->
       ${hasImage ? '' : `<!-- ★t4-15 체커 톤(현빈 ④) — 꼴·어휘는 섹션 라디오 그대로(새 클래스 0).
            ★입구 조건 없음 — 현빈 「에셋블럭은 최초 추가시에 체크배경으로 두기를 켤 필요가 없지 않아?」(빈 에셋은 늘 체커다).
            ★이미지가 있으면 숨긴다 — 체커가 안 보이니 정할 것이 없다(현빈 QA 자 「불필요한 프롭힌트는 없는지」).
            (옛 라디오 name 함정은 체크박스가 되며 사라졌다 — 1120b A5) -->
-      <div class="prop-row" title="이 에셋블럭의 체크무늬만 어둡게 합니다 — 흰 그림이 체커 위에서 보이게. 내보내기에는 체커가 나가지 않습니다.">
+      <div class="ui-fill-slot" data-slot="below" data-slot-kind="checker"><div class="prop-row" title="이 에셋블럭의 체크무늬만 어둡게 합니다 — 흰 그림이 체커 위에서 보이게. 내보내기에는 체커가 나가지 않습니다.">
         <!-- 1120b A5(현빈 261120) 켬/끔 라디오 → 토글 · ★현빈 261123 «온/오프 = 체크» → check 부품 · 켬 = dataset.checkerTone 'dark' · 끔 = 키 지움(저장 꼴 그대로) -->
         ${checkHTML({ id: 'asset-checker-tone-on', label: '체커 어둡게', checked: _ckTone === 'dark' })}
-      </div>`}
+      </div></div>`}
       ${hasImage && currentFit === 'cover' ? '<div class="prop-hint" style="margin-top:6px;">꽉 채우기에서는 배경이 이미지 뒤에 가려집니다 — 원본 비율에서 보입니다.</div>' : ''}
   `;
   const imageSection = hasImage ? `
@@ -214,7 +215,7 @@ export function showAssetProperties(ab) {
       // 플로팅 토글 = Position 절 머리 손잡이(§2-1) · X/Y(플로팅일 때만 — 몸통이 비어도 머리 손잡이가 있으면 절은 남는다)
       /* 1120b A1(현빈 261120) — 정렬 줄 = Position 절 · 라벨은 텍스트 블럭 Layout 과 같은 꼴(.prop-field-label «Alignment» + .prop-align-group) */
       sec('position', `
-      ${floatPositionRowHTML({ prefix: 'asset', posEl: floatPosEl })}${isFloatOverlay ? '' : `
+      ${floatPositionRowHTML({ prefix: 'asset', posEl: floatPosEl, flowAlign: false })}${isFloatOverlay ? '' : `
       <span class="prop-field-label">Alignment</span>${/* 현빈 261123 S1-4 — 떠 있으면 흐름용 가로 정렬은 뜻이 없어 걷고 위 부모 기준 6칸이 그 자리(시안 8910 floatalign) */ ''}
       <div class="prop-align-group" id="asset-align-group">
           ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', active: currentAlign==='left', attrs: { 'data-align': 'left' } })}
@@ -252,27 +253,15 @@ export function showAssetProperties(ab) {
         ${checkHTML({ id: 'asset-clip-toggle', label: '내용 자르기', checked: clipsContent(ab) })}
       </div>`),   /* 옛 «그레인» 줄 → Effects «Noise» 카드(js/effects-noise.js · 현빈 261123) */
       // 옛 「Background」
-      sec('fill', bgSection),
+      sec('fill', bgSection, { headTools: fillHeadToolsHTML({ prefix: 'asset-fill', on: fillOn }) }),   // 표준 Fill F2-2 — 칠 없음(키 없음 = 체커)이면 머리 ＋
       // 옛 「Border」
       /* 1120b A2(현빈 261120 「Stroke 절도 text-h1 처럼 [+]」) — 머리 «＋»(켜면 «−») · 몸 줄 = 텍스트 Stroke 와 같은 마크업(strokeSection: 두께 → 색상).
          켬 = strokeWidth > 0(저장 꼴 그대로 · 새 키 0). 위치(내부/외부)는 에셋 테두리에 없어 줄이 없다. */
-      sec('stroke', `
-      <div id="asset-stroke-controls" style="display:${currentStrokeWidth > 0 ? 'block' : 'none'}">
-        <div class="prop-row">
-          <span class="prop-label">두께</span>
-          <input type="range" class="prop-slider" id="asset-stroke-slider" min="0" max="20" step="1" value="${currentStrokeWidth}">
-          <input type="number" class="prop-number" id="asset-stroke-num" min="0" max="20" value="${currentStrokeWidth}">
-        </div>
-        <div class="prop-color-row">
-          <span class="prop-label">색상</span>
-          ${colorFieldHTML({ idPrefix: 'asset-stroke-color', hex: currentStrokeColor, alpha: currentStrokeAlpha })}
-        </div>
-      </div>`, { id: 'asset-stroke-section', headTools: `
-        <label class="prop-chain-btn prop-sec-add" title="Stroke 추가">
-          <input type="checkbox" id="asset-stroke-on" ${currentStrokeWidth > 0 ? 'checked' : ''} aria-label="Stroke">
-          <svg class="prop-sec-add-plus" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 2v8M2 6h8"/></svg>
-          <svg class="prop-sec-add-minus" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 6h8"/></svg>
-        </label>` }),
+      /* ★표준 Stroke 절 부품(현빈 261123 GO · 8910 strokestd2 · js/props/_stroke-section.js) — 옛 1120b A2 꼴(머리 ＋ · 꺼지면 몸 숨김 · 켜면 2)은 부품이 그대로 잇는다.
+         위치 = 칸만 막힘: 에셋 테두리는 CSS border(전역 box-sizing:border-box) = 안쪽 · 옛 id(asset-stroke-controls·-on·-num·-color) 지킴 */
+      sec('stroke', strokeSectionHTML({ prefix: 'asset-stroke', pop: { why: STROKE_POP_WHY.css, styleWhy: STROKE_POP_WHY.soon }, color: currentStrokeColor, alpha: currentStrokeAlpha, width: currentStrokeWidth, maxWidth: 20,
+        align: 'inside', canAlign: false, alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 안쪽', on: currentStrokeWidth > 0, bodyId: 'asset-stroke-controls', widthId: 'asset-stroke-num' , sides: { w: hasSides(ab.dataset) ? readSides(ab.dataset, currentStrokeWidth) : null, std: currentStrokeWidth, open: hasSides(ab.dataset), mixed: sidesMixed(ab.dataset, currentStrokeWidth) } }),
+        { id: 'asset-stroke-section', headTools: strokeHeadToolsHTML({ prefix: 'asset-stroke', on: currentStrokeWidth > 0 }) }),
       /* 효과 목록(1120b A4 — 옛 「텍스트 막」 줄 걷음) */
       sec('effects', _fx?.body || '', { headTools: _fx?.headTools || '', id: _fx?.id }),
       // 영상 트림(옛 「Video 트림」)
@@ -609,7 +598,7 @@ export function showAssetProperties(ab) {
     ab.dataset.strokeWidth = String(v);
     if (v > 0) {
       ab.style.borderStyle = 'solid';
-      ab.style.borderWidth = v + 'px';
+      ab.style.borderWidth = cssSideWidths(ab.dataset, v) || (v + 'px');   // 단계 4-2 면별(키 있을 때만 4값 · 없으면 옛 바이트)
       ab.style.borderColor = ab.dataset.strokeColor || '#000000';
     } else {
       ab.style.border = '';
@@ -620,29 +609,9 @@ export function showAssetProperties(ab) {
     if ((parseInt(ab.dataset.strokeWidth) || 0) > 0) ab.style.borderColor = c;
   };
   if ((parseInt(ab.dataset.strokeWidth) || 0) > 0) applyAssetBorder(parseInt(ab.dataset.strokeWidth));
-  wireColorField('asset-stroke-color', {
-    initialAlpha: currentStrokeAlpha,
-    onApply: (c) => applyAssetStrokeColor(c),
-    onCommit: () => window.pushHistory?.(),
-  });
-  const stSlider = document.getElementById('asset-stroke-slider');
-  const stNum    = document.getElementById('asset-stroke-num');
-  stSlider.addEventListener('input',  () => { stNum.value = stSlider.value; applyAssetBorder(parseInt(stSlider.value)); });
-  stSlider.addEventListener('change', () => window.pushHistory?.());
-  stNum.addEventListener('input', () => {
-    const v = Math.min(20, Math.max(0, parseInt(stNum.value) || 0));
-    stSlider.value = v; applyAssetBorder(v);
-  });
-  stNum.addEventListener('change', () => window.pushHistory?.());
-  /* 1120b A2 — 머리 «＋»: 켜면 두께 2(텍스트 Stroke 처럼 «추가» = 보이는 기본값) · 끄면 0(테두리 걷힘) */
-  const stOn = document.getElementById('asset-stroke-on');
-  stOn?.addEventListener('change', () => {
-    const v = stOn.checked ? (parseInt(stNum.value) || 2) : 0;
-    stSlider.value = stNum.value = v || stNum.value;
-    applyAssetBorder(v);
-    document.getElementById('asset-stroke-controls').style.display = stOn.checked ? 'block' : 'none';
-    window.pushHistory?.();
-  });
+  /* 표준 Stroke 부품 배선 — 어댑터 = 위 applyAssetBorder/applyAssetStrokeColor 그대로(저장 키 strokeWidth·strokeColor 무변) · 없음 = 굵기 0 · 켜면 2(옛 1120b A2) */
+  wireStrokeSection({ prefix: 'asset-stroke', alpha: currentStrokeAlpha, maxWidth: 20, widthId: 'asset-stroke-num', onWidth: 2,
+    adapter: { color: (c) => applyAssetStrokeColor(c), width: (v) => applyAssetBorder(v), commit: () => window.pushHistory?.() , sides: { read: () => { const sd = parseInt(ab.dataset.strokeWidth) || 0; return hasSides(ab.dataset) ? readSides(ab.dataset, sd) : null; }, write: (o) => { writeSides(ab.dataset, o, parseInt(ab.dataset.strokeWidth) || 0); applyAssetBorder(parseInt(ab.dataset.strokeWidth) || 0); }, std: () => parseInt(ab.dataset.strokeWidth) || 0 } } });
 
   if (hasImage) {
     document.getElementById('asset-fit-group').addEventListener('click', e => {
@@ -677,15 +646,22 @@ export function showAssetProperties(ab) {
       ab.style.background = '';
       ab.dataset.bgColor = c;
       ab.style.backgroundColor = c;
+      setFillKindName(document.getElementById('asset-bg-hex'), 'solid');
     },
     onGradient: (css, commit) => {
       ab.style.backgroundColor = '';
       ab.style.background = css;
       ab.dataset.bgColor = css;
+      setFillKindName(document.getElementById('asset-bg-hex'), fillKindOfCss(css));
       if (commit) window.pushHistory?.();
     },
     onCommit: () => window.pushHistory?.(),
   });
+  /* 표준 Fill F2-2 — − = bgColor 'transparent'(지디 (ㄴ) · 그라데이션 걷음) · ＋ = 지난 색 · 없으면 #A0A0A0(옛 패널 기본) */
+  wireFillSection({ prefix: 'asset-fill', adapter: {
+    none: () => { fillLast.set(ab.id, assetBgGrad || currentBgColor); ab.dataset.bgColor = 'transparent'; ab.style.background = ''; ab.style.backgroundColor = 'transparent'; window.scheduleAutoSave?.(); showAssetProperties(ab); },
+    add: () => { const c = fillLast.get(ab.id, '#a0a0a0'); ab.style.background = ''; ab.dataset.bgColor = c; if (/gradient\s*\(/i.test(c)) ab.style.background = c; else ab.style.backgroundColor = c; window.scheduleAutoSave?.(); showAssetProperties(ab); },
+    commit: () => window.pushHistory?.() } });
   /* ★t4-15 체커 톤 라디오 — 쓰는 문은 여기 하나(ab.dataset.checkerTone). CSS 가 속성을 보고 전용 쌍만 바꾼다.
      ★패널을 다시 안 그린다(섹션 선례 · js/props/prop-section.js) — 바뀐 것은 화면 색뿐이다. */
   const ckOn  = document.getElementById('asset-checker-tone-on');

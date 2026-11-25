@@ -139,6 +139,7 @@ before(async () => {
   /* ★여섯째·일곱째(right-panel-unify U1 · 2026-11-13) — prop-grid.js 가 패널 틀(_panel-frame.js · renderPanel/sec/scopeChipsHTML)을 import 한다.
      틀은 globals(스텁)·_helpers(스텁)·_section-spec.js(실물 — 순서·제목 정본)를 import 한다. ⛔안 복사하면 이 파일 전부 ERR_MODULE_NOT_FOUND. */
   fs.copyFileSync(path.join(ROOT, 'js', 'props', '_panel-frame.js'), path.join(TMP, 'props', '_panel-frame.js'));
+  fs.copyFileSync(path.join(ROOT, 'js', 'props', '_stroke-section.js'), path.join(TMP, 'props', '_stroke-section.js'));   // ★전제(하네스): 표준 Stroke 부품(현빈 261123) — prop-grid.js 가 import · 부품은 color-picker 만 import(아래 스텁에 두 이름)
   fs.copyFileSync(path.join(ROOT, 'js', 'props', '_section-spec.js'), path.join(TMP, 'props', '_section-spec.js'));
 
   // ★UI 전용 의존 — grdAddLine 이 안 쓰는 것들만 최소 스텁.
@@ -177,7 +178,8 @@ before(async () => {
     'export const parseAlphaFromColor = () => 100;\nexport const swatchHex = (h) => h;\n'
     + 'export const wireHexText = () => null;\n'
     + 'export const parseHex6 = () => null;\n'
-    + 'export const formatHex6 = (v) => String(v ?? "");\n');
+    + 'export const formatHex6 = (v) => String(v ?? "");\n'
+    + 'export const colorFieldHTML = () => "";\nexport const wireColorField = () => null;\n');   // ★전제(하네스 261124): 표준 Stroke 부품(_stroke-section.js)이 import — 아무 것도 안 하는 더블(위 규율)
 
   globalThis.document = makeFakeDom();
   globalThis.window = {};

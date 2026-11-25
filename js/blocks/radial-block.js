@@ -256,6 +256,7 @@ function radialStateOf(block) {
     lineColor: _color(d.lineColor, D.lineColor),
     lineStyle: d.lineStyle === 'solid' ? 'solid' : 'dashed',
     lineWidth: num('lineWidth'),
+    strokeCap: /^(none|square|round)$/.test(d.strokeCap || '') ? d.strokeCap : '',   // 표준 Stroke 3-2 «점선 끝»(없으면 옛 끝 — radialLineCap)
     cellSize: num('cellSize'),
     cellShape: d.cellShape === 'round' ? 'round' : 'circle',
     cellRadius: num('cellRadius'),
@@ -295,6 +296,9 @@ const _markerSize = (st) => (st.marker === 'dot' ? st.dotSize : st.cellSize);
 const RADIAL_ARC_PAD = 16;        // 호 모드 — 내용 상자 둘레의 여유(위 · 아래 · 오른쪽)
 const RADIAL_ARC_PAD_LEFT = 0;    // 호 모드 — 왼쪽 여유. 0 이어야 반원의 끝점이 블럭 왼쪽 변에 선다(원 중심 X 0% 를 밀지 않는다)
 const RADIAL_ARC_LINECAP = 'butt'; // 호 모드의 선 끝 — 끝점에서 멎는다(둥근 끝은 두께 반만큼 끝점을 넘어 왼쪽 변 밖으로 나간다)
+/** ★그리는 선 끝 = 호 상자 계산의 선 끝 «한 자리»(AG13) — 사용자 «점선 끝»(strokeCap · 표준 Stroke 3-2)이 있으면 그것 · 없으면 옛 값(호 butt · 그 밖 round).
+ *  shortcut: 호 상자 계산(radial-arc-geom contentBox)은 butt 아니면 «둥근 끝(사방 두께 반)»으로 잰다 — square 모서리는 그보다 최대 ≈0.2×굵기 더 나간다 · 네모 끝 호가 상자 밖으로 삐져 보이면 geom 에 square 를 따로 넣을 것 */
+function radialLineCap(st, arc) { return ({ none: 'butt', square: 'square', round: 'round' })[st.strokeCap] || (arc ? RADIAL_ARC_LINECAP : 'round'); }
 const RADIAL_DOT_HALO = 5;        // 점 마커 둘레의 옅은 고리(css .rdl-cell--dot 의 box-shadow 두께와 같은 값)
 const RADIAL_LABEL_ICON_GAP = 10; // 라벨 아이콘 아래 간격(css .rdl-label-ico 의 margin-bottom 과 같은 값)
 const _belowLabelW = (m) => Math.max(m + 40, 120);
@@ -338,7 +342,7 @@ function radialArcSpec(st, sizes, maxWs) {
   const rng = window.RADIAL_ARC_GEOM.lineRange(st.startDeg, st.endDeg, degs, st.lineExtend);
   const s = st.centerSize;
   return {
-    degs, line: st.line, lineLo: rng.lo, lineHi: rng.hi, lineWidth: st.lineWidth, lineCap: RADIAL_ARC_LINECAP,
+    degs, line: st.line, lineLo: rng.lo, lineHi: rng.hi, lineWidth: st.lineWidth, lineCap: radialLineCap(st, true),
     markerHalf: _markerSize(st) / 2, halo: st.marker === 'dot' ? RADIAL_DOT_HALO : 0,
     labels: radialArcLabelRects(st, sizes, maxWs),
     center: st.centerMode === 'none' ? null : { x0: st.centerDx - s / 2, x1: st.centerDx + s / 2, y0: -s / 2, y1: s / 2 },
@@ -855,7 +859,13 @@ function _paintRadial(block, st, g) {
   const isDot = st.marker === 'dot';
   const cellRadius = st.cellShape === 'round' ? `${st.cellRadius}px` : '50%';
   const sel = Number.isInteger(block._rdlSel) ? block._rdlSel : -1;
-  const dash = st.lineStyle === 'dashed' ? ` stroke-dasharray="${st.lineWidth * 3} ${st.lineWidth * 3}"` : '';
+  /* ★표준 Stroke 단계 3-2(§4c ②b) — «Stroke 설정» 키(기본과 다를 때만 · prop-radial.js 가 씀): 사용자 길이 = lineStyle dashed + strokeDashLen/GapLen ·
+     끝 strokeCap(none→butt) · 꼭짓점 strokeJoin · Miter°(strokeMiter → miterlimit) — 키 없으면 옛 속성 그대로(옛 바이트) */
+  const _ds = block.dataset, _num = (v) => (Number.isFinite(+v) ? +v : 0);
+  const _custom = st.lineStyle === 'dashed' && _ds.strokeDashLen != null && _ds.strokeGapLen != null;
+  const dash = st.lineStyle === 'dashed' ? ` stroke-dasharray="${_custom ? `${_num(_ds.strokeDashLen)} ${_num(_ds.strokeGapLen)}` : `${st.lineWidth * 3} ${st.lineWidth * 3}`}"` : '';
+  const _join = /^(miter|bevel|round)$/.test(_ds.strokeJoin || '') ? ` stroke-linejoin="${_ds.strokeJoin}"` : '';
+  const _ml = _num(_ds.strokeMiter) > 0 ? ` stroke-miterlimit="${+(1 / Math.sin(_num(_ds.strokeMiter) * Math.PI / 360)).toFixed(2)}"` : '';
 
   /* Q11(현빈 261112) «내용 자르기» 끔 = 칸 밖으로 그림이 보인다(칸 테두리·바탕은 남음). 판정은 표 한 자리(clip-content.js radial · 블럭 dataset.clipContent).
      끔일 때만 인라인 overflow:visible 을 박는다(내보낸 HTML·캡처 클론이 CSS 없이도 들고 간다 · 켬 = 옛 바이트). */
@@ -880,7 +890,7 @@ function _paintRadial(block, st, g) {
   const fitAttr = g.arc ? ` data-rdl-fit="${g.fits ? 1 : 0}" data-rdl-shrunk="${g.shrunk}" data-rdl-shift="${g.shift}"` : '';
   const html = `<div class="rdl-stage${g.arc ? ' rdl-stage--arc' : ''}" data-rdl-r="${g.R}" data-rdl-cx="${g.cx}" data-rdl-cy="${g.cy}"${fitAttr} style="${box}">`
     + `<svg class="rdl-lines" viewBox="0 0 ${g.W} ${g.H}" width="${g.W}" height="${g.H}" aria-hidden="true">`
-    + `<path class="rdl-line" d="${d}" fill="none" stroke="${st.lineColor}" stroke-width="${st.lineWidth}" stroke-linecap="${g.arc ? RADIAL_ARC_LINECAP : 'round'}"${dash}/>`
+    + `<path class="rdl-line" d="${d}" fill="none" stroke="${st.lineColor}" stroke-width="${st.lineWidth}" stroke-linecap="${radialLineCap(st, g.arc)}"${_join}${_ml}${dash}/>`
     + `</svg>`
     + _centerHTML(st, g)
     + itemsHTML

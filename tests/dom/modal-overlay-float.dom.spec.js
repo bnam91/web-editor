@@ -115,7 +115,7 @@ test('M-OVL2 ★단추를 «진짜 눌러» 모달이 뜬다 — 그리고 다�
       position: getComputedStyle(pos).position,
       parent: pos.parentElement?.className || null,
       pressed: document.getElementById('mdl-float-toggle')?.getAttribute('aria-pressed'),
-      hasXY: !!document.getElementById('mdl-x-number'),
+      hasXY: !!document.getElementById('mdl-x-number') && !document.getElementById('mdl-x-number').disabled,   /* ★2026-11-24 기대 바뀜 — 표준 Position 6-2(현빈 확정): 흐름 안 X/Y = «있음 + disabled»(숨김 아님) ⇒ 「보인다」 = «쓸 수 있다»로 잰다 */
     };
   });
   /* ★전제 — ★posElOf 가 ★모달 ★자신을 돌려주나(착수 전 소스 실측의 ★행위 확인) */

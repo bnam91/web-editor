@@ -46,7 +46,7 @@ function load(files, { mutate } = {}) {
   return ctx.__T.buildTextPropsHtml;
 }
 const SHARED = ['js/props/text-type-class.js', 'js/effects-registry.js'];
-const NOW = ['js/props/prop-text-utils.js', 'js/props/_helpers.js', 'js/props/_section-spec.js', 'js/props/_panel-frame.js', 'js/props/_typo-section.js', ...SHARED, 'js/props/prop-text-template.js'];
+const NOW = ['js/props/prop-text-utils.js', 'js/props/_helpers.js', 'js/props/_section-spec.js', 'js/props/_panel-frame.js', 'js/props/_fill-section.js', 'js/props/_typo-section.js', 'js/props/_stroke-section.js', ...SHARED, 'js/props/prop-text-template.js'];   // 표준 Stroke(태양 261123~) — 텍스트 Stroke 절 = 부품 strokeSectionHTML(탑 261124 P2 실측 «not defined»)
 const OLD = ['js/props/prop-text-utils.js', 'js/props/_helpers.js', 'js/props/_typo-section.js', ...SHARED, 'js/props/prop-text-template.js'];
 const OLD_FROM_BASE = new Set(['js/props/prop-text-utils.js', 'js/props/_helpers.js', 'js/props/_typo-section.js', 'js/props/prop-text-template.js']);
 const nowFiles = () => NOW.map((r) => [r, readNow(r)]);
@@ -223,13 +223,53 @@ const PH_OK = new Set(['', '자동', '상속', 'Mix', '없음', 'auto']);   /* a
 /* 2749254f8 Tag Style «Oval» 단추(label·label+circle 상태) — origin/dev 9a724fb78 에서 이 판정이 이미 빨강이었다(태양 261121 실측 · 골든 2벌은 plain·liner 라 그 단추 0) · 같은 꼴로 한 줄. */
 const FEATURE_ADDED = [{ ticket: 'LABEL-OVAL(2749254f8)', n: 1, isCtl: (t) => /id="label-shape-oval"/.test(t), label: null, id: /^label-shape-oval$/ },
   /* ★기대 바뀜(t13E-08·09 2차 · 현빈 확정 261123): 개수 = 슬라이더+숫자(공용 sliderRowHTML) ⇒ range 1 더해 10 · 줄 라벨 «개수» 하나 더 · id txt-lorem-count-slider 하나 더(같은 txt-lorem- 꼴) · option 정규식 = 통일판(dev)의 in="txt-lorem-…" 꼴 그대로(train/0913-a 충돌 풂) */
+  /* ★기대 바뀜(표준 Position P2 · 0.9.14 73행 · 현빈 6-2 확정 261124): 흐름 안 글 = 부모 기준 정렬 6칸을 disabled 로 보인다(숨김 아님) + 윗줄 «Alignment» — 흐름 상태에서만 6(떠 있으면 0 = S1-4 그대로 · 아래 PS_P2_XY 와 짝) */
+  { ticket: 'POSITION-STD-P2', n: 6, isCtl: (t) => /^<button disabled aria-disabled="true" title="흐름 안 블럭은[^"]*" class="prop-align-btn" type="button" data-float-align="[lcrtmb]"/.test(t), label: ['Alignment'], id: /^$/ },
   { ticket: 'TEXT-LOREM-FILL-01', n: 10, isCtl: (t) => /id="txt-lorem-/.test(t) || /^<option value="(word|sentence|paragraph|en|ko)"( selected)?( in="txt-lorem-[a-z]+")?>$/.test(t), label: ['더미 글', '개수'], id: /^txt-lorem-/ }];
+
+/* ★표준 Position P2(6-2) — 흐름 상태(새 산출에 data-float-align-row="flow")에서만: 옛 X/Y 칸(값 있음) → 같은 id 의 disabled · 값 비움 · 툴팁(숨김 아님) */
+const PS_P2_XY = (t) => t.replace(/^<input type="number" id="txt-([xy])-number" value="[^"]*" aria-label="([XY]) position">$/, '<input type="number" id="txt-$1-number" value="" aria-label="$2 position" disabled aria-disabled="true" title="흐름 안 블럭은 자리가 흐름으로 정해져요 — 괄호 단추(Ignore Auto Layout)를 켜면 써요">');
+/* ★표준 Stroke 이관(태양 · 지디 261124 · bt2-safety T6 strokeStd 절과 같은 꼴) — Stroke 절(id txt-stroke-section) «안»의 바뀜만 허용:
+ *   옛 굵기 슬라이더·숫자·위치 select → 부품(굵기 칸 · 위치 select · ⫶ 설정 팝오버: 스타일·점선 길이·간격·점선 끝·꼭짓점·Miter) · 라벨 두께·색상·위치 → 팝오버 라벨.
+ *   절 «밖»에 같은 컨트롤·라벨·id 가 생기면 그대로 빨강 — 내장 양성대조 ②(Position 절에 ⫶ 단추 + «스타일» 라벨 심기)가 매번 잰다. */
+const STROKE_STD = {
+  scope: (root) => all(root).find((k) => k.attrs.id === 'txt-stroke-section') || null,
+  ctlLost: [/^<input type="range" class="prop-slider" id="txt-stroke-w-slider" /, /^<input type="number" class="prop-number" id="txt-stroke-w-number" /, /^<select class="prop-select" id="txt-stroke-align">$/],
+  ctlAdded: [/^<select class="prop-select" id="txt-stroke-(?:align|style)" data-part="select" data-field="stroke-(?:align|style)" /, /^<input type="number" id="txt-stroke-w-number" [^>]*aria-label="굵기">$/,
+    /^<button type="button" class="prop-chain-btn ui-stroke-(?:more" id="txt-stroke-more"|pop-close") /, /^<option value="(?:solid|dashed|dotted|custom)"(?: selected)? in="txt-stroke-style">$/,
+    /^<input type="number" [^>]*aria-label="(?:점선 길이|간격|Miter 각도)"[^>]*>$/, /^<button type="button" class="prop-type-btn(?: active)?" data-value="(?:none|square|round|miter|bevel)" aria-label="[^"]*" aria-pressed="(?:true|false)"[^>]*>$/],
+  labelLost: ['두께', '색상', '위치'], labelAdded: ['스타일', '점선 길이', '간격', '점선 끝', '꼭짓점', 'Miter 각도'],
+  idLost: ['txt-stroke-w-slider'], idAdded: ['txt-stroke-more', 'txt-stroke-pop', 'txt-stroke-style'],
+};
+/** 그 상태 Stroke 절 안에서만 «잃음/생김» 허용 목록을 만든다(옛·새 절 둘 다 있을 때만 · 개수 그대로 = 절 밖 같은 것은 못 빠진다) */
+function strokeStdAllow(o, n) {   // ★표준 Fill F4 — 부르는 자리(탑 P2 줄 옆)를 안 건드리려 FILL_STD 허용을 여기서 합친다(fillStdAllow · 아래)
+  const fx = fillStdAllow(n), so = STROKE_STD.scope(o), sn = STROKE_STD.scope(n);
+  if (!so || !sn) return fx;
+  const co = ctl(so).map((t) => RENAME.reduce((x, [a, b]) => x.replace(a, b), t)), cn = ctl(sn);
+  const pick = (xs, rs) => xs.filter((t) => rs.some((r) => (r instanceof RegExp ? r.test(t) : r === t)));
+  return { cLost: pick(minus(co, cn), STROKE_STD.ctlLost), cAdd: pick(minus(cn, co), STROKE_STD.ctlAdded).concat(fx.cAdd),
+    lLost: pick(minus(labels(so), labels(sn)), STROKE_STD.labelLost), lAdd: pick(minus(labels(sn), labels(so)), STROKE_STD.labelAdded),
+    iLost: pick(minus(ids(so), ids(sn)), STROKE_STD.idLost), iAdd: pick(minus(ids(sn), ids(so)), STROKE_STD.idAdded).concat(fx.iAdd) };
+}
+/* ★표준 Fill 이관(태양 F4 · 현빈 GO 261124 · 시안 #mkp-fillstd) — 글자색 줄 → 표준 겹 줄: Fill 부품(data-part=fill) «안»에 눈·− 단추 둘(막힘 · F6/다음 단계)만 더함.
+ *   옛 판엔 그 부품이 없으니 «생김»만 · 개수 = 부품 안 것만(절 밖 같은 단추는 그대로 빨강 — 내장 양성대조 ①c) · 라벨 바뀜 0(텍스트는 이미 라벨 없음 · 재설계 ⑩). */
+const FILL_STD = {
+  scope: (root) => all(root).find((k) => k.attrs['data-part'] === 'fill') || null,
+  ctlAdded: [/^<button type="button" class="prop-icon-btn ui-fill-btn" id="txt-fill-(?:eye|remove)" aria-label="(?:숨기기|칠 지우기)"[^>]*>$/],
+  idAdded: [/^txt-fill-(?:eye|remove)$/],
+};
+function fillStdAllow(n) {
+  const sc = FILL_STD.scope(n), none = { cLost: [], cAdd: [], lLost: [], lAdd: [], iLost: [], iAdd: [] };
+  if (!sc) return none;
+  return { ...none, cAdd: ctl(sc).filter((t) => FILL_STD.ctlAdded.some((r) => r.test(t))), iAdd: ids(sc).filter((i) => FILL_STD.idAdded.some((r) => r.test(i))) };
+}
 
 function judge(name, st, oldHtml, newHtml) {
   const bad = [];
+  const flowNow = /data-float-align-row="flow"/.test(newHtml);
   const o = stripOldHidden(parse(oldHtml), st), nm = panelModel(newHtml), n = nm.root;
   /* ⑫ 매핑 교정 — 말풍선이면 Bubble 만 켜짐: 옛 판이 함께 켜던 Body(내용 칸 클래스 기준)는 꺼진 것이 맞다 */
-  const oc = ctl(o).map((t) => RENAME.reduce((s, [a, b]) => s.replace(a, b), t)).map((t) => (name === 'bubble' ? t.replace(/^<button class="prop-type-btn active" (data-cls="tb-[a-z0-9]+")>$/, '<button class="prop-type-btn " $1>') : t)).filter((t) => !CTL_DROPPED.some((r) => r.test(t))), nc0 = ctl(n);
+  const oc = ctl(o).map((t) => RENAME.reduce((s, [a, b]) => s.replace(a, b), t)).map((t) => (flowNow ? PS_P2_XY(t) : t)).map((t) => (name === 'bubble' ? t.replace(/^<button class="prop-type-btn active" (data-cls="tb-[a-z0-9]+")>$/, '<button class="prop-type-btn " $1>') : t)).filter((t) => !CTL_DROPPED.some((r) => r.test(t))), nc0 = ctl(n);
   /* 병합(탑 261122): dev 쪽 «기능으로 더한 컨트롤»(FEATURE_ADDED — 더미 글 · Tag Oval)을 정확한 개수로 걷고 나서 저쪽(재설계) 규칙으로 잰다 */
   let nc = nc0, featLabels = [], featHit = [];
   for (const f of FEATURE_ADDED) {
@@ -238,16 +278,18 @@ function judge(name, st, oldHtml, newHtml) {
     if (hit.length === f.n) { nc = nc.filter((t) => !f.isCtl(t)); featHit.push(f); if (f.label) featLabels.push(...[].concat(f.label)); }
   }
   const drift = DRIFT_PRE.states.includes(name);
-  const l1 = minus(oc, nc), e1 = minus(nc, oc).filter((t) => !CTL_ADDED.some((r) => r.test(t)) && !(drift && DRIFT_PRE.ctl.test(t)));
+  const sx = withCheckStd(strokeStdAllow(o, n), checkStdAllow(o, n));   // ★+ 온/오프 → 체크 부품(CHECK_STD · 탑 261124)
+  nc = minus(nc, sx.cAdd);
+  const l1 = minus(minus(oc, sx.cLost), nc), e1 = minus(nc, minus(oc, sx.cLost)).filter((t) => !CTL_ADDED.some((r) => r.test(t)) && !(drift && DRIFT_PRE.ctl.test(t)));
   if (l1.length || e1.length) bad.push(`J1 컨트롤: 잃음 ${JSON.stringify(l1)} · 생김 ${JSON.stringify(e1)}`);
   /* 옛 가짜 절 제목 → 새 field-label: L/R(패딩 연동 머리) · Tag Style(태그 모양 묶음) */
   /* 1120b B5 후속(지디 261121) — 스타일 번호 세 줄 라벨 «번호»×3 → «형광펜»·«점»·«밑줄»(한 말이 셋으로 갈려 LABEL_RENAME 표로는 못 적는다 · 옛 수만큼만) */
   const codeN = labels(o).filter((t) => t === '번호').length;
   const ol = minus(labels(o).map((t) => LABEL_RENAME[t] ?? t), ['Position', ...LABEL_DROPPED, ...Array(codeN).fill('번호'), ...(name === 'bubble' ? ['너비', '높이'] : [])])   /* 1120b B4 — 말풍선 너비·높이 라벨 글 → 칸 안 라벨(.prop-xy-label) */.concat(['형광펜', '점', '밑줄'].slice(0, codeN))
     .concat(ids(n).includes('txt-ph-chain') ? ['좌우패딩'] : [], ids(n).includes('label-style-section') ? ['Tag Style'] : []);   // ⑤ 옛 «L/R» 머리 → «좌우패딩» 줄
-  const nl = minus(labels(n), featLabels), l2 = minus(ol, nl), e2 = minus(nl, ol);
+  const nl = minus(minus(labels(n), featLabels), sx.lAdd), ol2 = minus(ol, sx.lLost), l2 = minus(ol2, nl), e2 = minus(nl, ol2);
   if (l2.length || e2.length) bad.push(`J2 라벨: 잃음 ${JSON.stringify(l2)} · 생김 ${JSON.stringify(e2)}`);
-  const oi = ids(o).filter((i) => !ID_REMOVED.includes(i)), ni = ids(n).filter((i) => !ID_ADDED.some((r) => r.test(i)) && !(drift && DRIFT_PRE.id.test(i)) && !featHit.some((f) => f.id.test(i)));
+  const oi = minus(ids(o).filter((i) => !ID_REMOVED.includes(i)), sx.iLost), ni = minus(ids(n), sx.iAdd).filter((i) => !ID_ADDED.some((r) => r.test(i)) && !(drift && DRIFT_PRE.id.test(i)) && !featHit.some((f) => f.id.test(i)));
   const l4 = minus(oi, ni), e4 = minus(ni, oi);
   if (l4.length || e4.length) bad.push(`J4 id: 잃음 ${JSON.stringify(l4)} · 생김 ${JSON.stringify(e4)}`);
   for (const v of judgePanel(nm, SPEC)) bad.push(`J5 게이트: ${v}`);
@@ -275,6 +317,46 @@ function runAll(buildNew) {
 const blind = runAll(load(nowFiles(), { mutate: (s) => s.replace('id="txt-x-number"', 'id="txt-x-numbr"') }));
 if (!blind.some((f) => f.includes('txt-x-numbr'))) { console.error('★양성대조 실패 — id 를 바꿔도 판정이 못 잡는다(자가 눈멀었다)'); process.exit(1); }
 console.log(`양성대조 OK — 바꾼 id 를 잡았다 (${blind.length}건)`);
+/* ★온/오프 → 체크 부품 이관(현빈 261123 «온/오프 = 체크» · 태양 §2c · 탑 tp/0913-check → dev) — 옛 맨 체크박스(+ 옆 .prop-label)가
+ *   label.ui-check[data-part=check] > input.ui-check-box + span.ui-check-label 로 감싸였다.
+ *   허용 = 그 부품 «안» 체크박스가 옛 맨 체크박스와 id·type·checked 가 같을 때만 «class=ui-check-box 덧붙음» · 그 옛 라벨 글이 부품 글(.ui-check-label)과 같을 때만 라벨이 옮겨감.
+ *   부품 밖 체크박스·옛 짝 없는 체크박스·checked 가 바뀐 것 = 그대로 빨강(내장 양성대조 ①d). */
+function checkStdAllow(o, n) {
+  const out = { cLost: [], cAdd: [], lLost: [] };
+  const oldBox = (id) => all(o).find((k) => k.tag === 'input' && k.attrs.type === 'checkbox' && k.attrs.id === id && !has(k, 'ui-check-box'));
+  for (const part of all(n).filter((k) => k.tag === 'label' && has(k, 'ui-check') && k.attrs['data-part'] === 'check')) {
+    const box = all(part).find((k) => k.tag === 'input' && has(k, 'ui-check-box') && k.attrs.type === 'checkbox');
+    const ob = box && box.attrs.id && oldBox(box.attrs.id);
+    if (!ob || ('checked' in ob.attrs) !== ('checked' in box.attrs)) continue;
+    out.cLost.push(tagNorm(ob.raw)); out.cAdd.push(tagNorm(box.raw));
+    const lt = all(part).filter((k) => has(k, 'ui-check-label')).map((k) => text(k).trim())[0];
+    if (lt && labels(o).includes(lt)) out.lLost.push(lt);
+  }
+  return out;
+}
+function withCheckStd(sx, cx) { return { ...sx, cLost: (sx.cLost || []).concat(cx.cLost), cAdd: (sx.cAdd || []).concat(cx.cAdd), lLost: (sx.lLost || []).concat(cx.lLost),
+  lAdd: sx.lAdd || [], iLost: sx.iLost || [], iAdd: sx.iAdd || [] }; }
+/* ①d 내장 양성대조(CHECK_STD) — 옛 짝 없는 체크 부품을 Position 절 X 칸 뒤에 심으면 J1·J4 가 잡아야 한다(옛 체크박스 «바꿈»만 허용) */
+{ const PLANT = '<label class="ui-check" data-part="check"><input type="checkbox" class="ui-check-box" id="txt-fake-check"><span class="ui-check-label">가짜 체크</span></label>';
+  const nowD = load(nowFiles());
+  const planted = runAll((st) => nowD(st).replace(/(<input[^>]*id="txt-x-number"[^>]*>)/, `$1${PLANT}`)).filter((f) => f.startsWith('plain '));
+  const caught = ['J1', 'J4'].every((j) => planted.some((f) => f.startsWith(`plain ${j}`) && /txt-fake-check/.test(f)));
+  if (!caught) { console.error('★양성대조 실패(CHECK_STD) — 옛 짝 없는 체크 부품을 못 잡는다:\n  ' + planted.join('\n  ')); process.exit(1); }
+  console.log(`양성대조 OK(CHECK_STD) — 옛 짝 없는 체크 부품을 잡았다 (${planted.length}건)`); }
+/* ①b 내장 양성대조(STROKE_STD) — Stroke 절 «밖»(Position 절 X 칸 뒤)에 ⫶ 단추 + «스타일» 라벨을 심으면 J1·J2·J4 가 잡아야 한다(절 안만 허용) */
+{ const PLANT = '<button type="button" class="prop-chain-btn ui-stroke-more" id="txt-stroke-more" aria-haspopup="dialog" aria-expanded="false" aria-label="Stroke 설정"></button><span class="prop-label">스타일</span>';
+  const nowB = load(nowFiles());
+  const planted = runAll((st) => nowB(st).replace(/(<input[^>]*id="txt-x-number"[^>]*>)/, `$1${PLANT}`)).filter((f) => f.startsWith('stroke-on '));
+  const caught = ['J1', 'J2', 'J4'].every((j) => planted.some((f) => f.startsWith(`stroke-on ${j}`) && /txt-stroke-more|스타일/.test(f)));
+  if (!caught) { console.error('★양성대조 실패(STROKE_STD) — Stroke 절 밖에 심은 것을 못 잡는다:\n  ' + planted.join('\n  ')); process.exit(1); }
+  console.log(`양성대조 OK(STROKE_STD) — 절 밖에 심은 ⫶·«스타일»을 잡았다 (${planted.length}건)`); }
+/* ①c 내장 양성대조(FILL_STD) — Fill 부품 «밖»(Position 절 X 칸 뒤)에 Fill 눈 단추를 심으면 J1·J4 가 잡아야 한다 */
+{ const PLANT = '<button type="button" class="prop-icon-btn ui-fill-btn" id="txt-fill-eye" aria-label="숨기기" aria-pressed="false" aria-disabled="true" tabindex="0" title="숨기기 — 곧 지원"></button>';
+  const nowC = load(nowFiles());
+  const planted = runAll((st) => nowC(st).replace(/(<input[^>]*id="txt-x-number"[^>]*>)/, `$1${PLANT}`)).filter((f) => f.startsWith('plain '));
+  const caught = ['J1', 'J4'].every((j) => planted.some((f) => f.startsWith(`plain ${j}`) && /txt-fill-eye/.test(f)));
+  if (!caught) { console.error('★양성대조 실패(FILL_STD) — Fill 부품 밖에 심은 것을 못 잡는다:\n  ' + planted.join('\n  ')); process.exit(1); }
+  console.log(`양성대조 OK(FILL_STD) — 부품 밖에 심은 눈 단추를 잡았다 (${planted.length}건)`); }
 
 /* ② 본 판정 */
 const buildNew = load(nowFiles());

@@ -1,8 +1,11 @@
 import { propPanel, state } from '../globals.js';
 import { blockHeaderHTML, rotRowHTML, wireRotRow, checkHTML } from './_helpers.js';
+import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from './_position-section.js';   // 표준 Position P3
 import { renderPanel, sec } from './_panel-frame.js';
 import { gridCircleIconSvg } from '../blocks/grid-circle-icon.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_STYLES_SVG, STROKE_POP_WHY } from './_stroke-section.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast } from './_fill-section.js';
 
 /* G14 「＋ 블럭 넣기 ▾」 종류·이름표 — 정본은 js/icb-children.js(ICB_CHILD_KIND_LABELS · t5-12ⓑ 그리드 원 줄 패널과 한 벌). */
 import { ICB_CHILD_KIND_LABELS as _ICB_KID_KINDS } from '../icb-children.js';
@@ -23,6 +26,10 @@ export function showIconCircleProperties(block) {
   let   _lastFill = (bgColor && bgColor !== 'transparent') ? bgColor : '#e8e8e8';   // 끈 뒤 다시 켤 색(패널 지역 — 데이터 키 아님)
   const bgAlpha  = parseAlphaFromColor(_lastFill);
   const borderV  = block.dataset.border            || 'none';
+  const ICB_BW_DEF = 3;   // css/editor-blocks.css .icb-circle[data-border] 의 옛 고정 굵기
+  const _icbBcDef = (circle ? getComputedStyle(circle).getPropertyValue('--ui-border').trim() : '') || '#333333';   // 옛 고정 색 = 편집기 토큰이 지금 그리는 값(실측 · 읽기만)
+  const _icbBw = block.dataset.borderW != null ? (parseFloat(block.dataset.borderW) || 0) : ICB_BW_DEF;
+  const _icbBc = block.dataset.borderColor || _icbBcDef;
   const radius   = parseInt(block.dataset.radius)  || 0;
   const padX     = parseInt(block.dataset.padX)    || 0;
   // ★「좌우 패딩」은 «죽은 속성이 아니다» — row 가 cols 일 때만 산다(실측 2026-09-05).
@@ -58,8 +65,8 @@ export function showIconCircleProperties(block) {
         <input type="range" class="prop-slider" id="icb-padx-slider" min="0" max="200" step="4" value="${padX}">
         <input type="number" class="prop-number" id="icb-padx-number" min="0" max="200" value="${padX}">
       </div>`),
-      sec('position', `
-      <span class="prop-field-label">Rotation</span>${rotRowHTML({ p: 'icb', numberId: 'icb-rot-number', value: parseInt(block.dataset.rotation || '0'), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' })}`, { headTools: window.overlayToggleBtnHTML?.({ id: 'icb-float-toggle', active: block.dataset.overlayBlock === 'true' }) || '' }),   // 플로팅 = Position(§2-1)
+      sec('position', positionSectionHTML({ prefix: 'icb', posEl: null, xy: false, rot: { p: 'icb', numberId: 'icb-rot-number', value: parseInt(block.dataset.rotation || '0'), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' } }),
+        { headTools: positionHeadToolsHTML({ prefix: 'icb', ialId: 'icb-float-toggle', ialOn: block.dataset.overlayBlock === 'true' }) })   /* 표준 Position P3(0.9.14 73행) — 머리 [슬라이드 모드][IAL] · 회전 = 옛 줄 + 슬라이드 모드 슬라이더 · id·키 무변 */,   // 플로팅 = Position(§2-1)
       // 옛 「Image」 절 + 원 안 블럭 넣기 = Content
       sec('content', `${hasImage ? `
       <button class="prop-action-btn secondary" id="icb-pos-btn">이미지 위치 조절</button>
@@ -84,23 +91,15 @@ export function showIconCircleProperties(block) {
         </select>
       </div>
       </div>`),
-      sec('fill', `
-      <div class="prop-row" title="끄면 원 바탕이 비어 있다(편집 화면에선 체크무늬 · 내보내기에선 투명)">
-        ${checkHTML({ id: 'icb-fill-toggle', label: '채움', checked: _fillOn })}
-      </div>
-      <div class="prop-color-row" id="icb-bg-row" style="${_fillOn ? '' : 'opacity:0.4;'}">
-        <span class="prop-label">배경</span>
-        ${colorFieldHTML({ idPrefix: 'icb-bg', hex: _lastFill, alpha: bgAlpha })}
-      </div>`),
-      sec('stroke', `
-      <div class="prop-row">
-        <span class="prop-label">스타일</span>
-        <select class="prop-select" id="icb-border-select">
-          <option value="none"   ${borderV==='none'   ?'selected':''}>없음</option>
-          <option value="solid"  ${borderV==='solid'  ?'selected':''}>실선</option>
-          <option value="dashed" ${borderV==='dashed' ?'selected':''}>점선</option>
-        </select>
-      </div>`),
+      sec('fill', fillSectionHTML({ prefix: 'icb-fill', on: _fillOn, colorHtml: colorFieldHTML({ idPrefix: 'icb-bg', hex: _lastFill, alpha: bgAlpha }) }),
+        { headTools: fillHeadToolsHTML({ prefix: 'icb-fill', on: _fillOn }) }),   // 표준 Fill F2-3 — 옛 «채움» 토글(icb-fill-toggle) → 머리 ＋ / 줄 −(없음 = 'transparent' = 옛 끔 값 · 편집 = 체커 · Figma 투명)
+      /* ★표준 Stroke 부품(현빈 261123 · 8910 strokestd2 4) — 없음 = data-border none(옛 키 · 옛 «없음» 고르기 그대로) · 머리 ＋ = 실선
+         ★새 키 2(지디 261123 (가)): borderW·borderColor — 기본(3px · 편집기 토큰 --ui-border 가 지금 그리는 색)과 다를 때만 저장 → 옛 저장본 바이트 무변
+         위치 = 안쪽 막힘(CSS border + 전역 box-sizing:border-box) · 옛 «스타일» select = line-style 슬롯(실선·점선 · 단계 3 팝오버로) */
+      sec('stroke', strokeSectionHTML({ prefix: 'icb-stroke', color: _icbBc, alpha: parseAlphaFromColor(_icbBc), width: _icbBw, maxWidth: 20, align: 'inside', canAlign: false,
+        alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 안쪽', on: borderV !== 'none',
+        pop: { styles: STROKE_STYLES_SVG, style: borderV === 'none' ? 'solid' : borderV, styleId: 'icb-border-select', why: STROKE_POP_WHY.css } }),   // 단계 3-1: «스타일» = ⫶ 팝오버(옛 id icb-border-select · 실선·점선 — 이 블럭엔 «점» 없었음 · 옛 change 배선 그대로)
+        { headTools: strokeHeadToolsHTML({ prefix: 'icb-stroke', on: borderV !== 'none' }) }),
     ],
   });
 
@@ -153,6 +152,7 @@ export function showIconCircleProperties(block) {
   propPanel.querySelector('#icb-rot-number').addEventListener('input',  e => _icbRot(e.target.value, true));   // QA2 M4 — 치는 중엔 칸을 다시 안 쓴다(«-30» 을 칠 수 있게) · 끝낼 때(change) 범위로 정규화
   propPanel.querySelector('#icb-rot-number').addEventListener('change', e => _icbRot(e.target.value));
   wireRotRow({ p: 'icb', numberId: 'icb-rot-number', host: () => block });   // Q17 · Q20(시안 v10 — 슬라이더 없음)
+  wirePositionSection({ prefix: 'icb', numberId: 'icb-rot-number', rerender: () => window.showIconCircleProperties?.(block) });   // 슬라이드 모드 토글·슬라이더만
   propPanel.querySelector('#icb-rot-number').addEventListener('change', () => window.pushHistory());
 
   const _fillToggle = propPanel.querySelector('#icb-fill-toggle');
@@ -170,12 +170,11 @@ export function showIconCircleProperties(block) {
     onCommit: () => window.pushHistory(),
   });
   /* G14 채움 켬/끔 — 끔 = 'transparent'(기존 값) · 켬 = 마지막 색(없으면 #e8e8e8). 히스토리는 «양쪽 끝»(js/CLAUDE.md). */
-  _fillToggle?.addEventListener('change', () => {
-    window.pushHistory();
-    if (_fillToggle.checked) { _paint(_lastFill); if (_bgRow) _bgRow.style.opacity = ''; }
-    else { _paint('transparent'); if (_bgRow) _bgRow.style.opacity = '0.4'; }
-    window.pushHistory();
-  });
+  /* 표준 Fill F2-3 — 옛 토글 자리: − = 'transparent' · ＋ = 지난 색(fillLast · 없으면 옛 _lastFill = 칠했던 색 또는 #e8e8e8) · 이력 «양쪽 끝» 그대로(앞 = 여기 · 뒤 = 부품 commit) */
+  wireFillSection({ prefix: 'icb-fill', adapter: {
+    none: () => { window.pushHistory(); fillLast.set(block.id, _lastFill); _paint('transparent'); showIconCircleProperties(block); },
+    add: () => { window.pushHistory(); _paint(fillLast.get(block.id, _lastFill)); showIconCircleProperties(block); },
+    commit: () => window.pushHistory() } });
   /* Q11(현빈 261112) «내용 자르기» — 에셋(prop-asset.js asset-clip-toggle)과 같은 꼴: 기본값과 같으면 키를 지운다(옛 바이트) · 그리기는 applyIcbClip 한 자리. */
   propPanel.querySelector('#icb-clip-toggle')?.addEventListener('change', e => {
     window.pushHistory?.('서클 내용 자르기');
@@ -194,9 +193,21 @@ export function showIconCircleProperties(block) {
     window.addCircleChild?.(block, kind);
   });
 
+  /* 표준 Stroke 부품 배선 — 원에 변수(--icb-bw/--icb-bc)는 키가 있을 때만(기본과 같으면 키·변수 둘 다 지움 = 옛 저장본 그대로) */
+  const _icbSetBorder = (v) => { block.dataset.border = v; if (circle) circle.dataset.border = v; };
+  const _icbVar = (key, cssVar, val, isDef) => {
+    if (isDef) { delete block.dataset[key]; circle?.style.removeProperty(cssVar); if (circle?.getAttribute('style') === '') circle.removeAttribute('style'); }
+    else { block.dataset[key] = String(val); circle?.style.setProperty(cssVar, cssVar === '--icb-bw' ? `${val}px` : val); }
+  };
+  wireStrokeSection({ prefix: 'icb-stroke', alpha: parseAlphaFromColor(_icbBc), maxWidth: 20, onWidth: ICB_BW_DEF,
+    adapter: {
+      color: (c) => _icbVar('borderColor', '--icb-bc', c, String(c).toLowerCase() === _icbBcDef.toLowerCase()),
+      width: (v) => { if ((block.dataset.border || 'none') === 'none') _icbSetBorder(propPanel.querySelector('#icb-border-select')?.value || 'solid'); _icbVar('borderW', '--icb-bw', v, v === ICB_BW_DEF); },
+      none: () => _icbSetBorder('none'),   // 없음 = 옛 «없음» 그대로(굵기·색 키는 남김 → 다시 켜면 그 굵기·색)
+      commit: () => window.pushHistory(),
+    } });
   propPanel.querySelector('#icb-border-select').addEventListener('change', e => {
-    block.dataset.border   = e.target.value;
-    circle.dataset.border  = e.target.value;
+    _icbSetBorder(e.target.value);
     window.pushHistory();
   });
 }

@@ -66,6 +66,30 @@ function run(command, params, opts = {}) {
 }
 
 // ─── 색상 (hex / rgb() → {r,g,b,a}) ─────────────────────────────
+/* ★표준 Stroke 4-3 — CSS 테두리 → Figma stroke(플러그인 set_stroke_color · 면별 sides → strokeTop/Right/Bottom/LeftWeight · align INSIDE = CSS border-box)
+ *  border 꼴 둘: ⓐ {width, color, style, sides?}(프레임·모달·에셋) ⓑ {top:{width,color,style}|null, …}(그리드 블럭 외곽선 G17) · 없거나 굵기 0 = 아무것도 안 함(옛 명령 그대로)
+ *  ⚠️점선(dashed/dotted)은 아직 굵기·색만(Figma dashPattern = 다음 칸 · 계약 §4c 남은 칸) */
+function _strokeOf(border) {
+  if (!border || typeof border !== 'object') return null;
+  if (typeof border.width === 'number') {
+    if (!(border.width > 0)) return null;
+    const sd = border.sides && typeof border.sides === 'object' ? border.sides : null;
+    return { color: border.color, weight: border.width, sides: sd, style: border.style };
+  }
+  const sides = {}; let color = null, max = 0;
+  for (const k of ['top', 'right', 'bottom', 'left']) { const b = border[k]; const w = b && b.width > 0 ? b.width : 0; sides[k] = w; if (w > 0) { color = color || b.color; max = Math.max(max, w); } }
+  const style = ['top', 'right', 'bottom', 'left'].map((k) => border[k] && border[k].width > 0 && border[k].style).find(Boolean) || 'solid';
+  return max > 0 ? { color, weight: max, sides, style } : null;
+}
+function applyBorder(nodeId, border) {
+  const st = _strokeOf(border);
+  if (!st || !nodeId) return;
+  /* ★점선(Stroke 마지막 칸 · 지디 261124) — CSS dashed = [3w, 2w] · dotted = [w, w](js/stroke-look.js derivedDash · vector _dashArray 와 같은 식) · 실선이면 인자 없음(옛 명령 그대로) · 옛 플러그인은 무시 = 실선 */
+  /* ★점(dotted · 미카사 261124 실측: [w,w] + 끝 NONE = Figma 에서 «네모 토막» · 앱은 둥근 점) → [0, 2w] + strokeCap ROUND(Figma 둥근 점 관례) · 대시는 그대로 · 옛 플러그인 = 둘 다 무시 = 실선(지금 꼴) */
+  const w = st.weight, dash = st.style === 'dashed' ? [3 * w, 2 * w] : st.style === 'dotted' ? [0, 2 * w] : null;
+  run('set_stroke_color', { nodeId, color: hex(st.color || '#000000'), strokeWeight: st.weight, ...(st.sides ? { sides: st.sides } : {}), align: 'INSIDE', ...(dash ? { dashPattern: dash } : {}), ...(st.style === 'dotted' ? { strokeCap: 'ROUND' } : {}) });
+}
+
 function hex(h) {
   if (!h) return { r: 0, g: 0, b: 0, a: 1 };
   // rgb(r, g, b) or rgba(r, g, b, a)
@@ -235,6 +259,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       ? { x: 0, y: pad, width: fw, height: fh, name: `frame_${block.id || ''}`, parentId: wrap.id, clipsContent: false }
       : { x: fx, y, width: fw, height: fh, name: `frame_${block.id || ''}`, parentId });
     if (!frame) return fh;
+    applyBorder(frame.id, block.border);   // 표준 Stroke 4-3 — 프레임 테두리(없으면 옛 명령 그대로)
     if (block.shadow) run('set_effects', { nodeId: frame.id, effects: [{ type: 'DROP_SHADOW', color: hex(block.shadow.color), offset: { x: 0, y: +block.shadow.y || 0 }, radius: +block.shadow.blur || 0, spread: 0, visible: true, blendMode: 'NORMAL' }] });
     const bgc = (block.bg || '').trim();
     // 프레임 배경: #hex 뿐 아니라 rgb()/rgba()도 파싱(예: 카드 rgba(255,255,255,.55) — 이전엔 미파싱→투명 드롭으로 카드 사라짐).
@@ -625,6 +650,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const wrap = run('create_frame', { x, y, width: tblW, height: tblH, name: `table_${block.id}`, parentId });
     if (!wrap) return tblH;
     run('set_fill_color', { nodeId: wrap.id, color: { r: 1, g: 1, b: 1, a: 0 } });
+    if (block.outer) { const ow = Math.max(1, Number(block.outer.width) || 1); applyBorder(wrap.id, { width: ow, color: block.lineColor || '#cccccc', sides: { top: block.outer.y ? ow : 0, bottom: block.outer.y ? ow : 0, left: block.outer.x ? ow : 0, right: block.outer.x ? ow : 0 } }); }   // 표준 Stroke 4-3 — 표 바깥 변(edge-select)
 
     const font  = loadFontSafe(block.fontFamily || 'Pretendard', 'Regular');
     const fontB = loadFontSafe(block.fontFamily || 'Pretendard', 'Bold');
@@ -746,6 +772,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       parentId,
       clipsContent: block.clip !== false,   // ★FIGMA-ASSET-CLIP-OFF-AND-CROP-MISMATCH-01 — «내용 자르기» 끔 = false · 늘 명시(Figma 기본값 true 에 기대지 않는다)
     });
+    if (node) applyBorder(node.id, block.border);   // 표준 Stroke 4-3 — 에셋 테두리
     if (node) {
       if (block.redact) {
         // ★블러(Redact, 1012t1 C1) — 에디터가 원본 src 를 안 싣는다. 불투명 덮개 색으로만 칠한다(도형 가림막과 같은 원칙).
@@ -1030,6 +1057,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const type = block.shapeType || 'rectangle';
     // 옛 JSON 은 그라데이션 CSS 문자열이 color 에 실려 온다 — paint 로 무효(검정)라 회색 폴백.
     const color = (block.color && !/gradient\s*\(/i.test(block.color)) ? block.color : '#cccccc';
+    const paint = /^transparent$/i.test(color) ? 'none' : color;   // 표준 Fill F1 — 칠 없음('transparent') = SVG paint 'none'(Figma 가져오기가 확실히 «칠 없음»으로 읽는 꼴) · 다른 색은 그대로
     const sw = Number(block.strokeWidth) || 0;        // viewBox user-space 단위 (goditor와 동일)
     const rot = Number(block.rotation) || 0;          // deg, transform-origin center
     const half = sw / 2;
@@ -1039,7 +1067,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       rectangle: { vb: '0 0 100 100', fill: true,  inner: `<rect x="${half}" y="${half}" width="${inset}" height="${inset}"/>` },
       ellipse:   { vb: '0 0 100 100', fill: true,  inner: `<ellipse cx="50" cy="50" rx="${rr}" ry="${rr}"/>` },
       line:      { vb: '0 0 200 40',  fill: false, inner: `<line x1="10" y1="20" x2="190" y2="20" stroke-linecap="round"/>` },
-      arrow:     { vb: '0 0 200 40',  fill: false, inner: `<line x1="10" y1="20" x2="172" y2="20" stroke-linecap="round"/><polygon points="170,10 194,20 170,30" fill="${color}" stroke="none"/>` },
+      arrow:     { vb: '0 0 200 40',  fill: false, inner: `<line x1="10" y1="20" x2="172" y2="20" stroke-linecap="round"/><polygon points="170,10 194,20 170,30" fill="${paint}" stroke="none"/>` },
       polygon:   { vb: '0 0 200 180', fill: true,  inner: `<polygon points="100,8 194,172 6,172"/>` },
       star:      { vb: '0 0 200 190', fill: true,  inner: `<polygon points="100,8 122,70 188,70 135,110 155,172 100,132 45,172 65,110 12,70 78,70"/>` },
     };
@@ -1055,8 +1083,26 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     // ★0919 QA: 그라데이션 = export 가 실어 준 캔버스 SVG def(id="g")를 그대로 — CSS 문자열을 fill 에 넣으면 무효 paint → 검정.
     //   color 는 단색 폴백(선·외곽선). def 가 없거나 면 없는 도형이면 기존 단색.
     const gradDef = (def.fill && typeof block.gradientDef === 'string' && /^<(linear|radial)Gradient[\s>]/.test(block.gradientDef)) ? block.gradientDef : '';
-    const faceFill = def.fill ? (gradDef ? 'url(#g)' : color) : 'none';
-    const styleAttr = `color:${color};stroke-width:${sw};fill:${faceFill};stroke:${color};`;
+    const faceFill = def.fill ? (gradDef ? 'url(#g)' : paint) : 'none';
+    /* ★표준 Stroke 단계 3-2 — 점선·끝·꼭짓점·Miter(보내는 쪽이 실어 줄 때만 · 꼴 검사 후 SVG style 로 · Figma SVG 가져오기가 dashPattern·strokeCap·strokeJoin 으로 읽는다) · 없으면 옛 문자열 그대로 */
+    const _dash = /^[\d.]+( [\d.]+)*$/.test(block.strokeDasharray || '') ? block.strokeDasharray : '';
+    const _cap = /^(butt|round|square)$/.test(block.strokeLinecap || '') ? block.strokeLinecap : '';
+    const _join = /^(miter|bevel|round)$/.test(block.strokeLinejoin || '') ? block.strokeLinejoin : '';
+    const _ml = Number.isFinite(block.strokeMiterlimit) && block.strokeMiterlimit >= 1 ? block.strokeMiterlimit : 0;
+    /* ★도형 선 색(지디 261124) — 보내는 쪽 strokeColor(캔버스 shapeStrokeColor)가 있으면 선만 그 색 · 없으면 옛 그대로(면 색) · 화살촉(fill=currentColor)은 캔버스처럼 color = 면 색 그대로(실측: 캔버스 화살촉 fill = 면 색) */
+    const strokeC = (typeof block.strokeColor === 'string' && /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\))$/i.test(block.strokeColor.trim())) ? block.strokeColor.trim() : paint;
+    const styleAttr = `color:${color};stroke-width:${sw};fill:${faceFill};stroke:${strokeC};`
+      + (_dash ? `stroke-dasharray:${_dash};` : '') + (_cap ? `stroke-linecap:${_cap};` : '') + (_join ? `stroke-linejoin:${_join};` : '') + (_ml ? `stroke-miterlimit:${_ml};` : '');
+    if (_cap) def = { ...def, inner: def.inner.replace(/stroke-linecap="round"/g, `stroke-linecap="${_cap}"`) };
+    /* ★표준 Stroke 단계 5 — 선·화살표 끝점 = 보내는 쪽이 실어 준 캔버스 SVG(line/polyline/polygon/circle 만 · 숫자·알려진 낱말 속성만 — 글자를 SVG 에 꽂으므로 꼴 검사) · currentColor = 선 색 · 아니면 옛 DEFS */
+    if ((type === 'line' || type === 'arrow') && typeof block.shapeInner === 'string' && /^(\s*<(line|polyline|polygon|circle)( (x1|y1|x2|y2|cx|cy|r|points|fill|stroke|stroke-width|stroke-linecap|stroke-linejoin|stroke-dasharray|data-end|data-end-main)="[-#\w., ]*")* ?(\/>|><\/(line|polyline|polygon|circle)>))+\s*$/.test(block.shapeInner)) {
+      def = { ...def, inner: block.shapeInner.replace(/currentColor/g, paint) };
+    }
+    /* ★표준 Stroke 4-2b/4-3 — 사각형 면별(보내는 쪽 strokeSides [위,오른쪽,아래,왼쪽]) = 캔버스 _shapeInnerSVG 와 같은 SVG(면 + 변마다 선) · 꼴 틀리면 옛 rect */
+    if (type === 'rectangle' && Array.isArray(block.strokeSides) && block.strokeSides.length === 4 && block.strokeSides.every((v) => Number.isFinite(v) && v >= 0)) {
+      const [t, r, b, l] = block.strokeSides, ln = (x1, y1, x2, y2, w) => (w > 0 ? `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke-width="${w}" fill="none"/>` : '');
+      def = { ...def, inner: `<rect x="0" y="0" width="100" height="100" stroke="none"/>` + ln(0, t / 2, 100, t / 2, t) + ln(100 - r / 2, 0, 100 - r / 2, 100, r) + ln(0, 100 - b / 2, 100, 100 - b / 2, b) + ln(l / 2, 0, l / 2, 100, l) };
+    }   // 선·화살표 <line> 의 자기 속성이 물려받기를 이긴다(캔버스와 같은 손)
     const gOpen = rot ? `<g transform="rotate(${rot} ${cxv} ${cyv})">` : '';
     const gClose = rot ? `</g>` : '';
     const defsTag = gradDef ? `<defs>${gradDef}</defs>` : '';
@@ -1183,7 +1229,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const bx = x + Math.max(0, Math.round((availableWidth - bw) / 2));
     const frame = run('create_frame', { x: bx, y, width: bw, height: bh, name: `banner02_${block.id || ''}`, parentId });
     if (!frame) return block.height || bh;
-    run('set_fill_color', { nodeId: frame.id, color: hex(block.bg || '#1a1f3d') });
+    run('set_fill_color', { nodeId: frame.id, color: /^transparent$/i.test(block.bg || '') ? { r: 1, g: 1, b: 1, a: 0 } : hex(block.bg || '#1a1f3d') });   // 표준 Fill F2-2 — 칠 없음 = 투명(hex() 는 # 아닌 글자를 흰색으로 읽는다 · 공용 함수는 안 고침)
     if (block.radius) run('set_corner_radius', { nodeId: frame.id, radius: block.radius });
     // 우측 이미지(또는 플레이스홀더)
     if (block.imgW > 0) {
@@ -1418,6 +1464,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       if (bgc.startsWith('#') || bgc.startsWith('rgb')) run('set_fill_color', { nodeId: frame.id, color: hex(bgc) });
       else run('set_fill_color', { nodeId: frame.id, color: { r: 1, g: 1, b: 1, a: 0 } });
       if (block.radius) run('set_corner_radius', { nodeId: frame.id, radius: block.radius });
+      applyBorder(frame.id, block.border);   // 표준 Stroke 4-3 — 모달 테두리 · 그리드 블럭 외곽선(G17 면별)
       /* FIGMA-EXPORT-GRID-IMAGES-MISSING-01 — 그리드 칸 그림(보내는 쪽 block.images · 블럭 왼위 기준 레이아웃 px)을 글 «아래» 층에 채운다 */
       (block.images || []).forEach((im, i) => {
         if (!im || typeof im.src !== 'string' || !im.src.startsWith('data:')) return;

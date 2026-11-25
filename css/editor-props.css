@@ -119,8 +119,8 @@
 /* panel-frame:END ════════════════════════════════════════════════════════════════════════ */
 /* Effects ＋ 메뉴(시안 v8/v10 .mk8-menu 값 — 머리 오른쪽 아래에 뜨는 앱 메뉴 꼴 · 항목 = .fp-menu-item) */
 .prop-sec-head:has(> .prop-fx-menu) { position: relative; }
-.prop-fx-menu { position: absolute; top: calc(100% + var(--ui-space-0_5)); right: 0; z-index: 5; background: var(--ui-bg-card); border: 1px solid var(--ui-border); border-radius: var(--ui-radius-md); padding: var(--ui-space-1); box-shadow: var(--ui-shadow-lg); min-width: calc(var(--ui-form-label-w) * 2); }
-.prop-fx-menu[hidden] { display: none; }
+.prop-fx-menu, .ui-stroke-pop { position: absolute; top: calc(100% + var(--ui-space-0_5)); right: 0; z-index: 5; background: var(--ui-bg-card); border: 1px solid var(--ui-border); border-radius: var(--ui-radius-md); padding: var(--ui-space-1); box-shadow: var(--ui-shadow-lg); min-width: calc(var(--ui-form-label-w) * 2); }
+.prop-fx-menu[hidden], .ui-stroke-pop[hidden] { display: none; }   /* ⫶ Stroke 설정 팝오버(§4c ②b) = Effects ＋ 메뉴와 같은 앱 팝오버 꼴 · 자리만 아래(.ui-stroke-pop 덧규칙) */
 .prop-row {
   display: flex; align-items: center; gap: var(--ui-space-1);
   min-height: 24px; margin-bottom: var(--ui-space-1_5); overflow: hidden;
@@ -1387,3 +1387,36 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
 .fx-holo-swatches { display: flex; gap: var(--ui-space-1); flex-wrap: wrap; padding: var(--ui-space-1) 0; }
 .fx-holo-sw { width: calc(var(--ui-space-4) + var(--ui-space-1)); height: calc(var(--ui-space-4) + var(--ui-space-1)); border-radius: 50%; border: 1px solid var(--ui-border-strong); padding: 0; cursor: pointer; }
 .fx-holo-sw:hover, .fx-holo-sw[aria-pressed="true"] { outline: 2px solid var(--ui-accent-primary); outline-offset: 1px; }
+
+/* ═══ 표준 Stroke 절 부품(js/props/_stroke-section.js · 현빈 261123 GO · 정본 시안 8910 strokestd2 — 규칙은 시안 css 그대로 옮김 · 토큰만) ═══ */
+.ui-stroke2 .ui-s2-main { display: flex; align-items: flex-end; gap: var(--ui-space-1_5); }
+.ui-stroke2 .ui-s2-cell { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: var(--ui-space-0_5); }
+.ui-stroke2 .ui-s2-cell > span { font-size: var(--ui-fs-10); color: var(--ui-text-dim); }
+.ui-stroke2 .ui-s2-cell > * { flex: 0 0 auto; }
+.ui-stroke2 .ui-s2-cell > select, .ui-stroke2 .ui-s2-cell > .prop-icon-input { width: 100%; min-width: 0; height: var(--ui-input-h); box-sizing: border-box; }
+.ui-stroke2 .ui-s2-main > .prop-chain-btn { flex: 0 0 auto; }
+/* ⫶ «Stroke 설정» 팝오버 자리 — 표준 줄 아래 폭 그대로(시안 strokestd2 21·22) · 넘치면 위로(wireStrokePopover 가 --up) · 몸 끝 여백 규칙(⑯·부품 끝 줄)에 안 끼게 줄 «안» 절대 자리 */
+.ui-stroke2 .ui-s2-main { position: relative; overflow: visible; }
+.ui-stroke2 .ui-stroke-pop { left: 0; right: 0; min-width: 0; padding: var(--ui-space-2); z-index: 20; }
+.ui-stroke2 .ui-stroke-pop.ui-stroke-pop--up { top: auto; bottom: calc(100% + var(--ui-space-0_5)); }
+.ui-stroke-pop-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--ui-space-2); }
+.ui-stroke-pop-title { font-size: var(--ui-fs-13); font-weight: var(--ui-fw-semibold); color: var(--ui-text); }
+.ui-stroke-pop .ui-stroke-pop-row > .prop-select, .ui-stroke-pop .ui-stroke-pop-row > .prop-icon-input, .ui-stroke-pop .ui-stroke-pop-btns { flex: 1 1 auto; min-width: 0; }
+.ui-stroke-pop .ui-stroke-pop-btns { display: flex; gap: var(--ui-space-1); }
+.ui-stroke-pop .ui-stroke-pop-btns > .prop-type-btn { flex: 1 1 0; }
+.ui-stroke-pop-unit { color: var(--ui-text-dim); font-size: var(--ui-fs-10); }
+.ui-stroke-pop [aria-disabled="true"] { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
+.ui-stroke2 .ui-stroke-more[aria-expanded="true"] { background: var(--ui-bg-hover); color: var(--ui-accent); }
+/* 단계 4 edge-select 슬롯 — 묶음 한 줄 · 변 한 줄(시안 strokestd2 9·12 · 단추 = 같은 칸 크기) */
+.ui-edge-grid { display: flex; flex-direction: column; gap: var(--ui-space-1); margin-bottom: var(--ui-space-1_5); }
+.ui-edge-row { display: flex; flex-wrap: wrap; gap: var(--ui-space-1); }
+.ui-ends-row > .ui-ends-swap { flex: 0 0 auto; width: var(--ui-btn-h); height: var(--ui-input-h); padding: 0; display: inline-flex; align-items: center; justify-content: center; }   /* 단계 5 끝점 바꾸기(시안 24) */
+.ui-side-widths { display: grid; grid-template-columns: 1fr 1fr; gap: var(--ui-space-1); margin-bottom: var(--ui-space-1_5); }   /* 면별 굵기 칸 넷(시안 23 · 2×2) */
+.ui-side-widths[hidden] { display: none; }
+.ui-edge-row > .ui-edge-btn { flex: 0 0 auto; width: var(--ui-btn-h); height: var(--ui-btn-h); padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+.ui-stroke2 .ui-s2-main > .prop-chain-btn.active { background: var(--ui-bg-hover); color: var(--ui-accent); }
+.ui-stroke2 .prop-color-row.ui-s2-layer > .prop-color-field { flex: 1 1 auto; max-width: none; }
+.ui-stroke2[aria-disabled="true"] .ui-stroke-std, .ui-stroke2 [data-field="stroke-align"][aria-disabled="true"] { opacity: var(--ui-disabled-opacity, 0.5); }
+.ui-fill .ui-f-row > .prop-color-field { flex: 1 1 auto; max-width: none; } .ui-fill-none { font-size: var(--ui-fs-10); color: var(--ui-hint-color); text-align: center; padding: var(--ui-space-2) var(--ui-space-3) var(--ui-space-1); letter-spacing: 0.02em; } .ui-fill-slot[data-slot="below"] { border-top: thin dashed var(--ui-border-mid); padding-top: var(--ui-space-1_5); margin-top: var(--ui-space-1_5); } .ui-fill .prop-color-hex[data-fill-kind] { text-transform: none; cursor: pointer; } .ui-fill-btn[aria-disabled="true"] { opacity: var(--ui-disabled-opacity, 0.5); cursor: not-allowed; }   /* 표준 Fill(F1 · 시안 #mkp-fillstd) — 이름칸 «Linear» 대소문자 그대로 · 눈 막힘(F6 전) */
+/* 절 끝 여백 = --ui-sec-body-pb 하나(⑯ 규칙은 몸 아래 두 겹까지만 본다 — 부품 줄은 세 겹째: 몸 › .ui-stroke2 › 묶음 › 줄) · 슬롯이 뒤에 오면 표준 묶음 끝 줄 여백은 슬롯과의 사이로 남는다 (prop-section-bottom-gap B1 실측 22 → 16) */
+.ui-stroke2 > :last-child > :last-child, .ui-fill > :last-child > :last-child { margin-bottom: 0; }   /* + Fill 부품(몸 › .ui-fill › 겹 › 줄 = 세 겹째 · train/0913-d 머지 panel-frame-states S6 실측 22 → 16) */

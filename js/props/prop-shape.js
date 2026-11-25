@@ -1,8 +1,12 @@
 import { propPanel } from '../globals.js';
 import { checkerBgBigColors, checkerSvgFills } from '../checker-tokens.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, setFillKindName, fillLast } from './_fill-section.js';
+import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_POP_WHY, STROKE_STYLES_SVG, endsSlotHTML, wireEnds } from './_stroke-section.js';
+import { readLook, writeLook, svgLook, derivedDash, hasSides, readSides, writeSides, sidesMixed } from '../stroke-look.js';
 import { svgStopRemap } from './gradient-model.js';
-import { overlayToggleBtnHTML, blockHeaderHTML, rotRowHTML, wireRotRow, checkHTML } from './_helpers.js';
+import { blockHeaderHTML, wireRotRow, checkHTML } from './_helpers.js';
+import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from './_position-section.js';   // 표준 Position 절(0.9.14 73행 P3)
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
 import { starPoints, starClipPath, clampStarN, STAR_MIN, STAR_MAX,
          starPointsList, starViewBox, clampStarCount, STAR_COUNT_MIN, STAR_COUNT_MAX,
@@ -86,6 +90,8 @@ export function showShapeProperties(block) {
     ? (gradientMeta?.stops?.[0]?.color || _lastSolidOf(block) || '#cccccc')
     : rawColor;
   const colorAlpha  = parseAlphaFromColor(color);
+  const fillOn      = rawColor !== 'transparent';   // 표준 Fill «없음» = 'transparent'(옛 MCP·검사도 받는 값) · 알파 0 색은 «켬·0%»(옛 바이트 그대로)
+  const fillKind    = block.dataset.shapeFill === 'image' ? 'image' : (isGradient ? (gradientMeta?.type || 'linear') : 'solid');
   const strokeWidth = parseInt(block.dataset.shapeStrokeWidth || '3');
   const strokeColor = block.dataset.shapeStrokeColor || color;
   const strokeColorAlpha = parseAlphaFromColor(strokeColor);
@@ -199,8 +205,7 @@ export function showShapeProperties(block) {
       </div>` : ''),
       // 플로팅 토글 = Position 절 머리 손잡이(§2-1) · X/Y · 회전
       sec('position', `
-      ${floatPositionRowHTML({ prefix: 'shape', posEl: floatPosEl })}
-      <span class="prop-field-label">Rotation</span>${rotRowHTML({ p: 'shape', numberId: 'shape-rot-num', value: parseInt(block.dataset.shapeRotation || '0'), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' })}`, { headTools: overlayToggleBtnHTML({ id: 'shape-overlay-toggle', active: isFloatOverlay }) }),
+      ${positionSectionHTML({ prefix: 'shape', posEl: floatPosEl, rot: { p: 'shape', numberId: 'shape-rot-num', value: parseInt(block.dataset.shapeRotation || '0'), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' } })}`, { headTools: positionHeadToolsHTML({ prefix: 'shape', ialId: 'shape-overlay-toggle', ialOn: isFloatOverlay }) }),
       sec('size', `
       <div class="prop-row">
         <span class="prop-label">W</span>
@@ -286,10 +291,7 @@ export function showShapeProperties(block) {
       </div>` : ''),
       // 가림막이 켜지면 채우기 색은 무시된다 ⇒ 절을 «안 그린다»(숨긴 줄만 든 빈 머리 금지 · 토글은 패널을 다시 그린다)
       sec('fill', isRedact ? '' : `
-      <div class="prop-color-row" id="shape-fill-row">
-        <span class="prop-label">색상</span>
-        ${colorFieldHTML({ idPrefix: 'shape-color', hex: color, alpha: colorAlpha, gradientCss })}
-      </div>
+      <div id="shape-fill-row">${fillSectionHTML({ prefix: 'shape-fill', on: fillOn, kind: fillKind, colorHtml: colorFieldHTML({ idPrefix: 'shape-color', hex: color, alpha: colorAlpha, gradientCss }) })}</div>
       ${isEllipse ? `<div id="shape-ellipse-fx">
         ${ellCount > 1 ? `<!-- 1013t2A1 원마다 색 — 꼴은 바로 위 「색상」 줄(prop-color-row + colorFieldHTML)과 같다. 빈 칸 = 블록 색을 따른다. -->
         ${Array.from({ length: ellCount }, (_, i) => `<div class="prop-color-row" id="shape-ellipse-c${i}-row" style="margin-top:8px;">
@@ -326,17 +328,12 @@ export function showShapeProperties(block) {
         <button type="button" class="prop-btn" id="shape-star-one-done">개별 선택 끝내기</button>
       </div>
       <div class="prop-hint" id="shape-star-one-hint" style="margin-top:4px;">${starSel + 1}번 별만 색이 바뀝니다 — 지우면 블록 색을 따릅니다. (Esc 로 끝내기)</div>` : ''}
-      ` : ''}`),
-      sec('stroke', `
-      <div class="prop-color-row">
-        <span class="prop-label">외곽선</span>
-        ${colorFieldHTML({ idPrefix: 'shape-stroke-color', hex: strokeColor, alpha: strokeColorAlpha })}
-      </div>
-      <div class="prop-row" style="margin-top:8px;">
-        <span class="prop-label">두께</span>
-        <input type="range" class="prop-slider" id="shape-stroke-slider" min="0" max="20" step="1" value="${strokeWidth}">
-        <input type="number" class="prop-number" id="shape-stroke-num" min="0" max="20" value="${strokeWidth}">
-      </div>`),
+      ` : ''}`, { headTools: isRedact ? '' : fillHeadToolsHTML({ prefix: 'shape-fill', on: fillOn }) }),   // 표준 Fill(F1) — 칠 없음 = shapeColor 'transparent'(지디 261124 (ㄱ)) · 그땐 머리 ＋만
+      /* ★표준 Stroke 절 부품(현빈 261123 GO · 8910 strokestd2 · js/props/_stroke-section.js) — 첫 소비자. 위치 = «칸만 + 막힘»(§4c ②③):
+         사각형·원은 안쪽 그림(block-factory.js refreshShapeInnerSVG 가 굵기 절반 inset)이라 «안쪽» · 선·화살표·다각형·별은 가운데 — 지금 그려지는 쪽을 보여 준다. */
+      sec('stroke', strokeSectionHTML({ prefix: 'shape-stroke', pop: _shapePop(block, strokeWidth), sides: _shapeSides(block, strokeWidth), slotsBelow: _shapeEndsSlot(block), color: strokeColor, alpha: strokeColorAlpha, width: strokeWidth, maxWidth: 20,
+        align: /^(rectangle|ellipse)$/.test(block.dataset.shapeType || 'rectangle') ? 'inside' : 'center', canAlign: false, alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 도형 모양대로 그려집니다', on: strokeWidth > 0 }),
+        { headTools: strokeHeadToolsHTML({ prefix: 'shape-stroke', on: strokeWidth > 0 }) }),   // 머리 ＋/− — 없음 = 굵기 0(§4c 없음 열 실측)
       // 원 이너 그림자 + 효과 목록(Effects)
       sec('effects', `${isEllipse && !isRedact ? `
         <div id="shape-ellipse-shadow-wrap">
@@ -547,7 +544,7 @@ export function showShapeProperties(block) {
   }
 
   /* 칠 쓰기 = 모듈 함수 한 벌(아래 _applyShapeSolidFill · _applyShapeGradientFill) — Effects «홀로그램»(effects-holo.js)도 같은 길로 쓴다 */
-  function applyColor(hex) { _applyShapeSolidFill(block, hex); }
+  function applyColor(hex) { _applyShapeSolidFill(block, hex); setFillKindName(document.getElementById('shape-color-hex'), 'solid'); }
 
   function applyGradient(detail) { _applyShapeGradientFill(block, detail); }
 
@@ -556,6 +553,17 @@ export function showShapeProperties(block) {
     if (svg) svg.style.strokeWidth = String(v);
     // rectangle/ellipse: inner SVG geometry를 stroke에 맞춰 재계산 (stroke=0이면 풀폭)
     window.refreshShapeInnerSVG?.(block);
+    paintShapeLook(block);   // 점선(파생 3w·2w)은 굵기를 따라간다
+    window.scheduleAutoSave?.();
+  }
+
+  /* 단계 3-2 — ⫶ 팝오버 값 쓰기(stroke-look.js · 기본과 다를 때만) → 그림(paintShapeLook) */
+  function applyLook(part) {
+    const def = shapeLookDefault(block.dataset.shapeType || 'rectangle');
+    const next = { ...readLook(block.dataset, def), ...part };
+    if (next.style === 'custom' && (next.dash == null || next.gap == null)) { const d = derivedDash(Number(block.dataset.shapeStrokeWidth) || 0); next.dash ??= d.dash; next.gap ??= d.gap; }
+    writeLook(block.dataset, next, def);
+    paintShapeLook(block);
     window.scheduleAutoSave?.();
   }
 
@@ -618,12 +626,31 @@ export function showShapeProperties(block) {
     onCommit: () => window.pushHistory?.(),
   });
 
-  // ── 외곽선 색상 피커 ──
-  wireColorField('shape-stroke-color', {
-    initialAlpha: strokeColorAlpha,
-    onApply: (c) => applyStrokeColor(c),
-    onCommit: () => window.pushHistory?.(),
-  });
+  /* 표준 Fill(F1) — − = 칠 없음('transparent' · 선 색이 면 색을 따르던 도형은 선 색을 먼저 박아 선이 같이 사라지지 않게) · ＋ = 지난 색(이 세션) · 없으면 기본 */
+  wireFillSection({ prefix: 'shape-fill', adapter: {
+    none: () => {
+      if (!block.dataset.shapeStrokeColor) block.dataset.shapeStrokeColor = strokeColor;
+      fillLast.set(block.id, color);
+      if (block.dataset.shapeFill) _clearShapeImage(block);
+      if (block.dataset.shapeGradient) { _clearShapeGradient(block); window.hideGradientLine?.(block); }
+      block.dataset.shapeColor = 'transparent'; if (svg) svg.style.color = 'transparent';
+      window.scheduleAutoSave?.(); showShapeProperties(block); },
+    add: () => { _applyShapeSolidFill(block, fillLast.get(block.id, '#d9d9d9')); showShapeProperties(block); },
+    commit: () => window.pushHistory?.() } });
+
+  /* 단계 5 — 선·화살표 끝점(키 strokeStart/strokeEnd = 그 종류 기본과 다를 때만 · 그림 = block-factory refreshShapeInnerSVG) */
+  wireEnds({ prefix: 'shape-stroke', adapter: {
+    read: () => { const df = window.shapeEndsDefault?.(block.dataset.shapeType) || { start: 'round', end: 'round' }; return { start: block.dataset.strokeStart || df.start, end: block.dataset.strokeEnd || df.end }; },
+    write: (v) => { const df = window.shapeEndsDefault?.(block.dataset.shapeType) || { start: 'round', end: 'round' };
+      if (v.start === df.start && v.end === df.end) { delete block.dataset.strokeStart; delete block.dataset.strokeEnd; } else { block.dataset.strokeStart = v.start; block.dataset.strokeEnd = v.end; }   // 둘 다 기본이면 키 0(옛 바이트)
+      window.refreshShapeInnerSVG?.(block); window.scheduleAutoSave?.(); },
+    commit: () => window.pushHistory?.() } });
+
+  // ── 외곽선 = 표준 Stroke 부품 배선(어댑터 = 이 패널의 쓰기 함수 그대로 · 저장 키 shapeStrokeColor/shapeStrokeWidth 무변 · 이력 push-after) ──
+  wireStrokeSection({ prefix: 'shape-stroke', alpha: strokeColorAlpha, maxWidth: 20,
+    adapter: { color: (c) => applyStrokeColor(c), width: (v) => applyStroke(v), look: (part) => applyLook(part), commit: () => window.pushHistory?.(),
+      sides: (block.dataset.shapeType || 'rectangle') === 'rectangle' ? { read: () => { const sd = Number(block.dataset.shapeStrokeWidth) || 0; return hasSides(block.dataset) ? readSides(block.dataset, sd) : null; },
+        write: (o) => { writeSides(block.dataset, o, Number(block.dataset.shapeStrokeWidth) || 0); window.refreshShapeInnerSVG?.(block); window.scheduleAutoSave?.(); }, std: () => Number(block.dataset.shapeStrokeWidth) || 0 } : null } });
 
   // 초기 svg.stroke 동기화 — 첫 mount 시 dataset.shapeStrokeColor가 있으면 즉시 적용
   if (svg && block.dataset.shapeStrokeColor) {
@@ -653,6 +680,7 @@ export function showShapeProperties(block) {
       //   전엔 둘 다 pushHistory 해서 커밋 1번에 기록 2개(되돌리기 1번에 아무 변화 없음) — 0918 picker 에서 제거.
       // 팝업 편집 → 캔버스 핸들 각도 재배치 (banner02/comparison과 동일 패턴)
       if (!_applyingExternalShapeGrad) window.showGradientLine?.(block);
+      setFillKindName(document.getElementById('shape-color-hex'), e.detail?.type || 'linear');
     });
     shapeColorInput.addEventListener('goya-cp:gradient-commit', () => {
       window.pushHistory?.();
@@ -676,6 +704,7 @@ export function showShapeProperties(block) {
       shapeColorInput.dataset.cpFill = 'image';
       const sw = shapeColorInput.closest('.prop-color-swatch');
       if (sw) sw.style.background = d.src ? `center / cover no-repeat url("${d.src}")` : _checkerSwatchBg();
+      setFillKindName(document.getElementById('shape-color-hex'), 'image');
       window.scheduleAutoSave?.();
       if (d.commit) window.pushHistory?.();
     });
@@ -692,17 +721,6 @@ export function showShapeProperties(block) {
   window.showGradientLine?.(block);
   // 0918 canvasgrad: 캔버스 바 ↔ 피커 스탑 양방향 배선 + 재오픈 시드(dataset.cpGradient)
   window.bindGradientLinePicker?.(block, shapeColorInput);
-
-  // ── 스트로크 두께 ──
-  const strokeSlider = document.getElementById('shape-stroke-slider');
-  const strokeNum    = document.getElementById('shape-stroke-num');
-  strokeSlider.addEventListener('input',  () => { strokeNum.value = strokeSlider.value; applyStroke(parseInt(strokeSlider.value)); });
-  strokeSlider.addEventListener('change', () => window.pushHistory?.());
-  strokeNum.addEventListener('input', () => {
-    const v = Math.min(20, Math.max(0, parseInt(strokeNum.value) || 0));
-    strokeSlider.value = v; applyStroke(v);
-  });
-  strokeNum.addEventListener('change', () => window.pushHistory?.());
 
   // ── 크기 W ──
   const wSlider = document.getElementById('shape-w-slider');
@@ -1184,6 +1202,7 @@ export function showShapeProperties(block) {
     });
     rotNum.addEventListener('change', () => window.pushHistory?.());
     wireRotRow({ p: 'shape', numberId: 'shape-rot-num', host: () => block });   // Q17 — 90° · 반전 · 아이콘 끌기
+    wirePositionSection({ prefix: 'shape', numberId: 'shape-rot-num', rerender: () => showShapeProperties(block) });
   }
 
   /* 오버레이(플로팅) 토글 — 텍스트 패널과 «같은 함수»를 부른다(js/overlay-float.js).
@@ -1551,3 +1570,42 @@ _ensureShapeCheckerDefs();
 window._clearShapeImage = _clearShapeImage;
 window._applyShapeImage = _applyShapeImage;   // 207행 — 에셋 → 사각형 바꾸기(block-factory convertAssetToRect)가 그림을 이 칠로 옮긴다
 window._syncShapeImageClip = _syncShapeImageClip;
+
+/* ══ 단계 3-2 — 도형 «Stroke 설정»(점선·점선 끝·꼭짓점·Miter) ═══════════════════════════════════════
+ * 기본 = 도형이 «지금» 그리는 값(실측): 선·화살표 끝 = round(SHAPE_DEFS <line stroke-linecap="round">) · 그 밖 = butt · 꼭짓점 = miter(SVG 기본) · miterlimit 4
+ * 그림 = svg 인라인 style(자식이 물려받음 · 저장 HTML 에 같이 감 · refreshShapeInnerSVG 는 svg.innerHTML 만 다시 써서 안 지워짐)
+ *   ⚠️선·화살표 <line> 은 자기 stroke-linecap 속성이 물려받기를 이긴다 → 그 속성을 직접 바꾼다(정적 inner 라 다시 안 그려짐) · 키 없으면 옛 round 로 되돌림
+ * 키가 없으면 그 속성을 «안» 쓴다(= 옛 저장본 바이트 무변). ⚠️shortcut: 굵기를 MCP(updateShapeBlock)로 바꾸면 파생 점선 길이는 패널을 다시 만질 때 따라간다 — 그 길로 점선 도형을 자주 바꾸게 되면 block-factory 쪽에서도 paintShapeLook 을 부를 것. */
+export function shapeLookDefault(type) { return { cap: /^(line|arrow)$/.test(type) ? 'round' : 'none', join: 'miter' }; }
+const _SHAPE_NO_CORNER = /^(ellipse|line|arrow)$/;
+export function paintShapeLook(block) {
+  const svg = block?.querySelector('svg.shape-svg') || block?.querySelector('svg');
+  if (!svg) return;
+  const ds = block.dataset, L = svgLook(readLook(ds, shapeLookDefault(ds.shapeType || 'rectangle')), Number(ds.shapeStrokeWidth) || 0);
+  const set = (prop, on, v) => { if (on && v !== '') svg.style.setProperty(prop, String(v)); else svg.style.removeProperty(prop); };
+  set('stroke-dasharray', ds.strokeStyle != null, L.dasharray);
+  set('stroke-linecap', ds.strokeCap != null, L.linecap);
+  set('stroke-linejoin', ds.strokeJoin != null, L.linejoin);
+  set('stroke-miterlimit', ds.strokeMiter != null, L.miterlimit);
+  svg.querySelectorAll('line[stroke-linecap]:not([data-end]):not([data-end-main])').forEach((ln) => ln.setAttribute('stroke-linecap', ds.strokeCap != null ? L.linecap : 'round'));   // 단계 5: 끝점 모드의 본선(butt)·끝 모양은 끝점이 정한다
+}
+if (typeof window !== 'undefined') window.paintShapeLook = paintShapeLook;
+function _shapePop(block, w) {
+  const type = block.dataset.shapeType || 'rectangle', look = readLook(block.dataset, shapeLookDefault(type));
+  const d = look.style === 'custom' ? { dash: look.dash, gap: look.gap } : derivedDash(w);
+  const corner = !_SHAPE_NO_CORNER.test(type);
+  return { styles: [...STROKE_STYLES_SVG, ['custom', '사용자']], style: look.style, live: { dash: true, cap: true, join: corner },
+    look: { ...look, dash: d.dash, gap: d.gap }, joinWhy: STROKE_POP_WHY.noCorner };
+}
+/* 단계 4-2b — 사각형만 면별(변마다 선 · block-factory _shapeInnerSVG) · 그 밖 도형은 □ 없음(꼭짓점·변이 사각형 네 변이 아님) */
+function _shapeSides(block, w) {
+  if ((block.dataset.shapeType || 'rectangle') !== 'rectangle') return null;
+  return { w: hasSides(block.dataset) ? readSides(block.dataset, w) : null, std: w, open: hasSides(block.dataset), mixed: sidesMixed(block.dataset, w) };
+}
+/* 단계 5 — 끝점 슬롯은 선·화살표만(시안 24) */
+function _shapeEndsSlot(block) {
+  const t = block.dataset.shapeType || 'rectangle';
+  if (t !== 'line' && t !== 'arrow') return '';
+  const df = window.shapeEndsDefault?.(t) || { start: 'round', end: 'round' };
+  return endsSlotHTML({ prefix: 'shape-stroke', start: block.dataset.strokeStart || df.start, end: block.dataset.strokeEnd || df.end });
+}

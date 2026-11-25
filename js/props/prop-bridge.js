@@ -2,6 +2,7 @@ import { propPanel, state } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast } from './_fill-section.js';
 
 // 브릿지(V 커버) 블록 프로퍼티 — 색상 + 꼬리(V홈) 모양(너비/깊이/곡률 슬라이더) + 블록 높이. 공용 prop 클래스 재사용.
 // 모양 파라미터는 data-bridge-width/depth/arc/height 에 저장(직렬화) → renderBridgeBlock이 path/높이 재생성.
@@ -33,10 +34,8 @@ export function showBridgeProperties(block) {
       id: block.id,
     }),
     sections: [
-      sec('fill', `
-      <div class="prop-color-row">
-        ${colorFieldHTML({ idPrefix: 'brg', hex: color, alpha })}
-      </div>`),
+      sec('fill', fillSectionHTML({ prefix: 'brg-fill', on: color !== 'transparent', colorHtml: colorFieldHTML({ idPrefix: 'brg', hex: color, alpha }) }),
+        { headTools: fillHeadToolsHTML({ prefix: 'brg-fill', on: color !== 'transparent' }) }),   // 표준 Fill F2 — 없음 = bridgeColor 'transparent'(svg path fill 그대로 받음)
       sec('size', `
       <div class="prop-row">
         <span class="prop-label">높이</span>
@@ -98,6 +97,12 @@ export function showBridgeProperties(block) {
     },
     onCommit: () => { window.pushHistory?.(); window.scheduleAutoSave?.(); },
   });
+  /* 표준 Fill F2 — − = 'transparent' · ＋ = 지난 색 · 없으면 #CCCCCC(BRIDGE_DEFAULTS) */
+  const _brgFill = (c) => { block.dataset.bridgeColor = c; block.querySelector('svg path')?.setAttribute('fill', c); window.scheduleAutoSave?.(); showBridgeProperties(block); };
+  wireFillSection({ prefix: 'brg-fill', adapter: {
+    none: () => { fillLast.set(block.id, color); _brgFill('transparent'); },
+    add: () => _brgFill(fillLast.get(block.id, '#cccccc')),
+    commit: () => window.pushHistory?.() } });
 
   const $ = (id) => document.getElementById(id);
   const wSlider = $('brg-w-slider'), wNumber = $('brg-w-number');

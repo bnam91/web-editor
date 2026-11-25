@@ -163,7 +163,7 @@ test('AN11 다시 그려도 라벨 테두리 «대시»가 남는다 (rebindAll 
   await setup(page);
   const id = await makeAnnotation(page);
   await selectByLabel(page, id);
-  await page.click('#annot-border-style-group .prop-align-btn[data-style="dashed"]');
+  await page.click('#annot-lb-more'); await page.selectOption('#annot-border-style', 'dashed');   // ★전제 바뀜(표준 Stroke 2-5 · 현빈 261124 ⓑ): 라벨 테두리 «선 꼴» = ⫶ 팝오버 select(옛 단추 셋 걷음 · 값 그대로)
   const read = () => page.evaluate((id) => { const b = document.getElementById(id); const l = b.querySelector('.annot-label');
     return { data: b.dataset.labelBorderStyle, drawn: getComputedStyle(l).borderTopStyle, css: l.style.cssText }; }, id);
   const live = await read();

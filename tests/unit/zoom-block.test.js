@@ -1825,7 +1825,7 @@ test('ⓑ-ROT-6 ★회전 슬라이더는 «남는다» — 그리고 핸들과 
 
   // ── 본 단언 ① 슬라이더가 «살아 있다» (가려지지 않았다 + 바인딩까지 있다)
   /* ★기대 바뀜(Q20 · 현빈 GO 261120 · 시안 v10) — 회전은 슬라이더 대신 각도 칸(숫자 + ° · 회전 줄 한 벌). «정확히 치는 길»은 그 칸이 맡는다 */
-  assert.ok(/rotRowHTML\(\{ p: 'zm', numberId: 'zm-rot-num'/.test(SRC.prop),
+  assert.ok(/(rotRowHTML\(|rot: )\{ p: 'zm', numberId: 'zm-rot-num'/.test(SRC.prop),   /* 2026-11-24 기대 바뀜 — 표준 Position P3: 회전 줄 = 부품 positionSectionHTML({ rot: { p:'zm', numberId:'zm-rot-num' } })(안에서 rotRowHTML) */
     "★회전 각도 칸이 사라졌다 — 각도를 «정확히» 치는 길이 패널에 없다");
   assert.ok(/bindPair\('zm-rot',\s*'rot'/.test(SRC.prop),
     '★UI 만 있고 바인딩이 없다 — 슬라이더를 움직여도 아무 일도 안 난다');

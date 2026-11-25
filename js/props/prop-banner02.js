@@ -3,6 +3,7 @@ import { propPanel } from '../globals.js';
 import { blockHeaderHTML, disclosureSectionHtml, discSecOpen, discSecToggle, checkHTML } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField } from './color-picker.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, setFillKindName, fillLast, fillKindOfCss } from './_fill-section.js';
 /* ★window.* 가 아니라 «import» 로 잡는다 — 로드 순서가 바뀌어도 토글이 조용히 사라지지 않는다. */
 import { effectiveSectionPadX, clearBlockFullBleed } from '../drag-utils.js';
 
@@ -310,12 +311,8 @@ export function showBanner02Properties(block, activeIdxArg) {
         <input type="range" class="prop-slider" id="bn2-radius" min="0" max="60" step="1" value="${parseInt(d.radius) || 0}">
         <input type="number" class="prop-number" id="bn2-radius-num" min="0" max="60" value="${parseInt(d.radius) || 0}">
       </div>`),
-      sec('fill', `
-      <div class="prop-color-row">
-        <span class="prop-label">색/그라데이션</span>
-        ${colorFieldHTML({ idPrefix: 'bn2-bg', hex: bgIsGrad ? '#f3f4f6' : (d.bg || '#f3f4f6'), gradientCss: bgIsGrad ? d.bg : '' })}
-      </div>
-`),
+      sec('fill', fillSectionHTML({ prefix: 'bn2-fill', on: d.bg !== 'transparent', kind: fillKindOfCss(bgIsGrad ? d.bg : ''), colorHtml: colorFieldHTML({ idPrefix: 'bn2-bg', hex: bgIsGrad ? '#f3f4f6' : (d.bg || '#f3f4f6'), gradientCss: bgIsGrad ? d.bg : '' }) }),
+        { headTools: fillHeadToolsHTML({ prefix: 'bn2-fill', on: d.bg !== 'transparent' }) }),   // 표준 Fill F2-2 — 없음 = bg 'transparent'
     ],
   });
 
@@ -410,13 +407,20 @@ export function showBanner02Properties(block, activeIdxArg) {
   // Background color/gradient
   wireColorField('bn2-bg', {
     gradientValue: block.dataset.bg,   // T-059 2라운드: 재오픈 시드를 부수효과(bindGradientLinePicker)에 기대지 않는다 + Solid 복귀 = 첫 스탑
-    onApply: (c) => { block.dataset.bg = c; rerender(); window.scheduleAutoSave?.(); },
+    onApply: (c) => { block.dataset.bg = c; rerender(); window.scheduleAutoSave?.(); setFillKindName(document.getElementById('bn2-bg-hex'), 'solid'); },
     onGradient: (css, c) => {
       block.dataset.bg = css; rerender(); window.scheduleAutoSave?.(); if (c) commit();
+      setFillKindName(document.getElementById('bn2-bg-hex'), fillKindOfCss(css));
       if (!_applyingExternal) window.showGradientLine?.(block); // 모달 편집 → 캔버스 핸들 각도 재배치
     },
     onCommit: commit,
   });
+
+  /* 표준 Fill F2-2 — − = 'transparent' · ＋ = 지난 색 · 없으면 #F3F4F6(블럭 기본) */
+  wireFillSection({ prefix: 'bn2-fill', adapter: {
+    none: () => { fillLast.set(block.id, block.dataset.bg); block.dataset.bg = 'transparent'; window.hideGradientLine?.(block); rerender(); window.scheduleAutoSave?.(); showBanner02Properties(block, activeIdx); },
+    add: () => { block.dataset.bg = fillLast.get(block.id, '#f3f4f6'); rerender(); window.scheduleAutoSave?.(); showBanner02Properties(block, activeIdx); },
+    commit } });
 
   // Radius (slider+num 동기)
   const rs = propPanel.querySelector('#bn2-radius'), rn = propPanel.querySelector('#bn2-radius-num');

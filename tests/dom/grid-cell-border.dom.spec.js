@@ -303,7 +303,7 @@ test('S7 ★짝 검사 — 테두리를 «켠» 패널도 가로로 안 삐져�
          되돌리면 빨강: 테두리 색칸이 눌려 사라지면(폭 0) 또는 #grd-border-color 를 스와치 밖으로 빼면 -1. */
       const sw = document.getElementById('grd-border-color')?.closest('.prop-color-swatch') || null;
       const hex = document.getElementById('grd-border-color-hex');
-      const selEl = document.getElementById('grd-border-style');
+      const _more = document.getElementById('grd-stroke-more'); if (_more && _more.getAttribute('aria-expanded') !== 'true') _more.click(); const selEl = document.getElementById('grd-border-style');   // ★전제 바뀜(Stroke 단계 3-1 · 지디 261124): «선 꼴» = ⫶ 팝오버 «스타일» → 열고 잰다(팝오버도 패널 밖으로 안 나가야 = 이 칸의 뜻에 듦)
       const w = (el) => (el ? Math.round(el.getBoundingClientRect().width) : -1);
       return { overflowRight: over.length, over: over.slice(0, 5),
                scrollW: body.scrollWidth, clientW: body.clientWidth,

@@ -2935,6 +2935,13 @@ function _shapeInnerSVG(type, strokeWidth) {
   // stroke=0일 때 미세한 inset도 없음 (풀폭 100%)
   const half = sw / 2;
   if (type === 'rectangle') {
+    /* ★표준 Stroke 4-2b 면별 굵기(opts.sides = [위, 오른쪽, 아래, 왼쪽] · 키 strokeWidthTop/Right/Bottom/Left 있을 때만) — 면(선 없음) + 변마다 선 하나(제 굵기 · 변 «안쪽»에 = 옛 사각형과 같은 안쪽 그림)
+       키 없으면 아래 옛 rect 한 줄 그대로(옛 바이트 · refreshShapeInnerSVG 멱등) */
+    if (opts && Array.isArray(opts.sides)) {
+      const [t, r, b, l] = opts.sides.map((v) => Math.max(0, Number(v) || 0));
+      const ln = (x1, y1, x2, y2, w) => (w > 0 ? `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke-width="${w}" fill="none"/>` : '');
+      return `<rect x="0" y="0" width="100" height="100" rx="0" stroke="none"/>` + ln(0, t / 2, 100, t / 2, t) + ln(100 - r / 2, 0, 100 - r / 2, 100, r) + ln(0, 100 - b / 2, 100, 100 - b / 2, b) + ln(l / 2, 0, l / 2, 100, l);
+    }
     const w = Math.max(0, 100 - sw);
     const h = Math.max(0, 100 - sw);
     return `<rect x="${half}" y="${half}" width="${w}" height="${h}" rx="0"/>`;
@@ -3020,6 +3027,18 @@ function refreshShapeInnerSVG(block) {
   if (!block) return;
   const type = block.dataset.shapeType || 'rectangle';
   const def = SHAPE_DEFS[type];
+  /* ★표준 Stroke 단계 5 — 선·화살표 끝점(키 strokeStart/strokeEnd 있을 때만 · 없으면 SHAPE_DEFS 정적 inner 그대로 = 옛 바이트) */
+  if ((type === 'line' || type === 'arrow') && def) {
+    const d = block.dataset, has = d.strokeStart != null || d.strokeEnd != null;
+    const svg0 = block.querySelector('svg.shape-svg');
+    if (svg0 && (has || svg0.querySelector('[data-end-main]'))) {
+      const raw = has ? shapeEndsSVG(type, d.strokeStart, d.strokeEnd) : def.inner;
+      const probe = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); probe.innerHTML = raw;
+      if (svg0.innerHTML !== probe.innerHTML) svg0.innerHTML = probe.innerHTML;   // 멱등(F2 규율 — 같으면 안 씀)
+      window.paintShapeLook?.(block);
+    }
+    return;
+  }
   if (!def || !def.dynamic) return;
   const sw = Number(block.dataset.shapeStrokeWidth ?? 0) || 0;
   const svg = block.querySelector('svg.shape-svg');
@@ -3040,6 +3059,10 @@ function refreshShapeInnerSVG(block) {
   /* ★1013t2A1 — 원 N개·개별 색·이너 그림자는 dataset 이 정본이고 «여기서» 그린다(유일한 그리개).
      ⛔패널에만 그리개를 두면 로드·⌘Z 가 이 함수를 지나며 원 1개로 주저앉는다. */
   let opts;
+  if (type === 'rectangle') {   // ★표준 Stroke 4-2b — 면별 키(stroke-look.js 와 같은 이름 · import 0 — 이 파일을 단독으로 올리는 하네스) 있을 때만 변마다 선
+    const d = block.dataset, K = ['strokeWidthTop', 'strokeWidthRight', 'strokeWidthBottom', 'strokeWidthLeft'];
+    if (sw > 0 && K.some((k) => d[k] != null)) opts = { sides: K.map((k) => (d[k] != null ? Number(d[k]) || 0 : sw)) };
+  }
   if (type === 'ellipse') {
     const d = block.dataset;
     opts = { count: d.ellipseCount, gap: d.ellipseGap, colors: d.ellipseColors, shadow: d.ellipseShadow, id: block.id };
@@ -3059,6 +3082,32 @@ function refreshShapeInnerSVG(block) {
   relinkShapeGradient(block);   // def id 도 grad-<지금 id> 로(붙여넣기로 id 가 바뀐 사본·저장본 치유)
 }
 window.refreshShapeInnerSVG = refreshShapeInnerSVG;
+
+/* ══ 표준 Stroke 단계 5 — 끝점(§4c ②b stroke-ends · 시안 strokestd2 24) ══
+ * 값 = none · round · square · arrow-line · arrow-triangle · arrow-reversed · arrow-circle · arrow-diamond
+ * 기본 = 지금 그림(실측): 선 = round/round(<line stroke-linecap="round">) · 화살표 = round/arrow-triangle(polygon 170,10 194,20 170,30 · 선 끝 172)
+ * 그림 = 본선(끝 butt · data-end-main) + 끝마다 모양(data-end · 실선 고정 stroke-dasharray none · 둥글게/네모 = 길이 0 선의 끝 모양 = 옛 선 끝과 같은 그림) */
+const SHAPE_END_KINDS = ['none', 'round', 'square', 'arrow-line', 'arrow-triangle', 'arrow-reversed', 'arrow-circle', 'arrow-diamond'];
+function shapeEndsDefault(type) { return type === 'arrow' ? { start: 'round', end: 'arrow-triangle' } : { start: 'round', end: 'round' }; }
+function _shapeEndPart(kind, t, d) {
+  const Y = 20, L = 24;
+  const sol = ' data-end="1" stroke-dasharray="none"';
+  switch (kind) {
+    case 'round': case 'square': return { part: `<line x1="${t + d * 4}" y1="${Y}" x2="${t + d * 4}" y2="${Y}" stroke-linecap="${kind}"${sol}/>`, cut: t + d * 4 };
+    case 'arrow-triangle': return { part: `<polygon points="${t},${Y} ${t + d * L},10 ${t + d * L},30" fill="currentColor" stroke="none" data-end="1"/>`, cut: t + d * 22 };
+    case 'arrow-line': return { part: `<polyline points="${t + d * 14},12 ${t},${Y} ${t + d * 14},28" fill="none" stroke-linejoin="miter" stroke-linecap="butt"${sol}/>`, cut: t };
+    case 'arrow-reversed': return { part: `<polygon points="${t},10 ${t},30 ${t + d * L},${Y}" fill="currentColor" stroke="none" data-end="1"/>`, cut: t + d * 2 };
+    case 'arrow-circle': return { part: `<circle cx="${t + d * 8}" cy="${Y}" r="8" fill="currentColor" stroke="none" data-end="1"/>`, cut: t + d * 8 };
+    case 'arrow-diamond': return { part: `<polygon points="${t},${Y} ${t + d * 10},10 ${t + d * 20},${Y} ${t + d * 10},30" fill="currentColor" stroke="none" data-end="1"/>`, cut: t + d * 18 };
+    default: return { part: '', cut: t + d * 4 };   // none = 끝 장식 없음(본선 butt)
+  }
+}
+function shapeEndsSVG(type, start, end) {
+  const df = shapeEndsDefault(type), ok = (k, f) => (SHAPE_END_KINDS.includes(k) ? k : f);
+  const s = _shapeEndPart(ok(start, df.start), 6, 1), e = _shapeEndPart(ok(end, df.end), 194, -1);
+  return `<line x1="${s.cut}" y1="20" x2="${e.cut}" y2="20" stroke-linecap="butt" data-end-main="1"/>` + s.part + e.part;
+}
+if (typeof window !== 'undefined') Object.assign(window, { shapeEndsSVG, shapeEndsDefault, SHAPE_END_KINDS });
 
 function makeShapeBlock(type = 'rectangle') {
   const def = SHAPE_DEFS[type] || SHAPE_DEFS.rectangle;
@@ -7036,6 +7085,7 @@ function updateFrameBlock(blockId, partial = {}) {
     const s = block.dataset.borderStyle || 'solid';
     const c = block.dataset.borderColor || '#888888';
     block.style.border = w > 0 ? `${w}px ${s} ${c}` : '';
+    { const _sw = w > 0 ? window.__strokeSideWidthsCss?.(block.dataset, w) : ''; if (_sw) block.style.borderWidth = _sw; }   // 표준 Stroke 4-2 면별 굵기(키 있을 때만)
   }
 
   // 7) Child align (flex) — alignItems(horizontal) / justifyContent(vertical for column flex)

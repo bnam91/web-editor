@@ -4260,7 +4260,7 @@ function _startZoomRotateRaf() {
  *    id 는 `zm-rot`·`zm-rot-num` 이다. 둘 다 null 이라 오류도 안 나고 값도 안 바뀐다.
  *  ⇒ 전용으로 둔다. prop-zoom.js 의 _pairRow 규약이 바뀌면 «여기»도 같이 바뀌어야 한다. */
 function _syncZoomRotUI(deg) {
-  const s = document.getElementById('zm-rot');
+  const s = document.getElementById('zm-rot') || document.getElementById('zm-rot-num-slider');   // 표준 Position 슬라이드 모드 슬라이더(부품 id = 숫자 칸 id + -slider)
   const n = document.getElementById('zm-rot-num');
   if (s) s.value = String(deg);
   if (n) n.value = String(deg);
