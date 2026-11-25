@@ -90,6 +90,18 @@ function applyBorder(nodeId, border) {
   run('set_stroke_color', { nodeId, color: hex(st.color || '#000000'), strokeWeight: st.weight, ...(st.sides ? { sides: st.sides } : {}), align: 'INSIDE', ...(dash ? { dashPattern: dash } : {}), ...(st.style === 'dotted' ? { strokeCap: 'ROUND' } : {}) });
 }
 
+/* F7 표준 Fill 숨김(지디 261124 · 시트 0.9.14 82행 FIGMA-PLUGIN-REIMPORT-F7-01) — 내보내기 fillHidden 이면 그 칠 페인트만 visible:false(색·종류 그대로 = Figma 에서 칠 눈을 다시 켜면 돌아옴)
+   플러그인 set_node_properties fillsVisible(691fc4c83) · ⛔옛 플러그인은 인자를 조용히 버리고 돌려준 값에 fillsVisible 이 없다 → 한 번만 경고(안내 문구 = FILL_HIDDEN_OLD_PLUGIN_MSG) */
+export const FILL_HIDDEN_OLD_PLUGIN_MSG = '⚠️ 숨긴 칠(Fill 눈 끔)이 Figma 에서 보여요 — Figma 플러그인이 옛 판이에요. 플러그인을 다시 불러온(import) 뒤 내보내면 숨긴 칠이 «칠 눈 꺼짐»으로 들어가요.';
+let _fillHiddenOldWarned = false;
+/* generic 중 «svg 가 곧 몸»인 종류 — 렌더러가 svg 를 그린다(F8 · 옛: vector 만) */
+const _SVG_BODY_KINDS = ['vector', 'bridge', 'coupon', 'zoom', 'sticker'];   // sticker = F8b 별(톱니) 몸 — 내보내기가 스티커 svg 는 stk-burst 만 싣는다(둘레 글자 등은 빈 값)
+function _hideFills(nodeId) {
+  if (!nodeId) return;
+  const r = run('set_node_properties', { nodeId, fillsVisible: false });
+  if (r && !('fillsVisible' in r) && !_fillHiddenOldWarned) { _fillHiddenOldWarned = true; console.log(`  ${FILL_HIDDEN_OLD_PLUGIN_MSG}`); }
+}
+
 function hex(h) {
   if (!h) return { r: 0, g: 0, b: 0, a: 1 };
   // rgb(r, g, b) or rgba(r, g, b, a)
@@ -274,6 +286,15 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     if (_gPaint) {
       const _gr = run('set_gradient', { nodeId: frame.id, ..._gPaint });
       if (!_gr) console.log(`      ⚠️ frame gradient 실패 → 투명 폴백 ${block.id}`);
+    }
+    if (block.fillHidden) _hideFills(frame.id);   // F7
+    /* 71행 FIGMA-FRAME-BG-IMAGE-MISSING-01 — 프레임 배경 그림(내보내기 bgImg · data: 만) · 색 없으면 프레임 자기 칠 = 그림 · 색 있으면 자식 bgimg_(맨 아래 · 같은 둥글기 · set_image_fill 이 칠을 갈아 끼우니 한 노드에 둘 못 둠)
+       맞춤 contain = FIT · 그 밖 FILL · 숨김(F7)은 색만 — 캔버스도 그림 있는 프레임은 색만 끔(css :not([data-bg-img])) */
+    if (typeof block.bgImg === 'string' && block.bgImg.startsWith('data:')) {
+      const _hasColor = !!_gPaint || !!(_fc && (_fc.a ?? 1) > 0);
+      let _imgNode = frame.id;
+      if (_hasColor) { const _bi = run('create_frame', { x: 0, y: 0, width: fw, height: fh, name: `bgimg_${block.id || ''}`, parentId: frame.id, clipsContent: true }); if (_bi) { _imgNode = _bi.id; if (block.radius) run('set_corner_radius', { nodeId: _bi.id, radius: block.radius }); } }
+      run('set_image_fill', { nodeId: _imgNode, imageSource: block.bgImg.split(',')[1], sourceType: 'base64', scaleMode: block.bgSize === 'contain' ? 'FIT' : 'FILL' }, { timeout: 25000 });
     }
     if (block.radius) run('set_corner_radius', { nodeId: frame.id, radius: block.radius });
     if (block.free) {
@@ -602,10 +623,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const hasBg   = block.bgColor && block.bgColor !== 'transparent';
 
     // hex → figma RGB
-    const hexToRgb = h => {
-      const v = h.replace('#','');
-      return { r: parseInt(v.slice(0,2),16)/255, g: parseInt(v.slice(2,4),16)/255, b: parseInt(v.slice(4,6),16)/255, a: 1 };
-    };
+    const hexToRgb = (h) => hex(h);   // 아이콘원 보임 색은 내보내기가 계산 style 로 읽어 «rgb(…)» 로 온다(9c5baa666 · 2026-06) — HEX 만 읽던 로컬 파서는 r:null → Figma 흰 원(미카사 F7 실기 261125) · 공용 hex() 가 rgb()/rgba()/#hex 다 받는다
     const TRANSPARENT = { r: 1, g: 1, b: 1, a: 0 };
 
     const node = run('create_frame', { x: circleX, y, width: size, height: size, name: `circle_${block.id}`, parentId });
@@ -619,6 +637,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
         console.log(`      · circle ${size}×${size} → ${node.id}${fillResult ? ' ✓ 이미지' : (hasBg ? ' (배경색)' : ' (빈 원 투명)')}`);
       } else if (hasBg) {
         run('set_fill_color', { nodeId: node.id, color: hexToRgb(block.bgColor) });
+        if (block.fillHidden) _hideFills(node.id);   // F7
         console.log(`      · circle ${size}×${size} → ${node.id} (배경색: ${block.bgColor})`);
       } else {
         run('set_fill_color', { nodeId: node.id, color: TRANSPARENT });
@@ -773,6 +792,14 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       clipsContent: block.clip !== false,   // ★FIGMA-ASSET-CLIP-OFF-AND-CROP-MISMATCH-01 — «내용 자르기» 끔 = false · 늘 명시(Figma 기본값 true 에 기대지 않는다)
     });
     if (node) applyBorder(node.id, block.border);   // 표준 Stroke 4-3 — 에셋 테두리
+    /* F8 ①(시트 81행 · 지디 261125) — 에셋 배경색 = 프레임 자기 칠(빈 칸·투명 PNG 사이로 보이는 그 색 · D33) · 숨김 = 이 칠만 눈 끔
+       bg 없으면(키 없음·transparent) 이 갈래 0 = 옛 명령 그대로 */
+    const _abg = node && !block.redact && (block.bg || '').trim();
+    const _paintAssetBg = () => {
+      if (block.bgGradient) { run('set_fill_color', { nodeId: node.id, color: { r: 1, g: 1, b: 1, a: 0 } }); const _gp = cssGradientToFigmaPaint(block.bgGradient, imgW, imgH); if (_gp) run('set_gradient', { nodeId: node.id, ..._gp }); }
+      else run('set_fill_color', { nodeId: node.id, color: hex(_abg) });
+      if (block.fillHidden) _hideFills(node.id);
+    };
     if (node) {
       if (block.redact) {
         // ★블러(Redact, 1012t1 C1) — 에디터가 원본 src 를 안 싣는다. 불투명 덮개 색으로만 칠한다(도형 가림막과 같은 원칙).
@@ -794,10 +821,16 @@ function renderBlock(block, parentId, x, y, availableWidth) {
         const _cr = block.crop;
         let _fillId = node.id;
         if (_cr && ['x', 'y', 'w', 'h'].every((k) => Number.isFinite(_cr[k])) && _cr.w > 0 && _cr.h > 0) {
-          run('set_fill_color', { nodeId: node.id, color: { r: 1, g: 1, b: 1, a: 0 } });
+          if (_abg) _paintAssetBg(); else run('set_fill_color', { nodeId: node.id, color: { r: 1, g: 1, b: 1, a: 0 } });   // F8 ① 크롭 자식이 이미 있으면 부모 칠 = 배경(자식 하나 더 안 만듦)
           const _cf = run('create_frame', { x: Math.round(_cr.x * imgW), y: Math.round(_cr.y * imgH), width: Math.max(1, Math.round(_cr.w * imgW)), height: Math.max(1, Math.round(_cr.h * imgH)),
             name: `imgcrop_${block.id}`, parentId: node.id, clipsContent: true });
           if (_cf) _fillId = _cf.id;
+        } else if (_abg) {
+          /* F8 ① — set_image_fill 은 칠을 갈아 끼워 한 노드에 배경·그림 둘을 못 둔다 → 그림 = 자식 프레임(크롭 갈래와 같은 꼴 · 지디 OK)
+             자식도 같은 둥글기 = «내용 자르기 끔»(clipsContent false)이어도 부모 모양 밖으로 그림 모서리가 안 나간다 */
+          _paintAssetBg();
+          const _if = run('create_frame', { x: 0, y: 0, width: imgW, height: imgH, name: `imgfill_${block.id}`, parentId: node.id, clipsContent: true });
+          if (_if) { _fillId = _if.id; if ((s.borderRadius || 0) > 0) run('set_corner_radius', { nodeId: _if.id, radius: s.borderRadius }); }
         }
         const fillResult = run('set_image_fill', {
           nodeId: _fillId,
@@ -815,10 +848,15 @@ function renderBlock(block, parentId, x, y, availableWidth) {
         }
       } else {
         // 빈 슬롯 = goditor 체커보드 placeholder를 Figma에도 체커로(회차12 현빈 B결정)
+        if (_abg) {   // F8 ① 빈 칸 + 배경색 = 캔버스는 체커 없이 그 색(D33 b) · 숨겨도 체커 없음(css .asset-block[data-fill-hidden] background-image none)
+          _paintAssetBg();
+          console.log(`      · image ${availableWidth}×${imgH} → ${node.id} (빈 슬롯 배경색)`);
+        } else {
         run('set_fill_color', { nodeId: node.id, color: { r: 1, g: 1, b: 1, a: 0 } });
         const _ck = run('create_node_from_svg', { svg: checkerSvg(availableWidth, imgH, false), parentId: node.id, x: 0, y: 0 }, { timeout: 12000 });
         if (_ck) run('resize_node', { nodeId: _ck.id, width: Math.round(availableWidth), height: Math.round(imgH) });
         console.log(`      · image ${availableWidth}×${imgH} → ${node.id} (빈 슬롯 체커)`);
+        }
       }
       if ((s.borderRadius || 0) > 0)
         run('set_corner_radius', { nodeId: node.id, radius: s.borderRadius });
@@ -837,11 +875,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
         }
 
         if (block.overlayText) {
-          const hexToRgb = hex => {
-            const m = (hex || '#ffffff').replace('#','').match(/.{2}/g);
-            return m ? { r: parseInt(m[0],16)/255, g: parseInt(m[1],16)/255, b: parseInt(m[2],16)/255, a: 1 } : { r:1, g:1, b:1, a:1 };
-          };
-          const textColor = hexToRgb(block.overlayColor);
+          const textColor = hex(block.overlayColor || '#ffffff');   // 오버레이 글 색 = ovEl.style.color(브라우저가 «rgb(…)» 로 돌려줌) — 같은 공용 파서
           run('create_text', {
             x: imgX + 24, y: y + Math.round(imgH / 2) - 24,
             width: imgW - 48,
@@ -859,6 +893,47 @@ function renderBlock(block, parentId, x, y, availableWidth) {
   }
 
   // ── CARD-GRID ─────────────────────────────────────────────────────
+  /* 86행 FIGMA-CANVAS-LAYERS-CONTENT-NOT-EXPORTED-01(+81행 ② 칸마다 배경) — 캔버스 레이어 모드 = 칸 그리드 × 칸마다 되풀이되는 레이어(도형·글·그림)
+     앱과 같은 셈: 블럭 폭 안 .cvb-inner(왼쪽 grid.padX) 를 scale 로 줄여 칸 (cellW+gap)·(cellH+gap) 간격 · 칸 = 배경·둥글기·내용 자르기 · 숨김 = 칸 칠만 눈 끔 */
+  if (block.type === 'canvas-layers') {
+    const g = block.grid || {}, sc = block.scale > 0 ? block.scale : 1;
+    const cols = g.cols || 1, rows = g.rows || 1, gap = Number.isFinite(g.gap) ? g.gap : 12, cw = g.cellW || 360, ch = g.cellH || 400, ip = g.padX || 0;
+    const totalW = cols * cw + (cols - 1) * gap, totalH = rows * ch + (rows - 1) * gap;
+    const bw = block.width > 0 ? Math.min(block.width, availableWidth) : Math.round(totalW * sc + 2 * ip);
+    const bh = block.height > 0 ? block.height : Math.round(totalH * sc);
+    const outer = run('create_frame', { x: x + Math.max(0, Math.round((availableWidth - bw) / 2)), y, width: Math.max(1, bw), height: Math.max(1, bh), name: `canvas_${block.id}`, parentId });
+    if (!outer) return bh;
+    run('set_fill_color', { nodeId: outer.id, color: { r: 1, g: 1, b: 1, a: 0 } });
+    const S = (v) => Math.round((v || 0) * sc * 100) / 100;
+    const font400 = loadFontSafe('Pretendard', 'Regular');
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      const cell = run('create_frame', { x: Math.round(ip + S(c * (cw + gap))), y: Math.round(S(r * (ch + gap))), width: Math.max(1, S(cw)), height: Math.max(1, S(ch)), name: `cell_${r}_${c}`, parentId: outer.id, clipsContent: true });
+      if (!cell) continue;
+      if (g.bgGradient) { run('set_fill_color', { nodeId: cell.id, color: { r: 1, g: 1, b: 1, a: 0 } }); const gp = cssGradientToFigmaPaint(g.bgGradient, S(cw), S(ch)); if (gp) run('set_gradient', { nodeId: cell.id, ...gp }); }
+      else run('set_fill_color', { nodeId: cell.id, color: g.bg ? hex(g.bg) : { r: 1, g: 1, b: 1, a: 0 } });
+      if (g.bg && g.bgHidden) _hideFills(cell.id);
+      if (g.radius) run('set_corner_radius', { nodeId: cell.id, radius: S(g.radius) });
+      (block.layers || []).forEach((L, i) => {
+        const lx = S(L.x), ly = S(L.y), lw = Math.max(1, S(L.w || 0)), lh = Math.max(1, S(L.h || 0)), nm = `layer_${i}_${L.type}`;
+        if (L.type === 'shape' || L.type === 'image') {
+          const n = run('create_frame', { x: lx, y: ly, width: lw, height: lh, name: nm, parentId: cell.id, clipsContent: true });
+          if (!n) return;
+          if (L.type === 'shape') run('set_fill_color', { nodeId: n.id, color: hex(L.color || '#cccccc') });
+          else if (typeof L.src === 'string' && L.src.startsWith('data:')) { run('set_fill_color', { nodeId: n.id, color: { r: 1, g: 1, b: 1, a: 0 } }); run('set_image_fill', { nodeId: n.id, imageSource: L.src.split(',')[1], sourceType: 'base64', scaleMode: 'FILL' }, { timeout: 25000 }); }
+          else run('set_fill_color', { nodeId: n.id, color: { r: 0.84, g: 0.84, b: 0.84, a: 1 } });   // 그림 없음/못 읽음 = 회색 자리(앱 빈 칸 체커 대신)
+          if (L.radius) run('set_corner_radius', { nodeId: n.id, radius: S(L.radius) });
+        } else if (L.type === 'text') {
+          const fw = parseInt(L.fontWeight) || (L.fontWeight === 'bold' ? 700 : 400), f = fw === 400 ? font400 : loadFontSafe('Pretendard', toFigmaFontStyle(fw));
+          const al = L.align === 'center' ? 'CENTER' : L.align === 'right' ? 'RIGHT' : 'LEFT';
+          const tn = run('create_text', { x: lx, y: ly, ...(L.w ? { width: lw } : {}), text: String(L.content || ''), fontSize: Math.max(1, Math.round((L.fontSize || 16) * sc)), fontWeight: fw, fontColor: hex(L.color || '#000000'), textAlignHorizontal: al, textAutoResize: L.w ? 'HEIGHT' : 'WIDTH_AND_HEIGHT', name: nm, parentId: cell.id });
+          if (tn) run('set_font_name', { nodeId: tn.id, family: f.family, style: f.style });
+        }
+      });
+    }
+    console.log(`      · canvas-layers ${cols}×${rows} · 레이어 ${(block.layers || []).length} · scale ${sc}`);
+    return bh;
+  }
+
   if (block.type === 'card-grid') {
     const { cards = [], gridCols = 2, cardGap = 10, canvasH = 400,
             radius = 16, textBg = '#cccccc', titleSize = 32, descSize = 20,
@@ -953,7 +1028,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
         const labelBg = card.cellBg || (isIconCard ? '' : textBg);
         labelFrame = run('create_frame', { x: 0, y: thisImgH, width: cardW, height: thisLabelH, name: `card_label_${i}`, parentId: cardFrame.id });
         if (labelFrame) {
-          if (labelBg) run('set_fill_color', { nodeId: labelFrame.id, color: hex(labelBg) });
+          if (labelBg) { run('set_fill_color', { nodeId: labelFrame.id, color: hex(labelBg) }); if (block.fillHidden && !card.cellBg) _hideFills(labelFrame.id); }   // F7 — 칸별 cellBg 는 숨김 Fill 이 아니다(캔버스도 그대로)
           else run('set_fill_color', { nodeId: labelFrame.id, color: { r: 1, g: 1, b: 1, a: 0 } });
         }
       }
@@ -1119,6 +1194,12 @@ function renderBlock(block, parentId, x, y, availableWidth) {
         const walk = (n) => { if (!n) return; if (/^(VECTOR|ELLIPSE|RECTANGLE|POLYGON|STAR|BOOLEAN_OPERATION)$/.test(n.type) && Array.isArray(n.fills) && n.fills.length) run('set_gradient', { nodeId: n.id, ...paint }); (n.children || []).forEach(walk); };
         walk(info?.document || info);
       }
+      /* F7 숨김 — 칠이 SVG 글 안이라 «칠 있는 벡터 자식»마다 칠 visible:false(선은 stroke 라 그대로 · 원뿔 갈래와 같은 걸음 · 지디 (가)) */
+      if (node && def.fill && block.fillHidden) {
+        const info = run('get_node_info', { nodeId: node.id });
+        const walk = (n) => { if (!n) return; if (/^(VECTOR|ELLIPSE|RECTANGLE|POLYGON|STAR|BOOLEAN_OPERATION)$/.test(n.type) && Array.isArray(n.fills) && n.fills.length) _hideFills(n.id); (n.children || []).forEach(walk); };
+        walk(info?.document || info);
+      }
     }
     return h;
   }
@@ -1190,6 +1271,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const card = run('create_frame', { x, y, width: availableWidth, height: h, name: `step_${block.id || ''}`, parentId });
     if (!card) return h;
     run('set_fill_color', { nodeId: card.id, color: hex(block.cardBg || '#ffffff') });
+    if (block.fillHidden) _hideFills(card.id);   // F7
     run('set_corner_radius', { nodeId: card.id, radius: 16 });
     const fontB = loadFontSafe('Pretendard', 'Bold');
     const font = loadFontSafe('Pretendard', 'Regular');
@@ -1230,6 +1312,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const frame = run('create_frame', { x: bx, y, width: bw, height: bh, name: `banner02_${block.id || ''}`, parentId });
     if (!frame) return block.height || bh;
     run('set_fill_color', { nodeId: frame.id, color: /^transparent$/i.test(block.bg || '') ? { r: 1, g: 1, b: 1, a: 0 } : hex(block.bg || '#1a1f3d') });   // 표준 Fill F2-2 — 칠 없음 = 투명(hex() 는 # 아닌 글자를 흰색으로 읽는다 · 공용 함수는 안 고침)
+    if (block.fillHidden) _hideFills(frame.id);   // F7
     if (block.radius) run('set_corner_radius', { nodeId: frame.id, radius: block.radius });
     // 우측 이미지(또는 플레이스홀더)
     if (block.imgW > 0) {
@@ -1461,7 +1544,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const frame = run('create_frame', { x: fx, y, width: Math.max(1, w), height: Math.max(1, h || 1), name: `${block.kind || 'block'}_${block.id || ''}`, parentId });
     if (frame) {
       const bgc = (block.bg || '').trim();
-      if (bgc.startsWith('#') || bgc.startsWith('rgb')) run('set_fill_color', { nodeId: frame.id, color: hex(bgc) });
+      if (bgc.startsWith('#') || bgc.startsWith('rgb')) { run('set_fill_color', { nodeId: frame.id, color: hex(bgc) }); if (block.fillHidden) _hideFills(frame.id); }   // F7
       else run('set_fill_color', { nodeId: frame.id, color: { r: 1, g: 1, b: 1, a: 0 } });
       if (block.radius) run('set_corner_radius', { nodeId: frame.id, radius: block.radius });
       applyBorder(frame.id, block.border);   // 표준 Stroke 4-3 — 모달 테두리 · 그리드 블럭 외곽선(G17 면별)
@@ -1476,19 +1559,51 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       });
       /* VECTOR-FIGMA-EXPORT-DROPS-SVG-01 — 벡터 블럭(kind 'vector')은 svg 가 몸이다 → 프레임 안에 그린다(옛: 빈 프레임).
          보내는 쪽 svg 는 화면 렌더(뿌리 width/height 100%) — 블럭 크기 숫자로 바꿔 넣는다. 그 밖 generic 의 svg(어노 등)는 종전대로 안 그림(겹쳐 그릴 위험 · 별건). */
-      if (block.kind === 'vector' && typeof block.svg === 'string' && /^\s*<svg\b/i.test(block.svg)) {
+      /* F8 ③⑤⑥(시트 83행 FIGMA-EXPORT-EMPTY-FRAME-COUPON-ZOOM-BRIDGE-01 · 실측: 이 조건 하나 때문에 쿠폰·줌·브리지가 Figma 에 «투명 빈 프레임») — 몸이 svg 인 셋도 그린다
+         쿠폰 svg 의 <text> 는 generic 글 모음(tb-* 등)에 안 잡혀 겹쳐 그리지 않는다 · 그 밖 generic svg(어노 등)는 종전대로 안 그림 */
+      if (_SVG_BODY_KINDS.includes(block.kind) && typeof block.svg === 'string' && /^\s*<svg\b/i.test(block.svg)) {
         const vw = Math.max(1, w), vh = Math.max(1, h || 1);
-        const vsvg = block.svg.replace(/^\s*<svg\b([^>]*)>/i, (m, at) => `<svg${at.replace(/\s(width|height)\s*=\s*("[^"]*"|'[^']*')/gi, '')} width="${vw}" height="${vh}">`);
+        let vsvg = block.svg.replace(/^\s*<svg\b([^>]*)>/i, (m, at) => `<svg${at.replace(/\s(width|height)\s*=\s*("[^"]*"|'[^']*')/gi, '')} width="${vw}" height="${vh}">`);
+        /* 85행 — vector-effect="non-scaling-stroke"(별 스티커 안쪽 고리 등) 는 Figma SVG 가져오기가 선을 버린다(미카사 2차: 고리 벡터 strokes 0 · 보낸 svg 엔 stroke 있음 = 가설: 이 속성)
+           ⇒ 속성을 빼고 선 굵기를 화면과 같은 px 로 viewBox 단위로 바꿔 넣는다(viewBox 100 · 그린 크기 60 → 1.2px = 2 단위) · 이 속성 없는 svg 는 손 0 */
+        const _vb = /viewBox\s*=\s*["']\s*[-\d.]+[\s,]+[-\d.]+[\s,]+([\d.]+)[\s,]+([\d.]+)/i.exec(vsvg);
+        if (_vb && /vector-effect\s*=\s*["']non-scaling-stroke["']/i.test(vsvg)) {
+          const _k = Math.max(parseFloat(_vb[1]) / vw, parseFloat(_vb[2]) / vh) || 1;   // 화면 1px = viewBox _k 단위(늘림 없음 기준 · 비균등이면 굵은 쪽)
+          vsvg = vsvg.replace(/<([a-z]+)\b([^>]*?)\svector-effect\s*=\s*["']non-scaling-stroke["']([^>]*)>/gi, (m, tag, a1, a2) => {
+            const at = a1 + a2; const sw = /\sstroke-width\s*=\s*["']([\d.]+)["']/i.exec(at);
+            const nsw = +(((sw ? parseFloat(sw[1]) : 1) * _k).toFixed(3));
+            const body = sw ? at.replace(sw[0], ` stroke-width="${nsw}"`) : at.replace(/\s*\/?\s*$/, (e) => ` stroke-width="${nsw}"${e.includes('/') ? ' /' : ''}`);
+            return `<${tag}${body}>`;
+          });
+        }
         const vn = run('create_node_from_svg', { svg: vsvg, parentId: frame.id, x: 0, y: 0 }, { timeout: 15000 });
         if (vn) run('resize_node', { nodeId: vn.id, width: vw, height: vh });
+        /* F7 숨김 — 브리지 = 칠 있는 벡터(몸 path)마다 칠 눈 끔(도형과 같은 걸음) · 쿠폰·줌은 보낸 svg 가 «캔버스가 숨김으로 그린 그림»(몸 칠 이미 투명)이라 걷지 않음
+           ⛔걸으면 쿠폰 스텁(다른 부위 색) 칠까지 끈다 · 한계: 쿠폰·줌 숨김은 Figma 에서 «칠 눈 꺼짐»이 아니라 «칠 없음»으로 보임(색을 svg 가 안 실음) */
+        if (vn && block.fillHidden && block.kind === 'bridge') {
+          const info = run('get_node_info', { nodeId: vn.id });
+          const walk = (n) => { if (!n) return; if (/^(VECTOR|ELLIPSE|RECTANGLE|POLYGON|STAR|BOOLEAN_OPERATION)$/.test(n.type) && Array.isArray(n.fills) && n.fills.length) _hideFills(n.id); (n.children || []).forEach(walk); };
+          walk(info?.document || info);
+        }
       }
       const font = loadFontSafe('Pretendard', 'Regular');
       (block.texts || []).forEach((t, i) => {
         /* FIGMA-GRID-CELL-TEXT-NOT-EXPORTED-01 — 보내는 쪽이 화면에서 잰 폭(t.w)을 실었으면 그 자리·폭·정렬 그대로(y 0 도 참값). 없으면 옛 셈. */
         const sized = typeof t.w === 'number' && t.w > 0;
         const tx = Math.max(0, t.x || 0), ty = Math.max(0, sized ? (t.y || 0) : (typeof t.y === 'number' && t.y) ? t.y : i * 44);
-        const tn = run('create_text', { x: tx, y: ty, width: sized ? t.w : Math.max(20, w - tx), text: t.t, fontSize: t.fs || 24, fontWeight: 400, fontColor: hex(t.color || '#111111'), textAlignHorizontal: sized && ['CENTER', 'RIGHT'].includes(t.align) ? t.align : 'LEFT', textAutoResize: 'HEIGHT', name: `gtext_${i}`, parentId: frame.id });
-        if (tn) { run('set_font_name', { nodeId: tn.id, family: font.family, style: font.style }); applyTextRanges(tn.id, t.ranges, font.family, { run, loadFontSafe, hex }); }
+        const tw = parseInt(t.fw) || 400, tf = tw === 400 ? font : loadFontSafe('Pretendard', toFigmaFontStyle(tw));   // 85행 — 보낸 굵기(fw · 쿠폰 «12만원»·스티커 «NEW» 굵게) · 안 보냈으면 옛 그대로 Regular
+        /* 85행 미카사 3차 T1 — 한 줄 글(잰 폭 있고 줄바꿈 없음)을 앱 DOM 폭으로 고정하면 Figma 글꼴 폭이 조금만 넓어도 «12»→«1/2» 로 꺾임
+           ⇒ 한 줄 글 = 폭 고정 안 함(WIDTH_AND_HEIGHT) · 가운데·오른쪽이면 잰 상자 기준으로 자리 맞춤(get_node_info 폭 → move_node) · 여러 줄·폭 안 잰 글 = 옛 그대로 */
+        const oneLine = sized && !/[\r\n]/.test(String(t.t || ''));
+        const al = sized && ['CENTER', 'RIGHT'].includes(t.align) ? t.align : 'LEFT';
+        const tn = run('create_text', { x: tx, y: ty, ...(oneLine ? {} : { width: sized ? t.w : Math.max(20, w - tx) }), text: t.t, fontSize: t.fs || 24, fontWeight: tw, fontColor: hex(t.color || '#111111'), textAlignHorizontal: al, textAutoResize: oneLine ? 'WIDTH_AND_HEIGHT' : 'HEIGHT', name: `gtext_${i}`, parentId: frame.id });
+        if (tn) {
+          run('set_font_name', { nodeId: tn.id, family: tf.family, style: tf.style }); applyTextRanges(tn.id, t.ranges, tf.family, { run, loadFontSafe, hex });
+          if (oneLine && al !== 'LEFT') {
+            const nw = run('get_node_info', { nodeId: tn.id })?.absoluteBoundingBox?.width;
+            if (nw > 0) run('move_node', { nodeId: tn.id, x: Math.round(al === 'CENTER' ? tx + (t.w - nw) / 2 : tx + t.w - nw), y: ty });
+          }
+        }
       });
     }
     return h;

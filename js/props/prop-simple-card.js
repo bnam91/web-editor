@@ -7,6 +7,7 @@ import { renderPanel, sec, expandSection } from './_panel-frame.js';
    (input/blur 가 아예 없어 무효값이 영원히 남던 사본 포함). 2026-09-20 유닛 colorhex. */
 import { wireHexText, parseHex6, formatHex6, parseHex6OrTransparent, formatHex6OrTransparent, isCssBackgroundValue } from './color-picker.js';
 import { panelRenderedColor } from './_panel-rendered.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillHiddenOf, setFillHiddenKey } from './_fill-section.js';   // 표준 Fill F5-2c
 import { CVB_H_MIN, CVB_H_MAX } from '../blocks/card-limits.js';   // #cvb-h min/max = updateCanvasBlock 의 자
 
 // ② 카드 텍스트 입력칸 펼침 상태 — 블록별 «펼친 카드 인덱스» 집합.
@@ -452,6 +453,7 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
         <input type="text" class="prop-color-hex" id="cvb-text-bg-top-raw" value="${_hexBox(block.dataset.textBgTop || '').replace(/"/g, '&quot;')}" placeholder="상속" title="${(block.dataset.textBgTop || '').replace(/"/g, '&quot;')}">
         <button class="prop-align-btn prop-align-btn--aux" id="cvb-text-bg-top-clear" title="해제(상속)">✕</button>
       </div>
+      <div class="ui-fill-slot" data-slot="below" data-slot-kind="card-overlay">   <!-- 표준 Fill F5-2c — 어둠 그라데이션(프리셋·강도·시작 위치) = 슬롯 -->
       <div class="prop-row prop-row--wide">
         <span class="prop-label">그라데이션</span>
         <button class="prop-align-btn cvb-grad-preset" data-graddir="180" title="아래로 어두워짐" style="background:linear-gradient(180deg, transparent, rgba(0,0,0,0.85));">↓</button>
@@ -469,15 +471,10 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
         <input type="range" class="prop-slider" id="cvb-grad-stop-slider" min="0" max="100" step="1" value="${gradStopPos}">
         <input type="number" class="prop-number" id="cvb-grad-stop-number" min="0" max="100" value="${gradStopPos}">
       </div>
-      <div id="cvb-text-area-controls" style="${_taDim}">
-      <div class="prop-color-row">
-        <span class="prop-label">배경색 (일괄)</span>
-        <div class="prop-color-swatch" style="background:${isTextBgTransparent ? 'transparent' : textBg}; ${isTextBgTransparent ? 'background-image:repeating-conic-gradient(#888 0% 25%,#555 0% 50%);background-size:8px 8px;' : ''}">
-          <input type="color" id="cvb-textbg-pick" value="${textBg}" ${isTextBgTransparent ? 'disabled' : ''}>
-        </div>
-        <input type="text" class="prop-color-hex" id="cvb-textbg-hex" value="${isTextBgTransparent ? 'transparent' : _hexBox(textBg)}" maxlength="11" aria-label="Color" ${isTextBgTransparent ? 'disabled' : ''}>
-        <button class="prop-align-btn prop-align-btn--aux${isTextBgTransparent ? ' active' : ''}" id="cvb-textbg-transparent-btn">투명</button>
       </div>
+      <div id="cvb-text-area-controls" style="${_taDim}">
+      <span class="prop-label" title="모든 카드의 글 영역 배경">배경색 (일괄)</span>
+      ${fillSectionHTML({ prefix: 'cvb-textbg-fill', hiddenWhy: '', hidden: fillHiddenOf(block), on: !isTextBgTransparent, colorHtml: `<div class="prop-color-field"><div class="prop-color-swatch" style="background:${textBg}"><input type="color" id="cvb-textbg-pick" value="${textBg}"></div><input type="text" class="prop-color-hex" id="cvb-textbg-hex" value="${_hexBox(textBg)}" maxlength="11" aria-label="Color"></div>` })}   <!-- 표준 Fill F5-2c — 글 영역 배경(일괄) = 표준 줄 · 옛 «투명» 단추 = −/＋(같은 몸 setTextBgNone · 밝은 글자 자동 어둡게 그대로) · 이름표 «(일괄)» 지킴(카드별 색과 범위 가름) -->
       <div class="prop-color-row">
         <span class="prop-label">제목 색</span>
         <div class="prop-color-swatch" style="background:${titleColor}">
@@ -508,7 +505,7 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
         <input type="text" class="prop-color-hex" id="cvb-iconbg-hex" value="${isIconBgTransparent ? 'transparent' : _hexBox(iconBg)}" maxlength="11" aria-label="Color" ${isIconBgTransparent ? 'disabled' : ''}>
         <button class="prop-align-btn prop-align-btn--aux${isIconBgTransparent ? ' active' : ''}" id="cvb-iconbg-transparent-btn">투명</button>
       </div>
-` : '')),
+` : ''), { headTools: fillHeadToolsHTML({ prefix: 'cvb-textbg-fill', on: !isTextBgTransparent }) }),   // 표준 Fill F5-2c — 글 영역 배경 없음이면 머리 ＋
     ],
   });
 
@@ -1010,7 +1007,8 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
   const textBgTransBtn = document.getElementById('cvb-textbg-transparent-btn');
 
   const setTextBgTransparentUI = on => {
-    textBgTransBtn.classList.toggle('active', on);
+    if (!textBgPick || !textBgHex) return;   // 표준 Fill F5-2c — 칠 없음이면 색 칸이 안 그려짐
+    textBgTransBtn?.classList.toggle('active', on);
     textBgPick.disabled = on;
     textBgHex.disabled  = on;
     if (on) {
@@ -1031,8 +1029,8 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
     block.dataset.textBgLast = v;
     block.dataset.textBg = v;
     window.renderCanvas(block);
-    textBgPick.value = v;
-    textBgHex.value  = _hexBox(v);
+    if (textBgPick) textBgPick.value = v;
+    if (textBgHex) textBgHex.value  = _hexBox(v);
     if (textBgPickSwatch) textBgPickSwatch.style.background = v;
     syncTextBgUI();
     // 단색 배경 선택 → 그라데이션 슬라이더 행 숨김 (그라데이션 상태 해제)
@@ -1040,8 +1038,8 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
     if (gradStopRow) gradStopRow.style.display = 'none';
   };
 
-  textBgTransBtn.addEventListener('click', () => {
-    const on = !textBgTransBtn.classList.contains('active');
+  /* 표준 Fill F5-2c — 옛 «투명» 단추 몸을 한 벌로(on = 칠 없음) · −/＋ 와 (남아 있으면) 옛 단추가 같이 부른다 */
+  const setTextBgNone = (on) => {
     if (on) {
       block.dataset.textBgLast = block.dataset.textBg || '#f5f5f5';
       block.dataset.textBg = 'transparent';
@@ -1069,11 +1067,15 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
     setTextBgTransparentUI(on);
     // prop UI 갱신 (색상 picker swatch 동기화)
     if (block.classList.contains('selected')) window.showSimpleCardProperties?.(block);
-  });
+  };
+  textBgTransBtn?.addEventListener('click', () => setTextBgNone(!textBgTransBtn.classList.contains('active')));
+  wireFillSection({ prefix: 'cvb-textbg-fill', adapter: { none: () => setTextBgNone(true), add: () => setTextBgNone(false),
+    hide: (on) => { setFillHiddenKey(block, on); window.renderCanvas(block); window.scheduleAutoSave?.(); window.pushHistory?.(); },   // F6-2b 숨김 — 키 + 다시 그림(렌더러 textBg 한 줄) · commit 이 빈 함수라 이력은 여기서 한 칸 · ⛔setTextBgNone 의 글자 자동 어둡게는 안 탐(숨김은 지우기가 아님)
+    commit: () => {} } });   // 이력 = 몸 안 pushHistory 한 칸
 
-  textBgPick.addEventListener('input',  () => applyTextBg(textBgPick.value));
-  textBgPick.addEventListener('change', () => window.pushHistory?.());
-  wireHexText(textBgHex, {
+  textBgPick?.addEventListener('input',  () => applyTextBg(textBgPick.value));
+  textBgPick?.addEventListener('change', () => window.pushHistory?.());
+  if (textBgHex) wireHexText(textBgHex, {
     parse: parseHex6OrTransparent,
     format: formatHex6OrTransparent,
     getCurrent: () => block.dataset.textBg || textBgPick.value || '#f5f5f5',

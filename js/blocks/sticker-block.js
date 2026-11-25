@@ -263,7 +263,7 @@ function _renderStickerBlockInner(block) {
     const tShadowY       = parseFloat(block.dataset.shadowY) || 2;
     const tShadowBlur    = parseFloat(block.dataset.shadowBlur) || 4;
     const tShadowColor   = block.dataset.shadowColor   || 'rgba(0,0,0,0.4)';
-    const tBgColor       = block.dataset.bgColor       || 'transparent';
+    const tBgColor       = block.dataset?.fillHidden === '1' ? 'transparent' : (block.dataset.bgColor       || 'transparent');   // F6-2 숨김(키 = props/_fill-section setFillHiddenKey · import 0 = 하네스 단독 적재) — 칠만 안 함 · 색 키 그대로
     const tRotation      = parseFloat(block.dataset.rotation) || 0;
     const tText          = block.dataset.text ?? 'Text';
     // 폰트 스타일 (이탤릭) / 장식 (밑줄·취소선 — 공백 조합 허용)

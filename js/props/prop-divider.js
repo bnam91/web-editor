@@ -40,14 +40,13 @@ export function showDividerProperties(block) {
           세로
         </button>
       </div>`),
-      // 옛 「Line Style」 한 절 → 소유 규칙대로 셋: 색=Fill · 스타일/두께=Stroke · 너비/길이=Size
-      sec('fill', `
-      <div class="prop-color-row">
-        <span class="prop-label">색상</span>
-        ${colorFieldHTML({ idPrefix: 'dvd', hex: lineColor, alpha: lineAlpha })}
-      </div>`),
+      // 옛 「Line Style」 한 절 → 색·스타일·굵기 = Special «Line»(선이 곧 몸 · 현빈 F5-3 «구분선 = Special(Line)» · Stroke 2-2 이사와 같게) · 너비/길이 = Size
       /* ★현빈 261123 — 구분선 = Stroke 절 «밖» Special «Line» 으로 이사(선이 곧 몸 · 표준 Stroke 칸 뜻 없음 · 정본 시안 8910 strokestd2 19) · 몸 컨트롤·id·배선 그대로 · 이름 «두께» → «굵기»(지디 이름 통일) */
       sec('special', `
+      <div class="prop-color-row" data-own="special:Line">${/* data-own: 선 색 — 소유표 fill 로 가지만 선이 곧 몸이라 Line 절의 한 몸(현빈 F5-3) */ ''}
+        <span class="prop-label">색상</span>
+        ${colorFieldHTML({ idPrefix: 'dvd', hex: lineColor, alpha: lineAlpha })}
+      </div>
       <div class="prop-row">
         <span class="prop-label">스타일</span>
         <select class="prop-select" id="dvd-style">

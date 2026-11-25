@@ -135,7 +135,7 @@ function renderBanner02(block) {
   const designW = parseInt(d.bannerW) || 780;
   let   designH = parseInt(d.bannerH) || 260;   // ⑸ 자동 높이에서 재대입될 수 있다
   const radius  = parseInt(d.radius) || 0;
-  const bg      = d.bg || '#f3f4f6';
+  const bg      = block.dataset?.fillHidden === '1' ? 'transparent' : (d.bg || '#f3f4f6');   // F6-2 숨김(키 = props/_fill-section setFillHiddenKey · import 0 = 하네스 단독 적재) — 칠만 안 함 · 색 키 그대로
   const align   = d.align || 'left';
 
   // 외곽

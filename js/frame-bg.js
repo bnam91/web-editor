@@ -43,6 +43,14 @@ export function frameBgPos(el) {
   return (typeof v === 'string' && v !== '') ? v : 'center';
 }
 
+/** 87행 FRAME-BG-CONTAIN-REPEATS-01(지디 261125) — Contain = 그림 하나(Figma FIT 과 같은 뜻) · 본체 인라인 반복.
+ *  ⛔CSS 한 줄로 못 한다 — 새 프레임은 인라인 `background:` 단축(색)이라 repeat 가 인라인 initial 로 박혀 클래스를 이긴다(D42 실측).
+ *  Cover(그 밖) = 안 쓴다(옛 바이트) · 우리가 박은 no-repeat 만 걷는다. ::before 길은 css/editor-blocks.css 가 같은 뜻. */
+export function syncFrameBgRepeat(el) {
+  if (frameBgSize(el) === 'contain') el.style.backgroundRepeat = 'no-repeat';
+  else if (el.style.backgroundRepeat === 'no-repeat') el.style.backgroundRepeat = '';
+}
+
 /* ══ ㉠ ★`::before` 경로 — ★CSS 변수로 ★먹인다 ══════════════════════════════
    ★`has-bg-opacity` 프레임만 ★이 길로 그린다(★배경만 반투명하게 하려고 ★층을 쪼갠 꼴).
    ⚠️★본체 배경을 ★비우는 ★세 줄은 ★★이 함수의 ★일부다 — ⛔빼면 ★이중 배경이 된다. */
@@ -97,12 +105,14 @@ export function applyFrameBgImageInline(el) {
   el.style.backgroundImage = `url("${el.dataset.bgImg}")`;
   el.style.backgroundSize = frameBgSize(el);
   el.style.backgroundPosition = frameBgPos(el);
+  syncFrameBgRepeat(el);
   return true;
 }
 
 if (typeof window !== 'undefined') {
   window.frameBgSize = frameBgSize;
   window.frameBgPos = frameBgPos;
+  window.syncFrameBgRepeat = syncFrameBgRepeat;
   window.syncFrameBgVars = syncFrameBgVars;
   window.applyFrameBgImageInline = applyFrameBgImageInline;
 }
@@ -130,6 +140,7 @@ export function setFrameBgOpacity(el, v) {
       el.style.backgroundImage = `url("${el.dataset.bgImg}")`;
       el.style.backgroundSize = frameBgSize(el);
       el.style.backgroundPosition = el.dataset.bgPos || 'center';
+      syncFrameBgRepeat(el);
     } else if (bgVal) {
       el.style.backgroundColor = bgVal;
     }

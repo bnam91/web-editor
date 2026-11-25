@@ -7,7 +7,7 @@ import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from 
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { strokeSectionHTML, wireStrokeSection, STROKE_POP_WHY } from './_stroke-section.js';
-import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast } from './_fill-section.js';
+import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, fillLast, fillHiddenOf, setFillHiddenKey } from './_fill-section.js';
 
 const D = () => (window.ZOOM_DEFAULTS || {});
 
@@ -191,7 +191,7 @@ export function showZoomProperties(block) {
         ${_pairRow('zm-txs', '크기', st.txs, 8, 200, 1)}
       </div>`),
       sec('fill', `
-      ${fillSectionHTML({ prefix: 'zm-fillstd', on: !isChecker, colorHtml: colorFieldHTML({ idPrefix: 'zm-fill', hex: fillHex, alpha: fillAlpha }) })}
+      ${fillSectionHTML({ prefix: 'zm-fillstd', hiddenWhy: '', hidden: fillHiddenOf(block), on: !isChecker, colorHtml: colorFieldHTML({ idPrefix: 'zm-fill', hex: fillHex, alpha: fillAlpha }) })}
       <div style="${dim(txOn)}">
         <div class="prop-color-row">
           <span class="prop-label">글자 색</span>
@@ -369,6 +369,7 @@ ${narrowRow}
   bindCheck('zm-shadow-on', 'shadow', '줌 이펙트');
   /* 표준 Fill F2-3 — − = fill 'checker'(옛 «체크패턴» 라디오 값) · ＋ = 지난 색 · 없으면 #CFD6E0(옛 «색» 라디오가 피커에서 집던 기본) */
   wireFillSection({ prefix: 'zm-fillstd', adapter: {
+    hide: (on) => { setFillHiddenKey(block, on); rerender(); window.triggerAutoSave?.(); },   // F6-2 숨김 — 키만 바꾸고 다시 그림(렌더러가 키를 보고 칠 안 함)
     none: () => { fillLast.set(block.id, block.dataset.fill); block.dataset.fill = 'checker'; rerender(); window.triggerAutoSave?.(); showZoomProperties(block); },
     add: () => { block.dataset.fill = fillLast.get(block.id, '#cfd6e0'); rerender(); window.triggerAutoSave?.(); showZoomProperties(block); },
     commit: () => window.pushHistory?.('확대블럭 배경') } });
