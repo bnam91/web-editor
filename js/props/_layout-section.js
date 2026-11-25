@@ -39,7 +39,8 @@ export function setRatioLock(block, on, dflt) {
 const _layCell = (label, field, icon, c) => {
   const blank = c.mixed || c.auto;
   const ph = c.mixed ? ' placeholder="Mixed" data-empty="invalid"' : c.auto ? ` placeholder="Hug" data-empty="invalid" disabled title="${LAY_AUTO_WHY}"` : '';
-  return `<div class="ui-s2-cell"><span>${label}</span><div class="prop-icon-input" data-part="number" data-field="${field}"><span class="prop-xy-label ui-app-scrub" id="${c.id}-scrub" title="${label || field} — 좌우로 끌면 바뀐다">${icon}</span><input type="number" class="prop-number" id="${c.id}" min="${c.min ?? 0}" max="${c.max}" step="${c.step ?? 1}" value="${blank ? '' : c.value}"${ph} aria-label="${label || field}"></div></div>`;
+  const grip = c.readonly ? `<span class="prop-xy-label">${icon}</span>` : `<span class="prop-xy-label ui-app-scrub" id="${c.id}-scrub" title="${label || field} — 좌우로 끌면 바뀐다">${icon}</span>`;   // 읽기전용 = 끌기 없음
+  return `<div class="ui-s2-cell"><span>${label}</span><div class="prop-icon-input" data-part="number" data-field="${field}">${grip}<input type="number" class="prop-number" id="${c.id}" min="${c.min ?? 0}" max="${c.max}" step="${c.step ?? 1}" value="${blank ? '' : c.value}"${ph}${c.readonly ? ' readonly tabindex="-1" aria-readonly="true"' : ''} aria-label="${label || field}"></div></div>`;
 };
 /* 끝 칸 자리 맞춤(사슬 없는 줄도 숫자 칸 끝이 같은 자리) */
 const _LAY_SPACER = '<span class="ui-lay-spacer" aria-hidden="true"></span>';
@@ -59,8 +60,10 @@ const _layModeCell = (label, m) => (m ? `<div class="ui-s2-cell"><div class="pro
  * @param {{id:string, label:string, value:number, min?:number, max:number, mixed?:boolean, icon?:'w'|'h'|'px'}} [o.one]  한 칸(정비율 크기 · 높이만 · 중립) — 사슬 없음 · 아이콘 기본 'w'(↔) · 'h'(↕) · 'px'(중립)
  * @param {{on:boolean, blocked?:string|null}} [o.chain]  blocked = 막힘 까닭(예 LAY_FULLW_WHY) — 있으면 aria-disabled + 툴팁 · H 를 바꿔도 W 안 따라감
  * @param {{w?:{id,value,options:[string,string][]}, h?:{…}}} [o.mode]
+ * @param {{id:string, on?:boolean, title:string, icon?:string}} [o.end]  블럭이 이미 가진 끝 단추(id 그대로 · 배선 블럭 쪽) — 있으면 비율 사슬 대신(FigCraft layout_panel.rs dimensions :161~ · 탑 261125)
+ *   w/h 에 readonly:true = 값 보이기만(readonly · 끌기 손잡이 없음 · 예 섹션 너비 = 페이지 폭)
  */
-export function layoutSizeRowHTML({ prefix, w, h, one, chain, mode }) {
+export function layoutSizeRowHTML({ prefix, w, h, one, chain, mode, end }) {
   if (one) {
     return `
       <div class="ui-layout" data-part="layout">
@@ -72,14 +75,14 @@ export function layoutSizeRowHTML({ prefix, w, h, one, chain, mode }) {
   return `
       <div class="ui-layout" data-part="layout">
         <div class="ui-s2-main prop-row">${w ? _layCell('Width', 'layout-w', LAY_W_ICON, w) : _layEmpty}${h ? _layCell('Height', 'layout-h', LAY_H_ICON, h) : _layEmpty}
-          <button type="button" class="prop-chain-btn${on ? ' active' : ''}" id="${prefix}-ratio" data-part="end-slot" aria-pressed="${on}"${dis ? ' aria-disabled="true"' : ''} aria-label="${why}" title="${why}">${LAY_CHAIN_ICON}</button>
+          ${end ? _layOwnChain(end.id, end.on, end.title, end.icon) : `<button type="button" class="prop-chain-btn${on ? ' active' : ''}" id="${prefix}-ratio" data-part="end-slot" aria-pressed="${on}"${dis ? ' aria-disabled="true"' : ''} aria-label="${why}" title="${why}">${LAY_CHAIN_ICON}</button>`}
         </div>${mode && (mode.w || mode.h) ? `
         <div class="ui-s2-main prop-row" data-part="layout-mode">${_layModeCell('너비', mode.w)}${_layModeCell('높이', mode.h)}${_LAY_SPACER}</div>` : ''}
       </div>`;
 }
 
 /* 끝 사슬 — 블럭이 이미 가진 사슬 단추(id 그대로 · 배선도 블럭 쪽) */
-const _layOwnChain = (id, on, title) => (id ? `<button type="button" class="prop-chain-btn${on ? ' active' : ''}" id="${id}" data-part="end-slot" aria-pressed="${!!on}" aria-label="${title}" title="${title}">${LAY_CHAIN_ICON}</button>` : _LAY_SPACER);
+const _layOwnChain = (id, on, title, icon = LAY_CHAIN_ICON) => (id ? `<button type="button" class="prop-chain-btn${on ? ' active' : ''}" id="${id}" data-part="end-slot" aria-pressed="${!!on}" aria-label="${title}" title="${title}">${icon}</button>` : _LAY_SPACER);
 
 /**
  * 패딩 슬롯 — 작은 라벨 «Padding». 꼴 넷(id 는 다 부르는 쪽이 준다 · 새 저장 키 0):
