@@ -244,3 +244,28 @@ test('G8 (157) 메뉴 오려두기 = 잘라냄 · ⌘Z 한 칸 · 프레임에 �
   expect([n0 - n1, await page.evaluate(() => !document.getElementById('tfA'))], '★⌘X = 한 블럭만 · 뒤따른 cut 사건은 건너뜀').toEqual([1, true]);
   expect(errs).toEqual([]);
 });
+
+/* G9 (지디 261126 유닛 D12 빨강 실측) — ⌘X·메뉴 오려두기 둘 다 «이동»: 섹션을 잘라도 링크 처분(SPLink.releaseSectionsForDelete)을 안 지난다 · refLinks 토큰 그대로 되돌아옴
+ *   [양성] Delete 는 처분을 지난다(같은 섹션 · 같은 자리) */
+test('G9 (157·D12) 섹션 ⌘X·메뉴 오려두기 = 링크 처분 0 · [양성] Delete = 처분 1', async ({ page }) => {
+  const errs = await scene(page);
+  await page.evaluate(() => {
+    window.__rel = 0; const L = window.SPLink; const orig = L.releaseSectionsForDelete;
+    L.releaseSectionsForDelete = (...a) => { window.__rel++; return orig.apply(L, a); };
+  });
+  const pickSec = () => page.evaluate(() => { const s = document.getElementById('sV'); s.dataset.refLinks = 'sp_g9:0'; window.deselectAll(); window.selectSection(s); document.activeElement?.blur?.(); });
+  const st = () => page.evaluate(() => ({ gone: !document.getElementById('sV'), rel: window.__rel, tok: document.getElementById('sV')?.dataset.refLinks ?? null }));
+  // 메뉴 길 먼저 — ⌘X 키 길 뒤 500ms 안의 cut 사건은 «방금 키로 했음»이라 건너뛴다(editor.js cut 처리기 · 고정 대기 대신 순서로)
+  await pickSec(); await menuCut(page); await raf(page); const m = await st();
+  await page.keyboard.press('Meta+z'); await raf(page);
+  await pickSec(); await page.keyboard.press('Meta+x'); await raf(page); const k = await st();
+  await page.keyboard.press('Meta+z'); await raf(page); const kb = await st();
+  await pickSec(); await page.keyboard.press('Delete'); await raf(page); const d = await st();
+  console.log('[G9 실측]', JSON.stringify({ k, kb, m, d }));
+  expect([k.gone, k.rel], '★⌘X = 섹션 잘림 · 링크 처분 0').toEqual([true, 0]);
+  expect(kb.tok, '★⌘Z 뒤 refLinks 토큰 그대로').toBe('sp_g9:0');
+  expect([m.gone, m.rel], '★메뉴 오려두기 = 섹션 잘림 · 링크 처분 0').toEqual([true, 0]);
+  expect([d.gone, d.rel > 0], '[양성] Delete = 처분을 지난다').toEqual([true, true]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
