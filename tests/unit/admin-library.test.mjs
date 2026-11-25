@@ -222,8 +222,8 @@ test('A8 brand-logos — 묶음 폴더·svg/webp 만 · 명부 칸 · 로고 SVG
   assert.ok(col && col.groups === 'folder' && col.asImage === true && !col.mergeInto, '명부: 새 탭 · 폴더 묶음 · 그림으로');
   assert.match(col.license, /인증을 받은 제품에만/, '인증표시 조건이 출처 줄에');
   const panel = readSrc(ROOT, 'js/panels/library-panel.js');
-  const ins = sliceBlock(panel, 'async function _insert(col, it, img) {');
+  const ins = sliceBlock(panel, 'async function _insert(');
   const iImg = ins.indexOf('col.asImage ? await _localSvgImage(it)'), iVec = ins.indexOf('_insertLocalSvg(col, it)');
   assert.ok(iImg > 0 && iVec > iImg && /!col\.asImage\) \{ await _insertLocalSvg/.test(ins), '★asImage SVG 가 벡터(단색→currentColor) 길로 샌다');
-  assert.doesNotMatch(sliceBlock(panel, 'async function _localSvgImage(it) {'), /normalizeMonoSvg/, '★그림 길에서 단색 정규화(색 바뀜)');
+  assert.doesNotMatch(sliceBlock(panel, 'async function _localSvgImage('), /normalizeMonoSvg/, '★그림 길에서 단색 정규화(색 바뀜)');
 });
