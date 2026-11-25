@@ -55,3 +55,12 @@ test('S2 섹션 크기 줄 — layoutSizeRowHTML(W 읽기전용 sec-width-value 
   assert.match(s, /end: \{ id: 'sec-pin-btn'/);
   assert.ok(!/<input type="number" id="sec-(?:width|height)-value"/.test(s), '옛 손으로 쓴 칸이 남았다');
 });
+
+test('B1 버즈 간격·너비 — 표준 슬롯(bzf-gap-number = layoutGapSlotHTML · bzf-width-number = layoutSlotNumberHTML) · 슬라이더 0 · 모드 드롭다운 0(너비 0 = 글에 맞춤 그대로 · 탑 261125)', () => {
+  const s = read('prop-frame-buzz.js');
+  assert.match(s, /layoutGapSlotHTML\(\{ id: 'bzf-gap-number'/);
+  assert.match(s, /layoutSlotNumberHTML\(\{ id: 'bzf-width-number'/);
+  assert.match(s, /wireLayoutSection\(/);
+  assert.ok(!/'bzf-(?:gap|width)'/.test(s), '옛 _slider/slide 호출이 남았다');
+  assert.ok(!/layoutSizeRowHTML|LAY_SIZING/.test(s), '모드 드롭다운을 만들지 않는다');
+});
