@@ -8,6 +8,7 @@ import { sectionOrderFor, sectionRank } from './_section-spec.js';
 import { BULLET_LIST_STYLES, bulletListStyleOf } from './text-type-class.js';
 import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A3)
 import { layoutSizeRowHTML, layoutGapSlotHTML } from './_layout-section.js';   // 표준 Layout(L2~L4 · C3)
+import { effectRowHTML } from './_effects-section.js';   // 표준 Effects 줄(0.9.14 224)
 
 export function buildTextPanelSpec(state) {
   const {
@@ -125,7 +126,7 @@ export function buildTextPanelSpec(state) {
   const _fx = _plainText ? window.fxSectionParts(tb, 'txt', { plus: true }) : null;   /* 재설계 1차 ⑨ — 머리 «＋»(누르면 종류 목록) */
   const _effects = _fx
     ? sec('effects', _fx.body, { id: _fx.id, headTools: _fx.headTools })
-    : sec('effects', `\n${textShadowControlsHtml(_sh)}`, { id: 'txt-shadow-section', headTools: _shadowOn });
+    : sec('effects', effectRowHTML({ id: 'txt-fx-shadow', label: 'Shadow', body: `\n${textShadowControlsHtml(_sh)}` }), { id: 'txt-shadow-section', headTools: _shadowOn });   // 표준 Effects 줄(0.9.14 224)
 
   const _alignBtns = `
       <span class="prop-field-label">Alignment</span>
