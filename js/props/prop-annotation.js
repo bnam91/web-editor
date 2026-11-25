@@ -122,6 +122,7 @@ function _writeProps(block, partial) {
   if ('labelImageSize'   in partial) block.dataset.labelImageSize   = String(partial.labelImageSize);
   if ('labelImageRadius' in partial) block.dataset.labelImageRadius = String(partial.labelImageRadius);
   if ('labelBorderStyle' in partial) block.dataset.labelBorderStyle = String(partial.labelBorderStyle);
+  if ('lineStyle' in partial) { if (partial.lineStyle === 'dashed' || partial.lineStyle === 'dotted') block.dataset.lineStyle = partial.lineStyle; else delete block.dataset.lineStyle; }   // 실선 = 키 없음(옛 바이트)
   if ('labelBorderWidth' in partial) block.dataset.labelBorderWidth = String(partial.labelBorderWidth);
   if ('labelPad' in partial) {   // ★1017t1h5 — null = CSS 기본으로 되돌림(키 삭제)
     if (partial.labelPad == null) delete block.dataset.labelPad;
@@ -259,6 +260,7 @@ function _rerenderAnnotation(block) {
   if (line) {
     line.setAttribute('stroke', st.strokeColor);
     line.setAttribute('stroke-width', String(st.strokeWidth));
+    { const d = window.annotLineDash?.(st.lineStyle, st.strokeWidth) || ''; if (d) line.setAttribute('stroke-dasharray', d); else line.removeAttribute('stroke-dasharray'); }   // 선 꼴(⫶) · 굵기 바뀌면 같이 다시 잰다
   }
 
   // anchor 노드 교체 — ★1013t2C7-pre 한 벌(js/blocks/annotation-block.js annotRedrawAnchor)
@@ -496,9 +498,11 @@ export function showAnnotationProperties(block) {
         ${colorFieldHTML({ idPrefix: 'annot-label-bg', hex: _hex(st.labelBg), alpha: labelBgAlpha, placeholder: '없음' })}
       </div>`),
       // 옛 「선」 + 라벨 테두리
-      /* ★표준 Stroke 2-5(현빈 261124 ⓑ · 8910 #mkp-linestroke) — 주석 선: 색 + 굵기 · ＋/− · 위치 · ⫶ 없음(선 = 가운데 고정) · 옛 id annot-stroke(색) · annot-stroke-w-num
+      /* ★표준 Stroke 2-5(현빈 261124 ⓑ · 8910 #mkp-linestroke) — 주석 선: 색 + 굵기 · ＋/− · 위치 없음(선 = 가운데 고정) · ⫶ = 선 꼴(209 마감 ◑ 261125) · 옛 id annot-stroke(색) · annot-stroke-w-num
          «Label border» = 표준 ＋/− 있는 절(없음 = 굵기 0 · 색 알파 0 은 색의 일 — 지디에 갈림 줄 올림) · 선 꼴 = ⫶ 팝오버(실선·대시·점 · 옛 값) · 옛 id annot-label-border(색 · placeholder 없음) · annot-border-w-num */
-      sec('stroke', strokeSectionHTML({ prefix: 'annot-line', noAlign: true, colorId: 'annot-stroke', color: _hex(st.strokeColor), alpha: strokeAlpha, width: st.strokeWidth, minWidth: 0.5, maxWidth: 8, step: 0.5, widthId: 'annot-stroke-w-num' })),
+      sec('stroke', strokeSectionHTML({ prefix: 'annot-line', noAlign: true, colorId: 'annot-stroke', color: _hex(st.strokeColor), alpha: strokeAlpha, width: st.strokeWidth, minWidth: 0.5, maxWidth: 8, step: 0.5, widthId: 'annot-stroke-w-num',
+        /* ★0.9.13 209 마감 ◑(지디 261125 · 현빈 ⓑ «끝 모양/선 꼴 = ⫶ 설정») — 주석 선 ⫶ = 선 꼴 셋(실선·대시·점 · 키 lineStyle · 실선 = 키 없음) · 끝 모양은 «Endpoints» 절이 맡는다 · 점선 수치·꼭짓점 = 곧 지원 */
+        pop: { styles: [['solid', '— 실선'], ['dashed', '- - 대시'], ['dotted', '· · 점']], style: st.lineStyle || 'solid', styleId: 'annot-line-style' } })),
       sec('special', `<div data-own="special:Label Border">${strokeSectionHTML({ prefix: 'annot-lb',   /* 패널 틀 규칙 = stroke 절은 한 번만 → 블럭 고유 «Label Border» = special(제목 붙은 절 · 머리 ＋/− 그대로) · data-own = 칸 소유를 이 절로(Endpoints 선례) */ noAlign: true, colorId: 'annot-label-border', colorHtml: colorFieldHTML({ idPrefix: 'annot-label-border', hex: _hex(st.labelBorderColor), alpha: labelBorderAlpha, placeholder: '없음' }),
         width: st.labelBorderWidth, minWidth: 0, maxWidth: 8, step: 0.5, widthId: 'annot-border-w-num', on: st.labelBorderWidth > 0,
         pop: { styles: STROKE_STYLES_CSS.map(([v, t]) => [v, v === 'dashed' ? '- - 대시' : t]), style: st.labelBorderStyle || 'solid', styleId: 'annot-border-style', why: STROKE_POP_WHY.css } })}</div>`,
@@ -625,8 +629,9 @@ export function showAnnotationProperties(block) {
 
   // 선 두께
   /* 표준 Stroke 2-5 — 선 굵기 = 부품(어댑터 = 옛 _writeProps strokeWidth · change = 이력 «선 두께») · 색은 위 옛 wireColorField('annot-stroke') 그대로(부품 색 배선 안 함) */
+  let _lineLbl = '선 두께';   // 마지막으로 바꾼 칸의 이력 이름(굵기 = 선 두께 · ⫶ 선 꼴 = 선 꼴)
   wireStrokeSection({ prefix: 'annot-line', widthId: 'annot-stroke-w-num', minWidth: 0.5, maxWidth: 8, step: 0.5, noColor: true,
-    adapter: { width: (v) => _writeProps(block, { strokeWidth: v }), commit: () => window.pushHistory?.('선 두께') } });
+    adapter: { width: (v) => { _lineLbl = '선 두께'; _writeProps(block, { strokeWidth: v }); }, look: (part) => { if (part.style) { _lineLbl = '선 꼴'; _writeProps(block, { lineStyle: part.style }); } }, commit: () => window.pushHistory?.(_lineLbl) } });   // 미카사 7판 곁(209): 선 꼴 바꿈 이력 이름 = «선 꼴»(옛: 굵기와 같은 commit 이라 «선 두께»)
 
   // 시작점 모양 (공용 .prop-align-btn)
   propPanel.querySelectorAll('#annot-shape-group .prop-align-btn').forEach(btn => {

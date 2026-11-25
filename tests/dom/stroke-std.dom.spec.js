@@ -793,3 +793,46 @@ test('S16 Figma JSON 도형 선 색 — shapeStrokeColor 있으면 strokeColor �
   expect(r).toEqual([['xC1', '#000000'], ['xC2', null]]);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* ★0.9.13 209 STROKE-LINE-BLOCKS-STD-01 마감 ◑(지디 261125 · 아이맥 GRADE-0913close-3 STK) — «주석(선) ⫶ 없음» → 현빈 ⓑ «끝 모양/선 꼴 = ⫶ 설정»
+ *   S14d ⫶(annot-line-more) 있음 · 선 꼴 셋 · 대시 = 키 lineStyle + polyline stroke-dasharray · ⌘Z 한 칸 = 키·대시 0 · 점 · 실선 = 키 없음(옛 바이트)
+ *        저장 → 다시 열기(applyProjectData) 대시 그대로 · 키 없는 옛 주석은 열어도 키 무변 · [곁 확인] Label Border 머리 ＋/− 보임(채점 «없음» = 켬이라 − 만 보이는 꼴) */
+test('S14d 주석 선 ⫶ — 선 꼴(실선·대시·점) · 키 lineStyle(실선 = 없음) · ⌘Z 한 칸 · 저장 다시 열기 · Label Border ＋/− 보임', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  await page.evaluate(async () => {
+    const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); const sec = await window.addSection();
+    const b = window.makeAnnotationBlock({ points: [[200, 160], [500, 160]], text: '라벨' }); b.id = 'anD'; sec.querySelector('.section-inner').appendChild(b);
+    window.deselectAll(); window.selectBlock('anD'); window.showAnnotationProperties(b); window.clearHistory?.();
+  });
+  await page.waitForSelector('#annot-line-more', { state: 'attached' });
+  const st = () => page.evaluate(() => { const b = document.getElementById('anD'), l = b.querySelector('.annot-line'); return { key: b.dataset.lineStyle ?? null, dash: l?.getAttribute('stroke-dasharray') ?? null }; });
+  const s0 = await st();
+  const opts = await page.evaluate(() => [...document.querySelectorAll('#annot-line-style option')].map((o) => o.value));
+  const lb = await page.evaluate(() => { const i = document.getElementById('annot-lb-on'), lab = i?.closest('label'); const r = lab?.getBoundingClientRect(); const sh = (sel) => { const e = lab?.querySelector(sel); return e ? getComputedStyle(e).display !== 'none' : false; }; return { on: !!i?.checked, box: !!r && r.width > 4 && r.height > 4, minus: sh('.prop-sec-add-minus'), plus: sh('.prop-sec-add-plus') }; });
+  await page.click('#annot-line-more');
+  await page.selectOption('#annot-line-style', 'dashed');
+  const s1 = await st();
+  expect(await page.evaluate(() => window.getHistoryTip?.()?.action), '★이력 이름 = 선 꼴(미카사 7판 곁)').toBe('선 꼴');
+  await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z');
+  await expect.poll(() => st(), { message: '★⌘Z 한 칸 = 키·대시 0' }).toEqual({ key: null, dash: null });
+  await page.evaluate(() => { const b = document.getElementById('anD'); window.deselectAll(); window.selectBlock('anD'); window.showAnnotationProperties(b); });
+  await page.click('#annot-line-more'); await page.selectOption('#annot-line-style', 'dotted');
+  const s2 = await st();
+  await page.evaluate(() => { const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); });
+  const s3 = await st();
+  const fig = await page.evaluate(() => { const j = JSON.stringify(window.buildFigmaExportJSON(null)); return { dash: j.includes('stroke-dasharray'), entry: j.includes('anD') }; });   // 주석 = 다른 블럭처럼 svg 로 간다(현빈 261024) ⇒ 대시가 svg 안에 실린다
+  await page.evaluate(() => { const b = document.getElementById('anD'); window.deselectAll(); window.selectBlock('anD'); window.showAnnotationProperties(b); });
+  await page.click('#annot-line-more'); await page.selectOption('#annot-line-style', 'solid');
+  const s4 = await st();
+  console.log('[S14d 실측]', JSON.stringify({ s0, opts, lb, s1, s2, s3, fig, s4 }));
+  expect(s0, '★새 주석 패널 열어도 = 실선 · 키 없음(옛 바이트) · 대시 없음').toEqual({ key: null, dash: null });
+  expect(opts, '★⫶ 선 꼴 셋').toEqual(['solid', 'dashed', 'dotted']);
+  expect(s1.key, '★대시 = 키 dashed').toBe('dashed'); expect(s1.dash, '★polyline 대시').toMatch(/^\d/);
+  expect([s2.key, !!s2.dash && s2.dash !== s1.dash], '★점 = 키 dotted · 대시와 다른 꼴').toEqual(['dotted', true]);
+  expect(s3, '★저장 → 다시 열기 그대로').toEqual(s2);
+  expect(fig, '★Figma JSON 에 주석 항목 · svg 안 stroke-dasharray').toEqual({ dash: true, entry: true });
+  expect(s4, '★실선 = 키 없음(옛 바이트) · 대시 0').toEqual({ key: null, dash: null });
+  expect(lb, '★Label Border 머리 = 켬 · 단추 보임 · − 보임 · ＋ 숨음(켜져 있으니)').toEqual({ on: true, box: true, minus: true, plus: false });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
