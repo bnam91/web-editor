@@ -148,25 +148,24 @@ export function wireLabelSection({ ctx }) {
     delete ctx.contentEl.dataset.shape; // 원형 가드 마커 제거(타shape에 aspect-ratio 가드 미적용)
   };
   document.getElementById('label-shape-pill')?.addEventListener('click', () => {
-    window.pushHistory?.();
     _resetLabelInline();
     ctx.contentEl.style.borderRadius = '999px';
     ctx.contentEl.style.padding       = '11px 36px';
     const rNumber2 = document.getElementById('label-radius-number');   // 표준 Appearance A3 — 슬라이더 걷음
     if (rNumber2) rNumber2.value = 999;
+    window.pushHistory?.();
     window.scheduleAutoSave?.();
   });
   document.getElementById('label-shape-box')?.addEventListener('click', () => {
-    window.pushHistory?.();
     _resetLabelInline();
     ctx.contentEl.style.borderRadius = '8px';
     ctx.contentEl.style.padding       = '11px 36px';
     const rNumber2 = document.getElementById('label-radius-number');   // 표준 Appearance A3 — 슬라이더 걷음
     if (rNumber2) rNumber2.value = 8;
+    window.pushHistory?.();
     window.scheduleAutoSave?.();
   });
   document.getElementById('label-shape-outline')?.addEventListener('click', () => {
-    window.pushHistory?.();
     _resetLabelInline();
     ctx.contentEl.style.backgroundColor = 'transparent';
     ctx.contentEl.style.border = '1.5px solid currentColor'; // 텍스트 색 따라가는 외곽선
@@ -174,10 +173,10 @@ export function wireLabelSection({ ctx }) {
     ctx.contentEl.style.padding = '11px 36px';
     const rNumber2 = document.getElementById('label-radius-number');   // 표준 Appearance A3 — 슬라이더 걷음
     if (rNumber2) rNumber2.value = 8;
+    window.pushHistory?.();
     window.scheduleAutoSave?.();
   });
   document.getElementById('label-shape-circle')?.addEventListener('click', () => {
-    window.pushHistory?.();
     _resetLabelInline();
     // CSS 가드(.tb-label[data-shape="circle"])가 정원/padding:0을 강제 → 저장된 블록도 회복
     ctx.contentEl.dataset.shape = 'circle';
@@ -195,22 +194,22 @@ export function wireLabelSection({ ctx }) {
     syncPillH(64);
     const rNumber2 = document.getElementById('label-radius-number');   // 표준 Appearance A3 — 슬라이더 걷음
     if (rNumber2) rNumber2.value = 999;
+    window.pushHistory?.();
     window.scheduleAutoSave?.();
   });
   /* Oval(타원) — 폭은 글자대로 두고 border-radius:50% = 가로로 긴 타원(Circle 은 64×64 정원 · Pill 은 999px 반원 끝).
      ⚠️B1 «라벨 모양 변수»(q/cert-* · label-group · LABEL_SHAPE_KINDS.ellipse)와 별개의 텍스트 라벨 기본 프리셋이다. */
   document.getElementById('label-shape-oval')?.addEventListener('click', () => {
-    window.pushHistory?.();
     _resetLabelInline();
     ctx.contentEl.dataset.shape = 'oval';   // 마커 = 레거시 원형 안전망(css/editor-layout.css «:not([data-shape])»)에서 빠지는 표
     ctx.contentEl.style.borderRadius = '50%';
     ctx.contentEl.style.padding       = '11px 36px';
     const rNumber2 = document.getElementById('label-radius-number');   // 표준 Appearance A3 — 슬라이더 걷음
     if (rNumber2) rNumber2.value = 999;
+    window.pushHistory?.();
     window.scheduleAutoSave?.();
   });
   document.getElementById('label-shape-text')?.addEventListener('click', () => {
-    window.pushHistory?.();
     _resetLabelInline();
     ctx.contentEl.style.backgroundColor = 'transparent';
     // textgrad-ok: 바로 위 _resetLabelInline 이 clearTextGradient 를 불렀다
@@ -220,6 +219,7 @@ export function wireLabelSection({ ctx }) {
     ctx.contentEl.style.padding = '0';
     const rNumber2 = document.getElementById('label-radius-number');   // 표준 Appearance A3 — 슬라이더 걷음
     if (rNumber2) rNumber2.value = 0;
+    window.pushHistory?.();
     window.scheduleAutoSave?.();
   });
 

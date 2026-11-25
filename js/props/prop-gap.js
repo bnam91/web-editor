@@ -45,9 +45,9 @@ export function showGapProperties(gb) {
   presetBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       const h = parseInt(btn.dataset.h);
-      window.pushHistory?.();
       gb.style.height = h + 'px';
       window.markGapManual?.(gb);   // ⓓ 사람이 고른 프리셋 — 갭 감수가 되돌리지 않는다
+      window.pushHistory?.();
       number.value = h;
       updatePresetActive(h);
       window.scheduleAutoSave?.();

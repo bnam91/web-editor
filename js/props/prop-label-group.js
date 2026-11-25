@@ -185,8 +185,8 @@ function showLabelGroupProperties(block, selectedItem) {
   // 드롭다운 변경 시 선택된 태그에만 즉시 적용
   styleSelect?.addEventListener('change', () => {
     if (!selectedItem) return;
-    window.pushHistory?.();
     _applyPresetToItem(selectedItem, styleSelect.value);
+    window.pushHistory?.();
     // 컬러 픽커 동기화
     const bgPicker2 = document.getElementById('lg-item-bg-color');
     const bgHex2    = document.getElementById('lg-item-bg-hex');
@@ -205,7 +205,6 @@ function showLabelGroupProperties(block, selectedItem) {
 
   // C18: 전체 적용 버튼 — 캔버스 전체 label-group-block의 모든 label-item에 적용
   applyAllBtn?.addEventListener('click', () => {
-    window.pushHistory?.();
     const presetName = styleSelect?.value || 'Default';
     const canvas = document.getElementById('canvas') || document.querySelector('.canvas-area') || document.body;
     canvas.querySelectorAll('.label-group-block .label-item').forEach(item => {
@@ -214,6 +213,7 @@ function showLabelGroupProperties(block, selectedItem) {
     // t3-01 내 프리셋은 블럭 꼴(모양·간격)까지 — 기본 4종엔 그 키가 없어 무동작
     const userStyle = presetName.startsWith(LABEL_USER_PREFIX) ? resolveLabelPreset(presetName) : null;
     if (userStyle) canvas.querySelectorAll('.label-group-block').forEach(b => applyLabelStyleToBlock(b, userStyle));
+    window.pushHistory?.();
     // CSS 변수도 업데이트 (design-system 연동) — 기본 4종만(내 프리셋은 디자인 토큰을 안 바꾼다)
     const p = LABEL_BUILTIN_PRESETS[presetName];
     if (p && window.DesignSystem) {
@@ -250,9 +250,9 @@ function showLabelGroupProperties(block, selectedItem) {
 
   // B1 — 모양 변수 끊기·바꾸기·연결 (변수 값은 좌측 Design System 에서 고친다)
   const _rebind = (name) => {
-    window.pushHistory?.();
     if (name) window.LabelShape?.bindLabelItem(selectedItem, name, _shapes[name]);
     else if (boundName) window.LabelShape?.unbindLabelItem(selectedItem, _shapes[boundName]);
+    window.pushHistory?.();
     window.scheduleAutoSave?.();
     showLabelGroupProperties(block, selectedItem);
   };

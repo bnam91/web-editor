@@ -2057,11 +2057,14 @@ function _grdWireImageSection(block, addr, host = null) {
     document.getElementById(id)?.addEventListener('change', (e) => {
       const raw = String(e.target.value).trim();
       const v = raw === '' ? undefined : Math.max(lo, Math.min(hi, parseInt(raw, 10) || 0));
+      if (foreign) { host.previewLine(r, c, li, { [field]: v }); host.mark(addr); }   // ★1013t1B2 — 남의 주인(코너 핸들은 그리드 전용)
+      else {
+        gridPreviewLine(block, r, c, li, { [field]: v }, addr.np);
+        _grdSyncLineMark(block, addr);   // 재렌더가 마커를 지웠다 — 다시 붙인다
+      }
       window.pushHistory?.();
-      if (foreign) { host.previewLine(r, c, li, { [field]: v }); host.mark(addr); window.scheduleAutoSave?.(); return; }   // ★1013t1B2 — 남의 주인(코너 핸들은 그리드 전용)
-      gridPreviewLine(block, r, c, li, { [field]: v }, addr.np);
-      _grdSyncLineMark(block, addr);   // 재렌더가 마커를 지웠다 — 다시 붙인다
       window.scheduleAutoSave?.();
+      if (foreign) return;
       window.showGridImageResizeHandle?.(block);   // ★폭/높이가 바뀌면 코너 핸들 자리도 따라가야 한다
     });
   };
@@ -3779,9 +3782,9 @@ function _grdWireLineSection(block, addr, host = null) {
     const raw = String(e.target.value).trim();
     const v = raw === '' ? undefined
       : Math.max(GAP_MIN, Math.min(GAP_MAX, parseInt(raw, 10) || 0));
-    window.pushHistory?.();
     H.previewLine(r, c, li, { height: v }, addr.np);
     H.mark(addr);   // 재렌더가 마커를 지웠다 — 다시 붙인다
+    window.pushHistory?.();
     window.scheduleAutoSave?.();
   });
 
@@ -3795,9 +3798,9 @@ function _grdWireLineSection(block, addr, host = null) {
     const rawV = String(e.target.value).trim();
     const v = rawV === '' ? undefined
       : Math.max(GRID_DIVIDER_H_MIN, Math.min(GRID_DIVIDER_H_MAX, parseInt(rawV, 10) || GRID_DIVIDER_H_MIN));
-    window.pushHistory?.();
     H.previewLine(r, c, li, { height: v }, addr.np);
     H.mark(addr);   // 재렌더가 마커를 지웠다 — 다시 붙인다
+    window.pushHistory?.();
     window.scheduleAutoSave?.();
   });
   /* ★구분선 너비(%) — 1109t1A3 현빈 「너비 조절」. 굵기와 같은 길 · 이미지 폭과 같은 5~100 클램프 · 빈 칸 = 꽉 참. */
@@ -3857,8 +3860,8 @@ function _grdWireLineSection(block, addr, host = null) {
   document.getElementById('grd-line-reset')?.addEventListener('click', () => {
     const cleared = {};
     _GRD_TYPO_FIELDS.forEach(k => { cleared[k] = undefined; });
-    window.pushHistory?.();
     H.previewLine(r, c, li, cleared, addr.np);   // ★np — 중첩 안 줄도 같은 길로(T-220)
+    window.pushHistory?.();
     window.scheduleAutoSave?.();
     H.show({ r, c, li, ...(addr.np ? { np: addr.np } : {}) });   // np — 두 칸 안 줄도 그 줄로 다시 연다
   });
@@ -4445,9 +4448,9 @@ ${_flattenRowHtml(rows, cols)}
       /* ★⑦-A — 받은 값 = 보이는 높이 · 저장 = 그 값 − 2·cellPadY(0 하한 · ROW_H_MAX 상한). */
       const v = raw === '' ? 'auto' : Math.min(ROW_H_MAX, gridRowStoredH(block, parseInt(raw) || 0));
       curRows[ri] = { height: v };
-      window.pushHistory?.();
       block.dataset.rows = JSON.stringify(curRows);
       window.renderGridBlock?.(block);
+      window.pushHistory?.();
       window.scheduleAutoSave?.();
       inp.value = v === 'auto' ? '' : gridRowFullH(block, v);   // 정규화 결과(보이는 높이)로 되씀(비율 입력과 동일 패턴)
     });

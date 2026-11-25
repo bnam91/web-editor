@@ -147,7 +147,6 @@ function _swapBannerChildren(ss) {
   // 줌 영향을 받지 않도록 inline style / dataset 픽셀값을 우선 사용
   const bannerWidth = parseInt(ss.style.width) || parseInt(ss.dataset.width) || 0;
   if (!bannerWidth) return;
-  window.pushHistory?.();
   Array.from(ss.children).forEach(child => {
     const cw = parseInt(child.style.width) || parseInt(child.dataset.width) || 0;
     if (!cw) return;
@@ -162,6 +161,7 @@ function _swapBannerChildren(ss) {
       child.style.marginLeft = newML + 'px';
     }
   });
+  window.pushHistory?.();
   window.scheduleAutoSave?.();
 }
 
@@ -660,8 +660,8 @@ function _renderAutoPanel(ss) {
         e.target.value = oldKey;
         return;
       }
-      window.pushHistory?.();
       window._applyBannerPreset?.(ss, newKey);
+      window.pushHistory?.();
       window.showFrameProperties?.(ss);
     });
   }
@@ -905,17 +905,17 @@ function _renderAutoPanel(ss) {
     ckOff.addEventListener('change', () => { if (ckOff.checked) applyTone(false); });
   }
   /* ★★2026-10-10 (현빈 ③) — ★배경 크기 칸 배선. ★섹션(prop-section.js bgSizeEl)과 ★★같은 꼴:
-       ⑴ pushHistory ★먼저(push-before — js/CLAUDE.md 규약 · 이 패널의 다른 칸들과 ★같은 쪽)
-       ⑵ dataset 에 ★쓰고(★정본 한 칸)  ⑶ ★두 그리는 길을 ★공용으로 ★다시 먹인다  ⑷ autosave
+       ⑴ dataset 에 ★쓰고(★정본 한 칸)  ⑵ ★두 그리는 길을 ★공용으로 ★다시 먹인다
+       ⑶ pushHistory ★나중(push-after · 0.9.14 97행 — 먼저 찍으면 앞 칸이 push-after 일 때 이 변경이 제 칸을 잃는다)  ⑷ autosave
      ⚠️★키워드로 되돌리면 ★px 위치는 ★뜻이 ★달라진다 ⇒ ★섹션과 ★같이 ★위치를 ★버린다.
        ⛔이 한 줄을 ★빼면 ★「Cover 로 바꿨는데 ★그림이 ★엉뚱한 자리」가 된다(섹션이 ★먼저 겪은 사고). */
   const bgSizeSel = document.getElementById('ss-bg-size');
   if (bgSizeSel) bgSizeSel.addEventListener('change', () => {
-    window.pushHistory?.('프레임 배경 크기');
     ss.dataset.bgSize = bgSizeSel.value;
     if (!/px/.test(bgSizeSel.value)) delete ss.dataset.bgPos;
     _syncFrameBgVars();                 /* ::before 경로 */
     applyFrameBgImageInline(ss);        /* 본체 경로 */
+    window.pushHistory?.('프레임 배경 크기');
     window.scheduleAutoSave?.();
   });
   if (bgPosBtn)   bgPosBtn.addEventListener('click', () => _frameBgEdit(ss));

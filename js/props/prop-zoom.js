@@ -474,18 +474,18 @@ ${narrowRow}
     drop.addEventListener('drop', (e) => _applyZoomImage(e.dataTransfer?.files?.[0]));
   }
   propPanel.querySelector('#zm-img-clear')?.addEventListener('click', () => {
-    window.pushHistory?.('확대블럭 이미지 제거');
     delete block.dataset.imgSrc;
     rerender();
+    window.pushHistory?.('확대블럭 이미지 제거');
     window.triggerAutoSave?.();
     showZoomProperties(block);
   });
 
   propPanel.querySelector('#zm-ab-reset')?.addEventListener('click', () => {
     if (!window.readPinnedZoomShortEdge?.(block)) return;
-    window.pushHistory?.('확대블럭 짧은 변 자동');
     window.clearPinnedZoomShortEdge?.(block);
     rerender();
+    window.pushHistory?.('확대블럭 짧은 변 자동');
     showZoomProperties(block);
     window.triggerAutoSave?.();
   });

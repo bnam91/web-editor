@@ -634,8 +634,8 @@ export function showAnnotationProperties(block) {
     btn.addEventListener('click', () => {
       const mode = btn.dataset.mode;
       if (mode === st.labelMode) return;
-      window.pushHistory?.('라벨 모드');
       _writeProps(block, { labelMode: mode });
+      window.pushHistory?.('라벨 모드');
       showAnnotationProperties(block); // UI 재빌드
     });
   });
@@ -685,8 +685,8 @@ export function showAnnotationProperties(block) {
         if (file.size > 10 * 1024 * 1024) { alert('이미지 파일은 10MB 이하만 업로드할 수 있습니다.'); return; }
         const reader = new FileReader();
         reader.onload = ev => {
-          window.pushHistory?.('라벨 이미지');
           _writeProps(block, { labelImageSrc: ev.target.result });
+          window.pushHistory?.('라벨 이미지');
           showAnnotationProperties(block); // 미리보기 갱신
         };
         reader.readAsDataURL(file);
@@ -697,8 +697,8 @@ export function showAnnotationProperties(block) {
   const removeBtn = propPanel.querySelector('#annot-label-img-remove');
   if (removeBtn) {
     removeBtn.addEventListener('click', () => {
-      window.pushHistory?.('라벨 이미지 제거');
       _writeProps(block, { labelImageSrc: '' });
+      window.pushHistory?.('라벨 이미지 제거');
       showAnnotationProperties(block);
     });
   }

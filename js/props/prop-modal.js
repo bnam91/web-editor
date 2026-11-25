@@ -524,8 +524,8 @@ export function showModalProperties(block) {
       getActiveName: () => parseColorVarName(block.dataset.textColor || ''),
       getFallbackHex: (name, hex) => hex,
       onPick: (cssRef) => {
-        window.pushHistory?.();
         setDs('textColor', cssRef);
+        window.pushHistory?.();
         const fb = (String(cssRef).match(/#[0-9a-fA-F]{6}/) || [])[0];
         if (fb && cPick) { cPick.value = fb; _mdlLastHex = fb; if (cHex) cHex.value = fb.replace('#', '').toUpperCase(); }
         // var 바인딩이면 불투명도는 100 — 칩 색이 안 보이는 일 방지(텍스트 패널과 같은 관례)

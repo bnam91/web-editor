@@ -365,11 +365,11 @@ export function showChatProperties(block) {
     propPanel.querySelectorAll('.chb-del-btn').forEach(btn => {
       btn.addEventListener('click', e => {
         const i = parseInt(btn.dataset.idx);
-        window.pushHistory?.();
         window.grdSetActiveLine?.(block, null);   // ★BT2 — 메시지 번호가 밀린다. 고른 줄 주소를 놓는다(낡은 주소 = 엉뚱한 메시지)
         messages.splice(i, 1);
         block.dataset.messages = JSON.stringify(messages);
         rerender();
+        window.pushHistory?.();
         rebindMsgList();
       });
     });
@@ -464,11 +464,11 @@ export function showChatProperties(block) {
   // ─── 대화 추가 ───────────────────────────────────────────────
   propPanel.querySelector('#chb-add-msg').addEventListener('click', () => {
     expandSection('content');   // 새 항목은 Content 절에 생긴다 — 접혀 있으면 펼쳐 보인다(U5 · 틀 expandSection)
-    window.pushHistory?.();
     const lastAlign = messages.length ? messages[messages.length - 1].align : 'left';
     messages.push({ text: '새 대화', align: lastAlign === 'left' ? 'right' : 'left' });
     block.dataset.messages = JSON.stringify(messages);
     rerender();
+    window.pushHistory?.();
     rebindMsgList();
   });
 

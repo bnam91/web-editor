@@ -18,15 +18,14 @@ export function wireBubbleSection({ tb, ctx }) {
      ⛔패널을 «열 때» 적용하지 않는다 — 옛 판은 열 때마다 다시 칠했는데, 이제 칠하면 손으로 바꾼 배경색이 지워진다.
      바꾼 뒤엔 패널을 다시 그린다 — 배경색 칸·글자색 칸이 «새 값»을 보이게. */
   document.getElementById('bubble-style-select')?.addEventListener('change', e => {
-    window.pushHistory?.();
     window.applySpeechBubbleStyle?.(tb, e.target.value);
+    window.pushHistory?.();
     window.triggerAutoSave?.();
     window.showTextProperties?.(tb);
   });
 
   // 말꼬리 방향
   const _setTail = (dir) => {
-    window.pushHistory?.();
     tb.dataset.tail = dir;
     tb.style.marginLeft = dir === 'right' ? 'auto' : dir === 'center' ? 'auto' : '';
     tb.style.marginRight = dir === 'center' ? 'auto' : '';
@@ -43,6 +42,7 @@ export function wireBubbleSection({ tb, ctx }) {
     ['left','center','right'].forEach(d => {
       document.getElementById('bubble-tail-' + d)?.classList.toggle('active', d === dir);
     });
+    window.pushHistory?.();
     window.triggerAutoSave?.();
   };
 
@@ -69,11 +69,10 @@ export function wireBubbleSection({ tb, ctx }) {
   /* ★1017t1m3 크기 «고정» — 현빈 「해당 기능을 끄면 모달처럼 배경사이즈를 고정해두고 조절가능하게 해줘 👉 이거 반영이 됐는지?」
      ★모달(prop-modal.js 너비 풀폭/고정 · 높이 자동/최소)의 뜻을 그대로 옮긴다: 고정 = 너비 고정 + 높이 «최소»(글이 넘치면 자란다 — 잘리지 않게).
      ★고정으로 바꿀 때 지금 그려진 크기(모델 px)를 시작값으로 ⇒ 누르는 순간 모양이 안 튄다.
-     ★이력 = push-before(이 파일의 말꼬리·발신자와 같은 규약). */
+     ★이력 = push-after(이 파일의 말꼬리·발신자와 같은 규약 · 0.9.14 94·97행). */
   const _wIn = document.getElementById('bubble-w-number');
   const _hIn = document.getElementById('bubble-h-number');
   const _setSize = (mode) => {
-    window.pushHistory?.();
     if (mode === 'fixed') {
       const body = tb.querySelector('.tb-bubble');
       /* ★시작 너비는 «올림» — offsetWidth 는 정수로 깎는다(실폭 348.445 → 348) ⇒ 그만큼 좁아져 줄이 꺾이고 높이가 튄다
@@ -87,6 +86,7 @@ export function wireBubbleSection({ tb, ctx }) {
       delete tb.dataset.bubbleSize;
     }
     applyBubbleSize(tb);
+    window.pushHistory?.();
     window.triggerAutoSave?.();
     window.showTextProperties?.(tb);   // W/H 칸 막힘(자동)·값을 새로 그린다(스타일 드롭다운과 같은 길)
   };
@@ -97,9 +97,9 @@ export function wireBubbleSection({ tb, ctx }) {
   });
   const _wireDim = (input, key, min, max) => input?.addEventListener('change', () => {
     const n = Math.min(max, Math.max(min, parseInt(input.value, 10) || min));
-    window.pushHistory?.();
     tb.dataset[key] = String(n); input.value = n;
     applyBubbleSize(tb);
+    window.pushHistory?.();
     window.triggerAutoSave?.();
   });
   _wireDim(_wIn, 'bubbleW', 60, 860);

@@ -188,9 +188,9 @@ export function wireFontPicker({ root, p, getCurrent, onPick }) {
     const item = e.target.closest('.font-item');
     if (item) {
       const rawVal = item.dataset.value;
-      window.pushHistory?.();
       onPick(rawVal);
       _pushRecentFont(rawVal);
+      window.pushHistory?.();   // push-after(0.9.14 97행) — onPick 이 기록을 안 하는 배선(txt)도 이 한 번으로 칸을 갖는다
       _fpNameEl.textContent = rawVal ? _fontDisplayName(rawVal) : '기본 (시스템)';
       _fpClose();
     }

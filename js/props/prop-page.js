@@ -617,7 +617,6 @@ export function showPageProperties() {
     const btn = document.getElementById(`page-align-${align}`);
     if (!btn) return;
     btn.addEventListener('click', () => {
-      window.pushHistory?.();
       document.querySelectorAll('.text-block').forEach(tb => {
         const parentFrame = tb.closest('.frame-block');
         if (parentFrame && parentFrame.dataset.textFrame !== 'true') return;
@@ -636,6 +635,7 @@ export function showPageProperties() {
         if (parentFrame && parentFrame.dataset.textFrame !== 'true') return;
         block.style.justifyContent = align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start';
       });
+      window.pushHistory?.();
       propPanel.querySelectorAll('#page-align-left,#page-align-center,#page-align-right')
         .forEach(b => b.classList.toggle('active', b === btn));
       window.scheduleAutoSave?.();

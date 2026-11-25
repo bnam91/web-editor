@@ -1212,8 +1212,8 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
       // fallback hex는 변수의 현재 hex 사용 (export/HTML에서 var 미해석 시 대체)
       getFallbackHex: (name, hex) => hex,
       onPick: (cssRef /* var(--color-name, #hex) */) => {
-        window.pushHistory?.();
         applyColorToSel(cssRef);
+        window.pushHistory?.();
         // 피커 UI 동기화: 바인딩된 변수의 fallback hex를 swatch/hex 입력에 반영
         const fbHex = (cssRef.match(/#([0-9a-fA-F]{3,8})/) || [])[0];
         if (fbHex && /^#[0-9a-fA-F]{6}$/.test(fbHex)) {

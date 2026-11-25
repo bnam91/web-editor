@@ -1221,11 +1221,11 @@ async function showSectionProperties(sec) {
   const _chk = (dark) => {
     const on = sec.dataset.bgImgEmpty === '1', curDark = sec.dataset.checkerTone === 'dark';
     const turnOff = on && curDark === dark;
-    window.pushHistory?.(turnOff ? '섹션 체크 배경 끄기' : (dark ? '섹션 체크 배경 다크' : '섹션 체크 배경 라이트'));
     if (turnOff) delete sec.dataset.bgImgEmpty;
     else { sec.dataset.bgImgEmpty = '1'; if (dark) sec.dataset.checkerTone = 'dark'; else delete sec.dataset.checkerTone; }
     _applySectionBg(sec);
     syncSectionCheckerTextTone(sec);   /* T6 — 섹션 안 글자 밝기(옛 톤 라디오가 부르던 그 한 자리) */
+    window.pushHistory?.(turnOff ? '섹션 체크 배경 끄기' : (dark ? '섹션 체크 배경 다크' : '섹션 체크 배경 라이트'));
     window.scheduleAutoSave?.();
     showSectionProperties(sec);
   };
@@ -1235,21 +1235,21 @@ async function showSectionProperties(sec) {
   document.getElementById('sec-fxpart-seg')?.addEventListener('click', () => document.getElementById('sec-fxpart-toggle')?.click());
   if (bgSizeEl) {
     bgSizeEl.addEventListener('change', () => {
-      window.pushHistory?.('섹션 배경 크기');
       sec.dataset.bgSize = bgSizeEl.value;
       // 키워드 사이즈로 되돌리면 px 위치는 의미가 달라진다 → 중앙으로 리셋
       if (!/px/.test(bgSizeEl.value)) delete sec.dataset.bgPos;
       _applySectionBg(sec);
+      window.pushHistory?.('섹션 배경 크기');
       window.scheduleAutoSave?.();
     });
   }
   if (bgImgRemove) {
     bgImgRemove.addEventListener('click', () => {
-      window.pushHistory?.('섹션 배경 이미지 제거');
       delete sec.dataset.bgImg;
       delete sec.dataset.bgSize;
       delete sec.dataset.bgPos;
       _applySectionBg(sec);
+      window.pushHistory?.('섹션 배경 이미지 제거');
       window.scheduleAutoSave?.();
       showSectionProperties(sec);
     });
