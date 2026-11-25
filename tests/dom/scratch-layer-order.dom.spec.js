@@ -167,7 +167,7 @@ const idbOrder = (page, pid) => page.evaluate(({ pid }) => new Promise((res) => 
 
 // ── 캔버스 장면(대조군): 새 섹션 + Rectangle ×2 (툴바 실클릭) ──
 async function addTwoRects(page) {
-  await page.click('button.fp-btn.primary[title="새 섹션 추가"]');
+  await page.click('button.fp-btn.primary[title^="새 섹션 추가"]');
   await page.waitForFunction(() => !!document.querySelector('#canvas .section-block'));
   for (let i = 0; i < 2; i++) {
     await page.click('#fp-shape-dropdown > button.fp-dropdown-trigger');
@@ -496,7 +496,7 @@ test('L13 ★#canvas-scaler 의 비-스크래치 자식(#grd-plus-layer)과의 �
   await page.setInputFiles('#scratchpad-folder-input', IMGDIR_AB);
   await page.waitForFunction(() => document.querySelectorAll('.scratch-item').length === 2, null, { timeout: 15000 });
   await clickEmpty(page);
-  await page.click('button.fp-btn.primary[title="새 섹션 추가"]');
+  await page.click('button.fp-btn.primary[title^="새 섹션 추가"]');
   await page.waitForFunction(() => !!document.querySelector('#canvas .section-block'));
   await page.click('#fp-grid-btn');   // FLOATING-PANEL-ADD-GRID-01: 메뉴 Grid → 플로팅 패널 단추
   await page.waitForFunction(() => !!document.querySelector('#canvas .grid-block'));

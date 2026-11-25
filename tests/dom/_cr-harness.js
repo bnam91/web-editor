@@ -170,7 +170,7 @@ async function clickMenu(page, dd, label) {
 }
 async function newSection(page) {
   const n0 = await page.evaluate(() => document.querySelectorAll('#canvas .section-block').length);
-  await page.click('.fp-btn.primary[title="새 섹션 추가"]');
+  await page.click('.fp-btn.primary[title^="새 섹션 추가"]');
   await pollTrue(page, (n) => document.querySelectorAll('#canvas .section-block').length > n, n0);
   return page.evaluate(() => window.getSelectedSection?.()?.id || [...document.querySelectorAll('#canvas .section-block')].pop()?.id);
 }

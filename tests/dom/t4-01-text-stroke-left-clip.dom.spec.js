@@ -106,7 +106,7 @@ const scrollTo = (page, sel) => page.evaluate((s) => document.querySelector(s)?.
 // 앱 길 — 새 섹션 → Heading → ⌘0(줌 100) [→ 줌 «−» 단추로 40] → 글자 누름(우측 패널이 그 글자)
 async function scene(page, zoom = 100, ta = 'left') {
   const before = await page.evaluate(() => [...document.querySelectorAll('#canvas .section-block:not([data-ghost])')].map(s => s.id));
-  await page.click('.fp-btn.primary[title="새 섹션 추가"]');
+  await page.click('.fp-btn.primary[title^="새 섹션 추가"]');
   await pollTrue(page, (n) => document.querySelectorAll('#canvas .section-block:not([data-ghost])').length > n, before.length);
   const secId = await page.evaluate((b) => [...document.querySelectorAll('#canvas .section-block:not([data-ghost])')].map(s => s.id).find(x => !b.includes(x)) || null, before);
   expect(secId, '전제: 새 섹션').toBeTruthy();
@@ -313,7 +313,7 @@ test('T401 L0 — 외부 API 의 strokeWidth 글자(옛 꼴 · dataset 없음)�
   test.setTimeout(120000);
   const errs = await boot(page);
   const before = await page.evaluate(() => [...document.querySelectorAll('#canvas .section-block:not([data-ghost])')].map(s => s.id));
-  await page.click('.fp-btn.primary[title="새 섹션 추가"]');
+  await page.click('.fp-btn.primary[title^="새 섹션 추가"]');
   await pollTrue(page, (n) => document.querySelectorAll('#canvas .section-block:not([data-ghost])').length > n, before.length);
   await page.evaluate(() => document.querySelectorAll('#canvas .text-block').forEach(e => { e.__t401 = true; }));
   await page.evaluate(() => window.goditor._addBlock({ type: 'text', style: 'h2', content: '가나다', align: 'left', strokeWidth: 8, strokeColor: '#000000' }));

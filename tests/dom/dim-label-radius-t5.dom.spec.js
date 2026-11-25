@@ -113,7 +113,7 @@ async function penClickIn(page, sec, dx, fromBottom) {
 async function makeDim(page) {
   await zoom100(page);
   const before = await page.evaluate(() => [...document.querySelectorAll('#canvas .section-block:not([data-ghost])')].map(s => s.id));
-  await page.click('.fp-btn.primary[title="새 섹션 추가"]');
+  await page.click('.fp-btn.primary[title^="새 섹션 추가"]');
   expect(await poll(page, (n) => document.querySelectorAll('#canvas .section-block:not([data-ghost])').length > n, before.length), '전제: 새 섹션').toBe(true);
   const sec = (await page.evaluate(() => [...document.querySelectorAll('#canvas .section-block:not([data-ghost])')].map(s => s.id))).find(x => !before.includes(x));
   await page.evaluate((s) => document.getElementById(s).scrollIntoView({ block: 'center', behavior: 'instant' }), sec);
@@ -198,7 +198,7 @@ test('G2 (지킴) 일반 어노테이션 패널엔 «모서리» 칸이 없다(�
   const errs = await boot(page);
   await zoom100(page);
   const before = await page.evaluate(() => [...document.querySelectorAll('#canvas .section-block:not([data-ghost])')].map(s => s.id));
-  await page.click('.fp-btn.primary[title="새 섹션 추가"]');
+  await page.click('.fp-btn.primary[title^="새 섹션 추가"]');
   expect(await poll(page, (n) => document.querySelectorAll('#canvas .section-block:not([data-ghost])').length > n, before.length), '전제: 새 섹션').toBe(true);
   const sec = (await page.evaluate(() => [...document.querySelectorAll('#canvas .section-block:not([data-ghost])')].map(s => s.id))).find(x => !before.includes(x));
   await page.evaluate((s) => document.getElementById(s).scrollIntoView({ block: 'center', behavior: 'instant' }), sec);

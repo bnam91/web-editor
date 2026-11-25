@@ -201,4 +201,17 @@
     'Meta+Alt+KeyC', 'Meta+Alt+KeyV', // ★1020t2d2 스타일 복사/붙여넣기(editor.js) — 맥 관례 자리
     'Meta+Comma', // Cmd+, 는 환경설정 열기 전용
   ]);
+
+  /* 235(현빈 QA 261126) — 컨트롤러 단축키는 글자 말고 툴팁에 «이름  단축키»(FigCraft toolbar.rs:210 format!("{}  {}")).
+     data-sc = 설정에서 바꿀 수 있는 키(지금 묶인 값) · data-sc-key = 고정 키(editor.js 하드코딩) · 바탕 글 = 처음 title(data-tip 에 둠). */
+  function _paintShortcutTips() {
+    for (const el of document.querySelectorAll('[data-sc], [data-sc-key]')) {
+      if (el.dataset.tip == null) el.dataset.tip = el.getAttribute('title') || '';
+      const spec = el.dataset.sc ? window.getShortcut(el.dataset.sc) : window._toPlatformShortcut(el.dataset.scKey);
+      el.setAttribute('title', spec ? `${el.dataset.tip}  ${window._shortcutLabel(spec)}` : el.dataset.tip);
+    }
+  }
+  window.addEventListener('settings:ready', _paintShortcutTips);
+  window.addEventListener('settings:changed', _paintShortcutTips);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _paintShortcutTips); else _paintShortcutTips();
 })();
