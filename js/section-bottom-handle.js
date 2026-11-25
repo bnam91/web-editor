@@ -119,7 +119,9 @@
     };
     const onUp = () => {
       end();
-      armClickSwallow();
+      /* 0.9.13 SEC-SELECT-HITSTRIP-01(마감 채점 3판 ◑) — 안 끌고 떼면 «그냥 클릭»: 삼키지 않아 아래(섹션·아래 gap)가 골라진다.
+         ⛔옛 꼴은 늘 삼켜 섹션 아래 안쪽 2~5px(손잡이 띠)이 «죽은 띠»였다(미카사 GRADE-0913close-3 · srv 추적: onDown :74 → click-swallow). 끈 뒤엔 그대로 삼킨다. */
+      if (wrote) armClickSwallow();
       if (sec.style.minHeight !== mh0 || sec.style.height !== ht0) {
         window.pushHistory?.('섹션 높이');   // 끝 표본(시작 표본은 onMove 첫 틱의 arm)
         window.triggerAutoSave?.();

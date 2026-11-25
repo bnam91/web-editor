@@ -587,7 +587,8 @@ export function showAssetProperties(ab) {
   const applyR = v => { ab.style.borderRadius = v + 'px'; };
   rSlider.addEventListener('input', () => { applyR(parseInt(rSlider.value)); rNumber.value = rSlider.value; });
   rSlider.addEventListener('change', () => { window.pushHistory?.(); });
-  rNumber.addEventListener('change', () => { window.pushHistory?.(); });
+  /* 0.9.13 179 t13F-03 — 상한 넘게 친 값(500)은 캔버스만 잘리고 칸엔 500 이 남았다 → change 때 칸도 적용값으로 고쳐 씀 */
+  rNumber.addEventListener('change', () => { const v = Math.min(assetRadiusMax(ab.offsetWidth, ab.offsetHeight), Math.max(0, parseInt(rNumber.value) || 0)); rNumber.value = String(v); window.pushHistory?.(); });
   rNumber.addEventListener('input', () => {
     const v = Math.min(assetRadiusMax(ab.offsetWidth, ab.offsetHeight), Math.max(0, parseInt(rNumber.value) || 0));
     applyR(v); rSlider.value = v;
