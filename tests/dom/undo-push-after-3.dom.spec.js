@@ -50,7 +50,7 @@ async function scene(page, kind) {
     if (kind === 'gridGap')  grid([{ width: 1, lines: [{ type: 'body', text: 'A' }, { type: 'gap', height: 16 }, { type: 'body', text: 'C' }] }, B2], null, { r: 0, c: 0, li: 1 });
     if (kind === 'gridDiv')  grid([{ width: 1, lines: [{ type: 'body', text: 'A' }, { type: 'divider', height: 4, color: '#000000' }, { type: 'body', text: 'C' }] }, B2], null, { r: 0, c: 0, li: 1 });
     if (kind === 'gridText') grid([{ width: 1, lines: [{ type: 'body', text: 'A', fontSize: 30 }] }, B2], null, { r: 0, c: 0, li: 0 });
-    if (kind === 'gridRows') grid([{ width: 1, lines: [{ type: 'body', text: 'A' }] }], [{ height: 100 }], null);
+    if (kind === 'gridRows') grid([{ width: 1, lines: [{ type: 'body', text: 'A' }] }], [{ height: 100 }, { height: 100 }], null);   // 행 높이 칸은 행 ≥2 일 때만 뜬다(prop-grid _rowHeightHtml)
     if (kind === 'lg' || kind === 'lgShape') {
       if (kind === 'lgShape') {
         try { localStorage.removeItem('we_label_shapes_v1'); } catch {}
@@ -82,7 +82,7 @@ async function scene(page, kind) {
       pick(tb, window.showTextProperties);
     }
     if (kind === 'text')     { window.addTextBlock('body'); pick(last('.text-block'), window.showTextProperties); }
-    if (kind === 'zoom')     { window.addZoomBlock(); const z = last('.zoom-block'); z.dataset.imgSrc = PNG; z.dataset.lx = '120'; z.dataset.ly = '90'; pick(z, window.showZoomProperties); }
+    if (kind === 'zoom')     { window.addZoomBlock(); const z = last('.zoom-block'); z.dataset.imgSrc = PNG; z.dataset.lx = '120'; z.dataset.ly = '90'; window.renderZoomBlock(z); pick(z, window.showZoomProperties); }   // 렌더 안 하면 조작 전 화면엔 has-image 가 없고 ⌘Z(복원=재렌더) 뒤엔 있다 ⇒ A3 거짓 빨강(C0 까지)
     window.clearHistory?.();
   }, [kind, PNG]);
   return errs;
@@ -120,7 +120,9 @@ const SITES = [
   ['mockup:173 shadow',              'mockup',    '#mkp-shadow-group',       clickOther('#mkp-shadow-group')],
   ['mockup:203 capture',             'mockupCap', '#mkp-capture-btn',        ev(() => { document.getElementById('mkp-sec-id-input').value = 'u3Src'; document.getElementById('mkp-capture-btn').click(); }), { settleMs: 3000 }],
   ['modal:527 color-chip',           'modal',     '#mdl-typo-color-chips .cv-chip[data-cv-name="accent"]', click('#mdl-typo-color-chips .cv-chip[data-cv-name="accent"]')],
-  ['page:620 align',                 'page',      '#page-align-center',      ev(() => [...document.querySelectorAll('#page-align-left,#page-align-center,#page-align-right')].find((b) => !b.classList.contains('active')).click())],
+  /* 쪽 일괄 정렬 단추는 패널이 disabled 로 낸다(prop-page «일시 비활성») — disabled 면 .click() 이 안 선다 ⇒ 풀고 누른다.
+     «오른쪽»을 고른다: 글 블럭 기본이 왼쪽이라 왼쪽을 누르면 화면이 안 바뀐다(A0). */
+  ['page:620 align',                 'page',      '#page-align-right',       ev(() => { const b = document.getElementById('page-align-right'); b.disabled = false; b.click(); })],
   ['section:1224 checker',           'sec',       '#sec-bg-chk-light',       click('#sec-bg-chk-light')],
   ['section:1238 bg-size',           'secImg',    '#sec-bg-size',            selectOther('#sec-bg-size')],
   ['section:1248 bg-img-remove',     'secImg',    '#sec-bg-img-remove',      click('#sec-bg-img-remove')],
