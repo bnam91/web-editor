@@ -15,7 +15,7 @@ import { arrowSections, wireArrowSection } from './prop-sticker-arrow.js';
 import { burstPoints, clampBurst, BURST_LIMITS, BURST_DEFAULTS, clampRound, ROUND_MIN, ROUND_MAX } from '../blocks/burst-geometry.js';   // B2 톱니 스탬프
 import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A3)
 
-import { layoutSizeRowHTML, layoutPadSlotHTML, wireLayoutSection, ratioLockOn, setRatioLock } from './_layout-section.js';   // 표준 Layout(L2~L4 · C2)
+import { layoutSizeRowHTML, layoutPadSlotHTML, wireLayoutSection, ratioLockOn, setRatioLock, LAY_SIZING } from './_layout-section.js';   // 표준 Layout(L2~L4 · C2)
 
 function _esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -384,7 +384,7 @@ export function showStickerProperties(block) {
     put('size', layoutSizeRowHTML({ prefix: 'stk-t',
       w: { id: 'stk-t-boxw-num', min: 20, max: 2000, value: tBoxWVal, auto: !tBoxWOn },
       h: { id: 'stk-t-h-auto', max: 0, value: 0, auto: true },
-      mode: { w: { id: 'stk-t-boxw-mode', value: tBoxWOn ? 'fixed' : 'auto', options: [['fixed', '고정'], ['auto', '자동']] } } }));
+      mode: { w: { id: 'stk-t-boxw-mode', value: tBoxWOn ? 'fixed' : 'auto', options: [['fixed', ...LAY_SIZING.fixed], ['auto', ...LAY_SIZING.hug]] } } }));
     put('fill', `
     <div id="stk-text-colors-section">
       <div class="prop-color-row">

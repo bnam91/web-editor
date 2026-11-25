@@ -34,9 +34,9 @@ test('M1 어노테이션 라벨 너비 — 드롭다운 [고정, 자동] · 고�
   });
   const open = () => page.evaluate((id) => window.showAnnotationProperties(document.getElementById(id)), id);
   const ds = () => page.evaluate((id) => document.getElementById(id).dataset.labelWidth ?? null, id);
-  expect(await opts(page, 'annot-label-w-mode')).toEqual(['고정', '자동']);
+  expect(await opts(page, 'annot-label-w-mode')).toEqual(['Fixed', 'Hug']);   // ★기대 바뀜(현빈 261125 17:36 크기 모드 영어 · FigCraft)
   expect(await page.evaluate(() => [document.getElementById('annot-label-w-mode').value, document.getElementById('annot-label-w').disabled, document.getElementById('annot-label-w').placeholder]),
-    '★전제: 키 없음 = 자동 · 칸 막힘 · «자동»').toEqual(['auto', true, '자동']);
+    '★전제: 키 없음 = 자동 · 칸 막힘 · «Hug»').toEqual(['auto', true, 'Hug']);
   expect(await page.locator('#annot-label-w-auto').count(), '옛 «자동» 단추 걷음').toBe(0);
   const want = await page.evaluate((id) => { const L = window.ANNOT_LIMITS.labelWidth; const w = Math.round(document.getElementById(id).querySelector('.annot-label').offsetWidth); return String(Math.min(L.max, Math.max(L.min, w))); }, id);
   const p0 = await ph(page);
@@ -67,9 +67,9 @@ test('M2 말풍선 크기 — 드롭다운 [고정, 자동] · 고정 = bubbleSi
   await page.evaluate((id) => window.selectBlock(id), id);
   await page.waitForFunction(() => !!document.getElementById('bubble-size-mode'));
   const ds = () => page.evaluate((id) => { const d = document.getElementById(id).dataset; return { size: d.bubbleSize ?? null, w: d.bubbleW ?? null, h: d.bubbleH ?? null }; }, id);
-  expect(await opts(page, 'bubble-size-mode')).toEqual(['고정', '자동']);
+  expect(await opts(page, 'bubble-size-mode')).toEqual(['Fixed', 'Hug']);   // ★기대 바뀜(현빈 261125 17:36 크기 모드 영어)
   expect(await page.locator('#bubble-size-group').count(), '옛 세그먼트 걷음').toBe(0);
-  expect(await page.evaluate(() => ['bubble-w-number', 'bubble-h-number'].map((i) => `${document.getElementById(i).disabled}:${document.getElementById(i).placeholder}`)), '★전제: 자동 = 두 칸 막힘 «자동»').toEqual(['true:자동', 'true:자동']);
+  expect(await page.evaluate(() => ['bubble-w-number', 'bubble-h-number'].map((i) => `${document.getElementById(i).disabled}:${document.getElementById(i).placeholder}`)), '★전제: 자동 = 두 칸 막힘 «Hug»').toEqual(['true:Hug', 'true:Hug']);
   expect(await ds()).toEqual({ size: null, w: null, h: null });
   /* 옛 _setSize 씨앗 자 그대로(올림 실폭 · 반올림 높이) */
   const seed = await page.evaluate((id) => { const b = document.getElementById(id).querySelector('.tb-bubble'); const cs = getComputedStyle(b); const w = parseFloat(cs.width) || 0;

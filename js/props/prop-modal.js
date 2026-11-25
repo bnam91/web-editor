@@ -42,7 +42,7 @@ import { applyModalVariant, _effDefault, MODAL_DEFAULTS, MODAL_LIMITS, clampModa
      «한 표에서 벌려 연다»를 재는다(실제로 발개졌다 · 2026-10-19). ⛔다시 붙이지 마라. */
 import { MODAL_PROFILE_SIDES, MODAL_PROFILE_SIZE_LIMIT,
          modalProfileSize, modalProfileSide, modalProfileKind, setModalProfile } from '../blocks/modal-block.js';
-import { layoutSizeRowHTML, layoutPadSlotHTML, layoutGapSlotHTML, wireLayoutSection, ratioLockOn, setRatioLock, LAY_FULLW_WHY } from './_layout-section.js';   // 표준 Layout L2·L3·L4
+import { layoutSizeRowHTML, layoutPadSlotHTML, layoutGapSlotHTML, wireLayoutSection, ratioLockOn, setRatioLock, LAY_FULLW_WHY, LAY_SIZING } from './_layout-section.js';   // 표준 Layout L2·L3·L4
 import { effectRowHTML } from './_effects-section.js';   // 표준 Effects 줄(0.9.14 224)
 const L = MODAL_LIMITS;
 
@@ -226,7 +226,7 @@ export function showModalProperties(block) {
       sec('size', layoutSizeRowHTML({ prefix: 'mdl', chain: { on: ratioLockOn(block, false), blocked: wMode === 'fixed' ? null : LAY_FULLW_WHY },
         w: { id: 'mdl-w-number', value: width, min: L.width.min, max: L.width.max },
         h: { id: 'mdl-h-number', value: height, min: L.height.min, max: L.height.max, auto: hMode !== 'fixed' },
-        mode: { w: { id: 'mdl-wm', value: wMode, options: [['full', '풀폭'], ['fixed', '고정']] }, h: { id: 'mdl-hm', value: hMode, options: [['auto', '자동'], ['fixed', '최소']] } } })),
+        mode: { w: { id: 'mdl-wm', value: wMode, options: [['full', ...LAY_SIZING.fill], ['fixed', ...LAY_SIZING.fixed]] }, h: { id: 'mdl-hm', value: hMode, options: [['auto', ...LAY_SIZING.hug], ['fixed', ...LAY_SIZING.minH]] } } })),
       sec('layout', `
       ${isGrid ? layoutGapSlotHTML({ id: 'mdl-gap-number', value: gap, max: 40 }) : ''}   <!-- 표준 Layout L3 간격 슬롯(«칸 간격» · 슬라이더 걷음 · id·키·범위 무변) -->
       <div class="prop-row">

@@ -23,7 +23,7 @@ test('섹션 바닥 손잡이: 끌면 섹션 바닥 높이(min-height)가 생기
     const b0 = await waitStableRect(page, '#' + id);
     await page.mouse.click(b0.left + 8, b0.top + b0.height / 2);
     await page.waitForFunction((i) => document.getElementById(i)?.classList.contains('selected')
-      && !!document.getElementById('sec-padb-slider'), id, { timeout: 8000 });
+      && !!document.getElementById('sec-padb-number'), id, { timeout: 8000 });   // ★기대 바뀜(표준 Layout · 탑 워커 261125)
     await raf2(page);
     await page.evaluate(() => window.sectionBottomHandleSweep?.());
   }
@@ -55,7 +55,7 @@ test('섹션 바닥 손잡이: 끌면 섹션 바닥 높이(min-height)가 생기
     const s = document.getElementById(i);
     const mh = s.style.minHeight; s.style.minHeight = ''; const nat = s.offsetHeight; s.style.minHeight = mh;
     const scale = s.getBoundingClientRect().width / s.offsetWidth;
-    return { scale, sel: s.classList.contains('selected'), panel: !!document.getElementById('sec-padb-slider'),
+    return { scale, sel: s.classList.contains('selected'), panel: !!document.getElementById('sec-padb-number'),   // ★기대 바뀜(표준 Layout · 탑 워커 261125)
              mh, pb: s.style.paddingBottom, h: s.offsetHeight, nat };
   }, id);
   console.log('★끌기 후 =', JSON.stringify(post));

@@ -9,7 +9,7 @@ import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, setFillKindName, f
 import { effectiveSectionPadX, clearBlockFullBleed } from '../drag-utils.js';
 import { layoutSizeRowHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout L2
 import { wireNumberScrub } from './_helpers.js';   // H 칸 라벨 끌기(«빈 값 = 자동» 칸이라 부품 배선 대신 옛 bindAutoNum + 끌기)
-const BN2_CHAIN_WHY = '높이 칸은 비우면 내용에 맞춰 자동이라 비율을 묶을 수 없어요';
+const BN2_CHAIN_WHY = '높이 칸은 비우면 내용에 맞춰요(Hug) — 비율을 묶을 수 없어요';   // 모드 낱말만 영어(LAY_AUTO_WHY 와 같은 꼴 · 지디 판정 261125)
 
 // ⑧ 줄 선택 상태 — 배너 안 «어느 줄»을 보고 있는지. 블록별로 기억한다(패널 재생성에도 유지).
 //   activeIdx = null 이면 «전체 보기»(옛 동작: 모든 줄을 한꺼번에 펼침).

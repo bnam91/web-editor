@@ -457,7 +457,7 @@ test('BZ-08 배치 — 스택이면 DOM 순서대로 세로로 쌓고 ∓엇갈�
     expect(Math.abs((r.ol + r.ow / 2) - want) <= 1, `#${i} 가로 중심 ${r.ol + r.ow / 2} ≈ ${want}`).toBe(true);
   });
   await expect(page.locator('#bzf-offset-slider')).toHaveCount(1);
-  await expect(page.locator('#bzf-gap-slider')).toHaveCount(1);
+  await expect(page.locator('#bzf-gap-number')).toHaveCount(1);   // ★기대 바뀜(표준 Layout · 탑 워커 261125)
   await expect(page.locator('#bzf-spread-slider'), '스택에서는 흩어짐 줄이 없다').toHaveCount(0);
   await expect(page.locator('#bzf-overlap')).toHaveCount(0);
   await expect(page.locator('#bzf-layout .active')).toHaveText('스택');

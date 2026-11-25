@@ -75,7 +75,7 @@ test('R6 텍스트 Size — 너비 슬라이더 없음 · 너비/높이 칸 한 
   assert.ok(size, '[전제] Size 절 몸을 찾았다');
   assert.doesNotMatch(size, /txt-width-slider|type="range"/, '★너비 슬라이더가 남았다');
   /* ★기대 바뀜(표준 Appearance/Layout · 현빈 261124 L-4/7 슬라이더 걷음 · C3): 너비/높이 = 표준 Layout 부품 한 줄(칸 안 끌기 손잡이 #txt-width-number-scrub) · 높이 꺼짐 placeholder «자동» · 끌기 배선 = 부품 wireLayoutSection → _helpers wireNumberScrub */
-  assert.match(size, /<div class="ui-layout" data-part="layout">[\s\S]*id="txt-width-number-scrub"[\s\S]*?<input type="number" class="prop-number" id="txt-width-number"[\s\S]*<span>Height<\/span>[\s\S]*?<input type="number" class="prop-number" id="txt-height-number"[^>]*placeholder="자동"[^>]* disabled /);
+  assert.match(size, /<div class="ui-layout" data-part="layout">[\s\S]*id="txt-width-number-scrub"[\s\S]*?<input type="number" class="prop-number" id="txt-width-number"[\s\S]*<span>Height<\/span>[\s\S]*?<input type="number" class="prop-number" id="txt-height-number"[^>]*placeholder="Hug"[^>]* disabled /);   // ★기대 바뀜(표준 Layout · 탑 워커 261125 — 크기 모드 낱말 Hug)
   const wire = stripComments(readSrc(ROOT, 'js/props/prop-text-wireup-position.js'));
   assert.match(wire, /wireLayoutSection\(\{ commit: \(\) => window\.pushHistory\?\.\(\), w: \{ numberId: 'txt-width-number', min: 80, max: 860,/, '★라벨 끌기 배선이 없다(부품 + 이력)');
   const helpers = stripComments(readSrc(ROOT, 'js/props/_helpers.js'));

@@ -118,7 +118,7 @@ test('AL4 부품 조각 — 한 칸(one) · 높이 자동(칸 막힘 + 사슬 �
   });
   expect(o).toEqual({
     one: [['Size'], true, false],
-    auto: [true, '자동', 'true'],
+    auto: [true, 'Hug', 'true'],   // ★기대 바뀜(현빈 261125 17:36 크기 모드 영어 · placeholder 자동 → Hug)
     mode: ['fill', 1, 'Mixed', 'invalid', true],
     pad: [['Padding', ''], '16', '12', true],
     gap: [['Gap'], '8'],

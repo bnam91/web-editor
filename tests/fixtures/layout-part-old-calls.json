@@ -1,0 +1,223 @@
+{
+"_why": "옛 호출 바이트 그대로 — html = 덧붙임 전 소스(48c26386d~1 js/props/_layout-section.js)가 낸 산출 · 탑·지디 261125 부품 규칙",
+"calls": {
+"size": [
+{
+"prefix": "m",
+"chain": {
+"on": true,
+"blocked": "너비가 줄 폭에 맞춰져 있어 비율을 묶을 수 없어요"
+},
+"w": {
+"id": "m-w",
+"value": 300,
+"min": 100,
+"max": 800
+},
+"h": {
+"id": "m-h",
+"value": 200,
+"min": 40,
+"max": 900
+},
+"mode": {
+"w": {
+"id": "m-wm",
+"value": "full",
+"options": [
+[
+"full",
+"Fill",
+"Fill container"
+],
+[
+"fixed",
+"Fixed",
+"Fixed"
+]
+]
+},
+"h": {
+"id": "m-hm",
+"value": "auto",
+"options": [
+[
+"auto",
+"Hug",
+"Hug contents"
+],
+[
+"fixed",
+"Min H",
+"Hug contents + Min height"
+]
+]
+}
+}
+},
+{
+"prefix": "w1",
+"w": {
+"id": "w1-w",
+"value": 5,
+"max": 10,
+"mixed": true
+}
+},
+{
+"prefix": "h1",
+"h": {
+"id": "h1-h",
+"value": 5,
+"max": 10
+}
+},
+{
+"prefix": "c",
+"chain": {
+"on": false
+},
+"w": {
+"id": "c-w",
+"value": 1,
+"max": 9,
+"step": 0.5
+},
+"h": {
+"id": "c-h",
+"value": 2,
+"max": 9
+}
+},
+{
+"prefix": "o1",
+"one": {
+"id": "o1-n",
+"label": "Width",
+"value": 5,
+"max": 50
+}
+},
+{
+"prefix": "o2",
+"one": {
+"id": "o2-n",
+"label": "Size",
+"value": 5,
+"max": 50,
+"icon": "px",
+"mixed": true
+}
+}
+],
+"pad": [
+{
+"xId": "p-x",
+"yId": "p-y",
+"x": 8,
+"y": 4,
+"max": 100
+},
+{
+"xId": "p-x",
+"x": 8,
+"max": 100
+},
+{
+"allId": "p-a",
+"all": 12,
+"max": 80,
+"mixed": true
+},
+{
+"lId": "p-l",
+"rId": "p-r",
+"l": 4,
+"r": 6,
+"max": 200,
+"chainId": "p-ch",
+"chainOn": true
+},
+{
+"xId": "c-px",
+"yId": "c-py",
+"x": 10,
+"y": 5,
+"max": 999,
+"xMax": 160,
+"yMax": 80,
+"yMin": 2
+}
+],
+"gap": [
+{
+"id": "g",
+"value": 8,
+"max": 50
+},
+{
+"id": "g",
+"value": 8,
+"max": 50,
+"label": "Item gap",
+"min": -40
+},
+{
+"xId": "gx",
+"yId": "gy",
+"x": 4,
+"y": 6,
+"max": 100,
+"yMax": 40
+},
+{
+"yId": "gy",
+"y": 6,
+"max": 100
+}
+],
+"num": [
+{
+"id": "n",
+"label": "칸 간격",
+"value": 3,
+"max": 40,
+"step": 2
+},
+{
+"id": "n",
+"label": "칸",
+"value": 3,
+"max": 40,
+"mixed": true
+}
+]
+},
+"html": {
+"size": [
+"\n      <div class=\"ui-layout\" data-part=\"layout\">\n        <div class=\"ui-s2-main prop-row\"><div class=\"ui-s2-cell\"><span>Width</span><div class=\"prop-icon-input\" data-part=\"number\" data-field=\"layout-w\"><span class=\"prop-xy-label ui-app-scrub\" id=\"m-w-scrub\" title=\"Width — 좌우로 끌면 바뀐다\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M1.5 6h9M3 4 1.5 6 3 8M9 4l1.5 2L9 8\"/></svg></span><input type=\"number\" class=\"prop-number\" id=\"m-w\" min=\"100\" max=\"800\" step=\"1\" value=\"300\" aria-label=\"Width\"></div></div><div class=\"ui-s2-cell\"><span>Height</span><div class=\"prop-icon-input\" data-part=\"number\" data-field=\"layout-h\"><span class=\"prop-xy-label ui-app-scrub\" id=\"m-h-scrub\" title=\"Height — 좌우로 끌면 바뀐다\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M6 1.5v9M4 3 6 1.5 8 3M4 9l2 1.5L8 9\"/></svg></span><input type=\"number\" class=\"prop-number\" id=\"m-h\" min=\"40\" max=\"900\" step=\"1\" value=\"200\" aria-label=\"Height\"></div></div>\n          <button type=\"button\" class=\"prop-chain-btn\" id=\"m-ratio\" data-part=\"end-slot\" aria-pressed=\"false\" aria-disabled=\"true\" aria-label=\"너비가 줄 폭에 맞춰져 있어 비율을 묶을 수 없어요\" title=\"너비가 줄 폭에 맞춰져 있어 비율을 묶을 수 없어요\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 7 7 5M4.2 5.6 3 6.8a1.7 1.7 0 0 0 2.4 2.4L6.6 8M7.8 6.4 9 5.2A1.7 1.7 0 0 0 6.6 2.8L5.4 4\"/></svg></button>\n        </div>\n        <div class=\"ui-s2-main prop-row\" data-part=\"layout-mode\"><div class=\"ui-s2-cell\"><div class=\"prop-icon-input\" data-field=\"layout-mode-w\" title=\"Width sizing — 그 블럭에 이미 있는 모드만\"><span class=\"prop-xy-label\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M1.5 6h9M1.5 3.5v5M10.5 3.5v5\"/></svg></span><select class=\"prop-select\" id=\"m-wm\" aria-label=\"Width sizing\"><option value=\"full\" title=\"Fill container\" selected>Fill</option><option value=\"fixed\" title=\"Fixed\">Fixed</option></select></div></div><div class=\"ui-s2-cell\"><div class=\"prop-icon-input\" data-field=\"layout-mode-h\" title=\"Height sizing — 그 블럭에 이미 있는 모드만\"><span class=\"prop-xy-label\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M1.5 6h9M1.5 3.5v5M10.5 3.5v5\"/></svg></span><select class=\"prop-select\" id=\"m-hm\" aria-label=\"Height sizing\"><option value=\"auto\" title=\"Hug contents\" selected>Hug</option><option value=\"fixed\" title=\"Hug contents + Min height\">Min H</option></select></div></div><span class=\"ui-lay-spacer\" aria-hidden=\"true\"></span></div>\n      </div>",
+"\n      <div class=\"ui-layout\" data-part=\"layout\">\n        <div class=\"ui-s2-main prop-row\"><div class=\"ui-s2-cell\"><span>Width</span><div class=\"prop-icon-input\" data-part=\"number\" data-field=\"layout-w\"><span class=\"prop-xy-label ui-app-scrub\" id=\"w1-w-scrub\" title=\"Width — 좌우로 끌면 바뀐다\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M1.5 6h9M3 4 1.5 6 3 8M9 4l1.5 2L9 8\"/></svg></span><input type=\"number\" class=\"prop-number\" id=\"w1-w\" min=\"0\" max=\"10\" step=\"1\" value=\"\" placeholder=\"Mixed\" data-empty=\"invalid\" aria-label=\"Width\"></div></div><div class=\"ui-s2-cell\" aria-hidden=\"true\"></div>\n          <button type=\"button\" class=\"prop-chain-btn\" id=\"w1-ratio\" data-part=\"end-slot\" aria-pressed=\"false\" aria-label=\"비율 사슬 — 켜면 W 를 바꿀 때 H 가 비율대로(H 도 같다)\" title=\"비율 사슬 — 켜면 W 를 바꿀 때 H 가 비율대로(H 도 같다)\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 7 7 5M4.2 5.6 3 6.8a1.7 1.7 0 0 0 2.4 2.4L6.6 8M7.8 6.4 9 5.2A1.7 1.7 0 0 0 6.6 2.8L5.4 4\"/></svg></button>\n        </div>\n      </div>",
+"\n      <div class=\"ui-layout\" data-part=\"layout\">\n        <div class=\"ui-s2-main prop-row\"><div class=\"ui-s2-cell\" aria-hidden=\"true\"></div><div class=\"ui-s2-cell\"><span>Height</span><div class=\"prop-icon-input\" data-part=\"number\" data-field=\"layout-h\"><span class=\"prop-xy-label ui-app-scrub\" id=\"h1-h-scrub\" title=\"Height — 좌우로 끌면 바뀐다\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M6 1.5v9M4 3 6 1.5 8 3M4 9l2 1.5L8 9\"/></svg></span><input type=\"number\" class=\"prop-number\" id=\"h1-h\" min=\"0\" max=\"10\" step=\"1\" value=\"5\" aria-label=\"Height\"></div></div>\n          <button type=\"button\" class=\"prop-chain-btn\" id=\"h1-ratio\" data-part=\"end-slot\" aria-pressed=\"false\" aria-label=\"비율 사슬 — 켜면 W 를 바꿀 때 H 가 비율대로(H 도 같다)\" title=\"비율 사슬 — 켜면 W 를 바꿀 때 H 가 비율대로(H 도 같다)\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 7 7 5M4.2 5.6 3 6.8a1.7 1.7 0 0 0 2.4 2.4L6.6 8M7.8 6.4 9 5.2A1.7 1.7 0 0 0 6.6 2.8L5.4 4\"/></svg></button>\n        </div>\n      </div>",
+"\n      <div class=\"ui-layout\" data-part=\"layout\">\n        <div class=\"ui-s2-main prop-row\"><div class=\"ui-s2-cell\"><span>Width</span><div class=\"prop-icon-input\" data-part=\"number\" data-field=\"layout-w\"><span class=\"prop-xy-label ui-app-scrub\" id=\"c-w-scrub\" title=\"Width — 좌우로 끌면 바뀐다\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M1.5 6h9M3 4 1.5 6 3 8M9 4l1.5 2L9 8\"/></svg></span><input type=\"number\" class=\"prop-number\" id=\"c-w\" min=\"0\" max=\"9\" step=\"0.5\" value=\"1\" aria-label=\"Width\"></div></div><div class=\"ui-s2-cell\"><span>Height</span><div class=\"prop-icon-input\" data-part=\"number\" data-field=\"layout-h\"><span class=\"prop-xy-label ui-app-scrub\" id=\"c-h-scrub\" title=\"Height — 좌우로 끌면 바뀐다\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M6 1.5v9M4 3 6 1.5 8 3M4 9l2 1.5L8 9\"/></svg></span><input type=\"number\" class=\"prop-number\" id=\"c-h\" min=\"0\" max=\"9\" step=\"1\" value=\"2\" aria-label=\"Height\"></div></div>\n          <button type=\"button\" class=\"prop-chain-btn\" id=\"c-ratio\" data-part=\"end-slot\" aria-pressed=\"false\" aria-label=\"비율 사슬 — 켜면 W 를 바꿀 때 H 가 비율대로(H 도 같다)\" title=\"비율 사슬 — 켜면 W 를 바꿀 때 H 가 비율대로(H 도 같다)\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 7 7 5M4.2 5.6 3 6.8a1.7 1.7 0 0 0 2.4 2.4L6.6 8M7.8 6.4 9 5.2A1.7 1.7 0 0 0 6.6 2.8L5.4 4\"/></svg></button>\n        </div>\n      </div>",
+"\n      <div class=\"ui-layout\" data-part=\"layout\">\n        <div class=\"ui-s2-main prop-row\"><div class=\"ui-s2-cell\"><span>Width</span><div class=\"prop-icon-input\" data-part=\"number\" data-field=\"layout-one\"><span class=\"prop-xy-label ui-app-scrub\" id=\"o1-n-scrub\" title=\"Width — 좌우로 끌면 바뀐다\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M1.5 6h9M3 4 1.5 6 3 8M9 4l1.5 2L9 8\"/></svg></span><input type=\"number\" class=\"prop-number\" id=\"o1-n\" min=\"0\" max=\"50\" step=\"1\" value=\"5\" aria-label=\"Width\"></div></div><div class=\"ui-s2-cell\" aria-hidden=\"true\"></div><span class=\"ui-lay-spacer\" aria-hidden=\"true\"></span></div>\n      </div>",
+"\n      <div class=\"ui-layout\" data-part=\"layout\">\n        <div class=\"ui-s2-main prop-row\"><div class=\"ui-s2-cell\"><span>Size</span><div class=\"prop-icon-input\" data-part=\"number\" data-field=\"layout-one\"><span class=\"prop-xy-label ui-app-scrub\" id=\"o2-n-scrub\" title=\"Size — 좌우로 끌면 바뀐다\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M2 4.5h8M2 7.5h8M4.5 2 3.5 10M8.5 2l-1 8\"/></svg></span><input type=\"number\" class=\"prop-number\" id=\"o2-n\" min=\"0\" max=\"50\" step=\"1\" value=\"\" placeholder=\"Mixed\" data-empty=\"invalid\" aria-label=\"Size\"></div></div><div class=\"ui-s2-cell\" aria-hidden=\"true\"></div><span class=\"ui-lay-spacer\" aria-hidden=\"true\"></span></div>\n      </div>"
+],
+"pad": [
+"\n      <div class=\"ui-layout ui-lay-slot\" data-part=\"layout\" data-slot=\"pad\">\n        <div class=\"ui-s2-main prop-row\"><div class=\"ui-s2-cell\"><span>Padding</span><div class=\"prop-icon-input\" data-part=\"number\" data-field=\"layout-pad-x\"><span class=\"prop-xy-label ui-app-scrub\" id=\"p-x-scrub\" title=\"Padding — 좌우로 끌면 바뀐다\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M1.5 2v8M10.5 2v8M4 6h4\"/></svg></span><input type=\"number\" class=\"prop-number\" id=\"p-x\" min=\"0\" max=\"100\" step=\"1\" value=\"8\" aria-label=\"Padding\"></div></div><div class=\"ui-s2-cell\"><span></span><div class=\"prop-icon-input\" data-part=\"number\" data-field=\"layout-pad-y\"><span class=\"prop-xy-label ui-app-scrub\" id=\"p-y-scrub\" title=\"layout-pad-y — 좌우로 끌면 바뀐다\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M2 1.5h8M2 10.5h8M6 4v4\"/></svg></span><input type=\"number\" class=\"prop-number\" id=\"p-y\" min=\"0\" max=\"100\" step=\"1\" value=\"4\" aria-label=\"layout-pad-y\"></div></div><span class=\"ui-lay-spacer\" aria-hidden=\"true\"></span></div>\n      </div>",
+"\n      <div class=\"ui-layout ui-lay-slot\" data-part=\"layout\" data-slot=\"pad\">\n        <div class=\"ui-s2-main prop-row\"><div class=\"ui-s2-cell\"><span>Padding</span><div class=\"prop-icon-input\" data-part=\"number\" data-field=\"layout-pad-x\"><span class=\"prop-xy-label ui-app-scrub\" id=\"p-x-scrub\" title=\"Padding — 좌우로 끌면 바뀐다\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M1.5 2v8M10.5 2v8M4 6h4\"/></svg></span><input type=\"number\" class=\"prop-number\" id=\"p-x\" min=\"0\" max=\"100\" step=\"1\" value=\"8\" aria-label=\"Padding\"></div></div><div class=\"ui-s2-cell\" aria-hidden=\"true\"></div><span class=\"ui-lay-spacer\" aria-hidden=\"true\"></span></div>\n      </div>",
+"\n      <div class=\"ui-layout ui-lay-slot\" data-part=\"layout\" data-slot=\"pad-all\">\n        <div class=\"ui-s2-main prop-row\"><div class=\"ui-s2-cell\"><span>Padding</span><div class=\"prop-icon-input\" data-part=\"number\" data-field=\"layout-pad-all\"><span class=\"prop-xy-label ui-app-scrub\" id=\"p-a-scrub\" title=\"Padding — 좌우로 끌면 바뀐다\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M1.5 1.5h9v9h-9z\"/><path d=\"M4 4h4v4H4z\"/></svg></span><input type=\"number\" class=\"prop-number\" id=\"p-a\" min=\"0\" max=\"80\" step=\"1\" value=\"\" placeholder=\"Mixed\" data-empty=\"invalid\" aria-label=\"Padding\"></div></div><div class=\"ui-s2-cell\" aria-hidden=\"true\"></div><span class=\"ui-lay-spacer\" aria-hidden=\"true\"></span></div>\n      </div>",
+"\n      <div class=\"ui-layout ui-lay-slot\" data-part=\"layout\" data-slot=\"pad-lr\">\n        <div class=\"ui-s2-main prop-row\"><div class=\"ui-s2-cell\"><span>L</span><div class=\"prop-icon-input\" data-part=\"number\" data-field=\"layout-pad-l\"><span class=\"prop-xy-label ui-app-scrub\" id=\"p-l-scrub\" title=\"L — 좌우로 끌면 바뀐다\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M1.5 2v8M10.5 2v8M4 6h4\"/></svg></span><input type=\"number\" class=\"prop-number\" id=\"p-l\" min=\"0\" max=\"200\" step=\"1\" value=\"4\" aria-label=\"L\"></div></div><div class=\"ui-s2-cell\"><span>R</span><div class=\"prop-icon-input\" data-part=\"number\" data-field=\"layout-pad-r\"><span class=\"prop-xy-label ui-app-scrub\" id=\"p-r-scrub\" title=\"R — 좌우로 끌면 바뀐다\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M1.5 2v8M10.5 2v8M4 6h4\"/></svg></span><input type=\"number\" class=\"prop-number\" id=\"p-r\" min=\"0\" max=\"200\" step=\"1\" value=\"6\" aria-label=\"R\"></div></div><button type=\"button\" class=\"prop-chain-btn active\" id=\"p-ch\" data-part=\"end-slot\" aria-pressed=\"true\" aria-label=\"좌우 같이\" title=\"좌우 같이\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 7 7 5M4.2 5.6 3 6.8a1.7 1.7 0 0 0 2.4 2.4L6.6 8M7.8 6.4 9 5.2A1.7 1.7 0 0 0 6.6 2.8L5.4 4\"/></svg></button></div>\n      </div>",
+"\n      <div class=\"ui-layout ui-lay-slot\" data-part=\"layout\" data-slot=\"pad\">\n        <div class=\"ui-s2-main prop-row\"><div class=\"ui-s2-cell\"><span>Padding</span><div class=\"prop-icon-input\" data-part=\"number\" data-field=\"layout-pad-x\"><span class=\"prop-xy-label ui-app-scrub\" id=\"c-px-scrub\" title=\"Padding — 좌우로 끌면 바뀐다\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M1.5 2v8M10.5 2v8M4 6h4\"/></svg></span><input type=\"number\" class=\"prop-number\" id=\"c-px\" min=\"0\" max=\"160\" step=\"1\" value=\"10\" aria-label=\"Padding\"></div></div><div class=\"ui-s2-cell\"><span></span><div class=\"prop-icon-input\" data-part=\"number\" data-field=\"layout-pad-y\"><span class=\"prop-xy-label ui-app-scrub\" id=\"c-py-scrub\" title=\"layout-pad-y — 좌우로 끌면 바뀐다\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M2 1.5h8M2 10.5h8M6 4v4\"/></svg></span><input type=\"number\" class=\"prop-number\" id=\"c-py\" min=\"2\" max=\"80\" step=\"1\" value=\"5\" aria-label=\"layout-pad-y\"></div></div><span class=\"ui-lay-spacer\" aria-hidden=\"true\"></span></div>\n      </div>"
+],
+"gap": [
+"\n      <div class=\"ui-layout ui-lay-slot\" data-part=\"layout\" data-slot=\"gap\">\n        <div class=\"ui-s2-main prop-row\"><div class=\"ui-s2-cell\"><span>Gap</span><div class=\"prop-icon-input\" data-part=\"number\" data-field=\"layout-gap\"><span class=\"prop-xy-label ui-app-scrub\" id=\"g-scrub\" title=\"Gap — 좌우로 끌면 바뀐다\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M1.5 2h3v8h-3M10.5 2h-3v8h3\"/></svg></span><input type=\"number\" class=\"prop-number\" id=\"g\" min=\"0\" max=\"50\" step=\"1\" value=\"8\" aria-label=\"Gap\"></div></div><div class=\"ui-s2-cell\" aria-hidden=\"true\"></div><span class=\"ui-lay-spacer\" aria-hidden=\"true\"></span></div>\n      </div>",
+"\n      <div class=\"ui-layout ui-lay-slot\" data-part=\"layout\" data-slot=\"gap\">\n        <div class=\"ui-s2-main prop-row\"><div class=\"ui-s2-cell\"><span>Item gap</span><div class=\"prop-icon-input\" data-part=\"number\" data-field=\"layout-gap\"><span class=\"prop-xy-label ui-app-scrub\" id=\"g-scrub\" title=\"Item gap — 좌우로 끌면 바뀐다\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M1.5 2h3v8h-3M10.5 2h-3v8h3\"/></svg></span><input type=\"number\" class=\"prop-number\" id=\"g\" min=\"-40\" max=\"50\" step=\"1\" value=\"8\" aria-label=\"Item gap\"></div></div><div class=\"ui-s2-cell\" aria-hidden=\"true\"></div><span class=\"ui-lay-spacer\" aria-hidden=\"true\"></span></div>\n      </div>",
+"\n      <div class=\"ui-layout ui-lay-slot\" data-part=\"layout\" data-slot=\"gap-xy\">\n        <div class=\"ui-s2-main prop-row\"><div class=\"ui-s2-cell\"><span>Gap</span><div class=\"prop-icon-input\" data-part=\"number\" data-field=\"layout-gap-x\"><span class=\"prop-xy-label ui-app-scrub\" id=\"gx-scrub\" title=\"Gap — 좌우로 끌면 바뀐다\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M1.5 2h3v8h-3M10.5 2h-3v8h3\"/></svg></span><input type=\"number\" class=\"prop-number\" id=\"gx\" min=\"0\" max=\"100\" step=\"1\" value=\"4\" aria-label=\"Gap\"></div></div><div class=\"ui-s2-cell\"><span></span><div class=\"prop-icon-input\" data-part=\"number\" data-field=\"layout-gap-y\"><span class=\"prop-xy-label ui-app-scrub\" id=\"gy-scrub\" title=\"layout-gap-y — 좌우로 끌면 바뀐다\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M2 1.5v3h8v-3M2 10.5v-3h8v3\"/></svg></span><input type=\"number\" class=\"prop-number\" id=\"gy\" min=\"0\" max=\"40\" step=\"1\" value=\"6\" aria-label=\"layout-gap-y\"></div></div><span class=\"ui-lay-spacer\" aria-hidden=\"true\"></span></div>\n      </div>",
+"\n      <div class=\"ui-layout ui-lay-slot\" data-part=\"layout\" data-slot=\"gap-xy\">\n        <div class=\"ui-s2-main prop-row\"><div class=\"ui-s2-cell\" aria-hidden=\"true\"></div><div class=\"ui-s2-cell\"><span>Gap</span><div class=\"prop-icon-input\" data-part=\"number\" data-field=\"layout-gap-y\"><span class=\"prop-xy-label ui-app-scrub\" id=\"gy-scrub\" title=\"Gap — 좌우로 끌면 바뀐다\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M2 1.5v3h8v-3M2 10.5v-3h8v3\"/></svg></span><input type=\"number\" class=\"prop-number\" id=\"gy\" min=\"0\" max=\"100\" step=\"1\" value=\"6\" aria-label=\"Gap\"></div></div><span class=\"ui-lay-spacer\" aria-hidden=\"true\"></span></div>\n      </div>"
+],
+"num": [
+"\n      <div class=\"prop-row ui-lay-slot-num\" data-part=\"layout\" data-slot=\"number\">\n        <span class=\"prop-label\">칸 간격</span>\n        <div class=\"prop-icon-input\" data-part=\"number\" data-field=\"layout-slot\"><span class=\"prop-xy-label ui-app-scrub\" id=\"n-scrub\" title=\"칸 간격 — 좌우로 끌면 바뀐다\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M2 4.5h8M2 7.5h8M4.5 2 3.5 10M8.5 2l-1 8\"/></svg></span><input type=\"number\" class=\"prop-number\" id=\"n\" min=\"0\" max=\"40\" step=\"2\" value=\"3\" aria-label=\"칸 간격\"></div>\n      </div>",
+"\n      <div class=\"prop-row ui-lay-slot-num\" data-part=\"layout\" data-slot=\"number\">\n        <span class=\"prop-label\">칸</span>\n        <div class=\"prop-icon-input\" data-part=\"number\" data-field=\"layout-slot\"><span class=\"prop-xy-label ui-app-scrub\" id=\"n-scrub\" title=\"칸 — 좌우로 끌면 바뀐다\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M2 4.5h8M2 7.5h8M4.5 2 3.5 10M8.5 2l-1 8\"/></svg></span><input type=\"number\" class=\"prop-number\" id=\"n\" min=\"0\" max=\"40\" step=\"1\" value=\"\" placeholder=\"Mixed\" data-empty=\"invalid\" aria-label=\"칸\"></div>\n      </div>"
+]
+}
+}

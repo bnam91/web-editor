@@ -32,7 +32,7 @@ import { parseAlphaFromColor, swatchHex, wireHexText, parseHex6, formatHex6 } fr
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokePopover, STROKE_STYLES_CSS, STROKE_POP_WHY, edgeSelectHTML, wireEdgeSelect } from './_stroke-section.js';   // 표준 Stroke 부품(color-picker 무 import — 이 파일 규율 지킴)
 import { appearanceSectionHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A3)
 import { appearanceHeadToolsHTML } from './_appearance-section.js';   // 표준 Appearance A4(머리 눈)
-import { layoutSizeRowHTML, layoutGapSlotHTML, layoutSlotNumberHTML, wireLayoutSection, LAY_AUTO_WHY } from './_layout-section.js';   // 표준 Layout L2~L4
+import { layoutSizeRowHTML, layoutGapSlotHTML, layoutSlotNumberHTML, wireLayoutSection, LAY_AUTO_WHY, LAY_SIZING } from './_layout-section.js';   // 표준 Layout L2~L4
 import { wireNumberScrub } from './_helpers.js';   // 너비 칸 라벨 끌기(«빈 값 = 자동» 칸이라 확정 길은 옛 그대로)
 
 /* ══ 줄(line) 선택 — 「지금 우측 패널이 보고 있는 줄」 ═══════════════════════
@@ -2742,12 +2742,12 @@ function _rowHeightHtml(rows, block) {
   const open = _grdSecOpen(block, 'rowh');
   /* ★⑦-A(현빈 2026-11-13) — 적은 값 = 화면 높이(칸 위아래 여백 포함). 저장은 옛 뜻 그대로 — 보이기/받기만 gridRowFullH/gridRowStoredH 로 환산.
      빈 칸은 「자동 · 지금 높이」를 회색으로 보인다(재서 — 빈값 어휘 「자동」). */
-  const _nowH = (ri) => { const el = block?.querySelector?.(`:scope > .grd-inner > .grd-cell[data-r="${ri}"]`); const h = el ? Math.round(el.offsetHeight) : 0; return h > 0 ? `자동 · ${h}` : '자동'; };
+  const _nowH = (ri) => { const el = block?.querySelector?.(`:scope > .grd-inner > .grd-cell[data-r="${ri}"]`); const h = el ? Math.round(el.offsetHeight) : 0; return h > 0 ? `Hug · ${h}` : 'Hug'; };   // 행 auto = 내용이 정함(FigCraft Hug · 현빈 261125 17:36 · 지디 판정)
   const items = rows.map((r, ri) => `
       <div class="grd-rowh-item-row" style="display:flex;align-items:center;gap:6px;">
         <span class="prop-sublabel" style="width:40px;font-size:11px;color:#888;">행 ${ri + 1}</span>
         <input type="number" class="prop-number grd-row-h-item" data-ri="${ri}" min="0" max="${gridRowFullH(block, ROW_H_MAX)}"
-               placeholder="${r.height === 'auto' ? _nowH(ri) : '자동'}" value="${r.height === 'auto' ? '' : gridRowFullH(block, r.height)}" style="width:70px;">
+               placeholder="${r.height === 'auto' ? _nowH(ri) : 'Hug'}" value="${r.height === 'auto' ? '' : gridRowFullH(block, r.height)}" style="width:70px;">
       </div>`).join('');
   return `
       <div data-scope="row">
@@ -3207,7 +3207,7 @@ function _grdWidthRowHtml(block) {
   const w = _grdWidthNow(block);
   return layoutSizeRowHTML({ prefix: 'grd', chain: { on: false, blocked: LAY_AUTO_WHY },
     w: { id: 'grd-width-number', value: w.val ?? '', min: GRID_WIDTH_MIN, max: _grdWidthMax(block) },
-    mode: { w: { id: 'grd-width-mode', value: w.auto ? 'fill' : 'fixed', options: [['fixed', '고정'], ['fill', '100%']] } } });
+    mode: { w: { id: 'grd-width-mode', value: w.auto ? 'fill' : 'fixed', options: [['fixed', ...LAY_SIZING.fixed], ['fill', ...LAY_SIZING.fill]] } } });
 }
 /* ★제4안 「위아래 여백」(2026-10-05 · lane-grid-height) — 그리드 «한 값»이 모든 칸 위·아래 여백에 더해진다(cellPadY).
  *  읽는 문 = grid-block.js getGridCellPadY · 쓰는 문 = updateGridBlock{cellPadY}(히스토리 한 칸) · 상한 = GRID_CELL_PAD_Y_MAX(한 자리).
@@ -3240,7 +3240,7 @@ function _grdWireWidth(block) {
   const floating = block.dataset.overlayBlock === 'true';
   const clamp = (v) => Math.min(_grdWidthMax(block), Math.max(GRID_WIDTH_MIN, Math.round(v)));   // ★K1 ⒝ — 패널 입력 상한 = 그릇 폭(위 _grdWidthMax 한 자리)
   if (number) {
-    if (!floating) number.placeholder = '자동';   // ★빈 칸 = 자동(가드 셋째 축 · 비지 않은 placeholder) — 떠 있으면 안 단다(자동이 없다)
+    if (!floating) number.placeholder = 'Fill';   // ★빈 칸 = 자동(가드 셋째 축 · 비지 않은 placeholder) — 떠 있으면 안 단다(자동이 없다) · 모드 낱말 영어(현빈 261125 17:36 · Fill = 줄 폭)
     /* ★상한은 마크업이 이미 잰 값(number.max = _grdWidthMax)을 읽는다 — 배선 때 다시 재면(getComputedStyle·clientWidth) 막 그린 패널의 스타일·레이아웃을 강제로 굳혀
        바로 뒤 접이식 쉐브론 클릭이 0.12s 회전 전이를 탄다(grid-panel-icon-spec A3 · 탑 DOM ×3 실측 · 옛 판은 배선 때 안 쟀다) */
     const wMax = Number(number.max) || GRID_WIDTH_MAX;
@@ -3266,7 +3266,7 @@ function _grdWireWidth(block) {
   }
   if (mode) {
     /* 너비 모드 — 100% = 옛 «100%» 단추 길(키 지움 updateGridBlock width:null) · 고정 = 지금 그려진 폭을 키로(그 뒤 W 칸으로 고친다) */
-    if (floating) { mode.disabled = true; mode.title = '떠 있는 동안은 굳힌 폭이 정본이라 «자동»으로 못 돌린다 — Ignore Auto Layout 을 끄고 고르세요'; }
+    if (floating) { mode.disabled = true; mode.title = 'Width sizing — 떠 있는 동안은 굳힌 폭이 정본이라 «Fill»로 못 돌린다 — Ignore Auto Layout 을 끄고 고르세요'; }   // 모드 낱말 영어(현빈 261125 17:36)
     mode.addEventListener('change', () => {
       if (mode.disabled || block.dataset.overlayBlock === 'true') return;
       if (mode.value === 'fill') {

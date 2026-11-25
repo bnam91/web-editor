@@ -206,7 +206,7 @@ const CTL_DROPPED = [/^<input type="range" class="prop-slider" id="txt-width-sli
   /^<input type="color" id="bubble-bg-color" /, /^<input type="text" class="prop-color-hex" id="bubble-bg-hex" /];   /* 1120b B2 — 위 ID_REMOVED 와 짝 */   /* Q20 회전 슬라이더 걷음(각도 칸만 · 시안 v10) */
 /* ★기대 바뀜(L4b · 현빈 L-2) — 말풍선 크기 «자동/고정» 세그먼트(#bubble-size-group [data-bsz] 둘 · 줄 라벨 «크기») → 표준 W/H 줄의 모드 드롭다운(#bubble-size-mode · 고정/자동 두 옵션 = 이미 있는 두 모드만). W/H 숫자 칸은 LAYAPP_STD ②가 잰다(같은 id·범위). */
 CTL_DROPPED.push(/^<button class="prop-type-btn (?:active)?" data-bsz="(?:auto|fixed)">$/);
-CTL_ADDED.push(/^<select class="prop-select" id="bubble-size-mode" aria-label="너비 모드">$/, /^<option value="(?:fixed|auto)"(?: selected)? in="bubble-size-mode">$/);
+CTL_ADDED.push(/^<select class="prop-select" id="bubble-size-mode" aria-label="(?:너비 모드|Width sizing)">$/, /^<option value="(?:fixed|auto)"(?: selected)? in="bubble-size-mode">$/);   // ★기대 바뀜(표준 Layout · 탑 워커 261125 — aria Width sizing)
 ID_REMOVED.push('bubble-size-group'); ID_ADDED.push(/^bubble-size-mode$/);
 /* Q17 회전 줄 단추 셋(시안 v10 · 현빈 GO 261120) */
 CTL_ADDED.push(/^<button type="button" class="prop-align-btn(?: active)?" id="txt-(?:rot-90|flip-h|flip-v)" title="[^"]*" aria-label="[^"]*"(?: aria-pressed="(?:true|false)")?>$/,
@@ -221,7 +221,7 @@ const MOVED = {
   'itb-dy-slider': 'layout', 'itb-dy-number': 'layout', 'itb-gap-slider': 'layout', 'itb-gap-number': 'layout',
   'txt-x-number': 'position', 'txt-rot-number': 'position', 'txt-width-number': 'size', 'txt-pv-number': 'padding', 'bubble-bg-color': 'special',
 };
-const PH_OK = new Set(['', '자동', '상속', 'Mix', '없음', 'auto']);   /* auto = ⑥ 텍스트 높이 칸(현빈 v9 «auto») */
+const PH_OK = new Set(['', '자동', '상속', 'Mix', '없음', 'auto', 'Hug']);   // ★기대 바뀜(표준 Layout · 탑 워커 261125 — 크기 모드 낱말 영어 Hug · 현빈 17:36)   /* auto = ⑥ 텍스트 높이 칸(현빈 v9 «auto») */
 /* 옛 판(U0) 뒤에 «기능으로» 더한 컨트롤 — 티켓마다 한 줄 · 정확한 개수까지(그 밖의 생김은 그대로 빨강).
    TEXT-LOREM-FILL-01(261121): Content 절 «더미 글» = select 2(+option 3·2) · number 1 · button 1 = 9 · 라벨 1 · id 4 (줄 모드 말풍선이면 0). */
 /* 2749254f8 Tag Style «Oval» 단추(label·label+circle 상태) — origin/dev 9a724fb78 에서 이 판정이 이미 빨강이었다(태양 261121 실측 · 골든 2벌은 plain·liner 라 그 단추 0) · 같은 꼴로 한 줄. */
