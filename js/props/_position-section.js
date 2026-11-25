@@ -35,10 +35,11 @@ export function positionHeadToolsHTML({ prefix, ialId = '', ialOn = false, rotCa
  * @param {HTMLElement} o.posEl  자리 요소(posElOf) — 떠 있으면 floatPositionRowHTML
  * @param {boolean} [o.xy=true]  false = 정렬·X/Y 줄 없음(그 블럭엔 자리 칸이 없다)
  * @param {object} [o.rot]  rotRowHTML 인자(p·numberId·value·flipH·flipV·ids) — 없으면 회전 줄 0
- * @param {object} [o.liveXY]  ★예외 = 흐름 안에서도 X/Y «씀» { xId, yId, x, y } — 프레임만(현빈 261121 «흐름 프레임 X/Y = translate 덧 이동» · 261124 14:13 (나) 예외 유지 · 6-2 disabled 는 다른 블럭만). 값·배선은 블럭 쪽(떠 있으면 offset · 아니면 translate)
+ * @param {boolean} [o.flowAlign=true]  false = 흐름 안 정렬 6(disabled) 안 그림 — 제 흐름 정렬 칸이 따로 있는 블럭(에셋 3칸) · floatPositionRowHTML 로 그대로 넘김
+ * @param {object} [o.liveXY]  ★예외 = 흐름 안에서도 X/Y «씀» { xId, yId, x, y, xMixed?, yMixed? } — Mixed = 빈 값 + placeholder «Mixed» + data-empty=invalid(_appearance-section _appCell 꼴 · FigCraft number_field_mixed · 멀티셀렉) — 프레임만(현빈 261121 «흐름 프레임 X/Y = translate 덧 이동» · 261124 14:13 (나) 예외 유지 · 6-2 disabled 는 다른 블럭만). 값·배선은 블럭 쪽(떠 있으면 offset · 아니면 translate)
  */
-export function positionSectionHTML({ prefix, posEl, xy = true, rot = null, liveXY = null }) {
-  const place = liveXY ? _liveXYHTML(liveXY) : xy ? floatPositionRowHTML({ prefix, posEl }) : '';   // 떠 있음 = S1-4 · 흐름 = disabled(6-2) — 둘 다 공용 한 곳(overlay-float)
+export function positionSectionHTML({ prefix, posEl, xy = true, rot = null, liveXY = null, flowAlign }) {
+  const place = liveXY ? _liveXYHTML(liveXY) : xy ? floatPositionRowHTML(flowAlign === undefined ? { prefix, posEl } : { prefix, posEl, flowAlign }) : '';   // 떠 있음 = S1-4 · 흐름 = disabled(6-2) — 둘 다 공용 한 곳(overlay-float)
   if (!rot) return place;
   const slide = rotSlideOn() ? `
       <div class="prop-row ui-rot-slide-row"><input type="range" class="prop-slider" id="${rot.numberId}-slider" min="${rot.min ?? -180}" max="${rot.max ?? 180}" step="1" value="${Number(rot.value) || 0}" aria-label="회전(슬라이더)" style="flex:1;min-width:0"></div>` : '';
@@ -47,16 +48,16 @@ export function positionSectionHTML({ prefix, posEl, xy = true, rot = null, live
 }
 
 /** 흐름 안에서도 쓰는 X/Y 두 칸(텍스트 Position 절과 같은 prop-lhls-row 꼴 · .prop-number = 포커스 때 전체선택) — 옛 프레임 마크업 그대로 옮김 */
-function _liveXYHTML({ xId, yId, x, y }) {
-  const col = (l, id, v) => `
+function _liveXYHTML({ xId, yId, x, y, xMixed = false, yMixed = false }) {
+  const col = (l, id, v, mixed) => `
         <div class="prop-lhls-col">
           <div class="prop-icon-input">
             <span class="prop-xy-label">${l}</span>
-            <input type="number" class="prop-number" id="${id}" value="${v}" aria-label="${l} position">
+            <input type="number" class="prop-number" id="${id}" value="${mixed ? '' : v}"${mixed ? ' placeholder="Mixed" data-empty="invalid"' : ''} aria-label="${l} position">
           </div>
         </div>`;
   return `
-      <div class="prop-lhls-row">${col('X', xId, x)}${col('Y', yId, y)}
+      <div class="prop-lhls-row">${col('X', xId, x, xMixed)}${col('Y', yId, y, yMixed)}
       </div>`;
 }
 

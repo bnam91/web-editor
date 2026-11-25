@@ -1,6 +1,7 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML, checkHTML } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
+import { positionHeadToolsHTML } from './_position-section.js';   // 표준 Position 머리(시트 222) — 몸 = 부품에 칸 없음(옛 그대로 · 탑 보고)
 import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A2 · A4 Opacity)
 import { layoutPadSlotHTML, layoutGapSlotHTML, layoutSlotNumberHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(L2~L4 · C1)
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
@@ -182,7 +183,7 @@ export function showChatProperties(block) {
         <input type="range" class="prop-slider" id="chb-profile-y-range" min="${B.profileOffsetY.min}" max="${B.profileOffsetY.max}" value="${profileOffsetY}">
         <input type="number" id="chb-profile-y-num" class="prop-number" value="${profileOffsetY}" min="${B.profileOffsetY.min}" max="${B.profileOffsetY.max}" style="width:54px">
       </div>
-`),
+`, { headTools: positionHeadToolsHTML({ prefix: 'chb', rotCan: false }) }),
       /* ★표준 Layout L2~L4(현빈 261124 L-4 · 시안 #mkp-layoutstd) — 옛 *-range 슬라이더 여섯 걷음 · 숫자 칸 id·키·범위(CHAT_NUM_BOUNDS) 무변
          최대폭·꼬리·프로필·프로필 간격·말풍선 패딩 = 블럭 슬롯 숫자(layoutSlotNumberHTML) · 패딩 = 네 면 한 값(allId) · 간격(chb-gap) = 표준 Gap 슬롯 */
       sec('size', `${layoutSlotNumberHTML({ id: 'chb-bubble-maxw-val', label: '말풍선 최대폭', min: B.bubbleMaxW.min, max: B.bubbleMaxW.max, value: bubbleMaxW })}${layoutSlotNumberHTML({ id: 'chb-tail-val', label: '꼬리 크기', min: B.tailScale.min, max: B.tailScale.max, value: tailScale })}${layoutSlotNumberHTML({ id: 'chb-profile-size-num', label: '프로필', min: B.profileSize.min, max: B.profileSize.max, value: profileSize })}`),

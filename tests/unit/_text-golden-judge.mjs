@@ -46,7 +46,7 @@ function load(files, { mutate } = {}) {
   return ctx.__T.buildTextPropsHtml;
 }
 const SHARED = ['js/props/text-type-class.js', 'js/effects-registry.js'];
-const NOW = ['js/props/prop-text-utils.js', 'js/props/_helpers.js', 'js/props/_section-spec.js', 'js/props/_panel-frame.js', 'js/props/_fill-section.js', 'js/props/_typo-section.js', 'js/props/_stroke-section.js', 'js/props/_appearance-section.js', 'js/props/_layout-section.js', ...SHARED, 'js/props/prop-text-template.js'];   // 표준 Stroke(태양 261123~) — 텍스트 Stroke 절 = 부품 strokeSectionHTML(탑 261124 P2 실측 «not defined»)
+const NOW = ['js/props/prop-text-utils.js', 'js/props/_helpers.js', 'js/props/_section-spec.js', 'js/props/_panel-frame.js', 'js/props/_fill-section.js', 'js/props/_typo-section.js', 'js/props/_stroke-section.js', 'js/props/_appearance-section.js', 'js/props/_layout-section.js', 'js/props/_position-section.js', ...SHARED, 'js/props/prop-text-template.js'];   // 표준 Stroke(태양 261123~) — 텍스트 Stroke 절 = 부품 strokeSectionHTML(탑 261124 P2 실측 «not defined»)
 const OLD = ['js/props/prop-text-utils.js', 'js/props/_helpers.js', 'js/props/_typo-section.js', ...SHARED, 'js/props/prop-text-template.js'];
 const OLD_FROM_BASE = new Set(['js/props/prop-text-utils.js', 'js/props/_helpers.js', 'js/props/_typo-section.js', 'js/props/prop-text-template.js']);
 const nowFiles = () => NOW.map((r) => [r, readNow(r)]);
@@ -301,6 +301,10 @@ function layAppStdAllow(o, n) {
   /* ③b Appearance 절 머리 눈(ui-app-eye · 보류 막힘) — 그 절 몸에 Appearance 부품이 있을 때만 */
   for (const sec of all(n).filter((k) => has(k, 'prop-section') && all(k).some((x) => x.attrs['data-part'] === 'appearance'))) {
     for (const head of els(sec).filter((k) => has(k, 'prop-sec-head'))) for (const b of all(head).filter((k) => k.tag === 'button' && has(k, 'ui-app-eye') && k.attrs['data-part'] === 'end-slot')) { out.cAdd.push(ctlStr(b)); out.iAdd.push(b.attrs.id); }
+  }
+  /* ③c 표준 Position 머리 슬라이드 모드(ui-pos-slide · 부품 _position-section · 시트 222 · 탑 워커 pos 261125) — Position 절 «머리» 안에서만 */
+  for (const sec of all(n).filter((k) => has(k, 'prop-section') && k.attrs['data-sec'] === 'position')) {
+    for (const head of els(sec).filter((k) => has(k, 'prop-sec-head'))) for (const b of all(head).filter((k) => k.tag === 'button' && has(k, 'ui-pos-slide') && k.attrs['data-part'] === 'end-slot')) { out.cAdd.push(ctlStr(b)); out.iAdd.push(b.attrs.id); }
   }
   return out;
 }

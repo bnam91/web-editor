@@ -3,9 +3,10 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor, swatchHex } from '
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_POP_WHY } from './_stroke-section.js';
 import { fillSectionHTML, fillHeadToolsHTML, wireFillSection, setFillKindName, fillLast, fillKindOfCss } from './_fill-section.js';
 import { hasSides, readSides, writeSides, cssSideWidths, sidesMixed } from '../stroke-look.js';
-import { alignBtn, overlayToggleBtnHTML, blockHeaderHTML, animGifBtnHTML, wireAnimGifBtn, checkHTML } from './_helpers.js';
+import { alignBtn, blockHeaderHTML, animGifBtnHTML, wireAnimGifBtn, checkHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
-import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
+import { posElOf, wireFloatToggle, wireFloatPosition } from '../overlay-float.js';
+import { positionSectionHTML, positionHeadToolsHTML } from './_position-section.js';   // 표준 Position 절(시트 222) — 몸 = flowAlign:false(흐름 정렬 = 제 3칸)
 import { videoTrimSectionHTML, wireVideoTrim } from './asset-video-trim.js';
 import { clipsContent, CLIP_DEFAULTS, applyAssetClip } from '../clip-content.js';   /* ★「내용 자르기」 한 자리(2026-10-10 c2) */
 import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance(A3)
@@ -218,13 +219,13 @@ export function showAssetProperties(ab) {
       // 플로팅 토글 = Position 절 머리 손잡이(§2-1) · X/Y(플로팅일 때만 — 몸통이 비어도 머리 손잡이가 있으면 절은 남는다)
       /* 1120b A1(현빈 261120) — 정렬 줄 = Position 절 · 라벨은 텍스트 블럭 Layout 과 같은 꼴(.prop-field-label «Alignment» + .prop-align-group) */
       sec('position', `
-      ${floatPositionRowHTML({ prefix: 'asset', posEl: floatPosEl, flowAlign: false })}${isFloatOverlay ? '' : `
+      ${positionSectionHTML({ prefix: 'asset', posEl: floatPosEl, flowAlign: false })}${isFloatOverlay ? '' : `
       <span class="prop-field-label">Alignment</span>${/* 현빈 261123 S1-4 — 떠 있으면 흐름용 가로 정렬은 뜻이 없어 걷고 위 부모 기준 6칸이 그 자리(시안 8910 floatalign) */ ''}
       <div class="prop-align-group" id="asset-align-group">
           ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', active: currentAlign==='left', attrs: { 'data-align': 'left' } })}
           ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', active: currentAlign==='center', attrs: { 'data-align': 'center' } })}
           ${alignBtn('object-h', 'right', { label: '오른쪽 정렬', title: '오른쪽 정렬', active: currentAlign==='right', attrs: { 'data-align': 'right' } })}
-      </div>`}`, { headTools: overlayToggleBtnHTML({ id: 'asset-float-toggle', active: isFloatOverlay }) }),
+      </div>`}`, { headTools: positionHeadToolsHTML({ prefix: 'asset', ialId: 'asset-float-toggle', ialOn: isFloatOverlay, rotCan: false }) }),
       /* ★표준 Layout L1(현빈 261124 L-4 · 시안 #mkp-layoutstd) — 옛 슬라이더 걷음 · 숫자 칸 id·범위 무변 · 비율 사슬 기본 켬(에셋 · 키 = dataset.ratioLock 다를 때만) */
       sec('size', layoutSizeRowHTML({ prefix: 'asset', chain: { on: ratioLockOn(ab, ASSET_RATIO_DEFAULT), blocked: currentW >= 860 ? LAY_FULLW_WHY : null },   // 꽉참(줄 폭) = 사슬 막힘(지디 261125 ⒜ · 저장 키 무변)
         w: { id: 'asset-w-number', min: ASSET_W_MIN, max: 860, value: currentW },

@@ -1,6 +1,7 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML, escHtml } from './_helpers.js';
 import { renderPanel, sec, hintHTML } from './_panel-frame.js';
+import { positionSectionHTML, positionHeadToolsHTML } from './_position-section.js';   // 표준 Position 절(시트 222 DS-POSITION-STD-REST-01)
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { panelRenderedPx } from './_panel-rendered.js';
 import {
@@ -90,21 +91,8 @@ function showLabelGroupProperties(block, selectedItem) {
         <button class="prop-action-btn secondary" id="lg-preset-name-cancel" style="flex:0 0 52px;margin-top:0">취소</button>
       </div>${selectedItem ? '' : `
       ${hintHTML('태그를 눌러 색 바꾸기')}`}`),   /* R8ⓐ(현빈 261123) 한국어 UI 의 유일한 영어 힌트 → 한국어 · 안 골랐을 땐 Fill 절이 없다(컨트롤 0 절 금지 · 게이트 빈 머리 검사) — 안내는 여기 */
-      sec('position', !isAbsolute ? '' : `
-      <div class="prop-lhls-row">
-        <div class="prop-lhls-col">
-          <div class="prop-icon-input">
-            <span class="prop-xy-label">X</span>
-            <input type="number" id="lg-x-number" value="${currentX}" aria-label="X position">
-          </div>
-        </div>
-        <div class="prop-lhls-col">
-          <div class="prop-icon-input">
-            <span class="prop-xy-label">Y</span>
-            <input type="number" id="lg-y-number" value="${currentY}" aria-label="Y position">
-          </div>
-        </div>
-      </div>`),
+      /* 표준 Position — absolute(서브섹션 안)일 때만 X/Y = style.left/top(부품 liveXY · id·배선 무변) · 흐름이면 절 없음(켤 IAL 단추가 없다 = 옛 그대로) · 회전 없음 */
+      sec('position', !isAbsolute ? '' : positionSectionHTML({ prefix: 'lg', posEl: null, xy: false, liveXY: { xId: 'lg-x-number', yId: 'lg-y-number', x: currentX, y: currentY } }), { headTools: isAbsolute ? positionHeadToolsHTML({ prefix: 'lg', rotCan: false }) : '' }),
       /* ★표준 Layout(현빈 261124 L-4/7 · C3) — 옛 슬라이더 걷음 · 숫자 칸 id·범위 무변 · 높이 = 태그 상하 패딩이라 W/H 짝 아님 → 한 칸씩(사슬 없음) */
       sec('size', (!isAbsolute ? '' : layoutSizeRowHTML({ prefix: 'lg-w', one: { id: 'lg-width-number', label: 'Width', min: 40, max: 860, value: currentW } }))
         + layoutSizeRowHTML({ prefix: 'lg-all-h', one: { id: 'lg-all-height-number', label: '전체 높이', icon: 'h', min: 0, max: 120, value: allItemH } })

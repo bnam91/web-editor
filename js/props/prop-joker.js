@@ -1,6 +1,7 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
+import { positionSectionHTML, positionHeadToolsHTML } from './_position-section.js';   // 표준 Position 절(시트 222 DS-POSITION-STD-REST-01)
 
 export function showJokerProperties(jb) {
   const isAbsolute = jb.style.position === 'absolute';
@@ -23,24 +24,13 @@ export function showJokerProperties(jb) {
       crumb: window.getBlockBreadcrumb?.(jb) || '',
       id: jb.id,
     }),
-    sections: [sec('position', `
-      <div class="prop-row">
-        <span class="prop-label">X</span>
-        <input type="range" class="prop-slider" id="joker-x-slider" min="0" max="860" step="1" value="${currentX}">
-        <input type="number" class="prop-number" id="joker-x-number" min="0" max="860" value="${currentX}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">Y</span>
-        <input type="range" class="prop-slider" id="joker-y-slider" min="-500" max="500" step="1" value="${currentY}">
-        <input type="number" class="prop-number" id="joker-y-number" min="-500" max="500" value="${currentY}">
-      </div>`)],
+    /* 표준 Position — 조커는 흐름 안에서도 X/Y «씀»(옛 그대로 translate · 떠 있으면 left/top) = 부품 liveXY · 옛 X/Y 슬라이더 걷음(숫자 칸 id·범위 clamp·키 offsetX/Y 무변) · 회전 없음 */
+    sections: [sec('position', positionSectionHTML({ prefix: 'joker', posEl: null, xy: false, liveXY: { xId: 'joker-x-number', yId: 'joker-y-number', x: currentX, y: currentY } }), { headTools: positionHeadToolsHTML({ prefix: 'joker', rotCan: false }) })],
   });
 
   if (window.setRpIdBadge) window.setRpIdBadge(jb.id || null);
 
-  const xSlider = document.getElementById('joker-x-slider');
   const xNumber = document.getElementById('joker-x-number');
-  const ySlider = document.getElementById('joker-y-slider');
   const yNumber = document.getElementById('joker-y-number');
 
   function applyX(v) {
@@ -65,19 +55,15 @@ export function showJokerProperties(jb) {
     window.scheduleAutoSave?.();
   }
 
-  xSlider.addEventListener('input', () => { xNumber.value = xSlider.value; applyX(parseInt(xSlider.value)); });
-  xSlider.addEventListener('change', () => { window.pushHistory?.(); });
   xNumber.addEventListener('input', () => {
     const v = Math.min(860, Math.max(0, parseInt(xNumber.value) || 0));
-    xSlider.value = v; applyX(v);
+    applyX(v);
   });
   xNumber.addEventListener('change', () => { window.pushHistory?.(); });
 
-  ySlider.addEventListener('input', () => { yNumber.value = ySlider.value; applyY(parseInt(ySlider.value)); });
-  ySlider.addEventListener('change', () => { window.pushHistory?.(); });
   yNumber.addEventListener('input', () => {
     const v = Math.min(500, Math.max(-500, parseInt(yNumber.value) || 0));
-    ySlider.value = v; applyY(v);
+    applyY(v);
   });
   yNumber.addEventListener('change', () => { window.pushHistory?.(); });
 }

@@ -238,7 +238,7 @@ test('R17 block-flip — 켜고 끄기 · 회전과 한 transform · 멱등 · �
   const b = mk(''); F.toggleFlip(b, 'flipH'); F.toggleFlip(b, 'flipH');
   assert.equal(b.style.transform, '', '★아무 것도 없으면 transform 도 없다');
   const tpl = stripComments(readSrc(ROOT, 'js/props/prop-text-template.js'));
-  assert.match(tpl, /rotRowHTML\(\{ p: 'txt', numberId: 'txt-rot-number'/);
+  assert.match(tpl, /rotRowHTML\(\{ p: 'txt', numberId: 'txt-rot-number'|rot: \{ p: 'txt', numberId: 'txt-rot-number'/);   // ★기대 바뀜(표준 Position · 탑 워커 261125) — 회전 줄 = 부품 positionSectionHTML({ rot })(안에서 rotRowHTML)
   assert.doesNotMatch(tpl, /txt-rot-slider/, '★회전 슬라이더가 남았다(Q20)');
 });
 
