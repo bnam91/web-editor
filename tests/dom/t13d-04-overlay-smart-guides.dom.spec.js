@@ -80,3 +80,19 @@ test('S3 ⌘ 누른 채 끌면 자석 없음 · 가이드 0', async ({ page }) =
   expect(during.g, '★가이드 0').toEqual([]);
   expect(errs).toEqual([]);
 });
+
+/* ★155 t13D-04 마감 ◑(지디 261122 재채점 · 미카사 grade-261122c 10-guide) — «⌘ 누른 채 놓으면 +88·+90px 튄 자리에 놓임»
+ * S4 ⌘ 누른 채 끌고 «⌘ 누른 채» 놓기 → 놓은 뒤 자리 = 놓기 직전 자리(튐 0) · 저장 키(offsetX/Y)도 같은 값 */
+test('S4 (155) ⌘ 누른 채 끌고 ⌘ 누른 채 놓기 → 놓은 뒤 자리 = 놓기 직전(튐 0)', async ({ page }) => {
+  const errs = await scene(page);
+  const a = await st(page);
+  const dx = 90, dy = 70;
+  const during = await drag(page, dx, dy, { meta: true, mid: async () => await st(page) });
+  const after = await st(page);
+  const keys = await page.evaluate(() => { const t = document.getElementById('tfA'), p = window.OverlayFloat.posElOf(t) || t; return [Number(p.dataset.offsetX), Number(p.dataset.offsetY), p.parentElement.id]; });
+  console.log('[155 S4 실측]', JSON.stringify({ a, during, after, keys }));
+  expect([Math.round(during.aL - a.aL), Math.round(during.aT - a.aT)], '[전제] 끄는 동안 = 커서 만큼(⌘ = 자석 끔)').toEqual([dx, dy]);
+  expect([after.aL, after.aT], '★놓은 뒤 = 놓기 직전 자리(튐 0)').toEqual([during.aL, during.aT]);
+  expect(keys, '★저장 키 = 보이는 자리 · 같은 섹션').toEqual([after.aL, after.aT, 'sG']);
+  expect(errs).toEqual([]);
+});
