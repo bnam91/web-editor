@@ -29,6 +29,7 @@ import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } fro
 import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance A4(Opacity 만)
 import { layoutSizeRowHTML, layoutGapSlotHTML, layoutSlotNumberHTML, wireLayoutSection, ratioLockOn, setRatioLock } from './_layout-section.js';   // 표준 Layout L2·L3·L4
 import { wireNumberScrub } from './_helpers.js';   // 갯수·간격 칸 라벨 끌기(옛 숫자 칸 배선 그대로)
+import { effectRowHTML } from './_effects-section.js';   // 표준 Effects 줄(0.9.14 224)
 
 // 캔버스에서 온캔버스 그라데이션 라인을 드래그하면(gradient-line-overlay.js, source==='canvas')
 // 모달이 열려 있을 때 스와치 미리보기만 동기화한다. bg 쓰기/재렌더는 이미
@@ -161,14 +162,11 @@ export function showShapeProperties(block) {
 
   /* ★Effects 절 — 효과 목록 그리개(js/effects-registry.js)는 한 벌. 틀 절의 몸통(카드 목록)·머리 손잡이(추가 목록)로 받는다. */
   /* ★A5(현빈 261124 7-4) — 옛 Appearance 절의 «가림막»(블러로 가리기·방식·강도) 마크업을 Effects 절 맨 앞으로 그대로 옮긴다(id·키·배선 무변) */
-  const SHAPE_REDACT_HTML = `
-      <div class="prop-row">
+  const SHAPE_REDACT_HTML = effectRowHTML({ id: 'shape-fx-redact', head: checkHTML({ id: 'shape-redact-toggle', label: '블러로 가리기', checked: isRedact }), body: `
         <!-- ★prop-label--auto: 「블러로 가리기」는 전역 .prop-label(56px)에 안 들어가 말줄임으로 잘렸다
              (2026-09-20 실측 sw60/cw56, 실물 앱은 더 잘림). 이 줄은 «라벨 하나 + 남는 폭을 쓰는 컨트롤»
              이라 앱 관례인 내용폭 라벨을 쓴다(css/editor-props.css:32, prop-page.js 「그리드 가이드」 선례).
              ⛔전역 .prop-label 의 56px 은 내리지도 올리지도 마라 — 패널 세로 정렬의 출처다. -->
-        ${checkHTML({ id: 'shape-redact-toggle', label: '블러로 가리기', checked: isRedact })}
-      </div>
       <div id="shape-redact-controls" style="${isRedact ? '' : 'display:none'}">
         <div class="prop-row" style="margin-top:8px;">
           <span class="prop-label">방식</span>
@@ -199,7 +197,7 @@ export function showShapeProperties(block) {
         ` : `
         ${legacyMosaic ? '' : `<div class="prop-hint" style="margin-top:4px;">도형을 얼굴·주민번호 등 위에 올리면 밑에 깔린 콘텐츠가 실시간으로 흐려집니다. 채우기 색상은 무시됩니다.</div>`}
         `}
-      </div>`;
+      </div>` });   // 표준 Effects 줄(0.9.14 224) — 머리 = 옛 켬/끔 체크(id·라벨 무변)
   const _fx = window.fxSectionParts?.(block, 'shape');
   renderPanel(block, {
     header: blockHeaderHTML({
@@ -317,15 +315,12 @@ export function showShapeProperties(block) {
         { headTools: strokeHeadToolsHTML({ prefix: 'shape-stroke', on: strokeWidth > 0 }) }),   // 머리 ＋/− — 없음 = 굵기 0(§4c 없음 열 실측)
       // 원 이너 그림자 + 효과 목록(Effects)
       sec('effects', `${canRedact ? SHAPE_REDACT_HTML : ''}${isEllipse && !isRedact ? `
-        <div id="shape-ellipse-shadow-wrap">
-        <div class="prop-row" style="margin-top:8px;">
-        ${checkHTML({ id: 'shape-ellipse-shadow-toggle', label: 'Inner shadow', checked: ellShadow !== null })}
-      </div>
+        <div id="shape-ellipse-shadow-wrap">${effectRowHTML({ id: 'shape-fx-inner', head: checkHTML({ id: 'shape-ellipse-shadow-toggle', label: 'Inner shadow', checked: ellShadow !== null }), body: `
         ${ellShadow !== null ? `<div class="prop-row">
           <span class="prop-label">세기</span>
           <input type="range" class="prop-slider" id="shape-ellipse-shadow-slider" min="${ELLIPSE_SHADOW_MIN}" max="${ELLIPSE_SHADOW_MAX}" step="1" value="${ellShadow}">
           <input type="number" class="prop-number" id="shape-ellipse-shadow-num" min="${ELLIPSE_SHADOW_MIN}" max="${ELLIPSE_SHADOW_MAX}" value="${ellShadow}">
-        </div>` : ''}
+        </div>` : ''}` })}
         </div>` : ''}${_fx?.body || ''}`, { headTools: _fx?.headTools || '', id: _fx?.id }),
     ],
   });

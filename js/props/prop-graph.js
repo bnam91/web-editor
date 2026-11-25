@@ -10,6 +10,7 @@ import { isBlurIntoPanel, parkEditing } from './_text-selection.js';
 import { graphFieldShown } from '../canvas-contrast.js';   // E149 — 색 칸 «보일 값»의 한 자리
 import '../graph-radial.js';   // 프로토 Z6-B — 「방사형」 유형의 렌더 · 패널 절(window.renderGraphRadial · graphRadialSectionHTML · wireGraphRadialSection)
 import { FX_SHADOW_DEFAULTS, FX_SHADOW_RANGES } from '../effects-shadow.js';   // 1017t1f4 — 그림자 x/y/blur 값·범위의 임자(⛔새 수 0 — 그 쪽을 그대로 읽는다)
+import { effectRowHTML } from './_effects-section.js';   // 표준 Effects 줄(0.9.14 224)
 
 const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX, BAR_THICKNESS_DEFAULT, BAR_THICKNESS_V_MAX, LABEL_SIZE_DEFAULT, LABEL_SIZE_MIN, LINE_PADX_DEFAULT, PCT_SIZE_FACTOR, PIE_HOLE_MIN, PIE_HOLE_MAX, PIE_HOLE_DEFAULT, PIE_GAP, PIE_GAP_MIN, PIE_GAP_MAX, PIE_START_MIN, PIE_START_MAX, PIE_GROW_MAX, PIE_PULL_MAX, PIE_LEG_GAP_MIN, PIE_LEG_GAP_MAX, PIE_LEG_GAP_DEFAULT, SHAPE_SVG_MAX, SHAPE_FILL_MAX_DEFAULT, SHAPE_TRACK_OPACITY, SEG_GAP_DEFAULT, SEG_GAP_MIN, SEG_GAP_MAX } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
 
@@ -591,7 +592,7 @@ ${_bar.fill || ''}
       /* ★표준 Stroke 2-5(현빈 261124 ⓑ · 8910 #mkp-linestroke) — 꺾은선: 굵기만(색 = 계열마다 · Content) · ＋/− · 위치 · ⫶ 없음 · 옛 id grb-stroke-number · 1~12 그대로 */
       sec('appearance', appearanceSectionHTML({ prefix: 'grb', op: { value: window.readBlockOpacity?.(block) ?? 100 } }), { headTools: appearanceHeadToolsHTML({ prefix: 'grb' }) }),   // A4 Opacity 만(모서리 없음)
       sec('stroke', chartType === 'line' ? strokeSectionHTML({ prefix: 'grb-stroke', noColor: true, noAlign: true, width: strokeWidth, minWidth: 1, maxWidth: 12, widthId: 'grb-stroke-number' }) : ''),
-      sec('effects', _isPie ? pieShadowSectionHTML(block.dataset) : ''),
+      sec('effects', _isPie ? effectRowHTML({ id: 'grb-fx-shadow', label: '그림자', body: pieShadowSectionHTML(block.dataset) }) : ''),
       sec('special', chartType === 'line' ? `
       <div class="prop-row">
         <span class="prop-label">점 크기</span>
