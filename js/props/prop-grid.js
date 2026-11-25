@@ -2739,12 +2739,12 @@ function _rowHeightHtml(rows, block) {
   const open = _grdSecOpen(block, 'rowh');
   /* ★⑦-A(현빈 2026-11-13) — 적은 값 = 화면 높이(칸 위아래 여백 포함). 저장은 옛 뜻 그대로 — 보이기/받기만 gridRowFullH/gridRowStoredH 로 환산.
      빈 칸은 「자동 · 지금 높이」를 회색으로 보인다(재서 — 빈값 어휘 「자동」). */
-  const _nowH = (ri) => { const el = block?.querySelector?.(`:scope > .grd-inner > .grd-cell[data-r="${ri}"]`); const h = el ? Math.round(el.offsetHeight) : 0; return h > 0 ? `자동 · ${h}` : '자동'; };
+  const _nowH = (ri) => { const el = block?.querySelector?.(`:scope > .grd-inner > .grd-cell[data-r="${ri}"]`); const h = el ? Math.round(el.offsetHeight) : 0; return h > 0 ? `Hug · ${h}` : 'Hug'; };   // 행 auto = 내용이 정함(FigCraft Hug · 현빈 261125 17:36 · 지디 판정)
   const items = rows.map((r, ri) => `
       <div class="grd-rowh-item-row" style="display:flex;align-items:center;gap:6px;">
         <span class="prop-sublabel" style="width:40px;font-size:11px;color:#888;">행 ${ri + 1}</span>
         <input type="number" class="prop-number grd-row-h-item" data-ri="${ri}" min="0" max="${gridRowFullH(block, ROW_H_MAX)}"
-               placeholder="${r.height === 'auto' ? _nowH(ri) : '자동'}" value="${r.height === 'auto' ? '' : gridRowFullH(block, r.height)}" style="width:70px;">
+               placeholder="${r.height === 'auto' ? _nowH(ri) : 'Hug'}" value="${r.height === 'auto' ? '' : gridRowFullH(block, r.height)}" style="width:70px;">
       </div>`).join('');
   return `
       <div data-scope="row">

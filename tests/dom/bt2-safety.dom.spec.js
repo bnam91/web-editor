@@ -220,7 +220,7 @@ test('T6 그리드 패널 — 상태 7가지의 우측 패널 HTML 이 핀과 �
        grd-width-number placeholder «자동» 걷힘(= 모드 고르개가 말한다) · 더함 = 부품 안(모드 고르개·비율 사슬 막힘·Opacity 칸) + Appearance 머리 눈(보류) 만 · 밖 더함은 그대로 거절(plant 양성대조) */
     layAppStd: { removedIds: ['grd-col-gap-slider', 'grd-row-gap-slider', 'grd-child-gap-slider', 'grd-width-slider', 'grd-width-auto', 'grd-bbg-radius-slider'], phDrop: ['grd-width-number'],
       scope: '[data-part="layout"], [data-part="appearance"], .prop-sec-head .ui-app-eye' },
-    PH_CHANGE: [{ sel: '.grd-row-h-item', from: '^auto$', to: '^자동( · \\d+)?$' }],
+    PH_CHANGE: [{ sel: '.grd-row-h-item', from: '^auto$', to: '^Hug( · \\d+)?$' }],   // ★기대 바뀜(크기 모드 영어 · 현빈 261125 17:36)
     dataRename: { 'data-bbg-x': 'data-bbg-h', 'data-bbg-y': 'data-bbg-v', 'data-cpos-x': 'data-cpos-h', 'data-cpos-y': 'data-cpos-v' },
     LABEL_TO: { 'data-ha': '가로 정렬 · 모든 열', 'data-va': '세로 정렬 · 블록', 'grd-cell-align': '가로 정렬 · 이 칸', 'grd-cell-valign': '세로 정렬 · 이 칸', 'grd-line-align': '가로 정렬 · 이 줄', 'data-nva': '세로 정렬 · 이 열' },
     HINT_GONE: ['^가로×세로 칸 수를 고른다$', '^줄이면 잘린 칸 내용은 사라진다', '^예: 1:1:2', '^행/열 사이 간격', '^격자와 아래 블럭 사이', '^칸 하나만 바꾸려면', '^이 칸에만 적용된다', '^칸과 칸 «사이»', '^자르기 전에는', '^그림 폭이 100%', '^비우면 자동', '행을 열 \\d+개의', '^이 열에 기본값이 걸려'],   // 마지막 = 칸 꾸미기 접기 제목 「· 열 기본값 있음」으로(M4 예산)
