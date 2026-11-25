@@ -435,7 +435,7 @@ const STEPS = 28;                                 // 키 단계 수: 56 → 84 (
 
 const readSizeFs = (page) => page.evaluate(() => { const b = document.querySelector('#secA .sticker-block[data-count]');
   return { size: parseInt(b.dataset.sizeW, 10), sizeH: parseInt(b.dataset.sizeH, 10), fs: parseInt(b.dataset.fontSize, 10), w: b.offsetWidth,
-    drawnFs: getComputedStyle(b).fontSize, num: document.getElementById('stk-count-size-num')?.value, fsNum: document.getElementById('stk-fs-num')?.value }; });
+    drawnFs: getComputedStyle(b).fontSize, num: document.getElementById('stk-count-size-num')?.value, fsNum: document.getElementById('stk-typo-size-number')?.value }; });   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
 
 /* 스티커 하나를 찍고 도구를 끈 채(선택은 남는다) 패널이 떠 있는 상태로 만든다. */
 async function oneSelected(page) {
@@ -471,7 +471,7 @@ test('C14 크기 키 단계(숫자칸) — ArrowUp 으로 한 칸씩 올려도 �
   const down = await readSizeFs(page);
   expect(Math.abs(down.fs - wantFs(30)), `크기 30 에 폰트 ${down.fs}(기대 ${wantFs(30)})`).toBeLessThanOrEqual(FS_TOL);
   // 폰트 크기 칸을 직접 고치면 그 값이 새 기준이 된다: 크기 30·폰트 20 → 크기 60 이면 폰트 40
-  await typeNumber(page, '#stk-fs-num', 20);
+  await typeNumber(page, '#stk-typo-size-number', 20);   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
   await expect.poll(async () => (await readSizeFs(page)).fs, '★전제: 폰트 칸이 먹었다').toBe(20);
   await typeNumber(page, '#stk-count-size-num', 60);
   await expect.poll(async () => (await readSizeFs(page)).size).toBe(60);
@@ -929,20 +929,20 @@ test('C28 일괄(켬 · 기본) — 모양 · 크기 · 폰트 크기 · 굵기 
   a = await groupLook(page, 'secA');
   expect([pluck(a, 'w'), pluck(a, 'fontSize'), pluck(a, 'drawnFs')], '크기: 그려진 폭 · 폰트(비례 26→39) 도 셋 다').toEqual([[84, 84, 84], ['39', '39', '39'], ['39px', '39px', '39px']]);
 
-  await typeNumber(page, '#stk-fs-num', 30);
+  await typeNumber(page, '#stk-typo-size-number', 30);   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
   await expect.poll(async () => pluck(await groupLook(page, 'secA'), 'fontSize'), '폰트 크기: 셋 다 30').toEqual(['30', '30', '30']);
   expect(pluck(await groupLook(page, 'secA'), 'drawnFs'), '폰트 크기: 그려진 값').toEqual(['30px', '30px', '30px']);
 
-  await page.selectOption('#stk-fw', '900');
+  await page.selectOption('#stk-typo-font-weight', '900');   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
   a = await groupLook(page, 'secA');
   expect([pluck(a, 'fontWeight'), pluck(a, 'drawnFw')], '굵기: 셋 다 900').toEqual([['900', '900', '900'], ['900', '900', '900']]);
 
   /* 스타일(이탤릭 · 밑줄) — 2차(이벨류에이터 D9): 이 줄이 없으면 prop-sticker.js 의 스타일 일괄 한 줄을 지워도 전부 초록이었다 */
   expect([pluck(a, 'drawnStyle'), pluck(a, 'drawnDeco')], '★전제: 처음엔 셋 다 바로 선 글자 · 장식 없음').toEqual([['normal', 'normal', 'normal'], ['none', 'none', 'none']]);
-  await page.click('#stk-b-style-group [data-style="italic"]');
+  await page.click('#stk-typo-italic-btn');   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
   a = await groupLook(page, 'secA');
   expect([pluck(a, 'fontStyle'), pluck(a, 'drawnStyle')], '이탤릭: 셋 다').toEqual([['italic', 'italic', 'italic'], ['italic', 'italic', 'italic']]);
-  await page.click('#stk-b-style-group [data-style="underline"]');
+  await page.click('#stk-typo-underline-btn');   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
   a = await groupLook(page, 'secA');
   expect([pluck(a, 'deco'), pluck(a, 'drawnDeco')], '밑줄: 셋 다').toEqual([['underline', 'underline', 'underline'], ['underline', 'underline', 'underline']]);
   expect(pluck(a, 'drawnStyle'), '밑줄을 켜도 이탤릭은 그대로').toEqual(['italic', 'italic', 'italic']);
