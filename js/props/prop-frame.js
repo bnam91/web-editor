@@ -1085,7 +1085,6 @@ function _renderAutoPanel(ss) {
   const fbToggle = wireCheck(document.getElementById('ss-fullbleed-toggle'));   // 막힘(aria-disabled)이면 click 을 막는다(옛 disabled 자리 · 태양 §2c)
   if (fbToggle) {
     fbToggle.addEventListener('change', e => {
-      window.pushHistory?.('프레임 패딩 제외');
       if (e.target.checked) {
         ss.dataset.fullBleed = 'true';
         applyBlockFullBleed(ss);
@@ -1095,9 +1094,10 @@ function _renderAutoPanel(ss) {
         applyWidth(parseInt(ss.dataset.width) || width, { scaleChildren: false });   // 자연 폭 복원은 호출부 몫 · 폭을 «되돌리는» 것이라 자식 비율은 안 건드린다(옛 판도 저장/저장 = 1)
       }
       /* 버즈(1013t2 D1) — 새 버즈는 이 스위치가 켜진 채로 들어온다. 끄면 프레임이 패딩만큼 좁아지므로 밖으로 나간 말풍선이 있으면
-         같은 무늬번호로 안에 다시 놓는다(안 나갔으면 무동작 · 높이 칸의 그 길과 같다 · 히스토리는 위의 한 칸에 같이 든다). */
+         같은 무늬번호로 안에 다시 놓는다(안 나갔으면 무동작 · 높이 칸의 그 길과 같다 · 히스토리는 아래의 한 칸에 같이 든다). */
       refitBuzzOnResize(ss);
       _ssLay.refresh();   // 패딩 제외 켬/끔 = 사슬 막힘/풂(표준 Layout)
+      window.pushHistory?.('프레임 패딩 제외');   // push-after(0.9.14 94행) — tests/unit/prop-push-after PA-9
       window.scheduleAutoSave?.();
     });
   }

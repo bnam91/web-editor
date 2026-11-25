@@ -326,10 +326,10 @@ export function showBanner02Properties(block, activeIdxArg) {
        (프레임에서 실제로 났던 회귀. 검사 F4 가 그 왕복을 문다). 자연 폭 복원은 rerender 몫. */
   const fbToggle = propPanel.querySelector('#bn2-fullbleed-toggle');
   fbToggle?.addEventListener('change', e => {
-    window.pushHistory?.('배너2 패딩 제외');
     if (e.target.checked) block.dataset.fullBleed = 'true';
     else { delete block.dataset.fullBleed; clearBlockFullBleed(block); }
     rerender();
+    window.pushHistory?.('배너2 패딩 제외');   // push-after(0.9.14 94행) — tests/unit/prop-push-after PA-9
     window.scheduleAutoSave?.();
   });
 

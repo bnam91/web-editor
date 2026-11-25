@@ -59,11 +59,11 @@ export function wireBubbleSection({ tb, ctx }) {
 
   // 발신자 이름 토글
   document.getElementById('bubble-show-sender')?.addEventListener('change', e => {
-    window.pushHistory?.();
     const show = e.target.checked;
     tb.dataset.showSender = show ? 'true' : 'false';
     const senderEl = tb.querySelector('.tb-sender-name');
     if (senderEl) senderEl.style.display = show ? '' : 'none';
+    window.pushHistory?.();   // push-after(0.9.14 94행) — tests/unit/prop-push-after PA-9
     window.triggerAutoSave?.();
   });
   /* ★1017t1m3 크기 «고정» — 현빈 「해당 기능을 끄면 모달처럼 배경사이즈를 고정해두고 조절가능하게 해줘 👉 이거 반영이 됐는지?」

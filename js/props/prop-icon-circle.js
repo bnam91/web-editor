@@ -165,11 +165,11 @@ export function showIconCircleProperties(block) {
     commit: () => window.pushHistory() } });
   /* Q11(현빈 261112) «내용 자르기» — 에셋(prop-asset.js asset-clip-toggle)과 같은 꼴: 기본값과 같으면 키를 지운다(옛 바이트) · 그리기는 applyIcbClip 한 자리. */
   propPanel.querySelector('#icb-clip-toggle')?.addEventListener('change', e => {
-    window.pushHistory?.('서클 내용 자르기');
     const want = !!e.target.checked;
     if (want === window.CLIP_DEFAULTS?.icb) delete block.dataset.clipContent;
     else block.dataset.clipContent = want ? 'true' : 'false';
     window.applyIcbClip?.(block);
+    window.pushHistory?.('서클 내용 자르기');   // push-after(0.9.14 94행) — tests/unit/prop-push-after PA-9
     window.scheduleAutoSave?.();
   });
   /* G14 「＋ 블럭 넣기 ▾」 — 고르면 바로 넣고 머리로 되돌린다(G19 그리드 「＋ 블럭 넣기 ▾」와 같은 꼴). */
