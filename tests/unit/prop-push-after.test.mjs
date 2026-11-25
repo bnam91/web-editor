@@ -444,3 +444,9 @@ function controlPickSites(sites) {
 
 test('PA-11 ★단추·피커·목록·올리기 서른아홉 자리는 «바꾸고 나서» 찍는다', () => checkPickSites(PICK_SITES, 'PA-11'));
 test('PA-12 ★음성·양성대조 — PA-11 의 판정이 자리마다 두 순서를 실제로 가르는가', () => controlPickSites(PICK_SITES));
+
+/* PA-13/PA-14 — 공용 폰트 피커(js/props/_font-picker.js) 한 자리. 쓰는 화면 = 글(txt) · 모달(mdl-typo) · 인용구(qt-typo) ·
+   그리드 줄(grd-typo — line-host 주인 버블·챗·비교·월계·카드도 같은 배선). onPick 이 기록을 안 하는 배선(txt)도 있어 «피커가» 뒤에 찍는다. */
+const FONT_PICKER_SITE = [['js/props/_font-picker.js', "const item = e.target.closest('.font-item')", 'if (item)', 'onPick(rawVal)']];
+test('PA-13 ★폰트 피커는 «고른 값을 적용하고 나서» 찍는다', () => checkPickSites(FONT_PICKER_SITE, 'PA-13'));
+test('PA-14 ★음성·양성대조 — PA-13 의 판정이 두 순서를 가르는가', () => controlPickSites(FONT_PICKER_SITE));

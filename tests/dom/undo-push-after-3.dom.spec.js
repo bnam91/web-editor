@@ -4,8 +4,10 @@
  *   그 찍기는 js/history.js 무변화 차단에 먹힌다 ⇒ 그 조작은 자기 칸을 못 갖는다(⌘Z 가 구제 칸을 쌓고 · 다음 편집과 같이 사라진다).
  * ★재는 것 — 자리마다 «조작이 마지막 동작 · ⌘Z 한 걸음»(_history-step: 끝 표본 · 구제 없음 · 되돌림):
  *   U 아래 SITES(자리 서른아홉 · tests/unit/prop-push-after PA-11 명부와 한 줄씩 맞다)
+ *   F 폰트 피커(공용 js/props/_font-picker.js) — 그 피커를 쓰는 배선 넷(txt · mdl-typo · qt-typo · grd-typo)
  *   C0 대조 — 줌 숫자 칸(bindPair · 이미 push-after)은 같은 잣대로 초록(잣대가 이 장면에서 도는지 · 80·94행 spec C0 와 같음)
- * 빨강 기대: ea56805d7(고치기 전) = U 전부 빨강 · C0 초록.
+ * 빨강 기대: ea56805d7(고치기 전) = U 전부 빨강 · F txt·grd-typo 빨강(onPick 이 기록을 안 하거나 «앞»에만 한다) ·
+ *   F mdl-typo·qt-typo 초록(onPick 안의 commit 이 이미 «뒤»에 찍는다 — 대조 겸) · C0 초록.
  * ★누르기 = 요소에 직접 .click()/dispatch — 접힌 절 안 칸도 이벤트가 선다. 올리기(U annot-label-img-upload)만 진짜 마우스(파일 고르기 창은 사용자 활성이 있어야 뜬다).
  */
 const { test, expect } = require('@playwright/test');
@@ -147,6 +149,27 @@ for (const [name, kind, sel, act, opts] of SITES) {
     const errs = await scene(page, kind);
     await page.waitForSelector(sel, { state: 'attached' });
     await expectOneUndoStep(page, async () => { await act(page); await raf(page); }, name, opts || {});
+    expect(errs, errs.join(' | ')).toEqual([]);
+  });
+}
+
+/* F — 공용 폰트 피커(_font-picker.js:191). 트리거를 열고 «지금 아닌» 글꼴 하나를 고른다(목록은 mousedown 위임). */
+const pickFont = (p) => ev((p) => {
+  document.getElementById(`${p}-font-trigger`).click();
+  const it = [...document.querySelectorAll(`#${p}-font-list .font-item`)].find((i) => i.dataset.value && !i.classList.contains('selected'));
+  it.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+}, p);
+const FONT_SITES = [
+  ['txt',      'text'],       // prop-text-wireup-font.js — 글 블럭(말풍선 포함 · showTextProperties)
+  ['mdl-typo', 'modal'],      // prop-modal.js
+  ['qt-typo',  'quote'],      // prop-quote.js
+  ['grd-typo', 'gridText'],   // prop-grid.js _grdWireTypo — 그리드 줄(그리고 line-host 주인: 버블·챗·비교·월계·카드)
+];
+for (const [p, kind] of FONT_SITES) {
+  test(`F font-picker ${p} — 글꼴 고르기 = 마지막 동작 · ⌘Z 한 걸음`, async ({ page }) => {
+    const errs = await scene(page, kind);
+    await page.waitForSelector(`#${p}-font-trigger`, { state: 'attached' });
+    await expectOneUndoStep(page, async () => { await pickFont(p)(page); await raf(page); }, `font ${p}`);
     expect(errs, errs.join(' | ')).toEqual([]);
   });
 }
