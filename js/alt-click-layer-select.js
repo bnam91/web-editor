@@ -269,6 +269,9 @@
     const mv = (ev) => {
       if (done || Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 3) return;
       end();
+      const seq0 = window.getHistoryTip?.()?.seq;   // ★154 — 손짓 전 꼭대기 · 놓은 뒤(끌기 끝 표본까지) 한 칸으로 접는다
+      const fold = () => { document.removeEventListener('mouseup', fold, true); setTimeout(() => { window.pushHistory?.('⌥끌기 복제'); window.squashHistorySince?.(seq0); }, 0); };   // 끝 상태를 먼저 찍고(흐름 drop 은 push-before 라 끝 표본이 없다 · 같으면 무변화 차단) 접는다
+      document.addEventListener('mouseup', fold, true);
       const pairs = window.duplicateInPlace() || [];
       const pair = pairs.find((p) => p.from === src || p.from.contains(src));
       if (!pair) return;
@@ -293,6 +296,9 @@
   document.addEventListener('dragstart', function () {
     if (!_altFlow) return;
     _altFlow = null; _handledOnDown = false;
+    const seq0 = window.getHistoryTip?.()?.seq;   // ★154 — 흐름 = 네이티브 끌기 · 끝(dragend · drop 처리 뒤)에 한 칸으로 접는다
+    const fold = () => { document.removeEventListener('dragend', fold, true); setTimeout(() => { window.pushHistory?.('⌥끌기 복제'); window.squashHistorySince?.(seq0); }, 0); };   // 끝 상태를 먼저 찍고(흐름 drop 은 push-before 라 끝 표본이 없다 · 같으면 무변화 차단) 접는다
+    document.addEventListener('dragend', fold, true);
     window.duplicateInPlace?.({ select: 'from' });
   }, true);
 

@@ -852,6 +852,21 @@ function restampHistoryTop(seq) {
   return true;
 }
 
+/* ★154 t13D-03 마감 ◑(⌥끌기 복제 · 지디 261122 재채점 «⌘Z 한 번에 사본 안 빠짐») — 한 손짓이 쌓은 칸들을 «한 칸»으로 접는다.
+ *   seq = 손짓 «전» 꼭대기의 seq. 그 칸은 남기고, 그 뒤에 생긴 칸들 중 꼭대기(끝 상태)만 남긴다 ⇒ ⌘Z 한 번 = 손짓 전.
+ *   ⛔안전: 그 사이 되돌리기가 있었거나(꼭대기 아님) 그 seq 가 없거나(밀려남) 새 칸이 둘 미만이면 아무것도 안 한다(false). */
+function squashHistorySince(seq) {
+  if (_historyPaused || seq == null) return false;
+  if (historyPos !== historyStack.length - 1) return false;
+  const i = historyStack.findIndex(x => x && x.seq === seq);
+  if (i < 0 || historyPos - i < 2) return false;
+  historyStack = historyStack.slice(0, i + 1).concat([historyStack[historyPos]]);
+  historyPos = i + 1;
+  _updateUndoRedoBtns();
+  return true;
+}
+window.squashHistorySince = squashHistorySince;
+
 /** 그 seq 가 «아직 스택에 있는가» — 없으면 MAX_HISTORY 로 밀려난 것. */
 function historyHasSeq(seq) { return historyStack.some(x => x && x.seq === seq); }
 
