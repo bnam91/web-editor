@@ -32,7 +32,7 @@ import { isBlurIntoPanel, parkEditing } from './props/_text-selection.js';
 import { sanitizeRichTextHtml, richTextHasFormatting } from './util/sanitize-rich-text.js';
 /* ★수지② — ★슬롯 키 표는 ★modal-block.js 에서 ★파생한다.
    ⛔여기에 `{title:'titleText',…}` 를 ★되적지 마라 — 그게 ★둘째 명부였다(2026-10-08 합쳤다). */
-import { MODAL_SLOT_KEYS } from './blocks/modal-block.js';
+import { MODAL_SLOT_KEYS, MODAL_RICH_TEXT_OPTS } from './blocks/modal-block.js';
 /* ★수지⑦ — ★그리드 허용목록은 ★그리드가 들고 있다(★렌더와 ★커밋이 ★같은 한 벌을 써야 한다).
    ⛔여기 ★사본을 적지 마라 — ★갈리면 「★커밋은 됐는데 ★렌더에서 사라진다」가 된다. */
 import { GRID_RICH_TEXT_OPTS } from './blocks/grid-block.js';
@@ -364,8 +364,8 @@ function _modalEndEdit(block, host) {
      ★서식이 ★없으면 ★빈 문자열 ⇒ commitModalSlot 이 ★키를 ★지운다(★옛 평문 경로 유지 = ★무회귀).
      ★안내문구 상태(isPh)면 ★Html 도 ★없다 — 흐린 안내문구가 서식을 입으면 안 된다. */
   const sanitized = (!isPh && typeof sanitizeRichTextHtml === 'function')
-    ? sanitizeRichTextHtml(host.innerHTML) : '';
-  const nextHtml = (sanitized && richTextHasFormatting(sanitized)) ? sanitized : '';
+    ? sanitizeRichTextHtml(host.innerHTML, MODAL_RICH_TEXT_OPTS) : '';   // rp119 — 형광펜 span.tb-hl · 고른 글자 크기 font-size 가 다시 편집해도 산다(렌더와 같은 opts)
+  const nextHtml = (sanitized && richTextHasFormatting(sanitized, MODAL_RICH_TEXT_OPTS)) ? sanitized : '';
   const K = MODAL_SLOT_KEYS[slot];
   const curPlain = K ? (block.dataset[K.plain] || '') : '';
   const curHtml  = K ? (block.dataset[K.html]  || '') : '';

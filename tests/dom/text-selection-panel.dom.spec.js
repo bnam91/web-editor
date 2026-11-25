@@ -367,7 +367,7 @@ test('T7h 모달 본문 BBB 고르고 H — 고른 글자만 노랑(span.tb-hl) 
   await editAndSelectBBB(page, host, { type: true, preClick: true });
   await assertPremise(page, host);
   await clickField(page, '#mdl-typo-highlight-btn');
-  await page.waitForTimeout(200);
+  await page.waitForFunction((h) => !!document.querySelector(h + ' span.tb-hl'), host);   // 단추 뒤 모달 다시 그림(span 이 선다)
   expect(await page.evaluate((h) => document.querySelector(h)?.textContent, host)).toBe('AAA BBB CCC');
   expect(await mdlHl(page, host), '★고른 글자만').toEqual({ spans: ['BBB'], slotBg: 'rgba(0, 0, 0, 0)', hasKey: false, html: true });
   const bg = await page.evaluate((h) => getComputedStyle(document.querySelector(h + ' span.tb-hl')).backgroundImage, host);
@@ -405,7 +405,7 @@ test('T7x 모달 BBB 고른 뒤 «슬롯 전체» 칸(굵기) — 선택 칠이 
   await editAndSelectBBB(page, host, { type: true, preClick: true });
   await assertPremise(page, host);
   await page.locator('#mdl-typo-font-weight').selectOption('700');
-  await page.waitForTimeout(200);
+  await page.waitForFunction((id) => document.getElementById(id)?.dataset.fontWeight === '700', id);
   expect(await highlight(page), '★슬롯 전체에 먹었으면 BBB 칠은 걷힌다').toBeNull();
   expect(errs, errs.join(' | ')).toEqual([]);
 });

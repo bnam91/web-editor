@@ -563,10 +563,26 @@ function _titleWeightCss(ds) {
   return w ? `font-weight:${w};` : '';
 }
 
-/* 형광펜 — 슬롯 «글자 뒤»에 칠한다. 루트에 칠하면 배경색(bg)과 싸운다.
-   ⚠️이 형광펜은 슬롯 전체를 칠한다. 부분 서식은 따로 있다 — 슬롯 마크업은 _textHtml 이 sanitizeRichTextHtml 로 그린다. */
-function _highlightCss(ds) {
-  return ds.highlight === '1' ? 'background-color:#fff2a8;' : '';
+/* ★형광펜 = 텍스트블럭과 같은 기전 — 글자 «길이»의 span.tb-hl(css/editor-layout.css .tb-hl · 색 --tb-hl-color = 토큰 --ui-highlight).
+   ⛔옛 판은 슬롯 «상자» 배경을 #fff2a8 로 칠했다(_highlightCss · dataset.highlight='1' — AUDIT-right-panel-261119 R1).
+   ⇒ 패널 H 는 고른 글자(없으면 글자 전체)를 span.tb-hl 로 두르고 dataset.<slot>Html 에 싣는다(prop-modal.js · RP-MODAL-HIGHLIGHT-SELECTION-01).
+   ★슬롯 HTML 이 살리는 것 = 기본 명부 + class tb-hl + font-size(px) — 패널 «고른 글자만» 크기·형광펜이 저장·로드를 건너게. */
+export const MODAL_RICH_TEXT_OPTS = Object.freeze({ classes: Object.freeze(['tb-hl']), styleProps: Object.freeze(['font-size']) });
+if (typeof window !== 'undefined') window.MODAL_RICH_TEXT_OPTS = MODAL_RICH_TEXT_OPTS;
+
+/* ★옛 저장본 이관 — dataset.highlight='1'(슬롯 상자 칠)을 «글자 전체 span.tb-hl» 로 바꾸고 옛 키를 지운다.
+   렌더(로드·⌘Z·MCP opts.highlight)마다 먼저 부른다 — 키가 없으면 아무것도 안 한다(한 번만 돈다). 돌려주는 값 = 이관했으면 true. */
+export function migrateModalHighlight(block) {
+  const ds = block?.dataset;
+  if (!ds || ds.highlight !== '1') return false;
+  for (const K of Object.values(MODAL_SLOT_KEYS)) {
+    const plain = ds[K.plain];
+    if (String(plain ?? '').trim() === '') continue;
+    const inner = ds[K.html] ? sanitizeRichTextHtml(ds[K.html], MODAL_RICH_TEXT_OPTS) : _esc(plain);
+    ds[K.html] = `<span class="tb-hl">${inner}</span>`;
+  }
+  delete ds.highlight;
+  return true;
 }
 
 function _num(block, key, def) {
@@ -711,7 +727,7 @@ function _setSlotPlain(block, slot, value) {
 function _textHtml(cls, slot, value, ph, extraCss = '', htmlValue = '') {
   const empty = String(value ?? '').trim() === '';
   const shown = empty ? ph : value;
-  const inner = (!empty && htmlValue) ? sanitizeRichTextHtml(htmlValue) : _esc(shown);
+  const inner = (!empty && htmlValue) ? sanitizeRichTextHtml(htmlValue, MODAL_RICH_TEXT_OPTS) : _esc(shown);
   return `<div class="${cls}" data-mdl-slot="${slot}" contenteditable="false"`
        + ` data-placeholder="${_esc(ph)}"${empty ? ' data-is-placeholder="true"' : ''}`
        + (extraCss ? ` style="${extraCss}"` : '')
@@ -720,6 +736,7 @@ function _textHtml(cls, slot, value, ph, extraCss = '', htmlValue = '') {
 
 function renderModalBlock(block) {
   if (!block) return;
+  migrateModalHighlight(block);   // rp119 옛 저장본 상자 형광펜 → span.tb-hl(키 없으면 0)
   const v = MODAL_VARIANTS.includes(block.dataset.variant) ? block.dataset.variant : MODAL_DEFAULTS.variant;
   // 테두리·배경은 «변형의 유효 기본값»으로 폴백한다 — dataset 이 비어 있어도 변형의 정체가 보인다.
   const bg = block.dataset?.fillHidden === '1' ? 'transparent' : (block.dataset.bg || _effDefault(v, 'bg'));   // F6-2 숨김(키 = props/_fill-section setFillHiddenKey · import 0 = 하네스 단독 적재) — 칠만 안 함 · 색 키 그대로
@@ -833,26 +850,19 @@ function renderModalBlock(block) {
   let html = '';
 
   if (v === 'titled') {
-    html = `<div class="tb-mdl-title" data-mdl-slot="title" contenteditable="false"`
-         + ` data-placeholder="${_esc(MODAL_PH.title)}"`
-         + `${String(title ?? '').trim() === '' ? ' data-is-placeholder="true"' : ''}`
-         + ` style="padding:${Math.round(padY * 0.6)}px ${padX}px;${_titleWeightCss(block.dataset)}${_highlightCss(block.dataset)}">`
-         + `${_esc(String(title ?? '').trim() === '' ? MODAL_PH.title : title)}</div>`
-         + `<div class="tb-mdl-text" data-mdl-slot="text" contenteditable="false"`
-         + ` data-placeholder="${_esc(MODAL_PH.text)}"`
-         + `${String(text ?? '').trim() === '' ? ' data-is-placeholder="true"' : ''}`
-         + ` style="padding:${padY}px ${padX}px;${_highlightCss(block.dataset)}">`
-         + `${_esc(String(text ?? '').trim() === '' ? MODAL_PH.text : text)}</div>`;
+    /* ★rp119 — 제목·본문도 _textHtml 한 길로(서식 HTML 이 없으면 옛 바이트 그대로 · 있으면 그린다 — 옛 판은 titled 만 Html 을 안 읽어 이관한 형광펜이 사라질 자리였다) */
+    html = _textHtml('tb-mdl-title', 'title', title, MODAL_PH.title, `padding:${Math.round(padY * 0.6)}px ${padX}px;${_titleWeightCss(block.dataset)}`, block.dataset.titleHtml)
+         + _textHtml('tb-mdl-text', 'text', text, MODAL_PH.text, `padding:${padY}px ${padX}px;`, block.dataset.textHtml);
   } else if (v === 'grid-2') {
     // ★현빈 조정⑴ — 칼럼은 «투명 배경». 위치만 잡는 용도라 배경/테두리를 주지 않는다.
     //   셀은 «텍스트 전용»이다(드롭존 미등록) → 모달 안 모달이 안 생긴다.
     html = `<div class="mdl-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:${gap}px;">`
-         + _textHtml('tb-mdl-cell', 'cell1', block.dataset.cell1, MODAL_PH.cell, _highlightCss(block.dataset), block.dataset.cell1Html)
-         + _textHtml('tb-mdl-cell', 'cell2', block.dataset.cell2, MODAL_PH.cell, _highlightCss(block.dataset), block.dataset.cell2Html)
+         + _textHtml('tb-mdl-cell', 'cell1', block.dataset.cell1, MODAL_PH.cell, '', block.dataset.cell1Html)
+         + _textHtml('tb-mdl-cell', 'cell2', block.dataset.cell2, MODAL_PH.cell, '', block.dataset.cell2Html)
          + `</div>`;
   } else if (v === 'icon' || v === 'icon-stack') {
     /* ★display/flex-direction/align-items/gap/text-align 은 _alignStyles 가 cssText «안»에서 준다(핸들 단위).
-         형광펜은 슬롯 인라인이 아니라 _highlightCss 로 준다(타이포 단위).
+         형광펜은 슬롯 HTML 의 span.tb-hl 이다(rp119 — 옛 _highlightCss 상자 칠 걷음).
        ⇒ 두 단위가 «같은 줄»에서 만난다. 한쪽만 살리면 정렬이 죽거나 형광펜이 죽는다 — 둘 다 살렸다. */
     /* ★아이콘이 줄상자보다 «크면» 글자 쪽을 내린다(반대 갈래는 _modalIconAttrs 가 아이콘을 내린다).
          둘 중 하나만 0 이 아니다 — 같은 표(_mdlLineBox)에서 나오므로 두 벌이 될 수 없다.
@@ -862,7 +872,7 @@ function renderModalBlock(block) {
       : 0;
     const _inner = _modalIconHtml(block, v)
                  + _textHtml('tb-mdl-text', 'text', text, MODAL_PH.text,
-                     _highlightCss(block.dataset) + (_tlo > 0 ? `margin-top:${_tlo}px;` : ''),
+                     (_tlo > 0 ? `margin-top:${_tlo}px;` : ''),
                      block.dataset.textHtml);
     /* ★icon 변형만 «가로 한 줄»을 래퍼로 만든다 (2026-09-20)
          루트는 _alignStyles 가 세로쌓기로 돌려놨다 ⇒ vAlign 은 「상자 안 세로 위치」,
@@ -887,7 +897,7 @@ function renderModalBlock(block) {
        ⛔그렇다고 지우지 마라 — 옆 래퍼(아이콘 행)와 ★같은 꼴이고, 글 칸의 flex 가 언제든
        빠지면 그때 «정렬»을 받을 자리가 거기다. 지금 보이는 정렬은 뿌리의 text-align 이 맡는다. */
     const _ptxt = _textHtml('tb-mdl-text', 'text', text, MODAL_PH.text,
-      _highlightCss(block.dataset) + (_pf ? 'flex:1 1 auto;min-width:0;' : ''), block.dataset.textHtml);
+      (_pf ? 'flex:1 1 auto;min-width:0;' : ''), block.dataset.textHtml);
     html = _pf
       ? `<div class="mdl-profilerow" style="display:flex;flex-direction:row;align-items:center;`
         + `justify-content:${_MDL_JUSTIFY_H[align] || _MDL_JUSTIFY_H.left};gap:${_profileGap(block.dataset)}px;">`   // ★t5-03ⓐ 프로필 행만
