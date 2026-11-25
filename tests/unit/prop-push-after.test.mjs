@@ -253,3 +253,49 @@ test('PA-6 ★검사가 «눈을 감지» 않았는가 — 주석 걷기가 코�
     '★옛 정규식으로도 6,000자 넘는 덩어리가 «안» 나온다 — 그러면 위 초록이 «없어서»인지 ' +
     '«못 봐서»인지 갈리지 않는다. 한계선(6000)이 늙었거나 원인이 사라진 것이니 다시 재고 고쳐라.');
 });
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PA-7/PA-8 — ★[0.9.14 80행 UNDO-CHECK-PUSH-BEFORE-01] 체크박스 칸 bindCheck(js/props/prop-zoom.js)
+   ──────────────────────────────────────────────────────────────────────────
+   PA-1 의 사각지대 둘째: 기록 뒤에 «대입»(`block.dataset[key] = …`)이 와서 PA-1 이 못 봤다.
+   실앱(미카사 0913-d ⑥): 줌 «테두리 켬 → 굵기 14 → ⌘Z» 한 번에 off/6 — 켬이 자기 칸을 못 가졌다.
+   ⇒ bindCheck 의 onChange 몸통을 PA-4 와 같은 잣대(기록 앞에 대입이 있다)로 잠근다.
+   행동 쪽은 tests/dom/undo-check-push-after.dom.spec.js(U1·U2 · bindCheck 세 자리)가 잰다.
+   ⛔이 검사는 «소스 모양»만 잰다.
+═══════════════════════════════════════════════════════════════════════════ */
+const CHECK_ANCHOR = ['js/props/prop-zoom.js', 'const bindCheck'];
+/** 판정 — 몸통에 기록이 있고, 그 «앞»에 대입이 하나라도 있다(= 적용 먼저). */
+const appliesBeforeRecord = (body) => { const rec = body.search(RECORD_RE); return rec >= 0 && ASSIGN_RE.test(body.slice(0, rec)); };
+function checkBody() {
+  const [file, anchor] = CHECK_ANCHOR;
+  const f = sources().find(s => s.rel === file);
+  assert.ok(f, `★${file} 을 못 찾았다 — 검사가 «안 돈» 것이지 통과가 아니다`);
+  const at = f.code.indexOf(anchor);
+  assert.ok(at >= 0, `★${file} 에서 «${anchor}» 를 못 찾았다 — 앵커가 늙었다`);
+  const on = f.code.indexOf('onChange:', at);
+  assert.ok(on > at, `★${file} bindCheck 에서 onChange 를 못 찾았다 — 앵커가 늙었다`);
+  const body = bodyFrom(f.code, on);
+  assert.ok(body, `★${file} bindCheck onChange 몸통을 못 떼어냈다`);
+  return body;
+}
+
+test('PA-7 ★bindCheck(체크박스 칸)는 «바꾸고 나서» 찍는다', () => {
+  const body = checkBody();
+  assert.match(body, /window\.pushHistory\?\.\(label\)/, '★bindCheck 가 기록을 안 한다 — 켬/끔이 칸을 못 만든다');
+  assert.ok(appliesBeforeRecord(body),
+    '★bindCheck 가 «찍고 나서» 바꾼다(push-before). 앞 편집이 push-after 면 켬/끔이 자기 칸을 잃고 ' +
+    '다음 편집과 함께 ⌘Z 한 번에 사라진다(줌 «테두리 켬 → 굵기 14 → ⌘Z» = off/6) — 적용 먼저, 기록 나중.');
+});
+
+test('PA-8 ★음성·양성대조 — PA-7 의 판정이 두 순서를 실제로 가르는가', () => {
+  /* 화석을 안 베낀다 — 지금 몸통에서 기록 줄을 떼어 «맨 앞»(옛 모양)과 «맨 뒤»(고친 모양)에 붙인 변형본 둘을 만든다.
+     ⇒ 지금 소스가 어느 순서든 두 변형본은 같다 — 이 대조는 판정 자체만 잰다. */
+  const body = checkBody();
+  const rec = body.search(RECORD_RE);
+  assert.ok(rec >= 0, '★변환이 늙었다 — 기록 줄을 못 찾았다');
+  const ls = body.lastIndexOf('\n', rec) + 1, le = body.indexOf(';', rec) + 1;
+  const recLine = body.slice(ls, le), rest = body.slice(0, ls) + body.slice(le);
+  assert.ok(ASSIGN_RE.test(rest), '★변환이 늙었다 — 몸통에 대입(적용)이 없다');
+  assert.equal(appliesBeforeRecord(recLine + '\n' + rest), false, '★push-before 변형본을 판정이 «못 잡는다» — PA-7 의 초록은 «못 봐서»다');
+  assert.equal(appliesBeforeRecord(rest + '\n' + recLine), true, '★push-after 변형본을 판정이 «틀렸다»고 한다 — PA-7 의 빨강은 잣대 탓이다');
+});
