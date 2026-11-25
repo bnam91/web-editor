@@ -3,7 +3,7 @@
  * V1 갈래마다: 패널 열기 + 컨트롤 하나 조작 → ⑴ pageerror·예외 0 ⑵ 캔버스가 실제로 바뀌었다(컨트롤이 «쓴다» — 배선이 살아 있다).
  *   갈래 = asset(기본·이미지·영상·로고·플로팅) · shape(사각·원·별·가림막) · zoom · annotation(일반·치수선·이미지 라벨) ·
  *          iconify · mockup · gradient · divider · vector(일반·펜 패스) · joker · icon-circle.
- * ★내장 양성대조 P: prop-annotation.js 의 가드 `if (fs && fsN) {` 하나를 떼어 낸 판을 내려보내면(이미지 라벨 갈래엔 글자 크기 칸이 없다)
+ * ★내장 양성대조 P: prop-annotation.js 의 가드 `if (fsN) {` 하나를 떼어 낸 판을 내려보내면(이미지 라벨 갈래엔 글자 크기 칸이 없다)
  *   같은 V1 판정이 그 갈래에서 빨강이 된다 — 이 자가 «가드 없는 조회»를 실제로 잡는다.
  * ⛔화면 px 를 재지 않는다. */
 const { test, expect } = require('@playwright/test');
@@ -88,9 +88,9 @@ test('P ★양성대조 — annotation 가드 하나를 떼면 «이미지 라�
   await scene(page);
   const fs = require('fs'); const path = require('path');
   const src = fs.readFileSync(path.join(__dirname, '..', '..', 'js/props/prop-annotation.js'), 'utf8');
-  expect(src.split('if (fs && fsN) {').length - 1, '[전제] 가드가 정확히 한 자리').toBe(1);
+  expect(src.split('if (fsN) {').length - 1, '[전제] 가드가 정확히 한 자리').toBe(1);   // ★기대 바뀜(표준 Typography · 탑 워커 261125): 옛 슬라이더 쌍(fs·fsN) → 정본 크기칸 하나(fsN) · 가드 하나 그대로
   // 나중에 건 route 가 먼저 돈다 — bootApp 의 정적 서버보다 앞에서 이 파일만 바꿔 내려보낸다
-  await page.route('**/js/props/prop-annotation.js', (r) => r.fulfill({ contentType: 'text/javascript', body: src.replace('if (fs && fsN) {', '{') }));
+  await page.route('**/js/props/prop-annotation.js', (r) => r.fulfill({ contentType: 'text/javascript', body: src.replace('if (fsN) {', '{') }));
   await page.reload();
   await page.waitForFunction(() => typeof window.rebindAll === 'function' && typeof window.groupSelectedBlocks === 'function', null, { timeout: 20000 });
   await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); await window.addSection(); const sec = c.querySelector('.section-block'); window.__secEl = () => sec; });

@@ -64,7 +64,7 @@ const state = (page, id) => page.evaluate((id) => {
     ce: l.getAttribute('contenteditable'),
     selected: b.classList.contains('selected'),
     panel: !!document.querySelector('#panel-right [data-prop-panel="annotation"]'),
-    panelFs: !!document.querySelector('#panel-right #annot-font-size-num'),
+    panelFs: !!document.querySelector('#panel-right #annot-typo-size-number'),   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
     data: b.dataset.text, html: b.dataset.labelHtml || '', fs: b.dataset.labelFontSize || '',
     lines: Math.round(inner / parseFloat(cs.lineHeight)), inner: l.innerHTML,
   };
@@ -185,9 +185,9 @@ test('LN3 (지키는 칸) 줄 든 서식 라벨 — CD 만 빨강 → 패널 «�
   const lr = await waitStableRect(page, labelSel(id));
   await clickAt(page, lr.cx, lr.cy, { sel: labelSel(id) }, { label: '라벨 다시 고르기' });
   await expect.poll(async () => { const s = await state(page, id); return [s.selected, s.panelFs]; }, '★전제: 다시 골랐다').toEqual([true, true]);
-  await page.click('#annot-font-size-num');
-  await page.fill('#annot-font-size-num', '30');
-  await page.press('#annot-font-size-num', 'Enter');
+  await page.click('#annot-typo-size-number');   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
+  await page.fill('#annot-typo-size-number', '30');   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
+  await page.press('#annot-typo-size-number', 'Enter');   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
   await expect.poll(async () => (await state(page, id)).fs, '★전제: 라벨 전체 크기 30 이 저장됐다').toBe('30');
   await expect.poll(async () => (await perCharColor(page, id)).map(([ch, c]) => [ch, c === RED]), '전체 크기를 바꿔도 화면의 CD 빨강이 남는다(화면 = 저장)')
     .toEqual([['A', false], ['B', false], ['C', true], ['D', true]]);

@@ -34,8 +34,8 @@ async function enterEdit(page, id) {
   await page.evaluate((e) => (0, eval)(e).scrollIntoView({ block: 'center' }), LBL(id));
   const p = await stableEl(page, LBL(id));
   await clickAt(page, p.x, p.y, { sel: '.graph-block' }, { label: '그래프 선택' });
-  await page.waitForSelector('#grb-label-number', { timeout: 3000 });
-  await page.evaluate(() => { const pp = document.getElementById('grb-label-number').closest('.prop-panel, #prop-panel, [id*=prop]') || document.getElementById('grb-label-number').parentElement; let s = pp; while (s && s.scrollHeight <= s.clientHeight) s = s.parentElement; if (s) s.scrollTop = 0; });   // 패널을 맨 위로 — 두 줄이 화면 밖에서 시작
+  await page.waitForSelector('#grb-label-size-number', { timeout: 3000 });   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
+  await page.evaluate(() => { const pp = document.getElementById('grb-label-size-number').closest('.prop-panel, #prop-panel, [id*=prop]') || document.getElementById('grb-label-size-number').parentElement; let s = pp; while (s && s.scrollHeight <= s.clientHeight) s = s.parentElement; if (s) s.scrollTop = 0; });   // 패널을 맨 위로 — 두 줄이 화면 밖에서 시작   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
   const q = await stableEl(page, LBL(id));
   await clickAt(page, q.x, q.y, { sel: '.grb-line-xlabel' }, { label: '라벨 더블클릭', dbl: true });
   await expect.poll(() => page.evaluate(() => !!document.activeElement?.matches('.grb-line-xlabel') && document.activeElement.isContentEditable), { message: '편집 진입', timeout: 3000 }).toBe(true);
@@ -52,8 +52,8 @@ const rowVisible = (page, inputId) => page.evaluate((inputId) => {
 test('R1 ★라벨 더블클릭 → «라벨(크기)»·«카테고리 색상» 줄이 보이고 강조된다', async ({ page }) => {
   const { errs, id } = await setup(page);
   await enterEdit(page, id);
-  await expect.poll(() => rowVisible(page, 'grb-label-slider'), { timeout: 3000 }).toMatchObject({ ok: true });
-  const a = await rowVisible(page, 'grb-label-slider'), b = await rowVisible(page, 'grb-xlabel-color');
+  await expect.poll(() => rowVisible(page, 'grb-label-size-number'), { timeout: 3000 }).toMatchObject({ ok: true });   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
+  const a = await rowVisible(page, 'grb-label-size-number'), b = await rowVisible(page, 'grb-xlabel-color');   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
   expect(a.anim, '라벨 크기 줄 강조').toBeGreaterThan(0);
   expect(b.anim, '카테고리 색상 줄 강조').toBeGreaterThan(0);
   expect(errs).toEqual([]);
@@ -62,12 +62,12 @@ test('R2 ★편집 중 «라벨 크기» 숫자칸 실클릭 → 22 Enter: 그 �
   const { errs, id } = await setup(page);
   await enterEdit(page, id);
   await page.keyboard.press('Meta+a'); await page.keyboard.type('편집중');
-  await page.evaluate(() => { document.getElementById('grb-label-number').__mark = 'k'; });
-  const n = await stableEl(page, `document.getElementById('grb-label-number')`);
-  await clickAt(page, n.x, n.y, { sel: '#grb-label-number' }, { label: '라벨 크기 칸' });
+  await page.evaluate(() => { document.getElementById('grb-label-size-number').__mark = 'k'; });   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
+  const n = await stableEl(page, `document.getElementById('grb-label-size-number')`);   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
+  await clickAt(page, n.x, n.y, { sel: '#grb-label-size-number' }, { label: '라벨 크기 칸' });   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
   await page.keyboard.press('Meta+a'); await page.keyboard.type('22'); await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate((id) => document.getElementById(id).dataset.labelSize, id)).toBe('22');
-  const r = await page.evaluate((id) => ({ same: document.getElementById('grb-label-number')?.__mark === 'k', label: JSON.parse(document.getElementById(id).dataset.items)[1].label, fs: getComputedStyle(document.getElementById(id).querySelectorAll('.grb-line-xlabel')[1]).fontSize, editing: document.getElementById(id).classList.contains('editing') }), id);
+  const r = await page.evaluate((id) => ({ same: document.getElementById('grb-label-size-number')?.__mark === 'k', label: JSON.parse(document.getElementById(id).dataset.items)[1].label, fs: getComputedStyle(document.getElementById(id).querySelectorAll('.grb-line-xlabel')[1]).fontSize, editing: document.getElementById(id).classList.contains('editing') }), id);   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
   expect(r).toEqual({ same: true, label: '편집중', fs: '22px', editing: false });
   expect(errs).toEqual([]);
 });

@@ -152,19 +152,19 @@ test('X4c 라벨 슬라이더 ArrowRight ×3 → 포커스 그대로 · 칸 노�
   const errs = await setup(page);
   await page.evaluate(() => {
     document.getElementById('grb-pie-name-fs').__x4c = 1;
-    document.getElementById('grb-label-slider').__x4c = 1;
-    const pp = document.getElementById('grb-label-slider').closest('#prop-panel, .panel-body') || document.getElementById('grb-label-slider').parentElement;
+    document.getElementById('grb-label-size-number').__x4c = 1;   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
+    const pp = document.getElementById('grb-label-size-number').closest('#prop-panel, .panel-body') || document.getElementById('grb-label-size-number').parentElement;   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
     pp.__x4c = 1; window.__x4cPanel = pp;
   });
-  await page.focus('#grb-label-slider');
-  for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight');
+  await page.focus('#grb-label-size-number');   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
+  for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowUp');   // ★기대 바뀜(표준 Typography · 탑 워커 261125) — 슬라이더 → 숫자칸 화살표 스텝
   await raf2(page);
   const s = await page.evaluate(() => ({
     active: document.activeElement?.id, activeSame: document.activeElement?.__x4c === 1,
     fsSame: document.getElementById('grb-pie-name-fs')?.__x4c === 1,
-    panelSame: window.__x4cPanel.isConnected && window.__x4cPanel.__x4c === 1 && !!window.__x4cPanel.querySelector('#grb-label-slider')?.__x4c,
+    panelSame: window.__x4cPanel.isConnected && window.__x4cPanel.__x4c === 1 && !!window.__x4cPanel.querySelector('#grb-label-size-number')?.__x4c,   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
   }));
-  expect(s, '슬라이더 input 경로는 패널을 다시 그리지 않는다(다시 그리면 포커스가 날아가 다음 화살표가 안 먹는다)').toEqual({ active: 'grb-label-slider', activeSame: true, fsSame: true, panelSame: true });
+  expect(s, '슬라이더 input 경로는 패널을 다시 그리지 않는다(다시 그리면 포커스가 날아가 다음 화살표가 안 먹는다)').toEqual({ active: 'grb-label-size-number', activeSame: true, fsSame: true, panelSame: true });   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
   expect(await page.evaluate(() => document.getElementById('pG').dataset.labelSize), '화살표 셋 = 20 → 23').toBe('23');
   await expect.poll(() => phLead(page), { message: '라벨 23 → 이름 23', timeout: 3000 }).toMatchObject({ name: 23 });
   expect(errs).toEqual([]);
@@ -190,7 +190,7 @@ test('X4a 패널을 연 채 라벨 크기 28 → placeholder 가 따른다(이�
   expect(em, '전제: 배지가 덧층보다 작게 그려진다').toBeGreaterThan(0);
   expect(em).toBeLessThan(1);
   expect(ph0, '전제: 라벨 20 의 기본').toEqual({ name: '20', rank: String(Math.round(20 * em)) });
-  await page.click('#grb-label-number');
+  await page.click('#grb-label-size-number');   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
   await page.keyboard.press('Meta+a');
   await page.keyboard.type('28');
   await page.keyboard.press('Enter');
@@ -213,7 +213,7 @@ test('X4b 배지 비를 css 변수로 바꾸면 placeholder 가 따른다 · 다
   await page.evaluate(() => window.showGraphProperties(document.getElementById('pG')));
   expect(parseInt((await phOf(page)).rank), '다시 그린 패널 — 배지 placeholder 앞 수 = 그려진 배지 10').toBe(10);
   /* 패널을 연 채 라벨 크기 → 같은 함수 */
-  await page.click('#grb-label-number');
+  await page.click('#grb-label-size-number');   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
   await page.keyboard.press('Meta+a');
   await page.keyboard.type('24');
   await page.keyboard.press('Enter');

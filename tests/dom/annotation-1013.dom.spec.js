@@ -123,7 +123,7 @@ test('AN4 기본 글자 크기 24 — 만든 직후 · 프리셋을 눌러도 �
   const id = await makeAnnotation(page);
   const fs = () => page.evaluate((id) => {
     const b = document.getElementById(id); const l = b.querySelector('.annot-label');
-    return { data: b.dataset.labelFontSize, drawn: getComputedStyle(l).fontSize, panel: document.getElementById('annot-font-size-num')?.value ?? null };
+    return { data: b.dataset.labelFontSize, drawn: getComputedStyle(l).fontSize, panel: document.getElementById('annot-typo-size-number')?.value ?? null };   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
   }, id);
   expect((await fs()).data, '만든 직후 dataset').toBe('24');
   expect((await fs()).drawn, '만든 직후 그려진 크기').toBe('24px');

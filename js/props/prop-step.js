@@ -2,6 +2,7 @@ import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { alignBtn, blockHeaderHTML, checkHTML } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
+import { buildTypographySectionHtml } from './_typo-section.js';   // 표준 Typography 절(시트 221) — 크기칸 둘(제목·설명)
 
 import { layoutSizeRowHTML, layoutPadSlotHTML, layoutGapSlotHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(C2)
 import { appearanceSectionHTML, appearanceHeadToolsHTML, wireAppearanceSection } from './_appearance-section.js';   // 표준 Appearance A4(C2)
@@ -148,17 +149,14 @@ export function showStepProperties(block, activeIdxArg) {
       </div>`),
       sec('padding', layoutPadSlotHTML({ lId: 'stb-padl-number', rId: 'stb-padr-number', l: stepPadL, r: stepPadR, max: 300,
         chainId: 'stb-ph-chain', chainOn: stepPadL === stepPadR, chainWhy: '좌우 잠금/풂' })),   // 옛 머리 사슬 stb-ph-chain 은 슬롯 끝 칸으로(id 무변)
-      sec('typography', `
-      <div class="prop-row">
-        <span class="prop-label">제목 크기</span>
-        <input type="range" class="prop-slider" id="stb-title-size-slider" min="12" max="80" step="1" value="${titleSize}">
-        <input type="number" class="prop-number" id="stb-title-size-number" min="12" max="80" value="${titleSize}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">설명 크기</span>
-        <input type="range" class="prop-slider" id="stb-desc-size-slider" min="10" max="64" step="1" value="${descSize}">
-        <input type="number" class="prop-number" id="stb-desc-size-number" min="10" max="64" value="${descSize}">
-      </div>`),
+      /* 표준 Typography — 부위마다 정본 한 벌(크기칸만 · 챗 선례). 접두 stb-title/stb-desc ⇒ 숫자칸 id(stb-*-size-number) 옛 그대로 · 저장 키 titleSize/descSize 그대로 · 옛 슬라이더 걷음 */
+      sec('typography', [['stb-title', '제목', titleSize, 12, 80], ['stb-desc', '설명', descSize, 10, 64]].map(([p, label, size, sizeMin, sizeMax]) => `
+      <span class="prop-field-label">${label}</span>${buildTypographySectionHtml({
+        p, bare: true, size, sizeMin, sizeMax,
+        showFont: false, showWeight: false, showStyleGroup: false,
+        showLetterSpacing: false, showLineHeight: false, showHighlight: false,
+        omitHidden: true,
+      })}`).join('')),
       sec('fill', `
       <div class="prop-row" id="stb-card-bg-row" style="display:${stepStyle === 'card' ? 'flex' : 'none'}">
         <span class="prop-label">카드 배경</span>
@@ -251,24 +249,17 @@ export function showStepProperties(block, activeIdxArg) {
   bindColor('stb-desc-color', 'descColor',  descColor);
 
   // ── 슬라이더 ──
-  function bindSlider(sliderId, numberId, min, max, datasetKey) {
-    const slider = propPanel.querySelector('#' + sliderId);
+  function bindSize(numberId, min, max, datasetKey) {
     const number = propPanel.querySelector('#' + numberId);
-    if (!slider || !number) return;
-    const apply = raw => {
-      const v = Math.max(min, Math.min(max, parseInt(raw) || min));
-      slider.value = v;
-      number.value = v;
-      block.dataset[datasetKey] = v;
-      rerender();
-    };
-    slider.addEventListener('input',  () => apply(slider.value));
-    number.addEventListener('change', () => { apply(number.value); window.pushHistory?.(); });
-    slider.addEventListener('change', () => window.pushHistory?.());
+    if (!number) return;
+    /* input = 바로 그림(화살표 스텝·Enter 합성 input — prop-number-commit-guard.js) · change = 이력 한 번 */
+    const apply = () => { block.dataset[datasetKey] = Math.max(min, Math.min(max, parseInt(number.value) || min)); rerender(); };
+    number.addEventListener('input', apply);
+    number.addEventListener('change', () => { apply(); window.pushHistory?.(); });   // 옛 숫자칸 꼴: change 도 값을 먹인다
   }
 
-  bindSlider('stb-title-size-slider', 'stb-title-size-number', 12, 80, 'titleSize');
-  bindSlider('stb-desc-size-slider',  'stb-desc-size-number',  10, 64, 'descSize');
+  bindSize('stb-title-size-number', 12, 80, 'titleSize');
+  bindSize('stb-desc-size-number',  10, 64, 'descSize');
   /* ★표준 Layout(C2) — 칸 배선은 부품(input = 범위 안이면 바로 · change = 잘라 그린 «뒤» 이력 한 번 · 빈 칸 = 옛 값) · 옛 bindSlider 와 같은 키·범위 */
   const wireOne = (numberId, min, max, key) => wireLayoutSection({ commit: () => window.pushHistory?.(), w: { numberId, min, max, apply: (v) => { block.dataset[key] = v; rerender(); } } });
   wireOne('stb-num-size-number', 20, 80, 'numSize');

@@ -5,6 +5,7 @@ import { propPanel } from '../globals.js';
 import { blockHeaderHTML, wireRotRow, checkHTML, wireCheck } from './_helpers.js';
 import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from './_position-section.js';   // 표준 Position 절(0.9.14 73행 P3)
 import { renderPanel, sec } from './_panel-frame.js';
+import { buildTypographySectionHtml } from './_typo-section.js';   // 표준 Typography 절(시트 221) — 크기칸만(챗 선례 prop-chat.js)
 import { layoutSizeRowHTML, wireLayoutSection } from './_layout-section.js';   // 표준 Layout(L2 · C3)
 import { appearanceSectionHTML, wireAppearanceSection } from './_appearance-section.js';   // A4 Opacity(C3)
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
@@ -192,7 +193,12 @@ export function showZoomProperties(block) {
             <button class="prop-align-btn${st.txa === 'right'  ? ' active' : ''}" data-txa="right">오른쪽</button>
           </div>
         </div>
-        ${_pairRow('zm-txs', '크기', st.txs, 8, 200, 1)}
+        ${buildTypographySectionHtml({
+          p: 'zm-typo', bare: true, size: st.txs, sizeMin: 8, sizeMax: 200,
+          showFont: false, showWeight: false, showStyleGroup: false,
+          showLetterSpacing: false, showLineHeight: false, showHighlight: false,
+          omitHidden: true,   // 크기칸 #zm-typo-size-number(옛 zm-txs 쌍 · 부품 계약) · 저장 키 txs 그대로
+        })}
       </div>`),
       sec('fill', `
       ${fillSectionHTML({ prefix: 'zm-fillstd', on: !isChecker, colorHtml: colorFieldHTML({ idPrefix: 'zm-fill', hex: fillHex, alpha: fillAlpha }) })}
@@ -354,7 +360,10 @@ ${narrowRow}
   bindPair('zm-curve',  'curve',  '확대블럭 농도곡선',  10, 400);
   // ★[숨김] 위 narrowRow 와 «짝». ⛔상태 키 st.narrow 와 기본값 62 는 «살아 있다».
   // bindPair('zm-narrow', 'narrow', '확대블럭 좁아짐',     0, 100);
-  bindPair('zm-txs',    'txs',    '확대블럭 글자 크기',    8, 200);
+  /* 글자 크기 — 표준 Typography 크기칸(input = 바로 그림 · change = 이력 · 옛 bindPair 와 같은 키·범위·라벨) */
+  const _txs = propPanel.querySelector('#zm-typo-size-number');
+  _txs?.addEventListener('input', () => { const v = parseFloat(_txs.value); if (Number.isFinite(v)) { block.dataset.txs = String(Math.min(200, Math.max(8, v))); rerender(); } });
+  _txs?.addEventListener('change', () => { window.pushHistory?.('확대블럭 글자 크기'); window.triggerAutoSave?.(); });
   // ★[숨김] 위 _pairRow 와 «짝»이다 — UI 가 없는데 바인딩만 남기면 안 된다. 같이 가린다.
   //   (bindPair 는 querySelector 결과가 없으면 조용히 return 하므로 남겨도 «오류는 안 난다» —
   //    실측으로 확인했다. 그래도 「없는 요소를 찾는 코드」는 다음 사람을 헷갈리게 하니 가린다.)

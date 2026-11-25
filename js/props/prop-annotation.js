@@ -4,6 +4,7 @@ import { propPanel } from '../globals.js';
 import { blockHeaderHTML, escHtml, checkHTML, wireNumberScrub } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { positionHeadToolsHTML } from './_position-section.js';   // 표준 Position 머리(시트 222) — 몸 = 부품에 칸 없음(옛 그대로 · 탑 보고)
+import { buildTypographySectionHtml } from './_typo-section.js';   // 표준 Typography 절(시트 221) — 크기칸만(챗 선례 prop-chat.js)
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_STYLES_CSS, STROKE_POP_WHY } from './_stroke-section.js';
 /* ★1017t1h3 — 「고른 글자만」 한 벌. ⛔선택을 여기서 따로 저장하지 않는다(_text-selection.js 머리말 ⛔). */
@@ -441,12 +442,12 @@ export function showAnnotationProperties(block) {
       // 모서리(radius)는 어디서나 Appearance(§8 Q2) — 라벨 이미지 라운드 · 치수선 라벨 모서리
       /* ★표준 Appearance A3(지디 261124 (가)) — 표준 R = 치수선 라벨 모서리(부품 · 치수선만) · 라벨 그림 라운드 = 아래 슬롯 «숫자 + 라벨 끌기» 한 줄(부위 R · 끝 단추 없음) · 옛 슬라이더 둘 걷음 · id·키·0~50 무변 */
       sec('appearance', `${appearanceSectionHTML({ prefix: 'annot-label', op: { value: window.readBlockOpacity?.(block) ?? 100 }, radius: st.annotKind === 'dim' ? { numberId: 'annot-label-radius-num', value: st.labelRadius ?? 4, max: 50 } : null })}${st.labelMode === 'text' ? '' : appearanceSlotNumberHTML({ id: 'annot-img-radius-num', label: '그림 라운드', value: st.labelImageRadius, max: 50, kind: 'image-radius' })}`, (st.annotKind === 'dim' || st.labelMode !== 'text') ? { headTools: appearanceHeadToolsHTML({ prefix: 'annot' }) } : {}),
-      sec('typography', st.labelMode === 'text' ? `
-      <div class="prop-row">
-        <span class="prop-label">크기</span>
-        <input type="range" class="prop-slider" id="annot-font-size" min="8" max="48" step="1" value="${st.labelFontSize}">
-        <input type="number" class="prop-number" id="annot-font-size-num" min="8" max="48" step="1" value="${st.labelFontSize}">
-      </div>` : ''),
+      sec('typography', st.labelMode === 'text' ? buildTypographySectionHtml({
+        p: 'annot-typo', bare: true, size: st.labelFontSize, sizeMin: 8, sizeMax: 48,
+        showFont: false, showWeight: false, showStyleGroup: false,
+        showLetterSpacing: false, showLineHeight: false, showHighlight: false,
+        omitHidden: true,   // 배선은 크기칸(#annot-typo-size-number) 하나만 찾는다 · 옛 슬라이더 annot-font-size 걷음 · 저장 키 labelFontSize 그대로
+      }) : ''),
       sec('fill', `${st.labelMode === 'text' ? `
       <div class="prop-color-row">
         <span class="prop-label">글자색</span>
@@ -644,20 +645,11 @@ export function showAnnotationProperties(block) {
   /* ★1013t1A2 — 글 입력칸(#annot-text)은 걷었다(현빈 「우측패널에 굳이 텍스트 입력할 플레이스홀더는 필요없음」).
      글은 캔버스에서 쓴다: 만든 직후 자동 편집(annotation-tool.js) · 라벨 더블클릭 — 둘 다 annotation-select.js annotBeginLabelEdit 한 벌(1013t2C6). */
   // ── 텍스트 모드 wireup (텍스트 모드일 때만 DOM 존재) ──
-  const fs  = propPanel.querySelector('#annot-font-size');
-  const fsN = propPanel.querySelector('#annot-font-size-num');
-  if (fs && fsN) {
+  const fsN = propPanel.querySelector('#annot-typo-size-number');
+  if (fsN) {
     /* ★1017t1h3 — 고른 글자가 있으면 ★그 글자만, 없으면 ★예전 그대로 라벨 전체(_annotApplyToSelection 머리말). */
-    fs.addEventListener('input',  () => {
-      fsN.value = fs.value;
-      const v = parseFloat(fs.value);
-      if (_annotApplyToSelection(block, 'fontSize', v + 'px')) return;
-      _writeProps(block, { labelFontSize: v });
-    });
-    fs.addEventListener('change', () => window.pushHistory?.('라벨 크기'));
     fsN.addEventListener('input', () => {
       const v = Math.min(48, Math.max(8, parseFloat(fsN.value) || 8));
-      fs.value = v;
       if (_annotApplyToSelection(block, 'fontSize', v + 'px')) return;
       _writeProps(block, { labelFontSize: v });
     });

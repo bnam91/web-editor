@@ -91,7 +91,7 @@ const FIELDS = [
     read: `window.__state.pageSettings.padX`,
   },
   {
-    key: 'sticker-fs', label: '텍스트 스티커 글자크기', id: 'stk-t-fs-num', min: 8, max: 400, start: 32,
+    key: 'sticker-fs', label: '텍스트 스티커 글자크기', id: 'stk-typo-size-number', min: 8, max: 400, start: 32,   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
     open: `window.showStickerProperties(document.getElementById('stk'))`,
     read: `document.getElementById('stk').dataset.fontSize`,
   },

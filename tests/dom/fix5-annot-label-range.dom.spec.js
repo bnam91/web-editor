@@ -62,7 +62,7 @@ const state = (page, id) => page.evaluate((id) => {
   return {
     editing: l.getAttribute('contenteditable') === 'true',
     selected: b.classList.contains('selected'),
-    panelFs: !!document.querySelector('#panel-right #annot-font-size-num'),
+    panelFs: !!document.querySelector('#panel-right #annot-typo-size-number'),   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
     panelColor: !!document.querySelector('#panel-right #annot-label-color-hex'),
     sel: String(window.getSelection()),
     empty: [...l.querySelectorAll('span')].filter(s => !s.textContent).length,
@@ -144,9 +144,9 @@ async function setHex(page, hex) {
   await page.press('#annot-label-color-hex', 'Enter');
 }
 async function setSize(page, v) {
-  await page.click('#annot-font-size-num');
-  await page.fill('#annot-font-size-num', String(v));
-  await page.press('#annot-font-size-num', 'Enter');
+  await page.click('#annot-typo-size-number');   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
+  await page.fill('#annot-typo-size-number', String(v));   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
+  await page.press('#annot-typo-size-number', 'Enter');   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
 }
 
 /* 고른 글자(idx)만 fs·color, 나머지는 기본(base) 그대로인가. fs 를 null 로 주면 크기는 안 본다. */

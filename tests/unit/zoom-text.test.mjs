@@ -256,12 +256,12 @@ test('Z14 ★패널 — 켬/끔·정렬·크기·색이 있고 ★배선이 «�
   /* ★기대 바뀜(현빈 261123 온/오프=체크 · chku 1–3 GO · ③ⓐ 세그먼트 — 옛 ‹라디오로› 결정 대체) — 켬/끔 = check 부품 */
   assert.match(p, /sec\('typography',(?:(?!\n\s*sec\()[\s\S])*?id: 'zm-tx-on'/, 'Typography(옛 Text) 절에 켬/끔 체크가 없다');
   for (const [id, 이름] of [['zm-tx-on', '켬/끔'], ['zm-txa-group', '정렬'],
-                            ['zm-txs', '크기'], ['zm-txc', '색']]) {
+                            ['zm-typo-size-number', '크기'], ['zm-txc', '색']]) {   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
     assert.ok(p.includes(id), `${이름}(${id}) 컨트롤이 패널에 없다`);
   }
   // ★마크업만 있고 배선이 없으면 «칸은 서는데 아무 일도 안 난다»(prop-quote 가 그 교훈을 적어 뒀다)
   assert.match(p, /bindCheck\('zm-tx-on',\s*'tx'/, '켬/끔 배선이 없다');
-  assert.match(p, /bindPair\('zm-txs',\s*'txs'/, '크기 배선이 없다');
+  assert.match(p, /querySelector\('#zm-typo-size-number'\)[\s\S]*?block\.dataset\.txs =/, '크기 배선이 없다');   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
   assert.match(p, /wireColorField\('zm-txc'/, '색 배선이 없다');
   assert.match(p, /#zm-txa-group \.prop-align-btn/, '정렬 배선이 없다');
   /* ⛔«내용» 입력칸은 두지 않는다 — 모달에도 없고, 인용구는 현빈이 걷게 했다(1011t1a-2) */

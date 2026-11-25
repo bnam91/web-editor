@@ -2,6 +2,7 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
+import { buildTypographySectionHtml } from './_typo-section.js';   // 표준 Typography 절(시트 221) — 크기칸만(챗 선례 prop-chat.js)
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
 const _VARIANTS = [
@@ -51,12 +52,12 @@ export function showInfoCardProperties(block) {
         <input type="text" class="prop-input ifc-field" data-key="${key}" value="${_esc(fieldVal(key))}" style="flex:1;min-width:0">
       </div>`).join('')),
       // 옛 「Style」 절 — 숫자 크기는 글자 크기라 Typography, 색 셋은 Fill
-      sec('typography', variant === 'countup' ? `
-      <div class="prop-row">
-        <span class="prop-label">숫자 크기</span>
-        <input type="range" class="prop-slider" id="ifc-num-slider" min="40" max="200" step="4" value="${numSize}">
-        <input type="number" class="prop-number" id="ifc-num-number" min="40" max="200" value="${numSize}">
-      </div>` : ''),
+      sec('typography', variant === 'countup' ? buildTypographySectionHtml({
+        p: 'ifc-typo', bare: true, size: numSize, sizeMin: 40, sizeMax: 200,
+        showFont: false, showWeight: false, showStyleGroup: false,
+        showLetterSpacing: false, showLineHeight: false, showHighlight: false,
+        omitHidden: true,   // 배선은 크기칸(#ifc-typo-size-number) 하나만 찾는다 · 옛 슬라이더 ifc-num-slider 걷음 · 저장 키 numSize 그대로
+      }) : ''),
       sec('fill', `
       <div class="prop-row"><span class="prop-label">강조색</span>${colorFieldHTML({ idPrefix: 'ifc-accent', hex: accent, alpha: parseAlphaFromColor(accent) })}</div>
       <div class="prop-row"><span class="prop-label">본문색</span>${colorFieldHTML({ idPrefix: 'ifc-text', hex: text, alpha: parseAlphaFromColor(text) })}</div>
@@ -83,17 +84,16 @@ export function showInfoCardProperties(block) {
     });
   });
 
-  const nS = document.getElementById('ifc-num-slider');
-  const nN = document.getElementById('ifc-num-number');
-  if (nS) {
+  const nN = document.getElementById('ifc-typo-size-number');
+  if (nN) {
     const applyNum = (v) => {
       v = Math.min(200, Math.max(40, v || 96));
       block.dataset.numSize = String(v);
       window.renderInfoCardBlock?.(block);
-      nS.value = v; nN.value = v;
     };
-    nS.addEventListener('input', () => applyNum(parseInt(nS.value)));
-    nS.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
+    /* input = 바로 그림(화살표 스텝·Enter 합성 input — prop-number-commit-guard.js) · change = 적용 «뒤» 이력(push-after ·
+       ⛔이 꼴을 바꾸면 tests/unit/prop-push-after.test.mjs PA-2 음성대조 표본이 사라진다) */
+    nN.addEventListener('input', () => applyNum(parseInt(nN.value)));
     nN.addEventListener('change', () => { applyNum(parseInt(nN.value)); window.pushHistory?.(); window.scheduleAutoSave?.(); });
   }
 

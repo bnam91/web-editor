@@ -191,7 +191,7 @@ test('M2 글리프 바꾸기 · 폰트 크기 = 아이콘 크기 · 글자색 = 
   expect([pluck(a, 'icon'), pluck(a, 'points')], '글리프: 셋 다 check').toEqual([['check', 'check', 'check'], Array(3).fill('3.5 8.5 6.5 11.5 12.5 4.5')]);
   expect(await page.evaluate(() => document.querySelector('#stk-count-glyph .active')?.dataset.countGlyph), '패널의 활성 글리프').toBe('check');
 
-  await typeNumber(page, '#stk-fs-num', 40);
+  await typeNumber(page, '#stk-typo-size-number', 40);   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
   await expect.poll(async () => pluck(await look(page, 'secA'), 'w'), '폰트 크기 40 → 아이콘 폭 40px (셋 다)').toEqual(['40px', '40px', '40px']);
   expect(pluck(await look(page, 'secA'), 'h'), '아이콘 높이도').toEqual(['40px', '40px', '40px']);
 
@@ -840,7 +840,7 @@ test('M9c 모서리·라벨 굵기 — 패널에서 바꿀 수 있다(모서리 
   expect(await weights(), '★전제: 굵기 키가 없으면 라벨은 마커 굵기를 따른다').toEqual({ label: '700', marker: '700', key: null, markerKey: '700' });
   await page.selectOption('#stk-count-label-weight', '400');
   expect(await weights(), '라벨 굵기만 바뀐다').toEqual({ label: '400', marker: '700', key: '400', markerKey: '700' });
-  await page.selectOption('#stk-fw', '900');
+  await page.selectOption('#stk-typo-font-weight', '900');   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
   expect(await weights(), '마커 굵기를 바꿔도 라벨은 제 굵기 그대로').toEqual({ label: '400', marker: '900', key: '400', markerKey: '900' });
   /* 목록에 없는 저장값(손댄 저장본의 200) — 칸이 «있는 그대로» 보인다(3차 · N10 · 예전: 그림은 200 인데 칸은 Light 300) */
   const odd = await page.evaluate(() => { const b = document.querySelector('#secA .sticker-block.selected'); b.dataset.countLabelWeight = '200';
@@ -877,7 +877,7 @@ test('M3b 빈 껍데기 svg 는 기본 글리프로 · 커스텀 아이콘이 �
   await page.evaluate(() => window.showStickerProperties(document.querySelector('#secA .sticker-block.selected')));
   let d = await drawn();
   expect(d.map((x) => [x.tag, x.w, x.fill]), '★전제: 커스텀 아이콘이 폰트 크기 26 · 흰색으로 그려졌다').toEqual(Array(3).fill(['path', '26', WHITE]));
-  await typeNumber(page, '#stk-fs-num', 40);
+  await typeNumber(page, '#stk-typo-size-number', 40);   // ★기대 바뀜(표준 Typography · 탑 워커 261125)
   await expect.poll(async () => pluck(await drawn(), 'w'), '폰트 크기 40 → 같은 svg 가 40 으로 다시 구워진다(셋 다)').toEqual(['40', '40', '40']);
   await typeHex(page, '#stk-txt-hex', '00FF00');
   await expect.poll(async () => pluck(await drawn(), 'fill'), '글자색 → 같은 svg 의 색이 따라온다(셋 다)').toEqual(Array(3).fill('rgb(0, 255, 0)'));

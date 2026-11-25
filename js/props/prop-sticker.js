@@ -2,6 +2,8 @@ import { propPanel } from '../globals.js';
 import { blockHeaderHTML, sliderRowHTML, escHtml, wireRotRow, checkHTML } from './_helpers.js';
 import { positionSectionHTML, positionHeadToolsHTML, wirePositionSection } from './_position-section.js';   // 표준 Position 절(0.9.14 73행 P3)
 import { renderPanel, sec } from './_panel-frame.js';
+import { buildTypographySectionHtml } from './_typo-section.js';   // 표준 Typography 절(시트 221) — 기본·텍스트 스티커 같은 한 벌(p 'stk-typo')
+import { wireFontPicker } from './_font-picker.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_POP_WHY } from './_stroke-section.js';
 import { panelRenderedColor } from './_panel-rendered.js';
@@ -199,6 +201,14 @@ export function showStickerProperties(block) {
   /* ★right-panel-unify U5 — 절은 _section-spec 순서·제목(영어)으로 프레임이 그린다. 모양(shape)마다 «있는 칸만» 낸다 —
      모양을 바꾸면 패널을 통째로 다시 그린다(아래 stk-shape-group 핸들러) ⇒ 머리만 남은 빈 절이 안 생긴다.
      옛 절 id(stk-*-section)는 절 «안» 감싸개로 남긴다(배선·spec 이 id 로 찾는다). 한 key 는 한 절 — 조각을 key 별로 모은다. */
+  /* 표준 Typography — 기본(원·사각·카운트)·텍스트 스티커 두 갈래는 배타 ⇒ 접두 하나 'stk-typo'. B = 굵기 700/400 · I/U/S = 옛 fontStyle/textDecoration 쓰기.
+     줄간격은 끔(스티커 렌더에 그 키가 없다) · 폰트·자간은 텍스트 스티커만(옛 칸이 거기만 있었다). */
+  const _stkTypo = ({ sizeMin, sizeMax, showFont = false, showLetterSpacing = false }) => buildTypographySectionHtml({
+    p: 'stk-typo', bare: true, font: tFontFamily, weight: String(fontWeight), size: fontSize,
+    isBold: fontWeight >= 700, isItalic: tFontStyle === 'italic', isUnderline: tDecoUnderline, isStrike: tDecoStrike,
+    showUnderline: true, showHighlight: false, ls: tLetterSpacing,
+    sizeMin, sizeMax, showFont, showLetterSpacing, showLineHeight: false, omitHidden: true,
+  });
   const P = {};
   const put = (key, html) => { if (html) P[key] = (P[key] || '') + html; };
   const basic = !hideBasic;   // circle/square(+카운트)
@@ -339,38 +349,7 @@ export function showStickerProperties(block) {
     <div id="stk-size-section">
       <div id="stk-size-row">${layoutSizeRowHTML({ prefix: 'stk', one: { id: 'stk-size-num', label: 'Size', icon: 'px', min: 10, max: 600, value: size } })}</div>
     </div>`);   // ★표준 Layout(C2) — 옛 슬라이더 stk-size 걷음 · 줄 id stk-size-row(시험이 보임 판정) 남김
-    put('typography', `
-      <div class="prop-row">
-        <span class="prop-label">폰트 크기</span>
-        <input type="range" class="prop-slider" id="stk-fs" min="8" max="72" step="1" value="${fontSize}">
-        <input type="number" class="prop-number" id="stk-fs-num" min="6" max="150" value="${fontSize}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">폰트 굵기</span>
-        <select class="prop-select" id="stk-fw">
-          <option value="300" ${fontWeight === 300 ? 'selected' : ''}>Light</option>
-          <option value="400" ${fontWeight === 400 ? 'selected' : ''}>Regular</option>
-          <option value="500" ${fontWeight === 500 ? 'selected' : ''}>Medium</option>
-          <option value="600" ${fontWeight === 600 ? 'selected' : ''}>Semibold</option>
-          <option value="700" ${fontWeight === 700 ? 'selected' : ''}>Bold</option>
-          <option value="800" ${fontWeight === 800 ? 'selected' : ''}>Extrabold</option>
-          <option value="900" ${fontWeight === 900 ? 'selected' : ''}>Black</option>
-        </select>
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">스타일</span>
-        <div class="prop-align-group" id="stk-b-style-group">
-          <button class="prop-align-btn${tFontStyle === 'italic' ? ' active' : ''}" data-style="italic" title="이탤릭">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><line x1="7" y1="3" x2="13" y2="3"/><line x1="3" y1="13" x2="9" y2="13"/><line x1="10" y1="3" x2="6" y2="13"/></svg>
-          </button>
-          <button class="prop-align-btn${tDecoUnderline ? ' active' : ''}" data-style="underline" title="밑줄">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M4.5 3 L4.5 7.5 A3.5 3.5 0 0 0 11.5 7.5 L11.5 3"/><line x1="3.5" y1="13.5" x2="12.5" y2="13.5"/></svg>
-          </button>
-          <button class="prop-align-btn${tDecoStrike ? ' active' : ''}" data-style="line-through" title="취소선">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M11.5 4.5 C11 3.4 9.7 2.8 8 2.8 C6 2.8 4.8 3.8 4.8 5.1 C4.8 5.7 5 6.2 5.6 6.6"/><path d="M4.5 11.5 C5 12.6 6.3 13.2 8 13.2 C10 13.2 11.2 12.2 11.2 10.9 C11.2 10.5 11.1 10.1 10.9 9.8"/><line x1="2.5" y1="8" x2="13.5" y2="8"/></svg>
-          </button>
-        </div>
-      </div>`);
+    put('typography', _stkTypo({ sizeMin: 6, sizeMax: 150 }));   // 옛 stk-fs 쌍·stk-fw·stk-b-style-group 걷음 · 저장 키 fontSize/fontWeight/fontStyle/textDecoration 그대로
     put('fill', `
     <div id="stk-colors-section">
       <div class="prop-color-row">
@@ -385,56 +364,7 @@ export function showStickerProperties(block) {
   }
   if (isText) {
     put('typography', `
-    <div id="stk-text-sticker-section">
-      <div class="prop-row">
-        <span class="prop-label">폰트</span>
-        <select class="prop-select" id="stk-t-ff">
-          <option value="'Pretendard', sans-serif" ${tFontFamily.includes('Pretendard') ? 'selected' : ''}>Pretendard</option>
-          <option value="'Noto Sans KR', sans-serif" ${tFontFamily.includes('Noto Sans KR') ? 'selected' : ''}>Noto Sans KR</option>
-          <option value="'Noto Serif KR', serif" ${tFontFamily.includes('Noto Serif KR') ? 'selected' : ''}>Noto Serif KR</option>
-          <option value="'Inter', sans-serif" ${tFontFamily.includes('Inter') ? 'selected' : ''}>Inter</option>
-          <option value="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" ${tFontFamily.includes('-apple-system') ? 'selected' : ''}>System</option>
-          <option value="sans-serif" ${tFontFamily === 'sans-serif' ? 'selected' : ''}>Sans-serif</option>
-          <option value="serif" ${tFontFamily === 'serif' ? 'selected' : ''}>Serif</option>
-          <option value="monospace" ${tFontFamily === 'monospace' ? 'selected' : ''}>Monospace</option>
-        </select>
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">크기</span>
-        <input type="range" class="prop-slider" id="stk-t-fs" min="8" max="200" step="1" value="${fontSize}">
-        <input type="number" class="prop-number" id="stk-t-fs-num" min="8" max="400" value="${fontSize}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">굵기</span>
-        <select class="prop-select" id="stk-t-fw">
-          <option value="300" ${fontWeight === 300 ? 'selected' : ''}>Light</option>
-          <option value="400" ${fontWeight === 400 ? 'selected' : ''}>Regular</option>
-          <option value="500" ${fontWeight === 500 ? 'selected' : ''}>Medium</option>
-          <option value="600" ${fontWeight === 600 ? 'selected' : ''}>Semibold</option>
-          <option value="700" ${fontWeight === 700 ? 'selected' : ''}>Bold</option>
-          <option value="800" ${fontWeight === 800 ? 'selected' : ''}>Extrabold</option>
-          <option value="900" ${fontWeight === 900 ? 'selected' : ''}>Black</option>
-        </select>
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">스타일</span>
-        <div class="prop-align-group" id="stk-t-style-group">
-          <button class="prop-align-btn${tFontStyle === 'italic' ? ' active' : ''}" data-style="italic" title="이탤릭">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><line x1="7" y1="3" x2="13" y2="3"/><line x1="3" y1="13" x2="9" y2="13"/><line x1="10" y1="3" x2="6" y2="13"/></svg>
-          </button>
-          <button class="prop-align-btn${tDecoUnderline ? ' active' : ''}" data-style="underline" title="밑줄">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M4.5 3 L4.5 7.5 A3.5 3.5 0 0 0 11.5 7.5 L11.5 3"/><line x1="3.5" y1="13.5" x2="12.5" y2="13.5"/></svg>
-          </button>
-          <button class="prop-align-btn${tDecoStrike ? ' active' : ''}" data-style="line-through" title="취소선">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M11.5 4.5 C11 3.4 9.7 2.8 8 2.8 C6 2.8 4.8 3.8 4.8 5.1 C4.8 5.7 5 6.2 5.6 6.6"/><path d="M4.5 11.5 C5 12.6 6.3 13.2 8 13.2 C10 13.2 11.2 12.2 11.2 10.9 C11.2 10.5 11.1 10.1 10.9 9.8"/><line x1="2.5" y1="8" x2="13.5" y2="8"/></svg>
-          </button>
-        </div>
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">자간</span>
-        <input type="range" class="prop-slider" id="stk-t-ls" min="-5" max="20" step="0.1" value="${tLetterSpacing}">
-        <input type="number" class="prop-number" id="stk-t-ls-num" min="-10" max="40" step="0.1" value="${tLetterSpacing}">
-      </div>
+    <div id="stk-text-sticker-section">${_stkTypo({ sizeMin: 8, sizeMax: 400, showFont: true, showLetterSpacing: true })}
       <div class="prop-row">
         <span class="prop-label">정렬</span>
         <div class="prop-align-group" id="stk-t-align-group">
@@ -588,18 +518,40 @@ export function showStickerProperties(block) {
     txt.addEventListener('change', () => { window.pushHistory?.('스티커 텍스트'); window.scheduleAutoSave?.(); });
   }
 
-  // 텍스트 스티커 — 폰트 패밀리
-  propPanel.querySelector('#stk-t-ff')?.addEventListener('change', e => {
-    block.dataset.fontFamily = e.target.value;
-    rerender();
-    window.pushHistory?.('텍스트 스티커 폰트'); window.scheduleAutoSave?.();
-  });
-  // 텍스트 스티커 — 폰트 굵기
-  propPanel.querySelector('#stk-t-fw')?.addEventListener('change', e => {
-    block.dataset.fontWeight = e.target.value;
-    rerender();
-    window.pushHistory?.('텍스트 스티커 굵기'); window.scheduleAutoSave?.();
-  });
+  /* ── 표준 Typography 배선(p 'stk-typo' · 기본·텍스트 갈래 공용) — 쓰기·이력 이름은 옛 칸들 그대로 · 카운트 무리 동기(syncGroup) 그대로 ── */
+  {
+    const _set = (patch) => { Object.assign(block.dataset, patch); rerender(); syncGroup(Object.keys(patch)); };
+    const _commit = (label) => { window.pushHistory?.(label); window.scheduleAutoSave?.(); };
+    const _q = (id) => propPanel.querySelector('#stk-typo-' + id);
+    if (isText) wireFontPicker({ root: propPanel, p: 'stk-typo', getCurrent: () => block.dataset.fontFamily || '',
+      onPick: (v) => { _set({ fontFamily: v }); _commit('텍스트 스티커 폰트'); } });
+    const _fw = _q('font-weight');
+    const _wLabel = isText ? '텍스트 스티커 굵기' : '스티커 굵기';
+    _fw?.addEventListener('change', () => { _set({ fontWeight: _fw.value }); _q('bold-btn')?.classList.toggle('active', +_fw.value >= 700); _commit(_wLabel); });
+    /* 숫자칸 — input = 바로 그림(화살표 스텝·Enter 합성 input — prop-number-commit-guard.js) · change = 이력 한 번 */
+    const _num = (id, key, min, max, parse) => {
+      const n = _q(id); if (!n) return;
+      const apply = () => { const v = parse(n.value); if (Number.isFinite(v)) _set({ [key]: String(Math.min(max, Math.max(min, v))) }); };
+      n.addEventListener('input', apply);
+      n.addEventListener('change', () => { apply(); _commit(); });   // 옛 숫자칸 꼴: change 도 값을 먹인다
+    };
+    _num('size-number', 'fontSize', isText ? 8 : 6, isText ? 400 : 150, parseInt);
+    _num('ls-number', 'letterSpacing', -10, 40, parseFloat);
+    /* B = 굵기 700/400(굵기 select 와 같은 키) · I/U/S = 옛 스타일 그룹과 같은 쓰기 */
+    const _b = _q('bold-btn');
+    _b?.addEventListener('click', () => {
+      const w = _b.classList.toggle('active') ? '700' : '400';
+      if (_fw) _fw.value = w;
+      _set({ fontWeight: w }); _commit(_wLabel);
+    });
+    const _on = (k) => !!_q(k + '-btn')?.classList.contains('active');
+    ['italic', 'underline', 'strike'].forEach(k => _q(k + '-btn')?.addEventListener('click', () => {
+      _q(k + '-btn').classList.toggle('active');
+      const decos = [_on('underline') && 'underline', _on('strike') && 'line-through'].filter(Boolean);
+      _set({ fontStyle: _on('italic') ? 'italic' : 'normal', textDecoration: decos.length ? decos.join(' ') : 'none' });
+      _commit('스티커 스타일');
+    }));
+  }
   // 텍스트 스티커 — 폰트 사이즈
   const _bindTPair = (sliderId, numberId, key, min, max, step) => {
     const s = propPanel.querySelector('#' + sliderId);
@@ -618,8 +570,6 @@ export function showStickerProperties(block) {
     n.addEventListener('change', () => { apply(parse(n.value)); window.pushHistory?.(); window.scheduleAutoSave?.(); });
     s?.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
   };
-  _bindTPair('stk-t-fs',    'stk-t-fs-num',    'fontSize',      8,    400, 1);
-  _bindTPair('stk-t-ls',    'stk-t-ls-num',    'letterSpacing', -10,  40,  0.1);
   _bindTPair('stk-t-sh-x',  'stk-t-sh-x-num',  'shadowX',       -20,  20,  1);
   _bindTPair('stk-t-sh-y',  'stk-t-sh-y-num',  'shadowY',       -20,  20,  1);
   _bindTPair('stk-t-sh-b',  'stk-t-sh-b-num',  'shadowBlur',    0,    40,  1);
@@ -654,27 +604,6 @@ export function showStickerProperties(block) {
       block.dataset.textAlign = btn.dataset.align;
       rerender();
       window.pushHistory?.('텍스트 스티커 정렬'); window.scheduleAutoSave?.();
-    });
-  });
-
-  // 스티커 — 스타일 (이탤릭/밑줄/취소선 — 정렬 그룹과 달리 각 버튼 독립 토글)
-  //   stk-t-style-group = text shape(Typography 섹션) / stk-b-style-group = circle·square(Size 섹션).
-  //   두 그룹은 shape에 따라 배타 노출 — 같은 dataset(fontStyle/textDecoration)에 쓰는 동일 로직 공유.
-  ['stk-t-style-group', 'stk-b-style-group'].forEach(groupId => {
-    propPanel.querySelectorAll(`#${groupId} .prop-align-btn`).forEach(btn => {
-      btn.addEventListener('click', () => {
-        btn.classList.toggle('active');
-        const grp = propPanel.querySelector(`#${groupId}`);
-        const isOn = (s) => !!grp.querySelector(`[data-style="${s}"]`)?.classList.contains('active');
-        block.dataset.fontStyle = isOn('italic') ? 'italic' : 'normal';
-        const decos = [];
-        if (isOn('underline'))    decos.push('underline');
-        if (isOn('line-through')) decos.push('line-through');
-        block.dataset.textDecoration = decos.length ? decos.join(' ') : 'none';
-        rerender();
-        syncGroup(['fontStyle', 'textDecoration']);
-        window.pushHistory?.('스티커 스타일'); window.scheduleAutoSave?.();
-      });
     });
   });
 
@@ -922,38 +851,10 @@ export function showStickerProperties(block) {
   });
 
   // Size pair
-  const bindNumPair = (sliderId, numberId, key, min, max, syncKeys) => {
-    const s = propPanel.querySelector('#' + sliderId);
-    const n = propPanel.querySelector('#' + numberId);
-    if (!s || !n) return;   // ★U5: 이 모양엔 없는 칸(마킹엔 stk-size 없음 · 글자/형광/아이콘…엔 둘 다 없음)
-    const apply = v => {
-      v = Math.min(max, Math.max(min, v));
-      block.dataset[key] = v;
-      // syncKeys: 함께 동일 값으로 맞출 dataset 키 (예: 코너 리사이즈가 박아둔 sizeW/sizeH를
-      // 단일 size 슬라이더로 덮어써 균일 크기로 — 안 그러면 render가 sizeW/sizeH 우선해 슬라이더 무시됨)
-      if (syncKeys) syncKeys.forEach(k => { block.dataset[k] = v; });
-      rerender();
-      syncGroup([key, ...(syncKeys || [])]);
-      s.value = Math.min(parseInt(s.max), v);
-      n.value = v;
-    };
-    s.addEventListener('input',  () => apply(parseInt(s.value)));
-    n.addEventListener('change', () => { apply(parseInt(n.value)); window.pushHistory?.(); window.scheduleAutoSave?.(); });
-    s.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
-  };
   /* ★표준 Layout(C2) — 옛 bindNumPair('stk-size') 자리(한 칸) · sizeW/sizeH 를 같은 값으로 덮는 몫 그대로(코너 리사이즈가 박은 값보다 이 칸이 이긴다) */
   wireLayoutSection({ w: { numberId: 'stk-size-num', min: 10, max: 600, apply: (v) => {
     block.dataset.size = v; block.dataset.sizeW = v; block.dataset.sizeH = v; rerender(); syncGroup(['size', 'sizeW', 'sizeH']);
   } } });
-  bindNumPair('stk-fs',   'stk-fs-num',   'fontSize', 6,  150);
-
-  // Font weight
-  propPanel.querySelector('#stk-fw')?.addEventListener('change', e => {
-    block.dataset.fontWeight = e.target.value;
-    rerender();
-    syncGroup(['fontWeight']);
-    window.pushHistory?.('스티커 굵기'); window.scheduleAutoSave?.();
-  });
 
   // Colors
   wireColorField('stk-bg', {
