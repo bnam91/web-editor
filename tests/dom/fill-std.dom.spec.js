@@ -746,31 +746,6 @@ for (const [name, make, sel, key, prep] of F7X) {
   });
 }
 
-/* F8 ④(시트 81행 FIGMA-FILL-NOT-EXPORTED-6-BLOCKS-01 · 지디 261125) — D31 글 스티커 배경이 Figma JSON 으로 간다
- *   generic(kind sticker) 항목 bg = 글 스티커 bgColor(예전 = ds.bg = 늘 빈 값 → Figma 칠 0) · 숨기면 fillHidden:true · 색 그대로 · [지킴] 모양 스티커(원 등)는 bg 옛 그대로
- * 양성대조 = 고치기 전 판(70f325a69)에서 D31 빨강(bg 빈 값) */
-test('D31 글 스티커 배경 — Figma JSON bg = bgColor · 숨김 키 · [지킴] 모양 스티커 무변', async ({ page }) => {
-  await page.setViewportSize({ width: 1500, height: 1100 });
-  const errs = await bootApp(page);
-  const ids = await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
-    const sec = await window.addSection(); const out = [];
-    for (const o of [{ shape: 'text' }, { shape: 'circle' }]) { window.deselectAll(); window.selectSection(sec); const before = new Set(sec.querySelectorAll('.sticker-block')); window.addStickerBlock(o);
-      out.push([...sec.querySelectorAll('.sticker-block')].find((x) => !before.has(x)).id); }
-    const t = document.getElementById(out[0]); t.dataset.bgColor = '#12ab34'; window.renderStickerBlock(t); return out; });
-  const entry = (id) => page.evaluate((id) => { const j = window.buildFigmaExportJSON(null); let hit = null;
-    (function walk(o) { if (!o || typeof o !== 'object' || hit) return; if (o.id === id && o.type) { hit = o; return; } Object.values(o).forEach(walk); })(j); return hit ? JSON.parse(JSON.stringify(hit)) : null; }, id);
-  const t0 = await entry(ids[0]), c0 = await entry(ids[1]);
-  expect([t0?.type, t0?.kind], '[전제] 글 스티커 = generic sticker 항목').toEqual(['generic', 'sticker']);
-  expect(String(t0.bg).toLowerCase(), '★글 스티커 배경 = bgColor 가 Figma JSON bg 로').toBe('#12ab34');
-  expect('fillHidden' in t0, '[지킴] 안 숨기면 키 0').toBe(false);
-  // ★기대 바뀜(F8b 261125): 모양(원) 스티커 bg 는 이제 화면 배경색이 실린다(예전 빈 값 = Figma 빈 프레임) — 값 검사는 D35 · 여기선 «글 스티커 갈래가 원에 새지 않음»만
-  expect(c0 ? String(c0.bg ?? '').toLowerCase() : 'no-entry', '[지킴] 원 스티커가 글 스티커 bgColor(#12ab34)를 받지 않는다').not.toBe('#12ab34');
-  await page.evaluate(async (id) => { const m = await import('/js/props/_fill-section.js'); const it = m.fillKindOf(document.getElementById(id)); m.fillSetHidden(it.block, it.k, true); }, ids[0]);
-  const t1 = await entry(ids[0]);
-  expect([t1.fillHidden, String(t1.bg).toLowerCase()], '★숨기면 fillHidden · 색 그대로').toEqual([true, '#12ab34']);
-  expect(errs, errs.join(' | ')).toEqual([]);
-});
-
 /* F8 탐침 + ③(지디 261125) — D32 쿠폰·줌·브리지·캔버스 레이어 모드 블럭의 Figma JSON 실측(로그 [D32 실측]: svg 길이 · cards 수)
  *   단언: 쿠폰·줌·브리지 항목에 svg 가 «실린다»(렌더러가 그리게 된 것의 전제) · 브리지 숨김 = fillHidden + svg 뿌리 fill-opacity:0 «뺌»(Figma 에서 칠 눈을 켜면 색이 돌아오게)
  *   레이어 모드 cards 수는 «재기만»(0 이면 지디 판단 · 손 0) */
@@ -794,35 +769,6 @@ test('D32 F8 탐침 — 쿠폰·줌·브리지 svg 실림 · 브리지 숨김 sv
   expect(live, '[전제] 캔버스 브리지 svg 에는 fill-opacity:0(F6-2b)').toContain('fill-opacity:0');
   const b1 = (await entries()).bridge;
   expect([b1.fillHidden, /fill-opacity:0/.test(b1.svg)], '★브리지 숨김 = fillHidden · 내보낸 svg 엔 fill-opacity:0 없음').toEqual([true, false]);
-  expect(errs, errs.join(' | ')).toEqual([]);
-});
-
-/* F8 ① 탐침(지디 261125 «고치기 전에 캔버스에서 언제 보이나») — D33 에셋 배경색이 «캔버스 화면»에 보이는 경우 실측(로그 [D33 실측])
- *   (a) 빈 에셋 · 키 없음  (b) 빈 에셋 · bgColor #12ab34  (c) 투명 PNG 그림 + bgColor #12ab34
- *   잼: .asset-block 계산 background-color/-image(체커 repeating-conic 이 위에 있나) + 화면 스샷 가운데 화소 RGB · 단언은 장면 세우기(전제)만 — 범위(빈 칸만/투명 PNG 까지)는 이 로그로 정한다 */
-test('D33 F8 ① 탐침 — 에셋 배경색: 빈 칸·투명 PNG 에서 화면 화소 · 체커 위아래', async ({ page }) => {
-  await page.setViewportSize({ width: 1500, height: 1100 });
-  const errs = await bootApp(page);
-  const ids = await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
-    const sec = await window.addSection(); const out = [];
-    for (let i = 0; i < 3; i++) { window.deselectAll(); window.selectSection(sec); const before = new Set(sec.querySelectorAll('.asset-block')); await window.addAssetBlock(); out.push([...sec.querySelectorAll('.asset-block')].find((x) => !before.has(x)).id); }
-    const m = await import('/js/props/_fill-section.js');
-    for (const id of out.slice(1)) { const it = m.fillKindOf(document.getElementById(id)); it.k.paint(it.block, '#12ab34'); }
-    const cv = document.createElement('canvas'); cv.width = 64; cv.height = 64; const png = cv.toDataURL('image/png');   // 다 투명
-    window.setAssetImageFromSrc(document.getElementById(out[2]), png);
-    window.deselectAll(); return out; });
-  await page.waitForTimeout(600);
-  const res = {};
-  for (const [k, id] of [['a 빈·키없음', ids[0]], ['b 빈·bgColor', ids[1]], ['c 투명PNG·bgColor', ids[2]]]) {
-    await page.evaluate((id) => document.getElementById(id).scrollIntoView({ block: 'center' }), id); await page.waitForTimeout(200);
-    const r = await page.evaluate((id) => { const b = document.getElementById(id), cs = getComputedStyle(b), rc = b.getBoundingClientRect(), img = b.querySelector('.asset-img');
-      return { x: Math.round(rc.left + rc.width / 2), y: Math.round(rc.top + rc.height / 2), w: Math.round(rc.width), h: Math.round(rc.height), bgc: cs.backgroundColor, bgi: cs.backgroundImage.slice(0, 60), inlineBg: b.style.backgroundColor || '', hasImg: !!(img && img.getAttribute('src')), imgVis: img ? getComputedStyle(img).display : null }; }, id);
-    const shot = await page.screenshot({ clip: { x: r.x - 2, y: r.y - 2, width: 4, height: 4 } });
-    const px = await page.evaluate(async (b64) => { const im = new Image(); im.src = 'data:image/png;base64,' + b64; await im.decode(); const c = document.createElement('canvas'); c.width = im.width; c.height = im.height; const x = c.getContext('2d'); x.drawImage(im, 0, 0); return [...x.getImageData(1, 1, 1, 1).data].slice(0, 3); }, shot.toString('base64'));
-    res[k] = { ...r, px };
-  }
-  console.log('[D33 실측]', JSON.stringify(res));
-  expect([res['a 빈·키없음'].w > 0, res['b 빈·bgColor'].inlineBg !== '', res['c 투명PNG·bgColor'].hasImg], '[전제] 장면 셋이 섰다(크기 · b 인라인 색 · c 그림 있음)').toEqual([true, true, true]);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
@@ -856,14 +802,17 @@ test('D34 에셋 배경색 — Figma JSON image bg = bgColor · 숨김 키 · [�
 /* F8b(미카사 F7/F8 실기 12k · 지디 OK 261125) — D35 원·네모·별 스티커 → Figma JSON(예전: bg 빈 값 · radius 0 · 글 0 = Figma 빈 프레임)
  *   ★원 = bg 화면 배경색 · radius = 짧은 변 ÷ 2 · 글 · ★네모 = radius 계산 px(>0) · ★별 = svg 에 stk-burst · [지킴] 글 스티커 bg = bgColor 그대로(+글이 이제 실림)
  * 양성대조: 고치기 전 판 1f00271d0 에서 D35 빨강 */
-test('D35 원·네모·별 스티커 — Figma JSON bg·둥글기·글·별 svg', async ({ page }) => {
+/* 0913-e 걸쇠(bootApp ≤33 · 고정 대기 1305): 옛 D31(81행 ④ 글 스티커 bg·숨김 · 양성대조 70f325a69)·D36(85행 원·쿠폰 글 꼴 · 양성대조 48e155c14)을 이 한 판에 합침 · 옛 D33(에셋 배경 화소 탐침 · 단언 = 장면 섰다뿐)은 지움 — 제품 단언은 D34 */
+test('D35 원·네모·별 스티커 — Figma JSON bg·둥글기·글·별 svg + 옛 D31·D36', async ({ page }) => {
   await page.setViewportSize({ width: 1500, height: 1100 });
   const errs = await bootApp(page);
   const ids = await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
     const sec = await window.addSection(); const out = [];
     for (const o of [{ shape: 'circle' }, { shape: 'square' }, { shape: 'burst' }, { shape: 'text' }]) { window.deselectAll(); window.selectSection(sec); const before = new Set(sec.querySelectorAll('.sticker-block')); window.addStickerBlock(o);
       out.push([...sec.querySelectorAll('.sticker-block')].find((x) => !before.has(x)).id); }
-    const t = document.getElementById(out[3]); t.dataset.bgColor = '#12ab34'; window.renderStickerBlock(t); return out; });
+    const t = document.getElementById(out[3]); t.dataset.bgColor = '#12ab34'; window.renderStickerBlock(t);
+    window.deselectAll(); window.selectSection(sec); { const before = new Set(sec.querySelectorAll('.coupon-block')); await window.addCouponBlock(); out.push([...sec.querySelectorAll('.coupon-block')].find((x) => !before.has(x)).id); }
+    return out; });
   const entry = (id) => page.evaluate((id) => { const j = window.buildFigmaExportJSON(null); let hit = null;
     (function walk(o) { if (!o || typeof o !== 'object' || hit) return; if (o.id === id && o.type) { hit = o; return; } Object.values(o).forEach(walk); })(j); return hit ? JSON.parse(JSON.stringify(hit)) : null; }, id);
   const live = (id) => page.evaluate((id) => { const e = document.getElementById(id); const cs = getComputedStyle(e); return { bg: cs.backgroundColor, w: e.offsetWidth, h: e.offsetHeight, shape: e.dataset.shape }; }, id);
@@ -877,35 +826,26 @@ test('D35 원·네모·별 스티커 — Figma JSON bg·둥글기·글·별 svg'
   expect(/class="[^"]*stk-burst/.test(b.svg || ''), '★별 svg = stk-burst').toBe(true);
   expect([c.svg, q.svg, t.svg], '[지킴] 원·네모·글 스티커는 svg 안 실음(렌더러가 그리는 건 별 몸뿐)').toEqual(['', '', '']);
   expect(String(t.bg).toLowerCase(), '[지킴] 글 스티커 bg = bgColor').toBe('#12ab34');
-  expect(errs, errs.join(' | ')).toEqual([]);
-});
-
-/* 85행 FIGMA-GENERIC-TEXT-STYLE-LOST-01(미카사 2차 실기) — D36 쿠폰 줄(.tb-cpn-line)·스티커 글(.sticker-text) → Figma JSON 글 꼴
- *   예전: 사본 DOM 의 계산 style 을 읽어 크기 24·색 #111·자리 0·굵기 없음(=Figma 검정·보통·왼위·작게) · 고침: 살아 있는 짝에서 크기·색·굵기·자리·폭·정렬
- *   ★글마다 = 살아 있는 요소의 fontSize·color·fontWeight 와 같음 · 폭 w > 0(자리 잰 표) · 스티커 글 정렬 CENTER
- * 양성대조: 고치기 전 판 48e155c14 에서 D36 빨강 */
-test('D36 쿠폰·스티커 글 꼴 — Figma JSON 크기·색·굵기·자리 = 화면', async ({ page }) => {
-  await page.setViewportSize({ width: 1500, height: 1100 });
-  const errs = await bootApp(page);
-  const ids = await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
-    const sec = await window.addSection(); const out = [];
-    window.deselectAll(); window.selectSection(sec); { const before = new Set(sec.querySelectorAll('.sticker-block')); window.addStickerBlock({ shape: 'circle' }); out.push([...sec.querySelectorAll('.sticker-block')].find((x) => !before.has(x)).id); }
-    window.deselectAll(); window.selectSection(sec); { const before = new Set(sec.querySelectorAll('.coupon-block')); await window.addCouponBlock(); out.push([...sec.querySelectorAll('.coupon-block')].find((x) => !before.has(x)).id); }
-    return out; });
+  expect('fillHidden' in t, '[지킴] 안 숨기면 키 0(옛 D31)').toBe(false);
+  // 옛 D36(85행) — 원 스티커·쿠폰 글 꼴 = 화면
   const res = await page.evaluate((ids) => { const j = window.buildFigmaExportJSON(null); const find = (id) => { let hit = null; (function walk(o) { if (!o || typeof o !== 'object' || hit) return; if (o.id === id && o.type) { hit = o; return; } Object.values(o).forEach(walk); })(j); return hit; };
     return ids.map((id) => { const e = find(id); const live = [...document.getElementById(id).querySelectorAll('.sticker-text, .tb-cpn-line')].filter((x) => (x.innerText || '').trim());
       return { kind: e?.kind, texts: (e?.texts || []).map((t) => ({ t: t.t, fs: t.fs, color: t.color, fw: t.fw, w: t.w, align: t.align })),
-        live: live.map((x) => { const cs = getComputedStyle(x); return { t: x.innerText.trim(), fs: parseInt(cs.fontSize), color: cs.color, fw: parseInt(cs.fontWeight) }; }) }; }); }, ids);
+        live: live.map((x) => { const cs = getComputedStyle(x); return { t: x.innerText.trim(), fs: parseInt(cs.fontSize), color: cs.color, fw: parseInt(cs.fontWeight) }; }) }; }); }, [ids[0], ids[4]]);
   for (const r of res) {
     expect(r.live.length > 0, `[전제] ${r.kind} 살아 있는 글 있음`).toBe(true);
     for (const l of r.live) {
-      const e = r.texts.find((t) => t.t === l.t);
+      const e = r.texts.find((x) => x.t === l.t);
       expect(e, `★${r.kind} 글 «${l.t}» 이 JSON 에 없다`).toBeTruthy();
       expect([e.fs, e.color, e.fw], `★${r.kind} «${l.t}» 꼴(크기·색·굵기) ≠ 화면 ${JSON.stringify(l)}`).toEqual([l.fs, l.color, l.fw]);
       expect(e.w > 0, `★${r.kind} «${l.t}» 자리 폭 없음`).toBe(true);
     }
   }
   expect(res[0].texts[0].align, '★스티커 글 가운데').toBe('CENTER');
+  // 옛 D31 — 글 스티커 숨김 = fillHidden · 색 그대로
+  await page.evaluate(async (id) => { const m = await import('/js/props/_fill-section.js'); const it = m.fillKindOf(document.getElementById(id)); m.fillSetHidden(it.block, it.k, true); }, ids[3]);
+  const t1 = await entry(ids[3]);
+  expect([t1.fillHidden, String(t1.bg).toLowerCase()], '★숨기면 fillHidden · 색 그대로(옛 D31)').toEqual([true, '#12ab34']);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
