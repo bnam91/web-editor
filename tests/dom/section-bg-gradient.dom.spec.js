@@ -33,7 +33,7 @@ const state = (page, id) => page.evaluate((i) => {
   const s = document.getElementById(i); const cs = getComputedStyle(s);
   const sw = document.getElementById('sec-bg-color')?.closest('.prop-color-swatch');
   return { dataBg: s.dataset.bg ?? null, img: cs.backgroundImage, color: cs.backgroundColor, swatch: sw ? sw.style.background : null,
-    hex: document.getElementById('sec-bg-hex')?.value ?? null, alpha: document.getElementById('sec-bg-alpha')?.value ?? null };
+    hex: ((h) => h?.dataset.fillHex ?? h?.value ?? null)(document.getElementById('sec-bg-hex')), name: document.getElementById('sec-bg-hex')?.dataset.fillKind ?? null, alpha: document.getElementById('sec-bg-alpha')?.value ?? null };   // ★기대 바뀜(표준 Fill · 탑 워커 261125) — 이름칸이면 옛 HEX = data-fill-hex
 }, id);
 const tabs = (page) => page.evaluate(() => {
   const p = document.querySelector('.goya-cp-popover'); if (!p || p.hidden) return null;
@@ -135,7 +135,7 @@ test('G2 그라데이션이 든 섹션 — 피커가 그라데이션 탭으로 �
   await selectSection(page, 'gG');
   const s0 = await state(page, 'gG');
   expect(s0.img, '전제: 그라데이션 섹션').toBe(GR_COMPUTED);
-  expect(s0.hex, 'hex = 첫 정지점(Solid 복귀 색)').toBe('FF0000');
+  expect([s0.hex, s0.name], 'hex = 첫 정지점(Solid 복귀 색) · 이름칸 = Linear').toEqual(['FF0000', 'linear']);   // ★기대 바뀜(표준 Fill · 탑 워커 261125) — 그라데이션이면 이름칸 «Linear» · 옛 HEX 는 data-fill-hex(포커스 때 돌아옴)
   await openSwatch(page);
   expect((await tabs(page)).gradient.active, '피커가 Solid 로 열렸다(시드 없음) — 그라데이션 탭을 누르면 기본값이 사용자 값을 덮는다').toBe(true);
   await clickTab(page, 'gradient');   // 같은 탭 재클릭 = 값 불변

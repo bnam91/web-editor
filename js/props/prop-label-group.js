@@ -3,6 +3,7 @@ import { blockHeaderHTML, escHtml } from './_helpers.js';
 import { renderPanel, sec, hintHTML } from './_panel-frame.js';
 import { positionSectionHTML, positionHeadToolsHTML } from './_position-section.js';   // 표준 Position 절(시트 222 DS-POSITION-STD-REST-01)
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { fillSectionHTML } from './_fill-section.js';   // 표준 Fill(DS-FILL-STD-REST-01) — 고른 태그 배경 = 겹 줄 · 태그 글자 = 부위 줄 그대로
 import { panelRenderedPx } from './_panel-rendered.js';
 import {
   LABEL_BUILTIN_PRESETS, LABEL_USER_PREFIX, listLabelUserPresets, addLabelUserPreset, updateLabelUserPreset, removeLabelUserPreset,
@@ -130,10 +131,7 @@ function showLabelGroupProperties(block, selectedItem) {
       ${appearanceSectionHTML({ prefix: 'lg-item', radius: { numberId: 'lg-item-radius-number', value: itemRadius, max: 50 } })}   <!-- ★표준 Appearance A3(현빈 261124 · 시안 #mkp-appstd) — 옛 슬라이더 걷음 · 숫자 칸 id·키·범위 무변 -->
       ${_shapeNames.length ? `<div class="prop-row"><span class="prop-label">모양 변수</span><select class="prop-select" id="lg-shape-link"><option value="">연결 안 함</option>${_shapeOpts('')}</select></div>` : ''}`), selectedItem ? { headTools: appearanceHeadToolsHTML({ prefix: 'lg-item' }) } : {}),
       sec('fill', (!selectedItem || boundName) ? '' : `
-      <div class="prop-color-row">
-        <span class="prop-label">태그 배경</span>
-        ${colorFieldHTML({ idPrefix: 'lg-item-bg', hex: itemBg, alpha: itemBgAlpha })}
-      </div>
+      ${fillSectionHTML({ prefix: 'lg-item-fill', removeWhy: '태그 배경은 지울 수 없어요 — 투명도 0 으로 숨기세요', colorHtml: colorFieldHTML({ idPrefix: 'lg-item-bg', hex: itemBg, alpha: itemBgAlpha }) })}
       <div class="prop-color-row">
         <span class="prop-label">태그 글자</span>
         ${colorFieldHTML({ idPrefix: 'lg-item-color', hex: itemColor, alpha: itemColorAlpha })}

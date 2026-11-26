@@ -427,8 +427,8 @@ async function bootBlk(page, add, cls) {
   await page.setViewportSize({ width: 1500, height: 1100 });
   const errs = await bootApp(page);
   await page.evaluate(async ({ add, cls }) => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
-    await window.addSection(); const sec = [...c.querySelectorAll('.section-block')].pop(); window.selectSection(sec); await window[add]();
-    window.__b = sec.querySelector('.' + cls); window.selectBlock(window.__b.id); }, { add, cls });
+    await window.addSection(); const sec = [...c.querySelectorAll('.section-block')].pop(); window.selectSection(sec); await (typeof window[add] === 'function' ? window[add]() : (0, eval)(add));   // 이름 = 넣기 함수 · 아니면 식(패널도 식이 엶 · FR1)
+    if (cls) { window.__b = sec.querySelector('.' + cls); window.selectBlock(window.__b.id); } document.activeElement?.blur?.(); }, { add, cls });
   await page.waitForSelector('#panel-right .prop-section', { state: 'attached' });
   return errs;
 }
@@ -448,6 +448,29 @@ for (const [add, cls, part] of [['addChatBlock', 'chat-block', 'chb-bg-left-hex'
     const ui = await page.evaluate((part) => { const f = document.querySelector('#panel-right .prop-section[data-sec="fill"]');
       return { fill: !!f, std: !!f?.querySelector('[data-part="fill"]'), add: !!f?.querySelector('[id$="-fill-add"]') || !!f?.closest('.prop-section')?.querySelector('.prop-section-header [id$="-fill-add"]'), part: !!f?.contains(document.getElementById(part)) }; }, part);
     expect(ui, '★Fill 절 있음 · 표준 부품 0 · ＋ 0 · 부위 색 칸 옛 id').toEqual({ fill: true, std: false, add: false, part: true });
+    expect(errs, errs.join(' | ')).toEqual([]);
+  });
+}
+
+/* FR1(시트 0.9.13 220 DS-FILL-STD-REST-01 · 탑 워커 fill · 0913-e 위로 옮김 261126) — 남은 여섯 패널 몸 색 = 표준 겹 줄(radial F2-3 꼴 · 부위 색 줄 그대로)
+ *   그 몸 색 칸(옛 id)이 Fill 절 안 .ui-fill[data-part=fill] › .ui-fill-layer[data-fill-index="0"] · 부품 하나 · 눈 막힘(− 막힘 블럭 = 태양 꼴 «눈 = − 따라감») · ＋ 0
+ *   채팅·인포카드·그래프 = D22(현빈 «부위 색만») 그대로라 여기 없음 · 양성대조 = 바탕 0e3657ad1(여섯 손 0) ⇒ FR1 여섯 빨강 */
+const LASTB = (cls) => `[...document.querySelectorAll('#canvas .${cls}')].pop()`;
+for (const [name, add, cls, colorId, prefix] of [
+  ['annotation', "{ const s = [...document.querySelectorAll('#canvas .section-block')].pop(); const a = window.makeAnnotationBlock({ points: [[20, 20], [160, 90]], text: 'FR' }); s.appendChild(a); window.showAnnotationProperties(a); }", null, 'annot-label-bg', 'annot-fill'],
+  ['label-group', `(window.addLabelGroupBlock(), (() => { const b = ${LASTB('label-group-block')}; window.showLabelGroupProperties(b, b.querySelector('.label-item')); })())`, null, 'lg-item-bg', 'lg-item-fill'],
+  ['quote', 'addQuoteBlock', null, 'qt-textcol', 'qt-fill'],
+  ['section', "window.showSectionProperties([...document.querySelectorAll('#canvas .section-block')].pop())", null, 'sec-bg', 'sec-fill'],
+  ['sticker-arrow', "window.addStickerBlock({ shape: 'arrow' })", null, 'stk-arrow-color', 'stk-arrow-fill'],
+  ['vector', 'addVectorBlock', null, 'vb', 'vb-fill'],
+]) {
+  test(`FR1 ${name} — 몸 색(${colorId}) = 표준 겹 줄 안 · 부품 하나 · 눈 막힘 · ＋ 0`, async ({ page }) => {
+    const errs = await bootBlk(page, add, cls);
+    await page.waitForSelector('#panel-right .prop-section[data-sec="fill"]', { state: 'attached' });
+    const o = await page.evaluate(([colorId, prefix]) => { const f = document.querySelector('#panel-right .prop-section[data-sec="fill"]'); const hex = document.getElementById(`${colorId}-hex`);
+      return { parts: f.querySelectorAll('.ui-fill[data-part="fill"]').length, inLayer: !!hex?.closest('.ui-fill[data-part="fill"] > .ui-fill-layer[data-fill-index="0"]') && f.contains(hex),
+        eye: document.getElementById(`${prefix}-eye`)?.getAttribute('aria-disabled') ?? null, add: !!document.getElementById(`${prefix}-add`) }; }, [colorId, prefix]);
+    expect(o, '★몸 색 = 겹 줄 · 부품 하나 · 눈 막힘 · ＋ 0').toEqual({ parts: 1, inLayer: true, eye: 'true', add: false });
     expect(errs, errs.join(' | ')).toEqual([]);
   });
 }

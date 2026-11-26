@@ -36,6 +36,7 @@
 */
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { fillSectionHTML } from './_fill-section.js';   // 표준 Fill(DS-FILL-STD-REST-01) — 글자색 = 겹 줄(텍스트 F4 와 같은 까닭 글) · VAR·최근 줄·부호 색 = 그대로
 /* ★HTML 이스케이프는 ★정본 하나다 — ⛔제 사본을 만들지 마라
    (tests/unit/name-axes-to-markup X9 가 사본 수를 센다). */
 /* ★정렬 단추는 ★`alignBtn` ★한 곳에서 나온다 — ⛔SVG 를 ★여기 적지 마라
@@ -259,10 +260,7 @@ ${layout === 'inline' ? `
         sizeMin: L.fontSize.min, sizeMax: L.fontSize.max,
       })),
       sec('fill', `
-      <div class="prop-color-row">
-        <span class="prop-label">글자색</span>
-        ${colorFieldHTML({ idPrefix: 'qt-textcol', hex: _swatchHex(textColor, QUOTE_DEFAULTS.textColor), alpha: parseAlphaFromColor(textColor) })}
-      </div>
+      ${fillSectionHTML({ prefix: 'qt-fill', removeWhy: '글자가 안 보이게 되는 길이라 지금은 못 지워요', colorHtml: colorFieldHTML({ idPrefix: 'qt-textcol', hex: _swatchHex(textColor, QUOTE_DEFAULTS.textColor), alpha: parseAlphaFromColor(textColor) }) })}
       <!-- 1012t1H5 VAR 줄 — 최근 줄(.cv-recent-row)은 wireColorVarChips 가 바로 밑에 붙인다(텍스트·모달 패널과 같은 벌) -->
       <div class="cv-chips" id="qt-textcol-chips" hidden></div>
       <div class="prop-row">

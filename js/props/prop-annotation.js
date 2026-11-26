@@ -6,6 +6,7 @@ import { renderPanel, sec } from './_panel-frame.js';
 import { positionHeadToolsHTML } from './_position-section.js';   // 표준 Position 머리(시트 222) — 몸 = 부품에 칸 없음(옛 그대로 · 탑 보고)
 import { buildTypographySectionHtml } from './_typo-section.js';   // 표준 Typography 절(시트 221) — 크기칸만(챗 선례 prop-chat.js)
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { fillSectionHTML } from './_fill-section.js';
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_STYLES_CSS, STROKE_POP_WHY } from './_stroke-section.js';
 /* ★1017t1h3 — 「고른 글자만」 한 벌. ⛔선택을 여기서 따로 저장하지 않는다(_text-selection.js 머리말 ⛔). */
 import { getSavedTextSelection, withTextSelection, applyStyleToRange } from './_text-selection.js';
@@ -450,15 +451,12 @@ export function showAnnotationProperties(block) {
         showLetterSpacing: false, showLineHeight: false, showHighlight: false,
         omitHidden: true,   // 배선은 크기칸(#annot-typo-size-number) 하나만 찾는다 · 옛 슬라이더 annot-font-size 걷음 · 저장 키 labelFontSize 그대로
       }) : ''),
-      sec('fill', `${st.labelMode === 'text' ? `
+      sec('fill', `
+      ${fillSectionHTML({ prefix: 'annot-fill', removeWhy: '라벨 배경은 투명도 0 으로 없애요', colorHtml: colorFieldHTML({ idPrefix: 'annot-label-bg', hex: _hex(st.labelBg), alpha: labelBgAlpha, placeholder: '없음' }) })}${st.labelMode === 'text' ? `
       <div class="prop-color-row">
         <span class="prop-label">글자색</span>
         ${colorFieldHTML({ idPrefix: 'annot-label-color', hex: _hex(st.labelColor), alpha: labelColorAlpha })}
-      </div>` : ''}
-      <div class="prop-color-row">
-        <span class="prop-label">배경</span>
-        ${colorFieldHTML({ idPrefix: 'annot-label-bg', hex: _hex(st.labelBg), alpha: labelBgAlpha, placeholder: '없음' })}
-      </div>`),
+      </div>` : ''}`),   // 표준 Fill(DS-FILL-STD-REST-01) — 라벨 배경(늘 섬) = 겹 줄 · 글자색(글 모드) = 부위 줄 · 없음 = 옛 그대로 알파 0(체커 견본)
       // 옛 「선」 + 라벨 테두리
       /* ★표준 Stroke 2-5(현빈 261124 ⓑ · 8910 #mkp-linestroke) — 주석 선: 색 + 굵기 · ＋/− · 위치 없음(선 = 가운데 고정) · ⫶ = 선 꼴(209 마감 ◑ 261125) · 옛 id annot-stroke(색) · annot-stroke-w-num
          «Label border» = 표준 ＋/− 있는 절(없음 = 굵기 0 · 색 알파 0 은 색의 일 — 지디에 갈림 줄 올림) · 선 꼴 = ⫶ 팝오버(실선·대시·점 · 옛 값) · 옛 id annot-label-border(색 · placeholder 없음) · annot-border-w-num */

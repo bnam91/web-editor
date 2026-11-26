@@ -108,7 +108,7 @@ test('T-H5 prop-quote.js 의 Fill 절이 Typography 뒤에서 qt-textcol 을 담
   assert.ok(iCol > iFill, 'qt-textcol 칸이 Fill 절 밖(앞)에 있다');
   assert.equal(code.split('prop-section-title">글<').length - 1, 0, '「글」 절이 되살아났다');
   assert.equal(code.split('>글자 색<').length - 1, 0, '라벨이 「글자 색」(띄어쓰기)로 돌아갔다 — 텍스트블럭은 「글자색」');
-  assert.ok(code.includes('<span class="prop-label">글자색</span>'), '「글자색」 라벨이 없다');
+  assert.ok(!code.includes('<span class="prop-label">글자색</span>') && code.includes("fillSectionHTML({ prefix: 'qt-fill'"), '글자색 = 표준 Fill 겹 줄(라벨 줄 없음)이 아니다');   // ★기대 바뀜(표준 Fill · 탑 워커 261125)
 });
 
 /* T-H4 — 「정렬」(qt-align-group) 아이콘이 'object-h'(세로 정렬 'object-v' 와 같은 칠 그림 사전)이고 'text' 가 아니다.

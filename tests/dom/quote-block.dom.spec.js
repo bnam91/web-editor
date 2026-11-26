@@ -1878,7 +1878,7 @@ test('Q21 ★1012t1H 패널 꼴 — 인용구 패널 (H6: 블럭 넣기 select 0
   expect(pn.secs.slice(pn.secs.indexOf('fill'), iq + 1), `★H5 — Fill → Stroke → Appearance → Typography(v1). 잰 절 ${JSON.stringify(pn.secs)}`).toEqual(['fill', 'stroke', 'appearance', 'typography']);
   /* ★U2(right-panel-unify) 의도 갱신 — 「부호 색」이 옛 「인용구(쉼표)」 절에서 Fill 로 왔다(OWNERSHIP: 색 = fill). 글자색이 «먼저». */
   expect(pn.fill, `★H5 — Fill 절 안 라벨은 「글자색」·「부호 색」, 글자색 칸과 .prop-color-row 가 있다. 잰 값 ${JSON.stringify(pn.fill)}`)
-    .toEqual({ labels: ['글자색', '부호 색'], hasColor: true, colorRow: true });
+    .toEqual({ labels: ['부호 색'], hasColor: true, colorRow: true });   // ★기대 바뀜(표준 Fill · 탑 워커 261126) — 글자색 = 겹 줄(라벨 없음 · 텍스트 F4 와 같은 꼴) · 부호 색 = 부위 줄 그대로 · 색 칸 #qt-textcol-color 는 그대로 Fill 안
   expect(pn.titles.includes('글'), `★H5 — 「글」 절은 0 이다. 잰 제목 ${JSON.stringify(pn.titles)}`).toBe(false);
   /* 기준이 살아 있다 — 텍스트블럭 패널도 같은 술어(Fill 절 안 라벨 = 인용구와 같은 「글자색」 하나 · .prop-color-row)를 만족한다.
      ★173(261027 · 지디) — 텍스트블럭 쪽 «위치» 단언(Fill 이 Typography 바로 다음)을 «내용»으로 좁혔다.

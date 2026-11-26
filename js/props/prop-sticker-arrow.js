@@ -9,6 +9,7 @@
  *   히스토리 = push-after(쓰고 그린 뒤 pushHistory) — glow·coin 절과 같은 규약. 조작 한 번 = 한 칸.
  */
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { fillSectionHTML } from './_fill-section.js';   // 표준 Fill(DS-FILL-STD-REST-01) — 화살표 색 = 겹 줄
 
 const SVG = (inner) => `<svg width="18" height="14" viewBox="0 0 18 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
 
@@ -79,10 +80,7 @@ export function arrowSections(block) {
       </div>
     </div>`;
   const fill = `
-      <div class="prop-color-row">
-        <span class="prop-label">색상</span>
-        ${colorFieldHTML({ idPrefix: 'stk-arrow-color', hex: color, alpha: parseAlphaFromColor(color) })}
-      </div>`;
+      ${fillSectionHTML({ prefix: 'stk-arrow-fill', removeWhy: '화살표 색은 지울 수 없어요 — 투명도 0 으로 숨기세요', colorHtml: colorFieldHTML({ idPrefix: 'stk-arrow-color', hex: color, alpha: parseAlphaFromColor(color) }) })}`;
   return { special: [['Arrow Line', special]], fill };
 }
 
