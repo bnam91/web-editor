@@ -86,4 +86,6 @@ export function wirePaddingSection({ tb, phLinked: phLinkedArg }) {
 
   /* ★J146B ⒝ — 패딩이 글자칸을 옮기면 자유변형 보라·손잡이도 따라간다(위 setter 들 뒤에 돈다) */
   [pvNumber, plNumber, prNumber, phNumber].forEach((el) => el?.addEventListener('input', () => { if (tb.dataset.tfCorners) window.ftHandlesSync?.(tb); }));
+  /* ★151 TEXT-PAD-SLIDER-NO-HISTORY-01(dev 74ceafe81 · 지디 261120) — 숫자칸 change 한 번 = push-after(표준 Layout 뒤 슬라이더는 걷혀 숫자칸만) */
+  [pvNumber, plNumber, prNumber, phNumber].forEach((el) => el?.addEventListener('change', () => window.pushHistory?.('패딩')));
 }

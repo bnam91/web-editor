@@ -117,3 +117,26 @@ test('D4 ⌥ 누르고 안 움직이고 놓으면 복제 없음(종전 드릴)',
   expect(r.stillSel, '★드릴 — 고름이 아래 레이어로 옮김').toBe(false);
   expect(errs).toEqual([]);
 });
+
+/* ★154 t13D-03 마감 ◑(지디 261122 재채점 · 미카사 grade-261122c 09-altdup) — «⌘Z 한 번에 사본 안 빠짐»(흐름·오버레이·프레임 안 = 2번째에 · 둘 고름 = 7번에도 남음)
+ *   원인: 한 손짓이 이력 둘 — duplicateInPlace «복제 완료»(사본이 원본 위에 겹친 상태) + 끌기 끝 표본 ⇒ 첫 ⌘Z = 사본이 원본 위로 돌아와 «안 빠진» 꼴
+ *   D5 세 경우(자유배치 프레임 안 · 섹션 오버레이 · 흐름) — ⌥끌기 한 번 → ⌘Z 한 번 = 사본 0 · 원본 제자리 · ⌘⇧Z 한 번 = 사본 끈 자리로 */
+for (const [name, id, scope, dx, dy, opt] of [['프레임안', 'tfF', '#frD > .frame-block[data-text-frame]', 120, 60, { dbl: true }], ['오버레이', 'tfO', '#sD > .frame-block[data-text-frame]', 120, 60, {}], ['흐름', 'tf1', '#sD .section-inner .frame-block[data-text-frame]', 0, null, {}]]) {
+  test(`D5 (154) ${name} ⌥끌기 → ⌘Z 한 번 = 사본 빠짐 · ⌘⇧Z 한 번 = 다시`, async ({ page }) => {
+    const errs = await scene(page);
+    const ids = () => page.evaluate((scope) => [...document.querySelectorAll(scope)].filter((e) => !e.closest('#frD') || scope.startsWith('#frD')).map((e) => e.id), scope);
+    const a = await ids();
+    let ddy = dy; if (ddy == null) { const [, y2] = await mid(page, '#tf2'); const [, y1] = await mid(page, '#tf1'); ddy = (y2 - y1) + 30; }
+    await altDrag(page, '#' + id + ' .text-block', dx, ddy, opt);
+    const b = await ids();
+    expect(b.length, `[전제] 사본 생김 ${JSON.stringify([a, b])}`).toBe(a.length + 1);
+    await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z'); await raf(page);
+    const c = await ids();
+    await page.keyboard.press('Meta+Shift+z'); await raf(page);
+    const d = await ids();
+    console.log(`[154 ${name} 실측]`, JSON.stringify({ a, b, c, d }));
+    expect(c, '★⌘Z 한 번 = 사본 빠짐(끌기 전 그대로)').toEqual(a);
+    expect(d.length, '★⌘⇧Z 한 번 = 사본 다시').toBe(b.length);
+    expect(errs).toEqual([]);
+  });
+}

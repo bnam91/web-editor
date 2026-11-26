@@ -33,6 +33,7 @@ const ANNOT_DEFAULTS = {
   labelImageRadius: 0,           // image 모드 border-radius (0~50, %)
   labelBorderStyle: 'solid',     // 'solid' | 'dashed' | 'dotted'
   labelBorderWidth: 1,           // border 두께 (px)
+  lineStyle:       'solid',      // ★STROKE-LINE-BLOCKS-STD-01(0.9.13 209 마감 ◑) 주석 선 꼴 'solid'|'dashed'|'dotted' — ⫶ «Stroke 설정» · 실선이면 키 없음(옛 바이트)
   labelPad:        null,         // ★1017t1h5 — 라벨 여백(px, 0..24, 사방 동일). null = CSS 기본(4px 8px) 유지 — 안 건드리면 키를 안 단다.
   /* ★1013t2C6 「라벨 너비도 조절이 되면 좋겠다 · 라벨박스에도 핸들 · 첨에는 모서리 라운드를 주지말 것」 — labelPad 와 같은 꼴.
      labelWidth  = 라벨 상자 너비(px · 테두리 포함 · ANNOT_LIMITS.labelWidth). null = 글 길이만큼(옛 동작 · 키 없음).
@@ -436,6 +437,7 @@ function makeAnnotationBlock(opts = {}) {
 
   const strokeColor      = opts.strokeColor      ?? ANNOT_DEFAULTS.strokeColor;
   const strokeWidth      = opts.strokeWidth      ?? ANNOT_DEFAULTS.strokeWidth;
+  const lineStyle        = opts.lineStyle        ?? ANNOT_DEFAULTS.lineStyle;
   const anchorShape      = opts.anchorShape      ?? ANNOT_DEFAULTS.anchorShape;
   const anchorSize       = opts.anchorSize       ?? ANNOT_DEFAULTS.anchorSize;
   /* ★★261021 현빈: 「수치입력 ★텍스트 라벨이 좀 ★부자연스러워 보여 ★굳이 텍스트 라벨박스 안에 없어도 될것 같고
@@ -559,6 +561,7 @@ function makeAnnotationBlock(opts = {}) {
     if (dimB) block.dataset.dimB = JSON.stringify(dimB); else delete block.dataset.dimB;
   }
 
+  if (lineStyle === 'dashed' || lineStyle === 'dotted') block.dataset.lineStyle = lineStyle;   // 실선 = 키 없음(옛 바이트) · 순서 = labelHtml 바로 앞(ANNOT_DATA_KEYS 와 같은 순서 · labelHtml 은 맨 끝 그대로 — 1017t1h3 H5)
   if (labelMode !== 'image' && labelHtml) block.dataset.labelHtml = labelHtml;
 
   const ptsAttr = points.map(p => `${p[0]},${p[1]}`).join(' ');
@@ -602,7 +605,7 @@ function makeAnnotationBlock(opts = {}) {
   const dimSvg = dimGeo ? _renderDimSVG(dimGeo, { strokeColor, strokeWidth, anchorShape, anchorSize, dimShowExt, dimExtStyle }) : '';
   block.innerHTML = `
     <svg class="annot-svg" xmlns="http://www.w3.org/2000/svg">
-      ${dimGeo ? dimSvg : `<polyline class="annot-line" points="${ptsAttr}" fill="none" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-linejoin="round" stroke-linecap="round"/>
+      ${dimGeo ? dimSvg : `<polyline class="annot-line" points="${ptsAttr}" fill="none" stroke="${strokeColor}" stroke-width="${strokeWidth}"${_annotDashAttr(lineStyle, strokeWidth)} stroke-linejoin="round" stroke-linecap="round"/>
       ${anchorSvg}`}
     </svg>
     <div class="annot-label${labelExtraClass}" contenteditable="false" style="${labelStyle}">${labelInner}</div>`;
@@ -686,9 +689,17 @@ function annotPropsFromDataset(block) {
     dimUnit:          ds.dimUnit || D.dimUnit,
     dimA:             _annPt(ds.dimA),
     dimB:             _annPt(ds.dimB),
+    lineStyle:        (ds.lineStyle === 'dashed' || ds.lineStyle === 'dotted') ? ds.lineStyle : D.lineStyle,
   };
 }
 window.annotPropsFromDataset = annotPropsFromDataset;
+/* 주석 선 꼴 → stroke-dasharray(굵기에 비례 · 치수 보조선 _renderDimSVG 와 같은 비 · 끝 round 라 점선은 둥근 점) · 실선 = '' */
+function annotLineDash(style, sw) {
+  const w = Number(sw) || 1;
+  return style === 'dashed' ? `${(w * 4).toFixed(1)} ${(w * 3).toFixed(1)}` : style === 'dotted' ? `${(w * 0.1).toFixed(2)} ${(w * 2.4).toFixed(1)}` : '';
+}
+function _annotDashAttr(style, sw) { const d = annotLineDash(style, sw); return d ? ` stroke-dasharray="${d}"` : ''; }
+window.annotLineDash = annotLineDash;
 /* rebindAll 이 fresh 블럭에서 «되돌려 쓰는» dataset 키 — 팩토리가 쓰는 키 전부(순서 = 팩토리 순서). */
 /* ★★t3-01 — 치수선 칸 일곱('annotKind'~'dimShowExt')을 ★labelHtml ★앞에 넣었다.
    ★순서 = 팩토리가 dataset 에 쓰는 순서여야 한다(:379 까닭 — 직렬화 문자열이 갈리면 ⌘Z 유령 칸).
@@ -699,7 +710,7 @@ const ANNOT_DATA_KEYS = ['points', 'anchorX', 'anchorY', 'labelX', 'labelY', 'te
   'anchorShape', 'anchorSize', 'labelFontSize', 'labelColor', 'labelBg', 'labelBorderColor', 'labelMode',
   'labelBorderStyle', 'labelBorderWidth', 'labelImageSrc', 'labelImageSize', 'labelImageRadius', 'labelDx', 'labelDy', 'anchorRot', 'labelPad', 'labelWidth', 'labelRadius',
   'annotKind', 'dimAxis', 'dimOffset', 'dimSlide', 'dimGap', 'dimOver', 'dimShowExt', 'dimLabelLift', 'dimUnit', 'dimExtStyle', 'dimA', 'dimB',
-  'labelHtml'];   // ★1017t1h3 — 팩토리가 «맨 끝»에 쓴다(순서 = 팩토리 순서)
+  'lineStyle', 'labelHtml'];   // ★1017t1h3 — 팩토리가 «맨 끝»에 쓴다(순서 = 팩토리 순서)
 window.ANNOT_DATA_KEYS = ANNOT_DATA_KEYS;
 
 // 라벨박스 내부 컨텐츠 — text 모드 = 텍스트, image 모드 = <img> 또는 체크패턴 placeholder

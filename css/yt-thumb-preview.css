@@ -1,0 +1,83 @@
+@charset "UTF-8";
+/* yt-thumb-preview.css — t13C-03 ③ 유튜브 썸네일 미리보기(js/yt-thumb-preview.js)
+ *
+ * ★껍데기·단추·입력은 «기존 공용 클래스 그대로»다:
+ *     .settings-modal-overlay / -shell / -header / -title / -close / -body / -footer  (settings-modal.css)
+ *     .settings-btn / .settings-btn-primary / .settings-btn-secondary                 (settings-modal.css)
+ *     .prop-input  (editor-props.css — 제목 입력)
+ *   여기 있는 건 «카드 배치»와 «유튜브 바탕 시늉 색»뿐이다. 룩어라이크를 새로 짓지 않는다.
+ * ★--ytp-* 는 앱 UI 색이 아니라 «유튜브 화면 흉내» 값이다(어두운/밝은 바탕) — 그래서 앱 토큰에 묶지 않고 여기 정의 줄에만 둔다.
+ *   shortcut: 유튜브 색·카드 치수는 기억값 — 실측 표본이 오면 바꾼다.
+ */
+
+.ytp-shell { width: min(960px, 94vw); max-height: 90vh; }
+
+/* .settings-modal-body 는 탭 배치(가로 flex)라 세로/스크롤로 되돌린다 */
+.ytp-body {
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--ui-space-3) var(--ui-space-4) var(--ui-space-4);
+  gap: var(--ui-space-2);
+}
+.ytp-status { font-size: var(--ui-fs-12); color: var(--ui-text-muted); }
+.ytp-status:empty { display: none; }
+
+.ytp-stage {
+  --ytp-bg: #0f0f0f;
+  --ytp-text: #f1f1f1;
+  --ytp-sub: #aaaaaa;
+  --ytp-avatar: #3f3f3f;
+  --ytp-dur-bg: rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: calc(var(--ui-space-3) * 2);
+  padding: calc(var(--ui-space-1) * 5);
+  border-radius: var(--ui-radius-md);
+  background: var(--ytp-bg);
+  color: var(--ytp-text);
+  font-family: Roboto, 'Pretendard', -apple-system, sans-serif;
+}
+.ytp-stage[data-theme="light"] {
+  --ytp-bg: #ffffff;
+  --ytp-text: #0f0f0f;
+  --ytp-sub: #606060;
+  --ytp-avatar: #e5e5e5;
+}
+
+.ytp-card-label { font-size: var(--ui-fs-12); color: var(--ytp-sub); margin-bottom: var(--ui-space-2); }
+.ytp-thumb { position: relative; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; background: var(--ytp-avatar); }
+.ytp-img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.ytp-img:not([src]) { visibility: hidden; }
+.ytp-dur {
+  position: absolute; right: calc(var(--ui-space-1) * 1.5); bottom: calc(var(--ui-space-1) * 1.5);
+  padding: 1px var(--ui-space-1); border-radius: var(--ui-radius-sm);
+  background: var(--ytp-dur-bg); color: #fff;
+  font-size: var(--ui-fs-12); font-weight: var(--ui-fw-semibold); line-height: 1.4;
+}
+.ytp-meta { display: flex; gap: var(--ui-space-3); margin-top: var(--ui-space-3); }
+.ytp-avatar { flex: none; width: calc(var(--ui-space-3) * 3); height: calc(var(--ui-space-3) * 3); border-radius: 50%; background: var(--ytp-avatar); }
+.ytp-lines { min-width: 0; }
+.ytp-title {
+  font-size: var(--ui-fs-16); font-weight: var(--ui-fw-semibold); line-height: 1.4;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.ytp-sub { font-size: var(--ui-fs-14); color: var(--ytp-sub); line-height: 1.5; }
+
+/* 홈 격자 카드 폭 = 썸네일 폭 */
+.ytp-card-home { width: 360px; }
+/* 옆 추천 — 작은 썸네일 왼쪽 · 글 오른쪽 */
+.ytp-card-side { width: 402px; }
+.ytp-card-side .ytp-item { display: flex; gap: var(--ui-space-2); }
+.ytp-card-side .ytp-thumb { flex: none; border-radius: 8px; }
+.ytp-card-side .ytp-dur { right: var(--ui-space-1); bottom: var(--ui-space-1); font-size: var(--ui-fs-10); }
+.ytp-card-side .ytp-meta { margin-top: 0; }
+.ytp-card-side .ytp-title { font-size: var(--ui-fs-14); }
+.ytp-card-side .ytp-sub { font-size: var(--ui-fs-12); }
+/* 모바일 — 폰 폭 · 썸네일 꽉 참(모서리 없음) */
+.ytp-card-mobile { width: 360px; }
+.ytp-card-mobile .ytp-thumb { border-radius: 0; }
+.ytp-card-mobile .ytp-meta { padding: 0 var(--ui-space-3); }
+.ytp-card-mobile .ytp-title { font-size: var(--ui-fs-14); }
+.ytp-card-mobile .ytp-sub { font-size: var(--ui-fs-12); }

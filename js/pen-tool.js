@@ -505,20 +505,22 @@ function _finalizeDraw() {
      src = base64 SVG data URL(저장 때 기존 외부화가 goya-asset .svg 로 · DESIGN §7). 섹션에 끌어 놓으면 펜 벡터(scratch-pad onUp). */
   /* ★t13G-03(0.9.13 185행 · 현빈 결정 261124 야간) — 섹션 밖 선 = «그린 자리»에 IAL(떠 있는) 펜 벡터. 임시보관함 아님 · 흐름 흡수 아님.
      섹션 = 그린 패스 세로 가운데가 걸친(없으면 위·아래 가장 가까운) 섹션 — 바깥 .svg 드랍(vector-block _nearestSection)과 같은 규칙 ·
-     자리 = 그린 화면 자리 그대로, 섹션 상자 안으로만 조임(placePenVectorInSection). 이력 = 놓은 «뒤» 한 칸(스크래치→섹션 변환과 같은 push-after).
+     자리 = 그린 화면 자리 그대로 — 조임 없음(0.9.13 마감 ◑ 지디 261125: 옛 «섹션 상자 안 조임»은 왼쪽 밖 선을 ~193px 옮겼다) · 단 받을 섹션이 섹션 밖을 자르면 옛 조임 + 알림(아래 clips). 이력 = 놓은 «뒤» 한 칸(스크래치→섹션 변환과 같은 push-after).
      shortcut: 섹션이 하나도 없을 때만 옛 길(스크래치 펜 항목) — 그릴 섹션이 생기는 설계가 필요하면 그때. */
   if (_isScratchHost(sec)) {
     const z = _zoom(), hr = sec.getBoundingClientRect();
     const tgt = penNearestSection(hr.top + ((bb.minY + bb.maxY) / 2) * z);
     if (tgt && typeof window.placePenVectorInSection === 'function') {
       const tr = tgt.getBoundingClientRect();
+      /* 받을 섹션이 섹션 밖을 자르면(Clip content 켬 = overflowVisible 키 없음/false) 그린 자리에 두면 놓는 즉시 다 잘려 «안 그려진다»(실앱 261125) ⇒ 옛 조임(섹션 안쪽) + 알림 · 자르지 않으면 그린 자리 — 지디 판정 ① · Figma «그린 선은 보인다» */
+      const clips = tgt.dataset.overflowVisible !== 'true';
       const vb = window.placePenVectorInSection(tgt, { nodes: norm, closed: !!closed, sw: strokeWidth, color, fill, w, h },
-        Math.round((hr.left + (bb.minX - pad) * z - tr.left) / z), Math.round((hr.top + (bb.minY - pad) * z - tr.top) / z));
+        Math.round((hr.left + (bb.minX - pad) * z - tr.left) / z), Math.round((hr.top + (bb.minY - pad) * z - tr.top) / z), { clamp: clips });
       if (vb) {
         window.pushHistory?.('펜 패스');
         _cancelDraw();
         window.scheduleAutoSave?.();
-        window.showToast?.('🖊 섹션 밖 패스 — 떠 있는 벡터로(Ignore Auto Layout)');
+        window.showToast?.(clips ? '🖊 섹션 밖 보이기가 꺼진 섹션이라 안쪽에 넣었어요' : '🖊 섹션 밖 패스 — 떠 있는 벡터로(Ignore Auto Layout)');
         return vb;
       }
     }

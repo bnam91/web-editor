@@ -819,6 +819,7 @@ async function showSectionProperties(sec) {
         </select>
       </div>
       <button class="prop-export-btn" id="sec-export-btn">이 섹션 내보내기</button>
+      ${/* ★t13C-03 ③ — 미리보기(보기 전용 · js/yt-thumb-preview.js)는 썸네일 섹션 + 프리셋과 같은 문지기(animGifVisible · 관리자 노출) */ sec.dataset.thumb === 'youtube' && window.animGifVisible?.(true, window.__admin?.state?.() ?? null) ? '<button class="prop-btn prop-btn-full" id="sec-yt-preview-btn" style="margin-top:4px">YouTube 미리보기</button>' : ''}
       </div>
 `, { headTools: `<button type="button" class="prop-chain-btn" id="sec-export-toggle" title="Export 펼치기" aria-expanded="false" aria-controls="sec-export-form">${_SEC_P8}</button>` }),   /* Q33(현빈 261120) · 섹션 보강 — 처음엔 머리만 · ＋ → 꼴·폭·내보내기 · − = 접힘 */
       panelSec('template', `
@@ -1337,6 +1338,7 @@ function _bindSectionExport(sec) {
     document.getElementById('sec-export-width').value = '1280';
     document.getElementById('sec-export-format').value = 'jpg';
   }
+  document.getElementById('sec-yt-preview-btn')?.addEventListener('click', () => window.openYtThumbPreview?.(sec));
   secExportBtn.addEventListener('click', async () => {
     const fmt = document.getElementById('sec-export-format').value;
     const w   = parseInt(document.getElementById('sec-export-width').value) || 860;

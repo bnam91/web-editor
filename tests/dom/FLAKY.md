@@ -495,3 +495,7 @@ ft-restore-remeasures-at-other-width.dom.spec.js:112 X0   빨강 1/1 (u6m 전수
 
 ## 2026-11-25 · tp/0914-applayout-std 통합 표적(C3 a5d39dac4) — 이름 ＋ 수
 - `u3-purple-outline-geometry.dom.spec.js:131` U2 — 수지 표적 1 워커 빨강 1/1 · 단독 ×3 0/3(C3 머리) · P 머리 ×3 0/3.
+
+## 2026-11-24 · tp/0913-ifg-edit 표적 — 이름 ＋ 수 (⛔원인 라벨 없이)
+- `itb-photo-upload-door.dom.spec.js:165` U2 — 파일 통째 srv workers 1 ×5: tp/front(f27025897 파일) 2/5 흔들림 · 가지(c033b6ba1) 3/5 흔들림 · U2 단독 ×5 둘 다 0/5.
+- `itb-photo-upload-door.dom.spec.js:146` U3 — 표적(가지 a~g 고침 · 파일 통째 · srv workers 1) 1/1 빨강 · 같은 판 ×3 0/3. 같은 파일 `:121` U1 — 922cd91ae ×3 1/3.

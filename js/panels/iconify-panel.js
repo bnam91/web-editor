@@ -64,14 +64,14 @@ function _createModal() {
       </div>
 
       <!-- [subpanel: iconify] Icon grid -->
-      <div id="iconify-grid" data-subview="iconify" data-display="grid" style="flex:1;overflow-y:auto;padding:12px 16px;display:grid;grid-template-columns:repeat(8,1fr);gap:6px;min-height:200px;max-height:360px;">
+      <div id="iconify-grid" data-subview="iconify" data-display="grid" style="flex:1;overflow-y:auto;padding:12px 16px;display:grid;grid-template-columns:repeat(8,1fr);gap:6px;min-height:200px;max-height:360px;align-content:start;">
         <div style="grid-column:1/-1;text-align:center;color:#555;font-size:12px;padding:40px 0;font-family:Pretendard,-apple-system,sans-serif;">
           위에서 아이콘을 검색해보세요
         </div>
       </div>
 
       <!-- [subpanel: favorite] Favorite grid -->
-      <div id="iconify-fav-grid" data-subview="favorite" data-display="grid" style="flex:1;overflow-y:auto;padding:12px 16px;display:none;grid-template-columns:repeat(8,1fr);gap:6px;min-height:200px;max-height:360px;"></div>
+      <div id="iconify-fav-grid" data-subview="favorite" data-display="grid" style="flex:1;overflow-y:auto;padding:12px 16px;display:none;grid-template-columns:repeat(8,1fr);gap:6px;min-height:200px;max-height:360px;align-content:start;"></div>
 
       <!-- Footer -->
       <div style="padding:12px 16px;border-top:1px solid #222;display:flex;align-items:center;gap:10px;">
@@ -84,7 +84,7 @@ function _createModal() {
           style="width:56px;background:#111;border:1px solid #333;border-radius:4px;color:#ddd;font-size:12px;padding:5px 7px;text-align:center;font-family:Pretendard,-apple-system,sans-serif;">
         <span style="font-size:11px;color:#666;font-family:Pretendard,-apple-system,sans-serif;">px</span>
         <button id="iconify-insert-btn"
-          style="background:var(--ui-accent-primary);border:none;border-radius:6px;color:#fff;font-size:12px;padding:7px 18px;cursor:pointer;font-weight:600;font-family:Pretendard,-apple-system,sans-serif;opacity:0.4;" disabled>
+          style="background:var(--ui-bg-input);border:none;border-radius:6px;color:var(--ui-text-muted);font-size:12px;padding:7px 18px;cursor:default;font-weight:600;font-family:Pretendard,-apple-system,sans-serif;" disabled title="아이콘을 먼저 고르세요">
           삽입
         </button>
       </div>
@@ -441,8 +441,7 @@ function _updateSelectedPreview(sel) {
   if (!sel || !sel.name) {
     preview.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#444" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
     nameEl.textContent = '선택된 아이콘 없음';
-    insertBtn.disabled = true;
-    insertBtn.style.opacity = '0.4';
+    _paintInsert(insertBtn, false);
     return;
   }
 
@@ -461,8 +460,17 @@ function _updateSelectedPreview(sel) {
   }
   nameEl.textContent = sel.name;
   nameEl.style.color = '#ccc';
-  insertBtn.disabled = false;
-  insertBtn.style.opacity = '1';
+  _paintInsert(insertBtn, true);
+}
+/* 237(현빈QA 261126) — 막힌 삽입 = FigCraft 막힌 주 단추 꼴(widgets.rs:1334-1349: 회색 바탕 field + 흐린 글 text_tertiary · 안 눌림).
+   옛 «흐린 파랑 + 손가락»은 눌리는 줄 알고 눌렀다가 조용히 무반응으로 보였다. */
+function _paintInsert(btn, on) {
+  btn.disabled = !on;
+  btn.style.opacity = '';
+  btn.style.background = on ? 'var(--ui-accent-primary)' : 'var(--ui-bg-input)';
+  btn.style.color = on ? '#fff' : 'var(--ui-text-muted)';
+  btn.style.cursor = on ? 'pointer' : 'default';
+  btn.title = on ? '' : '아이콘을 먼저 고르세요';
 }
 
 async function _doInsert() {

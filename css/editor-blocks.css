@@ -4946,3 +4946,6 @@ html.tgs-selecting .tgs:focus-within {
 .frame-block[data-fill-hidden="1"], .asset-block[data-fill-hidden="1"] { background-color: transparent !important; }
 .frame-block[data-fill-hidden="1"]:not([data-bg-img]), .asset-block[data-fill-hidden="1"] { background-image: none !important; }
 .icon-circle-block[data-fill-hidden="1"] .icb-circle { background-color: transparent !important; }
+
+/* 인포그래픽 편집 모드(0.9.13 201행 · js/blocks/grid-ifg-edit.js) — 평소 선택 겹(실선 틀·가운데 네모 손잡이·거터)을 숨기고 점선 틀(.ifg-edit-frame)만 보인다(미카사 201 a) */
+body.ifg-edit-on #ss-handles-overlay { display: none !important; }

@@ -29,7 +29,7 @@ test('C1 일반 계정엔 Coupon 입구 없음·기존 쿠폰은 열리고 고�
   await expect(page.locator('#fp-component-dropdown')).not.toHaveClass(/open/);
 
   /* 기존 쿠폰(API 로 넣음) — 저장→다시 열기 뒤 보이고 눌러 패널이 뜬다 */
-  await page.click('.fp-btn.primary[title="새 섹션 추가"]');
+  await page.click('.fp-btn.primary[title^="새 섹션 추가"]');
   await expect.poll(() => page.evaluate(() => !!window.getSelectedSection?.())).toBe(true);
   const id = await page.evaluate(() => window.addCouponBlock()?.block?.id);
   expect(id, '쿠폰 블록이 만들어졌다(API 는 누구에게나 살아 있다)').toBeTruthy();
@@ -47,7 +47,7 @@ test('C1 일반 계정엔 Coupon 입구 없음·기존 쿠폰은 열리고 고�
   /* 관리자 — 입구 보이고 눌러 쿠폰이 하나 더 생긴다 */
   await page.evaluate(() => window.__admin._forceState({ ok: true, isAdmin: true }));
   await page.keyboard.press('Escape');
-  await page.click('.fp-btn.primary[title="새 섹션 추가"]');   // 넣을 섹션(addCouponBlock 은 고른 섹션 필요)
+  await page.click('.fp-btn.primary[title^="새 섹션 추가"]');   // 넣을 섹션(addCouponBlock 은 고른 섹션 필요)
   await expect.poll(() => page.evaluate(() => !!window.getSelectedSection?.())).toBe(true);
   const before = await page.locator('.coupon-block').count();
   await openMenu(page);

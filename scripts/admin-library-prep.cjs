@@ -4,8 +4,8 @@
  *       node scripts/admin-library-prep.cjs <폴더>
  *   ⑵ SVG viewBox 고침 (LIB-FIGMA-SVG-VIEWBOX-CLIP-01): 피그마 틀 밖으로 나간 획이 잘린다(예 Doodle 195-483 · viewBox 0 0 2210 1830 인데 y −592).
  *       실제 그림 bbox(패스 끝점 + 3차 곡선 «극값» · 조절점 아님)가 지금 viewBox 를 «넘을 때만» 넓힌다 — 넓힐 땐 획 굵기/2 를 더한 합집합.
- *       ★판정은 «패스 자체»로(획 여유 빼고): 획 여유로 판정하면 피그마가 안 잘렸다고 한 191-38 102장 중 78장을 괜히 넓혔다(맞대기 끝 직선은
- *       끝점에서 획이 길 방향으로 안 나간다 · 미카사 CLIP-LIST 261118 = 191-38·화살표 0). 넘지 않으면 파일 무변 · 틀 안 여백은 그대로. width/height 도 같은 비로. 원본은 <이름>.svg.orig 로 한 번만 남긴다(다시 돌리면 .orig 에서 다시 잰다 = 멱등).
+ *       ★판정 = 패스 ± 여유(그 파일 획 굵기 최대/2 · 0.9.13 66 마감 ◑ 261125 지디 «여유 = max(획)/2»): 옛 «패스 자체만» 판정은 획 40 짜리 273-12335 의 화살촉 아래를 잘랐다.
+ *       (옛 까닭: 획 여유로 판정하면 191-38 중 78장이 괜히 넓어짐 · 맞대기 끝 직선 — 지금은 잘림 0 을 앞세워 그 넓힘을 받아들인다.) 넘지 않으면 파일 무변 · 틀 안 여백은 그대로. width/height 도 같은 비로. 원본은 <이름>.svg.orig 로 한 번만 남긴다(다시 돌리면 .orig 에서 다시 잰다 = 멱등).
  *       같이: <use xlink:href="#id"> 는 앱 거르개(sanitizeSvgString)가 버린다 → 가리키는 <path> 를 그 자리에 펼친다(안 하면 그림 본체가 사라진다).
  *       node scripts/admin-library-prep.cjs --fix-viewbox <폴더…>
  *   ⚠️재료가 쓰는 패스 명령은 절대 M L H V C Z 뿐(261118 실측 189장) — 다른 명령(상대·Q·A …)이 나오면 그 파일은 «모름»으로 건너뛰고 목록에 낸다(추측 0).
@@ -82,21 +82,24 @@ function fixViewBox(text) {
   if (vb.length !== 4) return { svg: text, changed: false, why: 'viewBox 없음' };
   const swRoot = parseFloat(_attr(root, 'stroke-width')) || 0;
   const body = s0.replace(/<defs\b[\s\S]*?<\/defs>/g, '');   // defs 안(펼친 원본·그라데이션)은 그려지지 않는다
-  const bb = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
-  const gb = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };   // 획 여유 없는 패스 자체 — «넘었나» 판정용
+  const gb = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };   // 획 여유 없는 패스 자체
+  let H = 0;   // 여유 = 그 파일 획 굵기 최대/2(채움만이면 0)
   for (const m of body.matchAll(/<path\b[^>]*>/g)) {
     const t = m[0], d = _attr(t, 'd');
     if (!d) continue;
     const b = pathBBox(d);
     if (!b) return { svg: text, changed: false, unknown: true, why: '모르는 패스 명령' };
     const stroked = (_attr(t, 'stroke') || 'none') !== 'none';
-    const h = stroked ? (parseFloat(_attr(t, 'stroke-width')) || swRoot || 1) / 2 : 0;
+    if (stroked) H = Math.max(H, (parseFloat(_attr(t, 'stroke-width')) || swRoot || 1) / 2);
     gb.x0 = Math.min(gb.x0, b.x0); gb.y0 = Math.min(gb.y0, b.y0); gb.x1 = Math.max(gb.x1, b.x1); gb.y1 = Math.max(gb.y1, b.y1);
-    bb.x0 = Math.min(bb.x0, b.x0 - h); bb.y0 = Math.min(bb.y0, b.y0 - h); bb.x1 = Math.max(bb.x1, b.x1 + h); bb.y1 = Math.max(bb.y1, b.y1 + h);
   }
-  if (bb.x0 === Infinity) return { svg: s0, changed: uses > 0, why: '패스 없음', uses };
+  if (gb.x0 === Infinity) return { svg: s0, changed: uses > 0, why: '패스 없음', uses };
+  /* ★0.9.13 66 마감 ◑(지디 261125 · 아이맥 GRADE-0913close-4 LIB-05) — 옛 판정 = «패스 자체가 틀을 넘을 때만»(획 여유 뺌) ⇒ Doodle 원본 273-12335(획 40 · 패스 아래 끝과 틀 사이 7.2 < 20)이
+     화살촉 아래 ≈13 단위 잘림. ⇒ 여유 = 그 파일 획 굵기 최대/2 를 사방에 두고, 패스 ± 여유가 틀을 넘으면 넓힌다(넓힐 때도 같은 여유 · 합집합).
+     값: 맞대기 끝 직선처럼 획이 실제론 덜 나가는 파일도 넓어진다(옛 판정이 피했던 78장류) — 잘림 0 을 우선(지디). 틀 안 여백은 그대로 · 멱등. */
+  const bb = { x0: gb.x0 - H, y0: gb.y0 - H, x1: gb.x1 + H, y1: gb.y1 + H };
   const [vx, vy, vw, vh] = vb, EPS = 0.5;
-  const over = gb.x0 < vx - EPS || gb.y0 < vy - EPS || gb.x1 > vx + vw + EPS || gb.y1 > vy + vh + EPS;
+  const over = bb.x0 < vx - EPS || bb.y0 < vy - EPS || bb.x1 > vx + vw + EPS || bb.y1 > vy + vh + EPS;
   if (!over) return { svg: s0, changed: uses > 0, why: uses ? 'use 펼침만' : '안쪽', uses, bbox: bb };
   const r = (v) => Math.round(v * 100) / 100;
   const nx = r(Math.min(vx, bb.x0)), ny = r(Math.min(vy, bb.y0));

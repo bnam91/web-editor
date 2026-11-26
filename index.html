@@ -29,6 +29,7 @@
 <link rel="stylesheet" href="css/settings-admin.css">
 <link rel="stylesheet" href="css/font-substitute.css">
 <link rel="stylesheet" href="css/version-history.css">
+<link rel="stylesheet" href="css/yt-thumb-preview.css">
 <link rel="stylesheet" href="css/section-search.css">
 <link rel="stylesheet" href="css/ai-image.css">
 <link rel="stylesheet" href="css/assets-panel.css">
@@ -611,7 +612,7 @@
     <div id="branch-dropdown-menu"></div>
   </div>
   <div class="fp-divider tb-hidden-mvp"></div>
-  <button class="fp-btn primary" onclick="addSection()" title="새 섹션 추가">
+  <button class="fp-btn primary" onclick="addSection()" title="새 섹션 추가" data-sc="addSection">
     <svg width="14" height="14" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.0">
       <line x1="5.5" y1="1" x2="5.5" y2="10"/><line x1="1" y1="5.5" x2="10" y2="5.5"/>
     </svg>
@@ -627,7 +628,7 @@
   </button>
   <div class="fp-divider"></div>
   <div class="fp-dropdown" id="fp-text-dropdown">
-    <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown('fp-text-dropdown')" title="텍스트 블록 추가 (Heading / Body / Caption / Label)">
+    <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown('fp-text-dropdown')" title="텍스트 블록 추가 (Heading / Body / Caption / Label)" data-sc="addText">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
         <path d="M4.5 4 H19.5 V6 H13 V19 H15 V20 H9 V19 H11 V6 H4.5 Z"/>
       </svg>
@@ -649,7 +650,7 @@
     </div>
   </div>
   <div class="fp-dropdown" id="fp-asset-dropdown">
-    <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown('fp-asset-dropdown')" title="이미지(Asset) 블록 추가">
+    <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown('fp-asset-dropdown')" title="이미지(Asset) 블록 추가" data-sc="addAsset">
       <svg width="14" height="14" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.0">
         <rect x="1" y="1" width="9" height="9" rx="1"/><circle cx="3.5" cy="3.5" r="1"/><polyline points="10 7 7 4.5 3 8"/>
       </svg>
@@ -682,9 +683,9 @@
       <button class="fp-menu-item" onclick="addShapeBlock('ellipse');toggleFpDropdown('fp-shape-dropdown')">Ellipse</button>
       <button class="fp-menu-item" onclick="addShapeBlock('polygon');toggleFpDropdown('fp-shape-dropdown')">Polygon</button>
       <button class="fp-menu-item" onclick="addShapeBlock('star');toggleFpDropdown('fp-shape-dropdown')">Star</button>
-      <button class="fp-menu-item" onclick="toggleVectorPenMode();toggleFpDropdown('fp-shape-dropdown')">Pen</button>
-      <button class="fp-menu-item" onclick="toggleFreehand('pencil');toggleFpDropdown('fp-shape-dropdown')">Pencil (N)</button>
-      <button class="fp-menu-item" onclick="toggleFreehand('brush');toggleFpDropdown('fp-shape-dropdown')">Brush (⇧B)</button>
+      <button class="fp-menu-item" onclick="toggleVectorPenMode();toggleFpDropdown('fp-shape-dropdown')" title="Pen" data-sc-key="KeyP">Pen</button>
+      <button class="fp-menu-item" onclick="toggleFreehand('pencil');toggleFpDropdown('fp-shape-dropdown')" title="Pencil" data-sc-key="KeyN">Pencil</button>
+      <button class="fp-menu-item" onclick="toggleFreehand('brush');toggleFpDropdown('fp-shape-dropdown')" title="Brush" data-sc-key="Shift+KeyB">Brush</button>
     </div>
   </div>
   <div class="fp-divider"></div>
@@ -807,7 +808,7 @@
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M9 13a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2zm7.5 0a.5.5 0 0 1 .5.5V16h2.5a.5.5 0 0 1 0 1H17v2.5a.5.5 0 0 1-1 0V17h-2.5a.5.5 0 0 1 0-1H16v-2.5a.5.5 0 0 1 .5-.5M6 14a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1zm.87-10.275a1 1 0 0 1 1.337.068l3 3a1 1 0 0 1 0 1.414l-3 3a1 1 0 0 1-1.414 0l-3-3a1 1 0 0 1 0-1.414l3-3zM16.5 4a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7m-12 3.5 3 3 3-3-3-3zm12-2.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5"/></svg>
   </button>
   <div class="fp-divider"></div>
-  <button class="fp-btn fp-btn-ai" id="ai-btn" onclick="openAiPrompt()" title="AI 섹션 생성 (⌘K)">✨</button>
+  <button class="fp-btn fp-btn-ai" id="ai-btn" onclick="openAiPrompt()" title="AI 섹션 생성">✨</button>
   <button class="fp-btn" id="claude-pm-btn" onclick="window.onClickClaudePMBtn?.()" title="Claude PM — 프로젝트 매니저">
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <!-- 라운드 사각 말풍선 + 왼쪽 아래 꼬리 -->
@@ -1235,7 +1236,8 @@
 <script type="module" src="js/blocks/step-block.js"></script>
 <script type="module" src="js/blocks/grid-block.js"></script>
 <script type="module" src="js/blocks/grid-infographic.js"></script>   <!-- 1013t2F 인포그래픽 프리셋·삽입 입구 — grid-block.js «뒤» -->
-<script type="module" src="js/blocks/grid-ifg-icon-pick.js"></script>   <!-- 1017t1i2 인포그래픽 아이콘 더블클릭 → iconify 고르개 (window 다리만 건다 · grid-infographic.js 가 import 하지 않는다) -->
+<script type="module" src="js/blocks/grid-ifg-icon-pick.js"></script>
+<script type="module" src="js/blocks/grid-ifg-edit.js"></script>   <!-- 0.9.13 201행 인포그래픽 더블클릭 편집 모드(틀 고정 · 안 내용 배율 · window 다리만) -->   <!-- 1017t1i2 인포그래픽 아이콘 더블클릭 → iconify 고르개 (window 다리만 건다 · grid-infographic.js 가 import 하지 않는다) -->
 <script type="module" src="js/blocks/qa-block.js"></script>
 <script type="module" src="js/blocks/infocard-block.js"></script>
 <script type="module" src="js/blocks/innercard-block.js"></script>
@@ -1288,6 +1290,8 @@
 <script src="js/version-diff.js"></script>
 <script src="js/version-history.js"></script>
 <script src="js/version-history-ui.js"></script>
+<!-- [t13C-03 ③] 유튜브 썸네일 미리보기(보기 전용 모달 · 입구 = 섹션 패널 Export 절) -->
+<script src="js/yt-thumb-preview.js"></script>
 <script type="module" src="js/io/gdt-export.js"></script>
 <script type="module" src="js/io/figma-publish.js"></script>
 <script type="module" src="js/panels/iconify-panel.js"></script>

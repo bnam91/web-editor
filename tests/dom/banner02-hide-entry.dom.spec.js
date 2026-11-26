@@ -19,7 +19,7 @@ test('T0 컴포넌트 메뉴에 Banner 2 없음', async ({ page }) => {
 test('T1 기존 배너2 — 저장→다시 열기 뒤 보이고 편집 패널이 뜬다', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await bootApp(page);
-  await page.click('.fp-btn.primary[title="새 섹션 추가"]');   // 넣을 섹션 고르기(addBanner02Block 은 고른 섹션 필요)
+  await page.click('.fp-btn.primary[title^="새 섹션 추가"]');   // 넣을 섹션 고르기(addBanner02Block 은 고른 섹션 필요)
   await expect.poll(() => page.evaluate(() => !!window.getSelectedSection?.())).toBe(true);
   const id = await page.evaluate(() => {
     const before = new Set([...document.querySelectorAll('.banner02-block')].map(b => b.id));

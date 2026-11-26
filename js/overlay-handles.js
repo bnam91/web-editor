@@ -2146,6 +2146,7 @@ function showGridGutters(block) {
        «고른 동안 보인다»를 판마다 다르게 하지 않는다). 그 return 이 있으면 루프가 안 서서 해제 때 머리띠가 남는다.
        ★거터 수는 그대로다 — 아래 for 들이 cols.length−1 · rows.length−1 이라 1×1 에서 0 개(옛 동작과 같다). */
   _gridGutterBlock = block;
+  _bindGridScrollSync();
   const overlay = _getOverlay();
   if (!overlay) return;
   for (let i = 0; i < cols.length - 1; i++) {
@@ -2209,6 +2210,17 @@ function hideGridGutters() {
      tests/unit/overlay-raf-resync U-M66-5 가 위 줄 꼴을 글자로 잰다. */
   if (overlay) overlay.querySelectorAll('.grd-headband, .grd-headband-drop').forEach(el => el.remove());
   _grdRangeReset(overlay);   /* ★t3-04 U2b — 칸 범위도 «같은 생애»(고른 동안만) · ⛔위 두 줄과 합치지 마라(U-M66-5) */
+}
+
+/* ★0.9.13 191(현빈 261126: 줌 인 · 트랙패드 세로 스크롤 동안 손잡이가 떨어졌다 멈추면 붙음) — 스크롤 사건에서 «같은 틱»에 다시 놓는다.
+   rAF 루프(아래)는 그대로 · 이것은 덧댐. 원인 가설 = 관성 휠이 cancelable=false 라 컴포지터가 먼저 밂(미확정 · editor.js __wheelNonCancelable). */
+let _gridScrollSyncBound = false;
+function _bindGridScrollSync() {
+  if (_gridScrollSyncBound) return;
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap) return;
+  _gridScrollSyncBound = true;
+  wrap.addEventListener('scroll', () => { if (_gridGutterBlock?.isConnected) _updateGridGutterPositions(); }, { passive: true });
 }
 
 function _startGridGutterRaf() {

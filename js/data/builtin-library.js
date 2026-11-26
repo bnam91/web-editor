@@ -207,4 +207,9 @@ export const ADMIN_LOCAL = [
   { dir: 'doodle-figma-more', mergeInto: 'figma-doodle', groups: true, baseGroup: '기본', source: `${_FIGMA} «두들002» Crispy doodles · «두들003» example-01~05·experiments·update · 53종(SVG · 짝 없는 PNG 만 PNG 로)`, license: _LOCAL_LICENSE },
   { dir: 'memoji-inclusive-192-2', id: 'memoji-inclusive', name: '미모지(Inclusive)', w: 200, groups: true,
     source: `${_FIGMA} 노드 192:2 Inclusive Memoji Collection · 35캐릭터×51포즈 · WebP(scripts/admin-library-prep.cjs)`, license: `${_LOCAL_LICENSE} · 외부 공유 금지` },
+  /* LIB-BRAND-LOGO-ASSETS-01(261118 현빈) — 브랜드·인증 로고. 각사 가이드가 앱 동봉(재배포)을 거의 다 막는다 → 관리자 로컬 폴더만.
+     groups:'folder' = 묶음 이름·칸 이름을 폴더·파일 이름 그대로 · asImage = SVG 도 «그림»(에셋 블럭)으로 — 단색 SVG 를 벡터로 넣으면 색 바꾸기가 열리는데 로고 변형은 전 가이드가 금지. */
+  { dir: 'brand-logos', id: 'brand-logos', name: '브랜드·인증 로고', w: 200, groups: 'folder', asImage: true,
+    source: 't3-04(261114) 커머스 로고·인증마크 + t3-04-ai-sns(261119) AI·메신저 — 공식 가이드·공식 사이트 우선(출처·조건 = 폴더 안 사용조건표 2벌 · SOURCES.md) · 제외: Claude(사전 승인 자료만)·MS Copilot(로고 불가)·Grok(최신본 미대조)',
+    license: '각사 상표 — 브랜드 로고는 실제 이용·입점·연동할 때만 · 원본 그대로(색·비율·효과 변형 금지) · 보증·제휴 암시 금지 · ★인증표시는 «그 인증을 받은 제품에만» 표시(법정 표시 · 인증번호·기관명 함께) · 앱 미동봉(관리자 로컬 폴더)' },
 ];

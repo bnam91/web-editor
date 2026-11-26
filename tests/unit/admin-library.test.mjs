@@ -5,6 +5,7 @@
  * A4 IPC 문지기(main.js 원문 조각 + 가짜): 비관리자·role 모름 → not_admin · 가드/fs 안 불림 / 앱 관리자 · 서버 role admin → 통과
  * A5 재료 실측(ADMIN_LIB_SRC=<~/goditor-admin-library> 있을 때만): 두들 102 · 화살표 34 · 미모지 1,785 webp · 두들 더보기 8묶음 SVG 53(261118 재추출 53/53 · 같은 이름 PNG@2x 는 list 가 뺌) · SVG 전부 거름 뒤 비지 않음 · 다색 목록 출력
  * A7 prep viewBox 고침(LIB-FIGMA-SVG-VIEWBOX-CLIP-01): 곡선 극값 · 넘을 때만 넓힘 · 획/2 · use 펼침 · 멱등
+ * A8 brand-logos(LIB-BRAND-LOGO-ASSETS-01): 묶음 폴더 한 층 · svg·webp 만(png·md·py·깊은 층 거름) · 명부 칸 = groups 'folder' ∧ asImage · 렌더러는 asImage SVG 를 벡터 길보다 먼저 그림 길로
  * A6 명부 짝: ADMIN_LOCAL dir = main DIRS · 덧붙임 대상 = 내장 탭(arrow) 또는 «앞선» 로컬 탭(figma-doodle) · 새 탭 id 가 기존·서로와 안 겹침 · 레포 assets/ 에 재료 0
  * 양성대조(CTL · _patches/): ⓑ main 문지기 줄을 빼면 A4 빨강 · ⓒ normalize 건너뜀은 DOM L1 빨강
  */
@@ -153,6 +154,7 @@ test('A5 재료 실측', { skip: !process.env.ADMIN_LIB_SRC && 'ADMIN_LIB_SRC �
   assert.equal(r.dirs['doodle-figma-191-38']?.length, 102);
   assert.equal(r.dirs['arrow-figma-191-2']?.length, 34);
   if (r.dirs['memoji-inclusive-192-2']) assert.equal(r.dirs['memoji-inclusive-192-2'].length, 1785);
+  if (r.dirs['brand-logos']) assert.equal(r.dirs['brand-logos'].length, 63, 'brand-logos 63(쟝 261119 재료)');
   const more = r.dirs['doodle-figma-more'] || [];
   assert.equal(more.length, 53, '두들 더보기 = SVG 53');
   assert.equal(new Set(more.map((f) => f.split('/')[0])).size, 8, '묶음 8');
@@ -197,11 +199,47 @@ test('A7 viewBox 고침 — 곡선 극값 · 넘을 때만 · use 펼침', () =>
   const inside = '<svg viewBox="0 0 100 100"><path d="M10 10L90 90" stroke-width="4" stroke="#000"/></svg>';
   assert.deepEqual([P.fixViewBox(inside).changed, P.fixViewBox(inside).svg], [false, inside], '안쪽이면 글자 그대로');
   const edge = '<svg viewBox="0 0 100 100"><path d="M0 50H100" stroke-width="20" stroke="#000"/></svg>';
-  assert.equal(P.fixViewBox(edge).changed, false, '패스가 틀 안 = 획 여유만 넘어도 무변(피그마 «안 잘림»과 같은 판정)');
+  /* ★기대 바뀜(0.9.13 66 마감 ◑ · 지디 261125 «여유 = max(획)/2»): 옛 = «패스가 틀 안이면 획 여유만 넘어도 무변» → 패스 ± 획/2 가 넘으면 넓힘 */
+  const e1 = P.fixViewBox(edge);
+  assert.deepEqual([e1.changed, e1.newVB], [true, '-10 0 120 100'], '패스 ± 획 10 이 좌우로 넘음 → 넓힘(위아래 40 = 틀 안 그대로)');
+  /* LIB-05 실측 꼴 — Doodle 원본 273-12335: 틀 0 0 2210 2337 · 획 40 · 패스 아래 끝 2329.8(여유 7.2 < 20) → 아래로 넓힘(잘림 0) */
+  const clip = '<svg viewBox="0 0 2210 2337" fill="none"><path d="M100.6 85.1L2019.6 2329.8" stroke="#000" stroke-width="40"/></svg>';
+  const c1 = P.fixViewBox(clip), [, , , ch] = c1.newVB.split(' ').map(Number);
+  assert.deepEqual([c1.changed, c1.newVB.split(' ').slice(0, 3).join(' ')], [true, '0 0 2210'], '위·좌우 = 여유 넉넉 → 그대로');
+  assert.ok(Math.abs(ch - (2329.8 + 20)) < 0.02, `아래 = 패스 끝 + 획/2 = 2349.8 (${ch})`);
   const fillOnly = '<svg viewBox="0 0 10 10"><path d="M0 0H10V10H0Z" fill="#000"/></svg>';
   assert.equal(P.fixViewBox(fillOnly).changed, false, '채움만 = 획 여유 0 → 딱 맞으면 무변');
   const use = '<svg viewBox="0 0 10 10"><use xlink:href="#s0" fill="black"/><defs><path id="s0" d="M1 1H9V9Z"/></defs></svg>';
   const u = P.fixViewBox(use);
   assert.equal(u.uses, 1); assert.match(u.svg, /<path d="M1 1H9V9Z" fill="black"\/>/); assert.doesNotMatch(u.svg, /<use/);
   assert.equal(P.fixViewBox(P.fixViewBox(over).svg).changed, false, '고친 본을 다시 재면 안쪽(멱등)');
+});
+
+test('A8 brand-logos — 묶음 폴더·svg/webp 만 · 명부 칸 · 로고 SVG 는 그림으로(색 바꾸기 길 아님)', () => {
+  const root = path.join(mkTmpRoot('gd-adminlib-brand-'), 'admin-library');
+  const w = (rel) => { fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true }); fs.writeFileSync(path.join(root, rel), '<svg/>'); };
+  w('brand-logos/결제/토스페이.svg'); w('brand-logos/SNS/인스타그램.webp'); w('brand-logos/SNS/원본.png');
+  w('brand-logos/인증표시_인증받은제품에만/HACCP.webp'); w('brand-logos/인증표시_인증받은제품에만/deep/x.webp');
+  w('brand-logos/SOURCES.md'); w('brand-logos/_build_brand_logos.py'); w('brand-logos/루트.svg');
+  const got = G.listAdminLibrary(root).dirs['brand-logos'].map((f) => f.normalize('NFC')).sort();
+  assert.deepEqual(got, ['SNS/인스타그램.webp', '결제/토스페이.svg', '루트.svg', '인증표시_인증받은제품에만/HACCP.webp'].sort());
+  assert.equal(G.resolveAdminLibraryFile(root, 'brand-logos', '결제/토스페이.svg').ok, true);
+  assert.equal(G.resolveAdminLibraryFile(root, 'brand-logos', 'SNS/원본.png').error, 'not_image');
+  const col = LIB.ADMIN_LOCAL.find((a) => a.dir === 'brand-logos');
+  assert.ok(col && col.groups === 'folder' && col.asImage === true && !col.mergeInto, '명부: 새 탭 · 폴더 묶음 · 그림으로');
+  assert.match(col.license, /인증을 받은 제품에만/, '인증표시 조건이 출처 줄에');
+  const panel = readSrc(ROOT, 'js/panels/library-panel.js');
+  const ins = sliceBlock(panel, 'async function _insert(');
+  const iImg = ins.indexOf('col.asImage ? await _localSvgImage(it)'), iVec = ins.indexOf('_insertLocalSvg(col, it)');
+  assert.ok(iImg > 0 && iVec > iImg && /!col\.asImage\) \{ await _insertLocalSvg/.test(ins), '★asImage SVG 가 벡터(단색→currentColor) 길로 샌다');
+  assert.doesNotMatch(sliceBlock(panel, 'async function _localSvgImage('), /normalizeMonoSvg/, '★그림 길에서 단색 정규화(색 바뀜)');
+});
+
+test('A9 브랜드 탭(asImage) 썸네일 칸 = 밝은 체커 바탕(앱 체커 토큰 checkerBg 재사용 · 새 색 0) · 다른 탭 무변 — BRAND-03(어두운 칸 #252525 위 검정 OpenAI·검붉은 카카오 심볼이 묻힘)', () => {
+  const panel = readSrc(ROOT, 'js/panels/library-panel.js');
+  assert.match(panel, /^import \{[^}]*\bcheckerBg\b[^}]*\} from '\.\.\/checker-tokens\.js';$/m, '★체커는 앱 토큰 읽개(js/checker-tokens.js)에서 — 값 베끼기 금지');
+  const grid = sliceBlock(panel, 'function _renderGrid(');
+  assert.match(grid, /col\.asImage \? `background:\$\{checkerBg\('small'\)\};` : ''/, '★asImage 탭에서만 바탕(두들·미모지 등 = 빈 글자 = 무변)');
+  assert.match(grid, /`<div class="lib-thumb" style="\$\{thumbBg\}/, '★그 바탕이 .lib-thumb 칸에 실린다(템플릿 글자 — 홑따옴표면 ${} 가 안 풀림)');
+  assert.doesNotMatch(grid, /#(?:d8d8d8|f0f0f0|e3e3e3|efefef|fff|ffffff)\b/i, '★체커·흰 hex 를 손으로 박지 않는다');
 });

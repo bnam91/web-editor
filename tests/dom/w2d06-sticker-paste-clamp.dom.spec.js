@@ -111,7 +111,7 @@ async function pickSec(page, id) {
 }
 async function newSection(page) {
   const before = await secIds(page);
-  await page.click('.fp-btn.primary[title="새 섹션 추가"]');
+  await page.click('.fp-btn.primary[title^="새 섹션 추가"]');
   await pollTrue(page, (n) => document.querySelectorAll('#canvas .section-block:not([data-ghost])').length > n, before.length);
   const id = (await secIds(page)).find(x => !before.includes(x)) || null;
   expect(id, '전제: 새 섹션이 생겼다').toBeTruthy();

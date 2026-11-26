@@ -8,6 +8,7 @@ import { sanitizeSvgString, SVG_MAX_LEN_CEIL } from '../util/sanitize-svg.js';
 import { normalizeMonoSvg } from '../util/mono-svg.js';
 import { svgImportSize } from '../util/svg-import-size.js';
 import { posElOf, enterFloat, _applyOverlayPos } from '../overlay-float.js';   // 선택 없음 넣기 = 섹션 밖 SVG 드롭과 같은 오버레이(새 층 0)
+import { checkerBg } from '../checker-tokens.js';
 
 /* LIB-INSERT-NOSEL-OVERLAY-01 · LIB-MODAL-STAY-OPEN-01(현빈 261118)
    · 넣을 자리 = 모달을 «열 때» 정한다: 섹션을 골라 뒀으면 흐름(종전) · 아니면 «오버레이» — 화면 가운데에 가장 가까운 섹션 · 화면 가운데 자리(섹션 상자 안으로 조임).
@@ -94,7 +95,10 @@ async function _adminLocal() {
       }
       (out.merge[a.mergeInto] = out.merge[a.mergeInto] || []).push(...items); out.merge[a.mergeInto].src = a; continue; }
     const col = { ...a, items };
-    if (a.groups) {   // 하위 폴더 = 캐릭터 묶음(이름 없음 → «캐릭터 N» = Frame 번호 그대로)
+    if (a.groups === 'folder') {   // 하위 폴더 = 이름 있는 묶음(브랜드 로고: 결제·판매채널 …) — 폴더·파일 이름 그대로
+      col.groups = _groupByFolder(items).map(([g, its]) => ({ name: g.replace(/_/g, ' '), items: its }));
+      col.items = col.groups[0].items;
+    } else if (a.groups) {   // 하위 폴더 = 캐릭터 묶음(이름 없음 → «캐릭터 N» = Frame 번호 그대로)
       col.groups = _groupByFolder(items)
         .map(([g, its]) => ({ name: `캐릭터 ${g.replace(/^Frame_/, '')}`, items: its.sort((x, y) => _nodeNo(x.file) - _nodeNo(y.file)).map((it, i) => ({ ...it, name: `포즈 ${i + 1}` })) }));
       col.items = col.groups[0].items;
@@ -111,6 +115,18 @@ async function _localSvg(it) {
   const r = await _localRead(it);
   const clean = r && r.ok && r.svg ? sanitizeSvgString(r.svg, { maxLen: SVG_MAX_LEN_CEIL }) : '';
   return clean ? normalizeMonoSvg(clean) : null;
+}
+
+/** 로컬 SVG → «그림»(data URL · 거른 글자 그대로 = 색 원본 · 단색 정규화 안 함) + 크기. 실패 = null. (asImage 묶음 — 로고 변형 금지) */
+async function _localSvgImage(it) {
+  const r = await _localRead(it);
+  const clean = r && r.ok && r.svg ? sanitizeSvgString(r.svg, { maxLen: SVG_MAX_LEN_CEIL }) : '';
+  if (!clean) return null;
+  const bytes = new TextEncoder().encode(clean);
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  const { w, h } = svgImportSize(clean);
+  return { src: `data:image/svg+xml;base64,${btoa(s)}`, w, h };
 }
 
 /** 동봉 그림 → data URL. 데스크톱 = IPC(asar 안도 읽음) · 브라우저 판(electronAPI 없음·null) = fetch.
@@ -200,8 +216,9 @@ function _bundledMonoSvg(dataUrl) {
 
 async function _insert(col, it, img) {
   try {
-    if (it.loc && /\.svg$/i.test(it.file)) { await _insertLocalSvg(col, it); return; }
-    const src = it.loc ? (await _localRead(it))?.dataUrl : await libraryDataUrl(`${LIBRARY_ROOT}/${col.dir}/${it.file}`);
+    const svgImg = it.loc && /\.svg$/i.test(it.file) && col.asImage ? await _localSvgImage(it) : null;   // 로고 SVG = 그림으로(크기는 SVG 자기 값 — 칸 썸네일은 img 가 아니다)
+    if (it.loc && /\.svg$/i.test(it.file) && !col.asImage) { await _insertLocalSvg(col, it); return; }
+    const src = svgImg ? svgImg.src : it.loc ? (await _localRead(it))?.dataUrl : await libraryDataUrl(`${LIBRARY_ROOT}/${col.dir}/${it.file}`);
     if (!src) throw new Error(`${it.loc}/${it.file} 읽기 실패`);
     if (col.rawSvg && /\.svg$/i.test(it.file)) { _insertRawSvg(it, src); return; }   // t13F-06 QA 샘플 = 들여온 SVG 와 같은 길
     const mono = !it.loc && /\.svg$/i.test(it.file) ? _bundledMonoSvg(src) : null;
@@ -209,7 +226,7 @@ async function _insert(col, it, img) {
     const t = _target();
     if (!t) return;
     /* 모달은 열린 채(LIB-MODAL-STAY-OPEN-01 · dev b18b10604 — free-image 쪽 closeLibraryModal 은 옛 dev 바탕의 줄이라 안 살림) · 넣기 = 공용 insertImageAsAsset(free-image 7094a578c) 에 target */
-    const ab = insertImageAsAsset(src, img?.naturalWidth, img?.naturalHeight, it.w || col.w, t);
+    const ab = insertImageAsAsset(src, svgImg?.w || img?.naturalWidth, svgImg?.h || img?.naturalHeight, it.w || col.w, t);   // 로고 SVG(asImage) = SVG 자기 크기(칸 썸네일은 img 가 아니다)
     if (ab) _done(it);
   } catch (e) {
     console.warn('[library] 그림 읽기 실패:', e);
@@ -243,10 +260,11 @@ function _renderGrid(col, gi = 0) {
   groups.style.display = col.groups ? 'flex' : 'none';
   groups.innerHTML = col.groups ? col.groups.map((g, k) => `<button class="panel-tile lib-group${k === gi ? ' active' : ''}" data-g="${k}" style="height:22px;padding:0 8px;border-radius:6px;font-size:10px;">${escHtml(g.name)}</button>`).join('') : '';
   groups.querySelectorAll('.lib-group').forEach((b) => b.addEventListener('click', () => _renderGrid(col, +b.dataset.g)));
+  const thumbBg = col.asImage ? `background:${checkerBg('small')};` : '';   // BRAND-03 — 로고(검정·검붉은 투명 바탕)가 어두운 칸에 묻힘 → 브랜드 탭만 밝은 체커 · 다른 탭 무변
   grid.innerHTML = items.map((it, i) => `
     <div class="panel-tile lib-item" data-i="${i}"${it.loc ? ` data-loc="${escHtml(it.loc)}"` : ''} title="${escHtml(it.name)}"
       style="border-radius:8px;padding:8px 4px 6px;display:flex;flex-direction:column;align-items:center;gap:4px;">
-      ${it.loc ? '<div class="lib-thumb" style="width:100%;height:72px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#666;"></div>'
+      ${it.loc ? `<div class="lib-thumb" style="${thumbBg}width:100%;height:72px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#666;"></div>`
     : `<img src="${escHtml(`${LIBRARY_ROOT}/${col.dir}/${it.file}`)}" alt="${escHtml(it.name)}" draggable="false"
         style="width:100%;height:72px;object-fit:contain;">`}
       <span class="lib-name" style="font-size:10px;color:#888;${FONT}white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">${escHtml(it.name)}</span>

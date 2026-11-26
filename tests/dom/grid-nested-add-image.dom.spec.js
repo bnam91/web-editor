@@ -32,7 +32,7 @@ function pngFile() {
 async function setup(page) {
   await page.setViewportSize({ width: 1500, height: 1000 });
   const errs = await bootApp(page);
-  await page.click('.fp-btn.primary[title="새 섹션 추가"]');
+  await page.click('.fp-btn.primary[title^="새 섹션 추가"]');
   await expect.poll(() => page.evaluate(() => !!window.getSelectedSection?.())).toBe(true);
   await page.evaluate(() => window.applyZoom?.(100));
   await page.waitForFunction(() => {
