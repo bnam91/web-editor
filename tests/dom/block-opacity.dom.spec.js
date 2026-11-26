@@ -104,7 +104,7 @@ test('B4 PNG(html2canvas) — 빨강 50% ≈ (255,128,128) · 100 = (255,0,0)', 
   const shoot = () => page.evaluate(async () => {
     const ex = await import('/js/io/export-image.js');
     const sec = document.querySelector('.section-block'), F = document.getElementById('opF');
-    const sr = sec.getBoundingClientRect(), fr = F.getBoundingClientRect(), z = (window.currentZoom || 100) / 100;
+    const sr = sec.getBoundingClientRect(), fr = F.getBoundingClientRect(), z = sr.width / sec.offsetWidth;   // 화면에 그려진 배율(currentZoom = 목표값 · 전이 중·다른 배율이면 자리 틀림 — 234 공용 S1 과 같은 병)
     const gx = (fr.right - sr.left) / z - 10, gy = (fr.bottom - sr.top) / z - 10;   // 오른아래 모서리 안쪽(글 없음)
     const clone = await ex.prepareCloneForCapture(sec, 860, false); ex.renderComponentsInClone(clone);
     const { canvas } = await ex.captureCloneToCanvas(clone, 860, '#ffffff', false, sec); clone.remove();

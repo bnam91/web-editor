@@ -3,7 +3,7 @@
  *   C2 186 IAL-01 그리드 패널 띄우기 단추 툴팁 = «Ignore Auto Layout — …»(다른 패널과 같은 꼴 · 옛: «오토레이아웃에서 빼서…»)
  * 빨강 기대: 1cd189937 = C1·C2 빨강. */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 
 async function boot(page) {
   await page.setViewportSize({ width: 1500, height: 1100 });
@@ -41,9 +41,13 @@ test('C2 그리드 패널 띄우기 단추 툴팁 = «Ignore Auto Layout — …
 test('C3 섹션 아래 경계 안쪽 2~5px 누름 = 죽은 띠 아님(gap 또는 섹션이 골라짐)', async ({ page }) => {
   const errs = await boot(page);
   await page.evaluate(() => { const sec = document.querySelector('#canvas .section-block'); sec.id = sec.id || 'c3S'; window.addTextBlock('h2'); window.deselectAll(); });
-  const r = await page.evaluate(() => { const s = document.querySelector('#canvas .section-block'); s.scrollIntoView({ block: 'center' }); const b = s.getBoundingClientRect(); return { x: b.left + b.width / 2, bottom: b.bottom }; });
+  /* 자 고침(탑 261126 · 묶음 표적 633 중 홀로 빨강 1 · 홀로 ×3 초록): 부트 뒤 배율 맞추기·스크롤이 덜 멈춘 채 rect 를 «한 번» 재면 누를 때 섹션이 옮겨가 점이 #canvas-wrap — 배율 멈춤을 기다리고 «누를 때마다» 다시 잰다 */
+  await waitZoomSettled(page, await page.evaluate(() => window.currentZoom || 100));
+  await page.evaluate(() => document.querySelector('#canvas .section-block').scrollIntoView({ block: 'center' }));
+  const rectNow = () => page.evaluate(() => { const b = document.querySelector('#canvas .section-block').getBoundingClientRect(); return { x: b.left + b.width / 2, bottom: b.bottom }; });
   for (const dIn of [2, 3, 5]) {
     await page.evaluate(() => window.deselectAll());
+    const r = await rectNow();
     const y = r.bottom - dIn;
     const hit = await page.evaluate(([x, y]) => { const e = document.elementFromPoint(x, y); return e ? `${e.tagName.toLowerCase()}#${e.id}.${String(e.className).slice(0, 60)}` : 'null'; }, [r.x, y]);
     require('fs').appendFileSync('/tmp/c3-hit.txt', `안 ${dIn}px: ${hit}\n`);
