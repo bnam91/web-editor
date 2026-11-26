@@ -71,13 +71,15 @@ async function setupAsset(page) {
 const openPanel = async (page) => {
   await page.evaluate(() => window.showAssetProperties(document.getElementById(window.__AB)));
   await page.waitForFunction(() => !!document.getElementById('asset-fx-add'), null, { timeout: 5000 });
-  await page.selectOption('#asset-fx-add', 'blur');
-  await page.waitForFunction(() => !!document.getElementById('asset-redact-slider'), null, { timeout: 5000 });
+  await page.selectOption('#asset-fx-add', 'layerblur'); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125): 가림 = Layer blur + ☑원본 숨김(세기 40 = 8px 그대로)
+  await page.waitForFunction(() => !!document.getElementById('asset-fxlb-hide'), null, { timeout: 5000 });
+  await page.click('#asset-fxlb-hide');
+  await page.waitForFunction(() => document.getElementById('asset-fxlb-hide')?.checked === true && !!document.getElementById('asset-fxlb-slider'), null, { timeout: 5000 });
 };
 /** 슬라이더를 사람 손처럼: input(라이브) → change(커밋) */
 const slide = (page, v) => page.evaluate((val) => {
-  const s = document.getElementById('asset-redact-slider');
-  s.value = String(val);
+  const s = document.getElementById('asset-fxlb-slider'); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125): 세기 → px
+  s.value = String(val / 5);
   s.dispatchEvent(new Event('input', { bubbles: true }));
   s.dispatchEvent(new Event('change', { bubbles: true }));
 }, v);
@@ -107,14 +109,14 @@ test('R1 패널 — Effects 드롭다운에 「블러」 · 고르면 Effects �
   });
   console.log('R1 pre', JSON.stringify(pre.opts));
   expect(pre.opts, '전제: 그림 든 에셋 패널에 Effects 드롭다운이 없다').not.toBe(null);
-  expect(pre.opts, 'Effects 드롭다운에 「가림」 가 없다').toContainEqual(['blur', '가림']);   // ★기대 바뀜(IMG-FX-BLUR-01 261121): 꾸밈 «흐림»이 생겨 옛 «블러» 이름을 «가림»으로(fix5-blur-effects 와 같은 결)
+  expect(pre.opts, 'Effects 드롭다운에 「Layer blur」 가 없다').toContainEqual(['layerblur', 'Layer blur']); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125)
   expect(pre.oldSec, '옛 따로 절 «블러 (Redact)» 가 남았다(두 곳)').toBe(false);
   expect(pre.titles, '옛 절 제목이 패널에 남았다').not.toContain('블러 (Redact)');
   expect(pre.slider, '고르기 전부터 블러 슬라이더가 있다(옛 절)').toBe(false);
   await openPanel(page);
   const out = await page.evaluate(() => {
     const gs = { className: 'prop-slider', parentElement: { className: 'prop-row' } }, gn = { className: 'prop-number' };   // ★기대 바뀜(현빈 261123): 견줄 «그레인 줄»이 Effects «Noise» 카드로 옮겨 감 — 같은 뜻(공용 줄 꼴)을 공용 클래스로 잼
-    const rs = document.getElementById('asset-redact-slider'), rn = document.getElementById('asset-redact-number');
+    const rs = document.getElementById('asset-fxlb-slider'), rn = document.getElementById('asset-fxlb-num'); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125): 칸 = px
     const card = rs?.closest('.prop-cell-card');
     return {
       /* U4(right-panel-unify): 그레인 = Appearance 절 · 효과 목록 = Effects 절(#asset-fx-section 이 그 절 자체 — U0 fxSectionParts).
@@ -133,13 +135,13 @@ test('R1 패널 — Effects 드롭다운에 「블러」 · 고르면 Effects �
   console.log('R1', JSON.stringify(out));
   expect(out.grainNextIsFx, '옛 «그레인» 줄이 남았거나 효과 목록이 Effects 절에 없다').toBe(true);
   expect(out.inFx, '블러 슬라이더가 Effects 절 안에 없다').toBe(true);
-  expect(out.cardType).toBe('blur');
-  expect(out.cardTitle).toBe('가림');   // ★기대 바뀜(IMG-FX-BLUR-01 261121): 카드 제목도 «가림»
-  expect(out.optsAfter, '건 뒤에도 드롭다운에 「블러」 가 남았다(종류당 하나)').not.toContain('blur');
-  expect([out.rsType, out.rsMin, out.rsMax]).toEqual(['range', '0', '100']);
-  expect([out.rnType, out.rnMin, out.rnMax]).toEqual(['number', '0', '100']);
+  expect(out.cardType).toBe('layerblur'); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125)
+  expect(out.cardTitle).toBe('Layer blur'); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125)
+  expect(out.optsAfter, '건 뒤에도 드롭다운에 「Layer blur」 가 남았다(종류당 하나)').not.toContain('layerblur'); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125)
+  expect([out.rsType, out.rsMin, out.rsMax]).toEqual(['range', '0', '20']); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125): 원본 숨김 켬 = px 0..20(옛 세기 0..100)
+  expect([out.rnType, out.rnMin, out.rnMax]).toEqual(['number', '0', '20']); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125)
   expect(out.sameSliderCls && out.sameNumberCls && out.sameRowCls, '공용 줄 꼴(prop-row · prop-slider · prop-number)과 클래스가 다르다').toBe(true);
-  expect(out.label).toBe('가림 정도');   // ★기대 바뀜(현빈·지디 261123 · 0.9.13 172 t13E-06 «가림/흐림 차이» = 툴팁 보류 → 라벨 이름으로 구분: 가림 «강도» → «가림 정도» · 흐림 «Blur» → «흐림 정도»)
+  expect(out.label).toBe('Blur'); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125) — 가림/흐림 갈림은 이제 «원본 숨김» 체크가 말한다 · 옛:    // ★기대 바뀜(현빈·지디 261123 · 0.9.13 172 t13E-06 «가림/흐림 차이» = 툴팁 보류 → 라벨 이름으로 구분: 가림 «강도» → «가림 정도» · 흐림 «Blur» → «흐림 정도»)
   expect(out.rowInline, '강도 줄에 인라인 style 이 생겼다(디자인시스템)').toBe(0);
 
   /* 그림 없는 에셋 — 「블러」 항목이 없다(전제: 패널은 열렸다) */
@@ -149,9 +151,9 @@ test('R1 패널 — Effects 드롭다운에 「블러」 · 고르면 Effects �
     window.bindBlock?.(block);
     window.showAssetProperties(block);
     const sel = document.getElementById('asset-fx-add');
-    return { panelOpen: !!(document.getElementById('asset-bg-hex') || document.getElementById('asset-fill-add')),   /* ★전제(74행 cf680cce1 · 키 없는 새 에셋 = 표준 Fill «칠 없음 + ＋» · 색 칸 안 섬) → ＋ 도 열림 표지 */
-             redact: !!document.getElementById('asset-redact-slider'),
-             blurOpt: !!sel?.querySelector('option[value="blur"]'), hasImage: block.classList.contains('has-image') };
+    return { panelOpen: !!(document.getElementById('asset-bg-hex') || document.getElementById('asset-fill-add')),   /* 74행 cf680cce1 키 없는 새 에셋 = «칠 없음 + ＋» (통합 × 172 만남 · 탑 261126) */
+             redact: !!document.getElementById('asset-fxlb-slider'),   // ★기대 바뀜(표준 Effects «Layer blur» · 172)
+             blurOpt: !!sel?.querySelector('option[value="layerblur"]'), hasImage: block.classList.contains('has-image') };
   });
   expect(none.hasImage, '전제: 빈 에셋인데 has-image').toBe(false);
   expect(none.panelOpen, '전제: 빈 에셋 패널이 안 열렸다').toBe(true);
@@ -174,7 +176,7 @@ test('R2 슬라이더 60 → data-redact 60 · --redact-blur 12px · 그림 filt
   expect(s1.attr).toBe('60');
   expect(s1.blurVar.trim()).toBe('12px');
   expect(s1.imgInline, '합성 한 자리가 인라인에 블러 몫을 안 썼다').toContain('blur(12px)');
-  expect(await page.evaluate(() => document.getElementById('asset-redact-number').value)).toBe('60');
+  expect(await page.evaluate(() => document.getElementById('asset-fxlb-num').value)).toBe('12'); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125): 세기 60 = 12px
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
@@ -184,7 +186,7 @@ test('R3 0 = 지움 — 속성·변수 없음 · outerHTML 에 redact 0건', asy
   await slide(page, 60);
   await expect.poll(async () => (await state(page)).attr).toBe('60');
   await page.evaluate(() => {
-    const n = document.getElementById('asset-redact-number');
+    const n = document.getElementById('asset-fxlb-num'); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125)
     n.value = '0';
     n.dispatchEvent(new Event('change', { bubbles: true }));
   });

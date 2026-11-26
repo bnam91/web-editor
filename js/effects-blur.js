@@ -22,7 +22,6 @@
    ★대상 = 그림이 든 에셋(=이미지) 블럭만(옛 절의 hasImage 조건 그대로 — 빈 에셋엔 흐릴 것이 없다).
      ⛔비교(comparison) 셀의 «블러 (Redact)» 절은 이 파일과 무관하다 — 그 칸은 블럭이 아니라 Effects 명부가 없다(D4 그대로).
    ═══════════════════════════════════════════════════════════════════════════ */
-import { registerFxType, fxIsCardOpen, fxSetCardOpen } from './effects-registry.js';
 import { applyRedact, readRedact, normalizeRedact } from './effects/image-redact.js';
 
 export const FX_BLUR_DEFAULT = 40;   /* 강도 40 ⇒ 8px (REDACT_MAX_PX 20 × 0.4) — 위 머리말 */
@@ -58,70 +57,8 @@ export function setFxBlur(el, patch = {}, { history = true } = {}) {
   return { ok: true, applied: fxBlurOf(el) };
 }
 
-/* ═══ 카드 — 반사·그림자 카드와 ★같은 꼴(.prop-cell-card · 눈 · ✕ · 접기) ═══════════
-   슬라이더·숫자칸 id 는 옛 절 그대로(`${P}-redact-slider` · `${P}-redact-number`) — 라벨 「강도」 · 0..100 도 그대로. */
-function _blurCardHtml(el, P) {
-  const fx = fxBlurOf(el);
-  const open = fxIsCardOpen(el, 'blur');
-  const eye = (window.EYE_ICONS || {})[fx.state === 'off' ? 'hidden' : 'shown'] || '';
-  return `
-      <div class="prop-cell-card${open ? ' expanded' : ''}" id="${P}-fxbl-card" data-fx-type="blur">
-        <div class="prop-cell-card-header" id="${P}-fxbl-head">
-          <button class="prop-icon-btn" id="${P}-fxbl-eye" title="${fx.state === 'off' ? '효과 켜기' : '효과 끄기'}" aria-label="효과 켜기/끄기" aria-pressed="${fx.state === 'on'}">${eye}</button>
-          <span class="prop-cell-card-title" style="flex:1;${fx.state === 'off' ? 'text-decoration:line-through;opacity:.6;' : ''}">가림</span>
-          <button class="prop-icon-btn" id="${P}-fxbl-del" title="효과 삭제" aria-label="효과 삭제">×</button>
-        </div>
-        <div class="prop-cell-card-body" id="${P}-fxbl-body"${open ? '' : ' hidden'}>
-          <div class="prop-row">
-            <span class="prop-label">가림 정도</span>
-            <input type="range" class="prop-slider" id="${P}-redact-slider" min="0" max="100" step="1" value="${fx.v}">
-            <input type="number" class="prop-number" id="${P}-redact-number" min="0" max="100" value="${fx.v}">
-          </div>
-        </div>
-      </div>`;
-}
-
-function _wireBlurCard(el, P, again) {
-  const $ = (id) => document.getElementById(`${P}-${id}`);
-  $('fxbl-del')?.addEventListener('click', (e) => { e.stopPropagation(); setFxBlur(el, { state: 'none' }); window.pushHistory?.('효과 끔'); again(); });
-  $('fxbl-eye')?.addEventListener('click', (e) => { e.stopPropagation(); const cur = fxBlurOf(el).state; setFxBlur(el, { state: cur === 'off' ? 'on' : 'off' }); again(); });
-  $('fxbl-head')?.addEventListener('click', () => { const b = $('fxbl-body'); if (!b) return; const open = b.hidden; b.hidden = !open; fxSetCardOpen(el, 'blur', open); $('fxbl-card')?.classList.toggle('expanded', open); });
-  const sl = $('redact-slider'), n = $('redact-number');
-  if (!sl || !n) return;
-  /* 끈 동안 끌면 «값만» 옮긴다(켜지 않는다) — 그림자 카드와 같은 결.
-     ⚠️0 을 거쳐 다시 올린 경우(미리보기로 data-redact 가 빠진 상태)는 'none' 이 아니라 'on' 이다 */
-  const keep = () => (fxBlurOf(el).state === 'off' ? 'off' : 'on');
-  /* ⚠️FX-CARD-SLIDER-KEYBOARD-NO-HISTORY-01 — 시작 표본을 mousedown 에서만 찍는다 ⇒ 키보드(←/→)로 슬라이더를 움직이면
-     ⌘Z 칸이 안 생긴다. 반사·그림자·글로우 카드도 같은 규약이라 «이번엔 안 고쳤다»(C1 적대 검수 MINOR-2 · 이름만 남김). */
-  sl.addEventListener('mousedown', () => window.pushHistory?.('효과'));
-  sl.addEventListener('change', () => window.pushHistory?.('효과'));   /* 끝 표본 — 없으면 다음 패널 편집의 ⌘Z 가 슬라이더까지 푼다 */
-  sl.addEventListener('input', () => {
-    const v = normalizeRedact(sl.value);
-    if (v > 0) setFxBlur(el, { state: keep(), v }, { history: false });
-    else applyRedact(el, 0);                       /* 끄는 «동안»의 미리보기 — 카드는 change 에서 정리한다 */
-    n.value = v;
-  });
-  sl.addEventListener('change', () => { if (normalizeRedact(sl.value) <= 0) { setFxBlur(el, { state: 'none' }, { history: false }); again(); } });
-  n.addEventListener('change', () => {
-    const v = normalizeRedact(n.value);
-    setFxBlur(el, v > 0 ? { state: keep(), v } : { state: 'none' });
-    n.value = v; sl.value = v;
-    if (v <= 0) again();
-  });
-}
-
-/* ═══ 명부 식구 — 블러 ═══════════════════════════════════════════════════════
-   ★이 한 벌이 전부다 — 목록·접힘·배선은 명부가 한다. 목록 순서 = 등록 순서(index.html 의 script 줄 순서). */
-registerFxType({
-  key: 'blur',
-  label: '가림',   // IMG-FX-BLUR-01(261121) — 꾸밈 «흐림»(effects-decor-blur.js)과 헷갈리지 않게 «가림»(원본을 안 내보내는 가리기)
-  /* ★그림 든 에셋만 — ⛔허용 목록으로 적는다. 옛 절의 `hasImage ? … : ''` 와 같은 조건. */
-  supports: (el) => !!(el && el.classList && el.classList.contains('asset-block') && el.classList.contains('has-image')),
-  has:  (el) => fxBlurOf(el).state !== 'none',
-  add:  (el) => setFxBlur(el, { state: 'on', v: FX_BLUR_DEFAULT }),
-  card: _blurCardHtml,
-  wire: _wireBlurCard,
-});
+/* ★카드·명부 등록은 «Layer blur» 식구로 옮겼다(js/effects-layer-blur.js · 0.9.13 172 t13E-06 현빈 22:43 GO) — ＋ 목록에 «가림» 항목은 이제 없다.
+   이 파일은 «가림» 상태의 읽기·쓰기 문(fxBlurOf·setFxBlur · window 전역 · MCP/CDP 길)만 지킨다 — 저장 키 data-redact·data-redact-off 그대로. */
 
 if (typeof window !== 'undefined') {
   Object.assign(window, { fxBlurOf, setFxBlur, FX_BLUR_DEFAULT });

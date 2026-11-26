@@ -57,13 +57,13 @@ const sharpPng = (page) => page.evaluate(async () => {
 const figNode = (page) => page.evaluate(async () => { const j = await window.buildFigmaExportJSON(['sD']); let node = null; const walk = (o) => { if (!o || typeof o !== 'object' || node) return; if (o.id === 'abD') { node = o; return; } Object.values(o).forEach(walk); }; walk(j);
   const orig = document.querySelector('#abD .asset-img').getAttribute('src'); return node ? { srcIsOrig: node.src === orig, srcNull: node.src === null, decorBlur: node.decorBlur ?? null } : null; });
 
-test('D1 드롭다운 «가림»·«흐림» · 흐림 고르기 → blur(8px) · 픽셀 흐려짐', async ({ page }) => {
+test('D1 드롭다운 «Layer blur» · 고르기 → blur(8px) · 픽셀 흐려짐', async ({ page }) => {
   const errs = await scene(page);
   const s0 = await sharpPng(page);
   await openPanel(page);
   const opts = await page.evaluate(() => [...document.getElementById('asset-fx-add').options].map((o) => [o.value, o.textContent.trim()]));
-  expect(opts.filter(([v]) => v === 'blur' || v === 'decorblur'), '★이름 갈림').toEqual([['blur', '가림'], ['decorblur', '흐림']]);
-  await page.selectOption('#asset-fx-add', 'decorblur'); await raf(page);
+  expect(opts.filter(([v]) => v === 'blur' || v === 'decorblur' || v === 'layerblur'), '★한 항목 «Layer blur»(흐림 = 원본 숨김 끔)').toEqual([['layerblur', 'Layer blur']]); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125)
+  await page.selectOption('#asset-fx-add', 'layerblur'); await raf(page);
   const a = await st(page);
   expect([a.on, a.filter], `★data-decor-blur 8 · blur(8px) ${JSON.stringify(a)}`).toEqual(['8', 'blur(8px)']);
   const s1 = await sharpPng(page); console.log(`[D1 실측] ${JSON.stringify([s0, s1])}`);
@@ -74,17 +74,17 @@ test('D1 드롭다운 «가림»·«흐림» · 흐림 고르기 → blur(8px) �
 
 test('D2 숫자 20 → blur(20px) · 눈 끔 = filter 없음 · 값 보존', async ({ page }) => {
   const errs = await scene(page);
-  await openPanel(page); await page.selectOption('#asset-fx-add', 'decorblur'); await raf(page);
-  await page.evaluate(() => { const b = document.getElementById('asset-fxdb-body'); if (b?.hidden) document.getElementById('asset-fxdb-head').click(); });
-  await page.fill('#asset-fxdb-num', '20'); await page.press('#asset-fxdb-num', 'Enter'); await raf(page);
-  expect((await st(page)).filter, '★20px').toBe('blur(20px)'); expect(await page.evaluate(() => document.querySelector('#asset-fxdb-body .prop-label')?.textContent.trim() ?? null), '★값 라벨 = «흐림 정도»(현빈·지디 261123 172 t13E-06 — 가림/흐림 차이를 라벨 이름으로 · 옛 «Blur»)').toBe('흐림 정도');
-  await page.click('#asset-fxdb-eye'); await raf(page);
+  await openPanel(page); await page.selectOption('#asset-fx-add', 'layerblur'); await raf(page); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125)
+  await page.evaluate(() => { const b = document.getElementById('asset-fxlb-body'); if (b?.hidden) document.getElementById('asset-fxlb-head').click(); });
+  await page.fill('#asset-fxlb-num', '20'); await page.press('#asset-fxlb-num', 'Enter'); await raf(page);
+  expect((await st(page)).filter, '★20px').toBe('blur(20px)'); expect(await page.evaluate(() => document.querySelector('#asset-fxlb-body .prop-label')?.textContent.trim() ?? null), '★값 라벨 = «Blur»(FigCraft effects.rs:231 · 가림/흐림 갈림은 «원본 숨김» 체크)').toBe('Blur'); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125)
+  await page.click('#asset-fxlb-eye'); await raf(page); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125)
   const b = await st(page);
   expect([b.on, b.off, b.filter], `★끔 ${JSON.stringify(b)}`).toEqual([null, '20', 'none']);
   expect(errs).toEqual([]);
 });
 
-test('D3 저장 → 다시 열기 = 흐림 그대로 · 옛 data-redact = 가림 카드', async ({ page }) => {
+test('D3 저장 → 다시 열기 = 흐림 그대로 · 옛 data-redact = Layer blur 카드(원본 숨김 켬)', async ({ page }) => {
   const errs = await scene(page);
   await page.evaluate(() => window.setFxDecorBlur(document.getElementById('abD'), { state: 'on', v: 12 }));
   const h = await page.evaluate(() => window.getSerializedCanvas());
@@ -94,8 +94,8 @@ test('D3 저장 → 다시 열기 = 흐림 그대로 · 옛 data-redact = 가림
   expect((await st(page)).filter, '★다시 열면 합성이 흐림을 다시 씀').toBe('blur(12px)');
   await page.evaluate(() => { const ab = document.getElementById('abD'); window.setFxDecorBlur(ab, { state: 'none' }, { history: false }); ab.dataset.redact = '40'; window.rebindAll?.(); });
   await openPanel(page);
-  const card = await page.evaluate(() => ({ type: document.querySelector('#asset-fxbl-card')?.dataset.fxType || null, title: document.querySelector('#asset-fxbl-card .prop-cell-card-title')?.textContent.trim() || null, decor: !!document.querySelector('[data-fx-type="decorblur"]') }));
-  expect(card, '★옛 블러 = 가림 카드').toEqual({ type: 'blur', title: '가림', decor: false });
+  const card = await page.evaluate(() => ({ type: document.querySelector('#asset-fxlb-card')?.dataset.fxType || null, title: document.querySelector('#asset-fxlb-card .prop-cell-card-title')?.textContent.trim() || null, hide: document.getElementById('asset-fxlb-hide')?.checked ?? null }));
+  expect(card, '★옛 블러 = Layer blur 카드 · 원본 숨김 켬').toEqual({ type: 'layerblur', title: 'Layer blur', hide: true }); // ★기대 바뀜(표준 Effects «Layer blur» · 탑 워커 261125)
   expect(errs).toEqual([]);
 });
 
