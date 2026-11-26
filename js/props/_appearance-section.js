@@ -54,7 +54,7 @@ export function appearanceSlotNumberHTML({ id, label, value, min = 0, max, kind 
 function _appWireNum(id, { min = 0, max, apply, commit }) {
   const n = document.getElementById(id);
   if (!n) return;
-  const clamp = (v) => Math.min(max, Math.max(min, v));
+  const clamp = (v) => Math.min(typeof max === 'function' ? max() : max, Math.max(min, v));   // max = 수 또는 함수(칠 때 다시 재는 상한 · 에셋 모서리 = 지금 짧은 변 절반 — 0.9.13 179)
   /* 빈 칸(값 없음) = 표준 Layout 과 같은 꼴: 치는 중엔 안 그림 · change 면 보이던 값으로 되돌림(Mixed 는 빈 칸 그대로) · 이력 0
      ⛔옛 꼴은 빈 칸을 min(0)으로 먹였다 — Mixed 칸을 비우면 고른 블럭 전부가 0 이 됐다(P-2) */
   let shown = n.value, dirty = false;   // shown = 편집 전 칸 값('' = Mixed) · dirty = 이 편집에서 input 이 이미 그렸다
@@ -69,7 +69,7 @@ function _appWireNum(id, { min = 0, max, apply, commit }) {
     }
     n.value = clamp(v); apply(clamp(v)); shown = n.value; dirty = false; done();
   });
-  wireNumberScrub(document.getElementById(`${id}-scrub`), n, { min, max });
+  wireNumberScrub(document.getElementById(`${id}-scrub`), n, { min, max: typeof max === 'function' ? max() : max });   // 문지르기 범위 = 그릴 때 값 · 실제 자르기는 위 input 의 clamp(칠 때 다시 잼)
 }
 
 /** 배선 — radius:{ numberId, min?, max, apply(v), commit? } · op:{ numberId, apply(v 0~100), commit? }(A4) — 둘 다 고를 수 있다 */

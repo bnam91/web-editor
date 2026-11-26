@@ -5,6 +5,11 @@ const { test, expect } = require('@playwright/test');
 const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 const raf = (p) => p.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 
+/* ★기대 바뀜(통합 tp/0914-applayout-std × dev 151 만남 · 탑 261126): 표준 Layout 이 패딩 슬라이더를 걷어 숫자칸만 남음 → «끌기» 대신 숫자칸에 쳐서 확정(input 여러 번 → change 한 번) — 재는 것(이력 한 칸 · ⌘Z · 안 섞임)은 그대로 */
+async function typeNum(page, id, v) {
+  await page.locator('#' + id).scrollIntoViewIfNeeded();
+  await page.click('#' + id, { clickCount: 3 }); await page.keyboard.type(String(v)); await page.keyboard.press('Enter'); await raf(page);
+}
 async function dragSlider(page, id, frac) {
   const b = await page.evaluate((id) => { const e = document.getElementById(id); e.scrollIntoView({ block: 'center' }); const r = e.getBoundingClientRect(); return { x: r.left, y: r.top + r.height / 2, w: r.width, v: e.value, min: +e.min, max: +e.max }; }, id);
   const x0 = b.x + b.w * ((+b.v - b.min) / (b.max - b.min));
@@ -12,19 +17,19 @@ async function dragSlider(page, id, frac) {
   await page.mouse.move(b.x + b.w * frac, b.y, { steps: 6 });
   await page.mouse.up(); await raf(page);
 }
-test('P1 (151) 패딩 슬라이더 끌기 = 이력 한 칸 · ⌘Z 한 번 = 끌기 전 · 좌우와 안 섞임', async ({ page }) => {
+test('P1 (151) 패딩 숫자칸 확정 = 이력 한 칸 · ⌘Z 한 번 = 끌기 전 · 좌우와 안 섞임', async ({ page }) => {
   await page.setViewportSize({ width: 1500, height: 1100 });
   const errs = await bootApp(page);
   await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); const sec = await window.addSection(); window.applyZoom?.(100);
     window.deselectAll(); window.selectSection(sec); window.addTextBlock('body'); const tb = [...sec.querySelectorAll('.text-block')].pop(); tb.id = 'tbP';
     window.deselectAll(); window.selectBlock('tbP'); window.showTextProperties?.(tb); window.clearHistory?.(); });
   await waitZoomSettled(page, 100);
-  await page.waitForSelector('#txt-pv-slider', { state: 'attached' });
+  await page.waitForSelector('#txt-pv-number', { state: 'attached' });
   const st = () => page.evaluate(() => { const t = document.getElementById('tbP'); return { pt: t.style.paddingTop || '', pl: t.style.paddingLeft || '', tip: window.getHistoryTip?.()?.pos ?? null }; });
   const s0 = await st();
-  await dragSlider(page, 'txt-pv-slider', 0.5);
+  await typeNum(page, 'txt-pv-number', 40);
   const s1 = await st();
-  await dragSlider(page, 'txt-ph-slider', 0.75);
+  await typeNum(page, 'txt-ph-number', 60);
   const s2 = await st();
   await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z'); await raf(page);
   const s3 = await st();
