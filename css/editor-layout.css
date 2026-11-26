@@ -565,7 +565,7 @@
      0건이었다(읽는 자리만 prop-text.js 에 둘). 되살리지 마라 — ::after 는 «글자 길이»를 모른다. */
 .text-block,
 .quote-block,
-.modal-block {   /* ★1012t1H5 인용구도 같은 단추(H·글로우·점)를 쓴다 — 값 사본 대신 셀렉터만 더한다 · rp119 모달 H 도 span.tb-hl(색 = 토큰 · 옛 #fff2a8 상자 칠 걷음) */
+.modal-block {   /* ★1012t1H5 인용구도 같은 단추(H·글로우·점)를 쓴다 — 값 사본 대신 셀렉터만 더한다 · rp119 모달 H 도 span.tb-hl(색 = 토큰 · 옛 노랑 상자 칠 걷음) */
   --tb-hl-color: var(--ui-highlight);
   --tb-hl-h: 100%;
   --tb-hl-y: 0px;
