@@ -42,6 +42,11 @@ import { applyModalVariant, _effDefault, MODAL_DEFAULTS, MODAL_LIMITS, clampModa
      «한 표에서 벌려 연다»를 재는다(실제로 발개졌다 · 2026-10-19). ⛔다시 붙이지 마라. */
 import { MODAL_PROFILE_SIDES, MODAL_PROFILE_SIZE_LIMIT,
          modalProfileSize, modalProfileSide, modalProfileKind, setModalProfile } from '../blocks/modal-block.js';
+/* ★rp119(RP-MODAL-HIGHLIGHT-SELECTION-01) — 저장 선택(패널로 가도 든다 · _text-selection RETAIN .modal-block)을 «읽는다»:
+     크기·H = 고른 글자만(span · dataset.<slot>Html) · 슬롯 전체 칸 = 선택 칠을 버린다(보이는 선택 ≠ 먹는 자리 0 · AUDIT R2) */
+import { getSavedTextSelection, withTextSelection, applyStyleToRange, clearTextSelection, discardTextSelection } from './_text-selection.js';
+import { sanitizeRichTextHtml, richTextHasFormatting } from '../util/sanitize-rich-text.js';
+import { MODAL_SLOT_KEYS, MODAL_RICH_TEXT_OPTS } from '../blocks/modal-block.js';
 import { layoutSizeRowHTML, layoutPadSlotHTML, layoutGapSlotHTML, wireLayoutSection, ratioLockOn, setRatioLock, LAY_FULLW_WHY, LAY_SIZING } from './_layout-section.js';   // 표준 Layout L2·L3·L4
 import { effectRowHTML } from './_effects-section.js';   // 표준 Effects 줄(0.9.14 224)
 const L = MODAL_LIMITS;
@@ -71,6 +76,18 @@ const _MDL_VARIANT_LABELS = {
   'plain': '기본 박스', 'titled': '제목 + 본문', 'icon': '아이콘 + 텍스트',
   'icon-stack': '아이콘 스택', 'grid-2': '2칸 그리드', 'dashed': '점선 테두리',
 };
+
+/* rp119 — 형광펜 켜짐 = 어느 슬롯 HTML 에 span.tb-hl 이 있다(옛 dataset.highlight 는 렌더가 이관해 지운다) */
+function _mdlHlOn(block) {
+  return Object.values(MODAL_SLOT_KEYS).some((K) => /class="tb-hl"/.test(block.dataset[K.html] || '')) || block.dataset.highlight === '1';
+}
+/* rp119 — 범위를 span.tb-hl 로(텍스트블럭 _hlWrap 과 같은 꼴 · 반쯤 걸친 범위는 꺼내 다시 넣는다) */
+function _hlWrap(range) {
+  const sp = document.createElement('span');
+  sp.className = 'tb-hl';
+  try { range.surroundContents(sp); } catch (_) { sp.appendChild(range.extractContents()); range.insertNode(sp); }
+  return sp;
+}
 
 export function showModalProperties(block) {
   const v = block.dataset.variant || 'plain';
@@ -141,7 +158,7 @@ export function showModalProperties(block) {
   const _typo = unwrapSection(buildTypographySectionHtml({
       p: 'mdl-typo',
       font: fontFamily, weight: fontWeight, size: fontSize,
-      isBold: on('bold'), isItalic: on('italic'), isStrike: on('strike'), isHighlight: on('highlight'),
+      isBold: on('bold'), isItalic: on('italic'), isStrike: on('strike'), isHighlight: _mdlHlOn(block),   // rp119 — 형광펜 = 슬롯 HTML 의 span.tb-hl
       lh: lineHeight, ls: letterSpacing,
       sizeMin: 10, sizeMax: 60,
     }));
@@ -412,7 +429,17 @@ export function showModalProperties(block) {
   const setDs = (key, val) => {
     if (val === null || val === '') delete block.dataset[key];
     else block.dataset[key] = String(val);
+    if (getSavedTextSelection(block)) discardTextSelection();   // rp119 — 슬롯 «전체»에 먹었다 ⇒ 고른 글자 칠을 남기지 않는다(AUDIT R2 ⓐ)
     rerender();
+  };
+  /* rp119 — 이 블럭 슬롯 안의 저장 선택 { range, host(슬롯) } · 안내문구 칸은 없음 */
+  const _sel = () => { const s = getSavedTextSelection(block); return (s && s.host.dataset?.mdlSlot && s.host.dataset.isPlaceholder !== 'true') ? s : null; };
+  /* rp119 — 슬롯 DOM(서식 span 을 두른 뒤)을 dataset.<slot>Html 로 싣는다 · 글자는 그대로(평문 무변) */
+  const _commitSlotHtml = (host) => {
+    const K = MODAL_SLOT_KEYS[host.dataset.mdlSlot];
+    if (!K) return;
+    const html = sanitizeRichTextHtml(host.innerHTML, MODAL_RICH_TEXT_OPTS);
+    window.commitModalSlot?.(block, host.dataset.mdlSlot, block.dataset[K.plain] || '', richTextHasFormatting(html, MODAL_RICH_TEXT_OPTS) ? html : '');
   };
 
   // 폰트 — 위젯은 텍스트 패널과 «같은 벌»(_font-picker.js). 우리는 «적용»만 준다.
@@ -432,7 +459,12 @@ export function showModalProperties(block) {
   const fsNum = document.getElementById('mdl-typo-size-number');
   fsNum?.addEventListener('change', () => {
     const x = Math.min(60, Math.max(10, parseInt(fsNum.value) || MODAL_DEFAULTS.fontSize));
-    fsNum.value = x; setDs('fontSize', x); commit();
+    fsNum.value = x;
+    if (_sel()) {   // rp119 — 고른 글자만(어노 라벨 _annotApplyToSelection 과 같은 길) · 슬롯 크기(dataset.fontSize) 무변 · 선택은 남는다(2회째도 같은 글자)
+      withTextSelection((range, host) => { const sp = applyStyleToRange(range, host, 'fontSize', x + 'px'); _commitSlotHtml(host); return sp; }, { within: block });
+      rerender(); commit(); return;
+    }
+    setDs('fontSize', x); commit();
   });
 
   /* B / I / S / H — ⚠️슬롯 «전체»에만 걸린다.
@@ -440,7 +472,7 @@ export function showModalProperties(block) {
      (텍스트블록과 다른 점 — 거기선 <b> 태그가 살지만 여기선 «글자로» 보인다). */
   // ★id 는 «통짜로» 적는다 — 템플릿으로 조립하면 grep 도 검사도 그 배선을 «못 본다».
   for (const [id, key] of [['mdl-typo-bold-btn', 'bold'], ['mdl-typo-italic-btn', 'italic'],
-                           ['mdl-typo-strike-btn', 'strike'], ['mdl-typo-highlight-btn', 'highlight']]) {
+                           ['mdl-typo-strike-btn', 'strike']]) {
     const btn = document.getElementById(id);
     btn?.addEventListener('click', () => {
       const next = block.dataset[key] !== '1';
@@ -448,6 +480,30 @@ export function showModalProperties(block) {
       setDs(key, next ? '1' : null); commit();
     });
   }
+
+  /* H(형광펜) — rp119: 텍스트블럭과 같은 기전(prop-text-wireup-text-edit.js 형광펜 · span.tb-hl 글자 길이).
+     고른 글자가 있으면 그 글자만 두른다 · 없으면 켜고 끄기 = 모든 슬롯 글자 전체를 두르거나 걷는다. ⛔슬롯 상자 칠(옛 dataset.highlight)로 되돌리지 마라. */
+  const hlBtn = document.getElementById('mdl-typo-highlight-btn');
+  hlBtn?.addEventListener('click', () => {
+    const s = _sel();
+    let on;
+    if (s) {
+      withTextSelection((range, host) => { _hlWrap(range); _commitSlotHtml(host); return null; }, { within: block });
+      clearTextSelection(); on = true;
+    } else {
+      on = !_mdlHlOn(block);
+      for (const host of block.querySelectorAll('[data-mdl-slot]')) {
+        if (host.dataset.isPlaceholder === 'true' || !(host.textContent || '').trim()) continue;
+        host.querySelectorAll('span.tb-hl').forEach((sp) => { sp.replaceWith(...sp.childNodes); });
+        host.normalize();
+        if (on) { const r = document.createRange(); r.selectNodeContents(host); _hlWrap(r); }
+        _commitSlotHtml(host);
+      }
+    }
+    delete block.dataset.highlight;
+    hlBtn.classList.toggle('active', on);
+    rerender(); commit();
+  });
 
   // 줄간격 / 자간
   const lhNum = document.getElementById('mdl-typo-lh-number');

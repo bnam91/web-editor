@@ -65,8 +65,12 @@ const measure = (page) => page.evaluate(() => {
   const lines = [];
   const slots = document.getElementById('mdlX')
     ? [...box.querySelectorAll('[data-mdl-slot]')]
-    : [...box.querySelectorAll('.text-block [class^="tb-"]')];
-  for (const s of slots) { const rg = document.createRange(); rg.selectNodeContents(s); for (const q of rg.getClientRects()) lines.push([q.left, q.top, q.width, q.height].map(v => Math.round(v * 100) / 100)); }
+    : [...box.querySelectorAll('.text-block [class^="tb-"]')].filter((e) => !e.parentElement.closest('.text-block [class^="tb-"]'));
+  /* ★기대 바뀜(rp119 · 탑 게이트 261126 G1 24) — 슬롯 «자리» 요소만(프레임화 _makeTextRow 가 쓰는 첫 [class^=tb-] 와 같은 층). rp119 부터 형광펜이 글자 안 span.tb-hl 이라
+     옛 셀렉터가 그 안쪽 span 까지 «슬롯»으로 셌다(앞 판 [data-mdl-slot] 은 안 셈 → 개수만 갈림). 칠 판정(placeholder·contenteditable·opacity) 자체는 무변 */
+  /* ★기대 바뀜(rp119 · 탑 게이트 261126 G1 titled·section·40% 꾸밈) — 줄 = «글자 토막»의 상자만(글 노드마다). 옛 selectNodeContents(슬롯)는 안쪽 «요소» 상자도 줄로 셌다 —
+     rp119 부터 형광펜이 span.tb-hl 이라 그 인라인 상자가 줄로 더 잡혔고(중복 한 줄) 앞(모달 슬롯)·뒤(프레임 tb-body) 둥지가 달라 LayoutUnit 한 칸(40% 화면 0.01px) 갈렸다(px=0 · 상자 무변 실측) */
+  for (const s of slots) { const tw = document.createTreeWalker(s, NodeFilter.SHOW_TEXT); for (let t = tw.nextNode(); t; t = tw.nextNode()) { const rg = document.createRange(); rg.selectNodeContents(t); for (const q of rg.getClientRects()) lines.push([q.left, q.top, q.width, q.height].map(v => Math.round(v * 100) / 100)); } }
   /* ★★«칠» 상태 — ★261021. ★`geo`(상자·줄·아이콘)는 ★510/510 어긋난 적이 없는데 ★«칠»만 달랐다.
      ★9일간 설명되지 않은 자리가 ★여기다 — ★`measure()` 가 ★칠을 ★안 걷고 있었다(Codex 리뷰 4회차).
      ★까닭: `css/editor-blocks.css:2167` `#canvas [data-is-placeholder="true"] { opacity: 0.45 }`

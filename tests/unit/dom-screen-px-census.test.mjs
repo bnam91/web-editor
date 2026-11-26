@@ -125,8 +125,10 @@ const ROSTER = {
   'k2-grid-sel-box.dom.spec.js:49': 'risky',
   'k2-grid-sel-box.dom.spec.js:50': 'risky',
   'k5-grid-8x8.dom.spec.js:41': 'risky',
-  'text-selection-panel.dom.spec.js:360': 'risky',
-  'text-selection-panel.dom.spec.js:394': 'risky',
+  /* ★261126 — ★줄이 ★움직였다(:360 → :421 · :394 → :455). rp119(RP-MODAL-HIGHLIGHT-SELECTION-01) 가 T7 을 고치고 T7h·T7w·T7m·T7x 를 ★그 앞에 더했다 ⇒ ★순 ＋61.
+     ★★두 줄(E1 슬라이더 폭 · 대조 숫자칸 폭)의 ★글자는 ★바이트 그대로 ⇒ ★태그를 ★그대로 ★옮긴다(판정 다시 안 지음). */
+  'text-selection-panel.dom.spec.js:421': 'risky',
+  'text-selection-panel.dom.spec.js:455': 'risky',
   'graph-colorfield.dom.spec.js:30': 'loop',
   'graph-e152-escape.dom.spec.js:47': 'loop',
   'graph-panel-defaults.dom.spec.js:24': 'loop',

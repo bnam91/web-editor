@@ -27,7 +27,10 @@ const { bootApp, waitStableRect } = require('./_root-harness.js');
 
 const SEC = '<div class="section-block" id="sA" data-section="1" data-name="sA" style="background-color:#ffffff"><div class="section-hitzone"></div><div class="section-inner" id="inA"></div></div>';
 /* ★그리드에서는 ★살고 ★모달에서는 ★죽어야 하는 꼴 ＋ ★둘 다에서 ★살아야 하는 꼴(`<b>`) */
-const LEAK = '<span class="tb-hl">BBB</span><span class="tb-dot" style="--tb-dot-i:0">C</span><b>DDD</b>';
+/* ★기대 바뀜(0.9.13 119 RP-MODAL-HIGHLIGHT-SELECTION-01 · 현빈 승인 261119 «모달 H = 고른 글자만» > 이 파일 2026-10-09 수지⑦ 금지선 · 밤샘 규칙 ② «가장 최근 현빈 지시» · 지디 261126):
+ *   모달은 그리드 허용목록이 «아니라» 제 좁은 목록 MODAL_RICH_TEXT_OPTS(class tb-hl + style font-size · js/blocks/modal-block.js)를 받는다.
+ *   ⇒ tb-hl·font-size 는 산다 · 그리드 전용 tb-dot·--tb-dot-i 와 그 밖 style(position 등)은 여전히 걷힌다 = 금지선은 «좁게 옮겨» 산다. */
+const LEAK = '<span class="tb-hl">BBB</span><span class="tb-dot" style="--tb-dot-i:0">C</span><b>DDD</b><span style="font-size:20px;position:fixed">E</span>';
 const OUTSIDE = { x: 800, y: 960 };
 
 async function setup(page) {
@@ -70,7 +73,7 @@ const slotState = (page, id) => page.evaluate((i) => {
   };
 }, id);
 
-test('N1 ★★렌더 — 모달 저장본에 tb-hl·tb-dot 이 있어도 ★걷힌다 (＋`<b>` 는 산다)', async ({ page }) => {
+test('N1 ★★렌더 — 모달 저장본: tb-hl·font-size 는 산다(119) · tb-dot·--tb-dot-i·position 은 걷힌다 (＋`<b>` 는 산다)', async ({ page }) => {
   const errs = await setup(page);
   const id = await addModal(page);
   expect(id, '★모달이 안 들어갔다 — 아래는 아무것도 안 잰다').toBeTruthy();
@@ -88,13 +91,15 @@ test('N1 ★★렌더 — 모달 저장본에 tb-hl·tb-dot 이 있어도 ★걷
   /* ★★양성대조 먼저 — ★기본 허용목록이 ★제 일을 한다 */
   expect(s.bTags, `★전제/양성 — ★기본 허용 ★`+'`<b>`'+` 조차 걷혔다 ⇒ ★sanitize 가 ★전부 지우는 자가 됐다. 잰 값 ${JSON.stringify(s)}`).toBeGreaterThan(0);
   /* ★★본단언 — ★그리드 전용 class 가 ★모달 렌더에 ★살아남으면 ★★금지선이 ★새고 있다 */
-  expect(s.hlCls, `★★모달 렌더에 ★`+'`tb-hl`'+` 이 ★살아남았다 ⇒ ★★그리드 허용목록이 ★모달로 ★샜다(modal-block.js:471 에 opts 가 넘어갔나?). 잰 값 ${JSON.stringify(s)}`).toBe(0);
+  expect(s.hlCls, `119 — 모달 렌더에 tb-hl(형광펜)이 산다. 잰 값 ${JSON.stringify(s)}`).toBe(1);
+  expect(/font-size:\s*20px/.test(s.rendered), `119 — 고른 글자 크기 font-size 가 산다. 잰 값 ${s.rendered}`).toBe(true);
+  expect(/position/.test(s.rendered), `★★모달 렌더에 position 이 살았다 ⇒ style 허용목록이 font-size 밖으로 넓어졌다. 잰 값 ${s.rendered}`).toBe(false);
   expect(s.dotCls, `★★모달 렌더에 ★`+'`tb-dot`'+` 이 ★살아남았다 ⇒ ★같은 누수. 잰 값 ${JSON.stringify(s)}`).toBe(0);
   expect(/--tb-dot-i/.test(s.rendered), `★★모달 렌더에 ★`+'`--tb-dot-i`'+` 가 ★살아남았다 ⇒ ★같은 누수. 잰 값 ${s.rendered}`).toBe(false);
   expect(errs).toEqual([]);
 });
 
-test('N2 ★★커밋 — 모달 편집에서 tb-hl 을 넣고 커밋해도 ★저장본에 안 남는다', async ({ page }) => {
+test('N2 ★★커밋 — 모달 편집 커밋: tb-hl·font-size 는 저장본에 남는다(119) · tb-dot·position 은 안 남는다', async ({ page }) => {
   const errs = await setup(page);
   const id = await addModal(page);
   const sel = `#${id} [data-mdl-slot="text"]`;
@@ -115,7 +120,8 @@ test('N2 ★★커밋 — 모달 편집에서 tb-hl 을 넣고 커밋해도 ★�
   expect(s.storedHtml, `★전제/양성 — ★커밋이 ★Html 키를 ★안 만들었다 ⇒ ★이 칸은 ★누수를 ★못 잰다. 잰 값 ${JSON.stringify(s)}`).toBeTruthy();
   expect(/<b\b|<strong\b/i.test(String(s.storedHtml)), `★전제/양성 — ★저장본에 ★`+'`<b>`'+` 가 ★없다 ⇒ ★커밋 sanitize 가 ★전부 지웠다. 잰 값 ${JSON.stringify(s)}`).toBe(true);
   /* ★★본단언 — ★그리드 전용 class 가 ★모달 ★저장본에 ★남으면 ★금지선이 ★샜다 */
-  expect(/class="tb-hl"|class='tb-hl'/.test(String(s.storedHtml)), `★★모달 ★저장본에 ★`+'`tb-hl`'+` 이 ★남았다 ⇒ ★★그리드 허용목록이 ★커밋 경로로 ★샜다(block-drag.js:336 에 opts 가 넘어갔나?). 잰 값 ${JSON.stringify(s)}`).toBe(false);
+  expect(/class="tb-hl"|class='tb-hl'/.test(String(s.storedHtml)), `119 — 모달 저장본에 tb-hl 이 남는다(다시 편집해도 형광펜이 산다). 잰 값 ${JSON.stringify(s)}`).toBe(true);
+  expect(/position/.test(String(s.storedHtml)), `★★모달 저장본에 position 이 남았다 ⇒ 커밋 경로 style 허용목록이 넓어졌다. 잰 값 ${JSON.stringify(s)}`).toBe(false);
   expect(/tb-dot|--tb-dot-i/.test(String(s.storedHtml)), `★★모달 ★저장본에 ★점 꼴이 ★남았다 ⇒ ★같은 누수. 잰 값 ${JSON.stringify(s)}`).toBe(false);
   expect(errs).toEqual([]);
 });

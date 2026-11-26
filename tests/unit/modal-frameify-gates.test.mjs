@@ -17,11 +17,15 @@ const PM = src('js/props/prop-modal.js');
 const BF = src('js/block-factory.js');
 const IX = src('index.html');
 
-test('G1 형광펜 색 — 모달 렌더(_highlightCss)와 프레임화(HIGHLIGHT_BG)가 같은 값', () => {
-  const a = MB.match(/highlight === '1' \? 'background-color:(#[0-9a-fA-F]{3,8});'/)?.[1];
-  const b = FZ.match(/const HIGHLIGHT_BG = '(#[0-9a-fA-F]{3,8})'/)?.[1];
-  assert.ok(a && b, '두 자리를 못 찾았다 — 이 검사를 고쳐라');
-  assert.equal(b, a);
+/* ★기대 바뀜(rp119 RP-MODAL-HIGHLIGHT-SELECTION-01 · 현빈 승인 261119 · AUDIT R1) — 모달 형광펜이 슬롯 «상자 칠»(_highlightCss #fff2a8)에서
+ *   글자 길이 span.tb-hl(슬롯 HTML)로 바뀌었다 ⇒ «두 자리가 같은 색»이 아니라 «두 자리가 같은 거르개(MODAL_RICH_TEXT_OPTS)로 tb-hl 을 살리고 상자 칠이 0» 을 잰다. */
+test('G1 형광펜 — 모달 렌더·프레임화가 같은 거르개(MODAL_RICH_TEXT_OPTS · tb-hl)를 쓰고, 상자 칠(#fff2a8 · HIGHLIGHT_BG)이 어디에도 없다', () => {
+  assert.match(MB, /export const MODAL_RICH_TEXT_OPTS = Object\.freeze\(\{ classes: Object\.freeze\(\['tb-hl'\]\)/);
+  assert.match(MB, /sanitizeRichTextHtml\(htmlValue, MODAL_RICH_TEXT_OPTS\)/);
+  assert.match(FZ, /sanitizeRichTextHtml\(html, MODAL_RICH_TEXT_OPTS\)/);
+  for (const [n, t] of [['modal-block.js', MB], ['modal-frameify.js', FZ]]) {
+    assert.ok(!/background-color:#fff2a8|HIGHLIGHT_BG =|function _highlightCss/.test(t), `${n} 에 옛 상자 형광펜이 남았다`);
+  }
 });
 
 test('G2 icon-stack 간격 9px — 모달 렌더 상수와 프레임화가 같은 값', () => {

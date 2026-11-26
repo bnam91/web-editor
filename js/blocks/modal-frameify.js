@@ -32,7 +32,7 @@
 
 import { sanitizeRichTextHtml } from '../util/sanitize-rich-text.js';
 import { MODAL_DEFAULTS, MODAL_LIMITS, MODAL_PH, MODAL_SHADOW_CSS, MODAL_VARIANTS,
-         _effDefault, _dropShadow, clampModal, renderModalBlock } from './modal-block.js';
+         _effDefault, _dropShadow, clampModal, renderModalBlock, MODAL_RICH_TEXT_OPTS } from './modal-block.js';
 
 /** 1차에서 프레임화되는 형태 — 세로로 쌓이는 넷(지디 승인 ㉠, 2026-10-04). */
 export const FRAMEIFY_VARIANTS = ['plain', 'titled', 'dashed', 'icon-stack'];
@@ -40,7 +40,6 @@ export const FRAMEIFY_VARIANTS = ['plain', 'titled', 'dashed', 'icon-stack'];
 export const FRAMEIFY_HORIZONTAL_REASON = '가로로 늘어선 모달은 프레임이 세로로만 쌓여서 아직 그대로 옮길 수 없습니다';
 export const FRAMEIFY_TOAST = '프레임으로 바꿨어요 · ⌘Z 로 되돌리기';
 const _MDL_JUSTIFY_V = { top: 'flex-start', center: 'center', bottom: 'flex-end' };
-const HIGHLIGHT_BG = '#fff2a8';   // modal-block.js _highlightCss 와 같은 값 — 단위시험이 두 자리를 대조한다
 
 const _num = (block, key, def) => { const n = parseInt(block.dataset[key]); return Number.isFinite(n) ? n : def; };
 
@@ -78,8 +77,7 @@ function _textStyle(block, root, slotEl, { title = false, pad = null } = {}) {
   if (root.style.textDecoration) ce.textDecoration = root.style.textDecoration;
   const tb = {};
   if (pad) { tb.paddingTop = `${pad.t}px`; tb.paddingBottom = `${pad.t}px`; tb.paddingLeft = `${pad.x}px`; tb.paddingRight = `${pad.x}px`; }
-  // 형광펜 — 모달은 «칸 상자 전체»(패딩 포함)에 칠한다 ⇒ text-block 상자(패딩 포함)에 칠해야 같은 그림이다
-  if (ds.highlight === '1') tb.backgroundColor = HIGHLIGHT_BG;
+  /* 형광펜 — rp119 부터 슬롯 HTML 의 span.tb-hl 이다(글자 길이) ⇒ 아래 _makeTextRow 가 그 HTML 을 그대로 싣는다(텍스트블럭 형광펜과 같은 기전) */
   return { ce, tb };
 }
 
@@ -93,7 +91,7 @@ function _makeTextRow(kind, value, ph, style, html = '') {
     ce.textContent = ph; ce.dataset.placeholder = ph; ce.dataset.isPlaceholder = 'true';
   } else {
     // 332 — 부분 서식(dataset html)이 있으면 그것으로 · 렌더마다 재-sanitize 규약(modal-block _textHtml 과 같다)
-    if (html) ce.innerHTML = sanitizeRichTextHtml(html); else ce.textContent = txt;
+    if (html) ce.innerHTML = sanitizeRichTextHtml(html, MODAL_RICH_TEXT_OPTS); else ce.textContent = txt;   // rp119 — tb-hl·font-size 도 텍스트블럭으로 건넌다
     delete ce.dataset.isPlaceholder;
   }
   tf.appendChild(block);
