@@ -545,7 +545,7 @@ export function showAssetProperties(ab) {
     btn.addEventListener('click', () => { applyAlign(btn.dataset.align); window.pushHistory?.(); });
   });
 
-  wireAppearanceSection({ radius: { numberId: 'asset-r-number', max: assetRadiusMax(ab.offsetWidth, ab.offsetHeight), apply: (v) => { ab.style.borderRadius = v + 'px'; }, commit: () => window.pushHistory?.() },
+  wireAppearanceSection({ radius: { numberId: 'asset-r-number', max: () => assetRadiusMax(ab.offsetWidth, ab.offsetHeight),   /* 179 — 칠 때마다 다시 잼(패널 뒤 크기 바뀌어도 맞는 상한 · dev 69c061e2c 뜻) */ apply: (v) => { ab.style.borderRadius = v + 'px'; }, commit: () => window.pushHistory?.() },
     op: { numberId: 'asset-opacity', apply: (v) => window.setBlockOpacity?.(ab, v), commit: () => { window.pushHistory?.(); window.scheduleAutoSave?.(); } } });   // A4 Opacity — 계약(갈래 E) 없으면 그리기 0   // 표준 Appearance A3 — 슬라이더 걷음 · 상한 = t13F-03 짧은 변 절반(바닥 120) 그대로
 
   // ── B23: 외곽선(border) — 도형 stroke와 동등. 에셋은 div라 border-* 사용(box-sizing:border-box로 레이아웃 시프트 없음) ──
